@@ -8,7 +8,7 @@ setup(
     # metadata for upload to PyPI
     author = "Etienne Duble",
     author_email = "etienne.duble@imag.fr",
-    description = "WalT (Wireless Testbed) control tool.",
+    description = "WalT (Wireless Testbed) server daemon.",
     license = "LGPL",
     keywords = "WalT wireless testbed",
     url = "http://walt.forge.imag.fr/",
