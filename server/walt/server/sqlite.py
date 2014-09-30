@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from plumbum.cmd import sqlite3 as sqlite3_sh
-from walt.server.tools import eval_cmd
+from walt.common.tools import eval_cmd
 import sqlite3
 
 QUOTE="'"

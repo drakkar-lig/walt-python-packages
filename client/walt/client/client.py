@@ -4,6 +4,7 @@ WalT (wireless testbed) control tool.
 """
 import rpyc
 from plumbum import cli
+from walt.common.constants import WALT_SERVER_DAEMON_PORT
 
 SERVER="localhost"
 WALT_VERSION = "0.1"
@@ -20,7 +21,7 @@ class WalTPlatform(cli.Application):
 class WalTPlatformPrint(cli.Application):
     """print a view of the devices involved in the platform"""
     def main(self):
-        conn = rpyc.connect(SERVER, 12345)
+        conn = rpyc.connect(SERVER, WALT_SERVER_DAEMON_PORT)
         platform_manager = conn.root
         print platform_manager.describe()
 
@@ -28,9 +29,22 @@ class WalTPlatformPrint(cli.Application):
 class WalTPlatformRescan(cli.Application):
     """rescan the network devices involved in the platform"""
     def main(self):
-        conn = rpyc.connect(SERVER, 12345)
+        conn = rpyc.connect(SERVER, WALT_SERVER_DAEMON_PORT)
         platform_manager = conn.root
         platform_manager.update()
+        print 'done.'
+
+@WalT.subcommand("node")
+class WalTNode(cli.Application):
+    """node management sub-commands"""
+
+@WalTNode.subcommand("blink")
+class WalTNodeBlink(cli.Application):
+    """make a node blink for a given number of seconds"""
+    def main(self, ip_address, duration=60):
+        conn = rpyc.connect(SERVER, WALT_SERVER_DAEMON_PORT)
+        platform_manager = conn.root
+        platform_manager.blink(ip_address, int(duration))
         print 'done.'
 
 @WalT.subcommand("traces")
