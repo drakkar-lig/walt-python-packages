@@ -21,9 +21,11 @@ class MemoryDB():
 
     def __init__(self):
         self.c = sqlite3.connect(":memory:")
+        # allow name-based access to columns
+        self.c.row_factory = sqlite3.Row
 
     def execute(self, query):
-        self.c.execute(query)
+        return self.c.execute(query)
 
     # allow statements like:
     # mem_db.try_insert("network", ip=ip, switch_ip=swip)
@@ -49,6 +51,15 @@ class MemoryDB():
             return True
         except sqlite3.IntegrityError:
             return False
+
+    # allow statements like:
+    # mem_db.select("network", ip=ip)
+    def select(self, table, **kwargs):
+        return self.c.execute("""SELECT * FROM %s WHERE %s;""" % (
+                    table,
+                    ' AND '.join(
+                            "%s=%s" % (col_name, quoted(kwargs[col_name]))
+                                for col_name in kwargs))).fetchall()
 
     def table_dump(self, table):
         # it seems there is no pretty printing available from the python module
