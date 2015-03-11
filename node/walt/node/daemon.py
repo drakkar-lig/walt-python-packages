@@ -13,14 +13,18 @@ WALT_NODE_NETWORK_INTERFACE = "eth0"
 
 class WalTNodeService(rpyc.Service):
     ALIASES=("WalT_Node_Service",)
-    def __init__(self, *args, **kwargs):
-        rpyc.Service.__init__(self, *args, **kwargs)
+    def on_connect(self):
+        self._client = self._conn.root
+
+    def on_disconnect(self):
+        self._client = None
 
     def exposed_blink(self, duration):
         WalTNodeService.NodeClass.blink(True)
+        self._client.write_stdout('blinking for %ds... ' % duration)
         time.sleep(duration)
         WalTNodeService.NodeClass.blink(False)
-
+        self._client.write_stdout('done.\n')
 
 class WalTNodeDaemon(WalTDaemon):
     """WalT (wireless testbed) node daemon."""
