@@ -41,7 +41,7 @@ class WalT(cli.Application):
 class WalTPlatform(cli.Application):
     """platform-management sub-commands"""
 
-@WalTPlatform.subcommand("print")
+@WalTPlatform.subcommand("show")
 class WalTPlatformPrint(cli.Application):
     """print a view of the devices involved in the platform"""
     def main(self):
