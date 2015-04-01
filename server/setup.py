@@ -3,7 +3,7 @@ setup(
     name = "walt-server",
     version = "0.1",
     packages = find_packages(),
-    install_requires = ['rpyc>=3.3','plumbum>=1.4.2','walt-common'],
+    install_requires = ['rpyc>=3.3','plumbum>=1.4.2','walt-common','ipaddress>=1.0.7'],
 
     # metadata for upload to PyPI
     author = "Etienne Duble",

@@ -17,7 +17,7 @@ import sys, rpyc, time
 #########################################
 
 # TODO: get the following from the platform configuration
-SERVER_TESTBED_INTERFACE="eth1"
+SERVER_TESTBED_INTERFACE="eth0"
 OID_lldpRemChassisIdSubtype="1.0.8802.1.1.2.1.4.1.1.4"
 OID_lldpRemChassisId="1.0.8802.1.1.2.1.4.1.1.5"
 OID_lldpRemManAddrIfSubtype="1.0.8802.1.1.2.1.4.2.1.3"
