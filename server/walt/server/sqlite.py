@@ -38,7 +38,7 @@ class MemoryDB():
 
         # affect NULL to unspecified fields
         for col_name in col_names:
-            if col_name not in kwargs:
+            if col_name not in kwargs or kwargs[col_name] == None:
                 kwargs[col_name] = 'NULL'
 
         # insert and return True or return False
