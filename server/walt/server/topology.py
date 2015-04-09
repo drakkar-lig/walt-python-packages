@@ -162,7 +162,7 @@ class PoEPlatform(object):
             requester.write_stderr(err_message % device_name)
         return device_info
 
-    def get_node_info(self, requester, node_name):
+    def get_reachable_node_info(self, requester, node_name, after_rescan = False):
         node_info = self.get_device_info(requester, node_name)
         if node_info == None:
             return None # error already reported
@@ -171,16 +171,27 @@ class PoEPlatform(object):
             requester.write_stderr('%s is not a node, it is a %s.\n' % \
                                     (node_name, device_type))
             return None
+        if node_info['reachable'] == 0:
+            if after_rescan:
+                requester.write_stderr(
+                        'Connot reach %s. The node seems dead or disconnected.\n' % \
+                                    node_name)
+                return None
+            else:
+                # rescan, just in case, and retry
+                self.update()   # rescan, just in case
+                return self.get_reachable_node_info(
+                        requester, node_name, after_rescan = True)
         return node_info
 
-    def get_node_ip(self, requester, node_name):
-        node_info = self.get_node_info(requester, node_name)
+    def get_reachable_node_ip(self, requester, node_name):
+        node_info = self.get_reachable_node_info(requester, node_name)
         if node_info == None:
             return None # error already reported
         return node_info['ip']
 
     def reboot_node(self, requester, node_name):
-        node_info = self.get_node_info(requester, node_name)
+        node_info = self.get_reachable_node_info(requester, node_name)
         if node_info == None:
             return None # error already reported
         # all is fine, let's reboot it
