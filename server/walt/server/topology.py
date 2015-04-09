@@ -184,9 +184,13 @@ class PoEPlatform(object):
         if node_info == None:
             return None # error already reported
         # all is fine, let's reboot it
-        topology_info = self.db.select_unique("topology", mac=node_info['mac'])
-        proxy = snmp.Proxy(topology_info['switch_ip'], poe=True)
-        self.poe_reboot_port(proxy, topology_info['switch_port'])
+        node_mac = node_info['mac']
+        topology_info = self.db.select_unique("topology", mac=node_mac)
+        switch_mac = topology_info['switch_mac']
+        switch_port = topology_info['switch_port']
+        switch_info = self.db.select_unique("devices", mac=switch_mac)
+        proxy = snmp.Proxy(switch_info['ip'], poe=True)
+        self.poe_reboot_port(proxy, switch_port)
         requester.write_stdout('done.\n')
 
     def rename_device(self, requester, old_name, new_name):
