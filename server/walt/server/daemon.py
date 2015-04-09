@@ -64,15 +64,22 @@ class PlatformService(rpyc.Service):
     def exposed_update(self):
         PlatformService.platform.update(self._client)
 
-    def exposed_describe(self):
-        return PlatformService.platform.describe()
+    def exposed_describe(self, details=False):
+        return PlatformService.platform.describe(details)
 
-    def exposed_blink(self, node_ip, duration):
+    def exposed_blink(self, node_name, duration):
+        node_ip = PlatformService.platform.get_node_ip(
+                        self._client, node_name)
+        if node_ip == None:
+            return # error was already reported
         with ServerToNodeLink(node_ip, self._client) as node_service:
             node_service.blink(duration)
 
-    def exposed_reboot(self, ip_address):
-        PlatformService.platform.reboot_node(self._client, ip_address)
+    def exposed_reboot(self, node_name):
+        PlatformService.platform.reboot_node(self._client, node_name)
+
+    def exposed_rename(self, old_name, new_name):
+        PlatformService.platform.rename_device(self._client, old_name, new_name)
 
 class WalTServerDaemon(WalTDaemon):
     """WalT (wireless testbed) server daemon."""

@@ -44,9 +44,13 @@ class WalTPlatform(cli.Application):
 @WalTPlatform.subcommand("show")
 class WalTPlatformPrint(cli.Application):
     """print a view of the devices involved in the platform"""
+    _details = False # default
     def main(self):
         with ClientToServerLink() as server:
-            print server.describe()
+            print server.describe(self._details)
+    @cli.autoswitch()
+    def details(self):
+        self._details = True
 
 @WalTPlatform.subcommand("rescan")
 class WalTPlatformRescan(cli.Application):
@@ -55,6 +59,13 @@ class WalTPlatformRescan(cli.Application):
         with ClientToServerLink() as server:
             server.update()
 
+@WalTPlatform.subcommand("rename-device")
+class WalTRenameDevice(cli.Application):
+    """rename a device"""
+    def main(self, old_name, new_name):
+        with ClientToServerLink() as server:
+            server.rename(old_name, new_name)
+
 @WalT.subcommand("node")
 class WalTNode(cli.Application):
     """node management sub-commands"""
@@ -62,16 +73,16 @@ class WalTNode(cli.Application):
 @WalTNode.subcommand("blink")
 class WalTNodeBlink(cli.Application):
     """make a node blink for a given number of seconds"""
-    def main(self, ip_address, duration=60):
+    def main(self, node_name, duration=60):
         with ClientToServerLink() as server:
-            server.blink(ip_address, int(duration))
+            server.blink(node_name, int(duration))
 
 @WalTNode.subcommand("reboot")
 class WalTNodeReboot(cli.Application):
     """reboot a node"""
-    def main(self, ip_address):
+    def main(self, node_name):
         with ClientToServerLink() as server:
-            server.reboot(ip_address)
+            server.reboot(node_name)
 
 @WalT.subcommand("traces")
 class WalTTraces(cli.Application):

@@ -2,75 +2,147 @@
 
 from plumbum.cmd import sqlite3 as sqlite3_sh
 from walt.common.tools import eval_cmd
-import sqlite3
+import sqlite3, os
 
 QUOTE="'"
 SQLITE_FORMATTING="""
 .mode column
 .headers on
-.width 6 17 15 15 11
+.width %s
 """
 
 def quoted(string):
-    if string == 'NULL':
-        return string
+    s = str(string)
+    if s == 'NULL':
+        return s
     else:
-        return QUOTE + string + QUOTE
+        return QUOTE + s + QUOTE
 
-class MemoryDB():
+class SQLiteDB():
 
-    def __init__(self):
-        self.c = sqlite3.connect(":memory:")
+    def __init__(self, path=None):
+        self.c = sqlite3.connect(':memory:')
         # allow name-based access to columns
         self.c.row_factory = sqlite3.Row
+        self.path = path
+        # load the db dump
+        if path != None and os.path.isfile(path):
+            with open(path, 'r') as file_dump:
+                self.c.executescript(file_dump.read())
+                self.c.commit()
+
+    def __del__(self):
+        self.c.close()
+
+    def commit(self):
+        self.c.commit()
+        if self.path != None:
+            with open(self.path, 'w') as file_dump:
+                file_dump.write(self.dump())
 
     def execute(self, query):
         return self.c.execute(query)
 
-    # allow statements like:
-    # mem_db.try_insert("network", ip=ip, switch_ip=swip)
-    # if a field of the network table is not specified, it
-    # will receive the NULL value.
-    def try_insert(self, table, **kwargs):
+    # from a dictionary of the form <col_name> -> <value>
+    # we want to filter-out keys that are not column names,
+    # format the value for usage in an SQL statement,
+    # and return (<col_name>, <value>) tuples.
+    def get_tuples(self, table, dictionary):
         # retrieve fields names for this table 
         table_desc = self.c.execute("PRAGMA table_info(%s)" % table)
-        col_names = [ col_desc[1] for col_desc in table_desc ]
+        col_names = set([ col_desc[1] for col_desc in table_desc ])
 
-        # affect NULL to unspecified fields
-        for col_name in col_names:
-            if col_name not in kwargs or kwargs[col_name] == None:
-                kwargs[col_name] = 'NULL'
+        res = {}
+        for k in dictionary:
+            # filter-out keys of dictionary that are not 
+            # a column name
+            if k not in col_names:
+                continue
 
+            # format the value appropriately for an SQL
+            # statement
+            value = dictionary[k]
+            if value == None:
+                value = 'NULL'
+            else:
+                value = quoted(value)
+
+            # store in the result dict
+            res[k] = value
+        # we prefer a list of (k,v) items instead of
+        # a dictionary, because in an insert query,
+        # we need a list of keys and a list of values 
+        # with the same ordering.
+        return res.items()
+
+    # allow statements like:
+    # db.insert("network", ip=ip, switch_ip=swip)
+    def insert(self, table, **kwargs):
         # insert and return True or return False
+        tuples = self.get_tuples(table, kwargs)
         try:
             self.c.execute("""INSERT INTO %s(%s)
                 VALUES (%s);""" % (
                     table,
-                    ','.join(col_names),
-                    ','.join(quoted(str(kwargs[col_name])) for col_name in col_names)))
+                    ','.join(t[0] for t in tuples),
+                    ','.join(t[1] for t in tuples)))
             return True
         except sqlite3.IntegrityError:
             return False
 
     # allow statements like:
+    # db.update("topology", "mac", switch_mac=swmac, switch_port=swport)
+    def update(self, table, primary_key_name, **kwargs):
+        tuples = self.get_tuples(table, kwargs)
+        num_modified = len(self.c.execute("""
+                UPDATE %s 
+                SET %s
+                WHERE %s = %s;""" % (
+                    table,
+                    ','.join("%s = %s" % t for t in tuples),
+                    primary_key_name,
+                    quoted(kwargs[primary_key_name]))).fetchall())
+        return num_modified
+
+    # allow statements like:
     # mem_db.select("network", ip=ip)
     def select(self, table, **kwargs):
-        return self.c.execute("""SELECT * FROM %s WHERE %s;""" % (
-                    table,
-                    ' AND '.join(
-                            "%s=%s" % (col_name, quoted(kwargs[col_name]))
-                                for col_name in kwargs))).fetchall()
+        constraints = [ "%s=%s" % t for t in \
+                self.get_tuples(table, kwargs) ]
+        if len(constraints) > 0:
+            where_clause = "WHERE %s" % (
+                ' AND '.join(constraints));
+        else:
+            where_clause = ""
+        return self.c.execute("SELECT * FROM %s %s;" % (
+                    table, where_clause)).fetchall()
 
-    def table_dump(self, table):
+    # same as above but expect only one matching record
+    # and return it.
+    def select_unique(self, table, **kwargs):
+        record_list = self.select(table, **kwargs)
+        if len(record_list) == 0:
+            return None
+        else:
+            return record_list[0]
+
+    def pretty_printed_table(self, table):
+        return self.pretty_printed_select("select * from %s;" % table)
+
+    def dump(self):
+        return "\n".join(self.c.iterdump())
+
+    def pretty_printed_select(self, select_query, widths):
         # it seems there is no pretty printing available from the python module
         # so we use the sqlite3 shell command.
         # Its input will be:
         # - the formatting parameters
         # - a dump of the database 
-        # - a select query to print the table contents
-        db_dump = "\n".join(self.c.iterdump())
-        query = "select * from %s;" % table
+        # - a select query
         result = eval_cmd(sqlite3_sh <<
-                "%s\n%s\n%s" % (SQLITE_FORMATTING, db_dump, query))
+                "%s\n%s\n%s" % (
+                    SQLITE_FORMATTING % " ".join(str(w) for w in widths),
+                    self.dump(),
+                    select_query))
         return result
 
