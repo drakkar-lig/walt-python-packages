@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 from base import load_mib, unload_mib, get_loaded_mibs, \
                     unload_any_of_these_mibs
-import time, sys
 
 POE_PORT_ENABLED=1
 POE_PORT_DISABLED=2

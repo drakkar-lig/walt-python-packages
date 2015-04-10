@@ -4,7 +4,7 @@ from walt.common.tools import get_mac_address
 from walt.server.sqlite import SQLiteDB
 from walt.common.nodetypes import get_node_type_from_mac_address
 from walt.common.nodetypes import is_a_node_type_name
-import snmp
+import snmp, time
 from tree import Tree
 
 # TODO: get the following from the platform configuration
@@ -201,7 +201,7 @@ class PoEPlatform(object):
         switch_port = topology_info['switch_port']
         switch_info = self.db.select_unique("devices", mac=switch_mac)
         proxy = snmp.Proxy(switch_info['ip'], poe=True)
-        self.poe_reboot_port(proxy, switch_port)
+        self.poe_reboot_port(proxy.poe, switch_port)
         requester.write_stdout('done.\n')
 
     def rename_device(self, requester, old_name, new_name):
@@ -216,7 +216,7 @@ class PoEPlatform(object):
         self.db.commit()
 
     def poe_reboot_port(self, poe_proxy, switch_port):
-        proxy.set_port(switch_port, False)
+        poe_proxy.set_port(switch_port, False)
         time.sleep(POE_REBOOT_DELAY)
-        proxy.set_port(switch_port, True)
+        poe_proxy.set_port(switch_port, True)
 
