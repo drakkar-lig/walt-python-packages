@@ -46,20 +46,24 @@ class WalTDaemon(cli.Application):
         else:
             logging.basicConfig(level=numeric_level)
 
-    def main(self):
-        sys.stdout.write("Initializing... ")
+    def info_message(self, msg):
+        sys.stdout.write(msg)
         sys.stdout.flush()
+
+    def main(self):
+        self.info_message("Initializing... ")
         self.set_log_level()
         service_cl, port = self.getRPyCServiceClassAndPort()
         self.init()
         server = SimpleRPyCServer(service_cl, port = port)
-        print("Done.")  # end of initialization
+        self.info_message("Done.\n")  # end of initialization
         try:
             server.start()
         except KeyboardInterrupt:
-            print 'Interrupted.'
+            self.info_message('Interrupted.\n')
+            server.close()
 
     # overwrite in subclass if needed
     def init(self):
-        pass 
+        pass
 
