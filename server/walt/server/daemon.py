@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 
 import rpyc, sys
+import walt.server as server
+from walt.server.tools import AutoCleaner
 from walt.common.daemon import WalTDaemon
-from walt.server.topology import PoEPlatform
 from walt.common.constants import           \
                  WALT_SERVER_DAEMON_PORT,   \
                  WALT_NODE_DAEMON_PORT
@@ -55,20 +56,25 @@ class ServerToNodeLink:
 
 class PlatformService(rpyc.Service):
     ALIASES=("WalT_Platform",)
+
+    def __init__(self, *args, **kwargs):
+        rpyc.Service.__init__(self, *args, **kwargs)
+        self.platform = server.instance.platform
+
     def on_connect(self):
         self._client = self._conn.root
-    
+
     def on_disconnect(self):
         self._client = None
-    
+
     def exposed_update(self):
-        PlatformService.platform.update(self._client)
+        self.platform.update(self._client)
 
     def exposed_describe(self, details=False):
-        return PlatformService.platform.describe(details)
+        return self.platform.describe(details)
 
     def exposed_blink(self, node_name, duration):
-        node_ip = PlatformService.platform.get_reachable_node_ip(
+        node_ip = self.platform.get_reachable_node_ip(
                         self._client, node_name)
         if node_ip == None:
             return # error was already reported
@@ -76,10 +82,10 @@ class PlatformService(rpyc.Service):
             node_service.blink(duration)
 
     def exposed_reboot(self, node_name):
-        PlatformService.platform.reboot_node(self._client, node_name)
+        self.platform.reboot_node(self._client, node_name)
 
     def exposed_rename(self, old_name, new_name):
-        PlatformService.platform.rename_device(self._client, old_name, new_name)
+        self.platform.rename_device(self._client, old_name, new_name)
 
 class WalTServerDaemon(WalTDaemon):
     """WalT (wireless testbed) server daemon."""
@@ -88,11 +94,9 @@ class WalTServerDaemon(WalTDaemon):
     def getRPyCServiceClassAndPort(self):
         return (PlatformService, WALT_SERVER_DAEMON_PORT)
 
-    def init(self):
-        PlatformService.platform = PoEPlatform()
-
 def run():
-    WalTServerDaemon.run()
+    with AutoCleaner(server.Server) as server.instance:
+        WalTServerDaemon.run()
 
 if __name__ == "__main__":
     run()

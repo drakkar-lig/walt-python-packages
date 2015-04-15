@@ -1,15 +1,11 @@
 #!/usr/bin/env python
 
 from walt.common.tools import get_mac_address
-from walt.server.sqlite import SQLiteDB
 from walt.common.nodetypes import get_node_type_from_mac_address
 from walt.common.nodetypes import is_a_node_type_name
-import snmp, time
+import snmp, const
 from tree import Tree
 
-# TODO: get the following from the platform configuration
-SERVER_TESTBED_INTERFACE="eth0"
-POE_REBOOT_DELAY=2  # seconds
 DEVICE_NAME_NOT_FOUND="""No device with name '%s' found.\n"""
 
 TOPOLOGY_QUERY = """
@@ -26,81 +22,10 @@ TOPOLOGY_QUERY = """
     WHERE   d1.mac = t.mac and t.switch_mac is null;"""
 TOPOLOGY_QUERY_COLWIDTHS = [13,6,17,15,9,13,11]
 
-class ServerDB(SQLiteDB):
+class Topology(object):
 
-    def __init__(self):
-        # parent constructor
-        SQLiteDB.__init__(self, '/var/lib/walt/server.db')
-        # create the db schema
-        self.execute("""CREATE TABLE IF NOT EXISTS devices (
-                    mac TEXT PRIMARY KEY, 
-                    ip TEXT, 
-                    name TEXT, 
-                    reachable INTEGER, 
-                    type TEXT);""")
-        self.execute("""CREATE TABLE IF NOT EXISTS topology (
-                    mac TEXT PRIMARY KEY, 
-                    switch_mac TEXT,
-                    switch_port INTEGER,
-                    FOREIGN KEY(mac) REFERENCES devices(mac), 
-                    FOREIGN KEY(switch_mac) REFERENCES devices(mac));""")
-
-    def show(self, details = False):
-        if details:
-            return self.printed_as_detailed_table()
-        else:
-            return self.printed_as_tree()
-
-    def generate_device_name(self, **kwargs):
-        if kwargs['type'] == 'server':
-            return 'walt-server'
-        return "%s_%s" %(
-            kwargs['type'],
-            "".join(kwargs['mac'].split(':')[3:]))
-
-    def add_device_and_topology(self, **kwargs):
-        # if we are there then we can reach this device
-        kwargs['reachable'] = 1
-        # update device info
-        num_rows = self.update("devices", 'mac', **kwargs)
-        # if no row was updated, this is a new device
-        if num_rows == 0:
-            # generate a name for this device
-            name = self.generate_device_name(**kwargs)
-            kwargs['name'] = name
-            # insert a new row
-            self.insert("devices", **kwargs)
-        # add topology info
-        self.insert("topology", **kwargs)
-
-    def printed_as_tree(self):
-        t = Tree()
-        for device in self.execute(TOPOLOGY_QUERY).fetchall():
-            name = device['name']
-            swport = device['switch_port']
-            if swport == None:
-                label = name
-                # align to 2nd letter of the name
-                subtree_offset = 1
-            else:
-                label = '%d: %s' % (swport, name)
-                # align to 2nd letter of the name
-                subtree_offset = label.find(' ') + 2
-            parent_key = device['switch_name']
-            t.add_node( name,   # will be the key in the tree
-                        label,
-                        subtree_offset=subtree_offset,
-                        parent_key = parent_key)
-        return t.printed()
-
-    def printed_as_detailed_table(self):
-        return self.pretty_printed_select(
-            TOPOLOGY_QUERY,
-            TOPOLOGY_QUERY_COLWIDTHS)
-
-class PoEPlatform(object):
-
-    def __init__(self):
+    def __init__(self, db):
+        self.db = db
         self.update()
 
     def get_type(self, mac):
@@ -126,8 +51,7 @@ class PoEPlatform(object):
                 switch_mac, switch_port = host_mac, port
             else:
                 switch_mac, switch_port = None, None
-            self.db.add_device_and_topology(
-                            type=device_type,
+            self.add_device(type=device_type,
                             mac=mac,
                             switch_mac=switch_mac,
                             switch_port=switch_port,
@@ -137,23 +61,18 @@ class PoEPlatform(object):
                 self.collect_connected_devices(ip, True, mac)
 
     def update(self, requester=None):
-        # Let's go
-        self.db = ServerDB()
         # delete some information that will be updated
         self.db.execute('DELETE FROM topology;')
         self.db.execute("""
             UPDATE devices 
             SET ip = NULL, reachable = 0;""")
 
-        self.server_mac = get_mac_address(SERVER_TESTBED_INTERFACE)
+        self.server_mac = get_mac_address(const.SERVER_TESTBED_INTERFACE)
         self.collect_connected_devices("localhost", False, self.server_mac)
         self.db.commit()
 
         if requester != None:
             requester.write_stdout('done.\n')
-
-    def describe(self, details=False):
-        return self.db.show(details)
 
     def get_device_info(self, requester, device_name, \
                         err_message = DEVICE_NAME_NOT_FOUND):
@@ -190,19 +109,19 @@ class PoEPlatform(object):
             return None # error already reported
         return node_info['ip']
 
-    def reboot_node(self, requester, node_name):
-        node_info = self.get_reachable_node_info(requester, node_name)
+    def get_connectivity_info(self, requester, node_name):
+        node_info = self.topology.get_reachable_node_info(requester, node_name)
         if node_info == None:
             return None # error already reported
-        # all is fine, let's reboot it
         node_mac = node_info['mac']
         topology_info = self.db.select_unique("topology", mac=node_mac)
         switch_mac = topology_info['switch_mac']
         switch_port = topology_info['switch_port']
         switch_info = self.db.select_unique("devices", mac=switch_mac)
-        proxy = snmp.Proxy(switch_info['ip'], poe=True)
-        self.poe_reboot_port(proxy.poe, switch_port)
-        requester.write_stdout('done.\n')
+        return dict(
+            switch_ip = switch_info['ip'],
+            switch_port = switch_port
+        )
 
     def rename_device(self, requester, old_name, new_name):
         device_info = self.get_device_info(requester, old_name)
@@ -215,8 +134,53 @@ class PoEPlatform(object):
         self.db.update("devices", 'mac', mac = device_info['mac'], name = new_name)
         self.db.commit()
 
-    def poe_reboot_port(self, poe_proxy, switch_port):
-        poe_proxy.set_port(switch_port, False)
-        time.sleep(POE_REBOOT_DELAY)
-        poe_proxy.set_port(switch_port, True)
+    def generate_device_name(self, **kwargs):
+        if kwargs['type'] == 'server':
+            return 'walt-server'
+        return "%s_%s" %(
+            kwargs['type'],
+            "".join(kwargs['mac'].split(':')[3:]))
+
+    def add_device(self, **kwargs):
+        # if we are there then we can reach this device
+        kwargs['reachable'] = 1
+        # update device info
+        num_rows = self.db.update("devices", 'mac', **kwargs)
+        # if no row was updated, this is a new device
+        if num_rows == 0:
+            # generate a name for this device
+            name = self.generate_device_name(**kwargs)
+            kwargs['name'] = name
+            # insert a new row
+            self.db.insert("devices", **kwargs)
+            # add node info if relevant
+            if is_a_node_type_name(kwargs['type']):
+                self.db.insert("nodes", image='default', **kwargs)
+        # add topology info
+        self.db.insert("topology", **kwargs)
+
+    def printed_as_tree(self):
+        t = Tree()
+        for device in self.db.execute(TOPOLOGY_QUERY).fetchall():
+            name = device['name']
+            swport = device['switch_port']
+            if swport == None:
+                label = name
+                # align to 2nd letter of the name
+                subtree_offset = 1
+            else:
+                label = '%d: %s' % (swport, name)
+                # align to 2nd letter of the name
+                subtree_offset = label.find(' ') + 2
+            parent_key = device['switch_name']
+            t.add_node( name,   # will be the key in the tree
+                        label,
+                        subtree_offset=subtree_offset,
+                        parent_key = parent_key)
+        return t.printed()
+
+    def printed_as_detailed_table(self):
+        return self.db.pretty_printed_select(
+            TOPOLOGY_QUERY,
+            TOPOLOGY_QUERY_COLWIDTHS)
 
