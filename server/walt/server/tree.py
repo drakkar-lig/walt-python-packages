@@ -16,12 +16,11 @@ class Tree(object):
         self.up_to_date = False
         self.root = None
     def add_node(self, key, label, subtree_offset=0, parent_key = None):
-        self.nodes[key] = {
-            'key': key,
-            'label': label,
-            'subtree_offset': subtree_offset,
-            'parent_key': parent_key
-        }
+        self.nodes[key] = dict(
+            key=key,
+            label=label,
+            subtree_offset=subtree_offset,
+            parent_key=parent_key)
         if parent_key == None:
             self.root = self.nodes[key]
         self.up_to_date = False
