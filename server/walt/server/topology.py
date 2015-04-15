@@ -20,7 +20,6 @@ TOPOLOGY_QUERY = """
             NULL as switch_name, NULL as switch_port 
     FROM devices d1, topology t 
     WHERE   d1.mac = t.mac and t.switch_mac is null;"""
-TOPOLOGY_QUERY_COLWIDTHS = [13,6,17,15,9,13,11]
 
 class Topology(object):
 
@@ -181,6 +180,5 @@ class Topology(object):
 
     def printed_as_detailed_table(self):
         return self.db.pretty_printed_select(
-            TOPOLOGY_QUERY,
-            TOPOLOGY_QUERY_COLWIDTHS)
+                    TOPOLOGY_QUERY)
 

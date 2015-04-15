@@ -1,15 +1,9 @@
 #!/usr/bin/env python
 
-from plumbum.cmd import sqlite3 as sqlite3_sh
-from walt.common.tools import eval_cmd
+from walt.server.tools import columnate
 import sqlite3, os
 
 QUOTE="'"
-SQLITE_FORMATTING="""
-.mode column
-.headers on
-.width %s
-"""
 
 def quoted(string):
     s = str(string)
@@ -132,17 +126,9 @@ class SQLiteDB():
     def dump(self):
         return "\n".join(self.c.iterdump())
 
-    def pretty_printed_select(self, select_query, widths):
-        # it seems there is no pretty printing available from the python module
-        # so we use the sqlite3 shell command.
-        # Its input will be:
-        # - the formatting parameters
-        # - a dump of the database 
-        # - a select query
-        result = eval_cmd(sqlite3_sh <<
-                "%s\n%s\n%s" % (
-                    SQLITE_FORMATTING % " ".join(str(w) for w in widths),
-                    self.dump(),
-                    select_query))
-        return result
+    def pretty_printed_select(self, select_query):
+        # it seems there is no pretty printing available from the 
+        # sqlite3 python module itself
+        res = self.execute(select_query).fetchall()
+        return columnate(res, header=res[0].keys())
 
