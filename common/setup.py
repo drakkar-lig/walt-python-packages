@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 setup(
     name = "walt-common",
-    version = "0.1",
+    version = "0.3",
     packages = find_packages(),
     install_requires = ['rpyc>=3.3','plumbum>=1.4.2'],
 
