@@ -6,6 +6,10 @@ import os, sys
 DUMMY_CMD = 'tail -f /dev/null'
 IMAGE_IS_USED_BUT_NOT_FOUND=\
     "WARNING: image %s is not found. Cannot attach it to related nodes."
+IMAGE_MOUNT_PATH='/var/lib/walt/images/%s/fs'
+
+def get_mount_path(image_name):
+    return IMAGE_MOUNT_PATH % image_name
 
 class NodeImage(object):
     REMOTE = 0
@@ -30,7 +34,7 @@ class NodeImage(object):
         self.state = NodeImage.LOCAL
     def mount(self):
         print 'Mounting %s...' % self.name,
-        self.mount_path = '/var/lib/walt/images/%s/fs' % self.name
+        self.mount_path = get_mount_path(self.name)
         if not os.path.exists(self.mount_path):
             os.makedirs(self.mount_path)
         if self.state == NodeImage.REMOTE:

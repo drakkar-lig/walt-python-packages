@@ -64,7 +64,7 @@ class Topology(object):
         self.db.execute('DELETE FROM topology;')
         self.db.execute("""
             UPDATE devices 
-            SET ip = NULL, reachable = 0;""")
+            SET reachable = 0;""")
 
         self.server_mac = get_mac_address(const.SERVER_TESTBED_INTERFACE)
         self.collect_connected_devices("localhost", False, self.server_mac)
@@ -154,7 +154,7 @@ class Topology(object):
             self.db.insert("devices", **kwargs)
             # add node info if relevant
             if is_a_node_type_name(kwargs['type']):
-                self.db.insert("nodes", image='default', **kwargs)
+                self.db.insert("nodes", image=const.DEFAULT_IMAGE, **kwargs)
         # add topology info
         self.db.insert("topology", **kwargs)
 
