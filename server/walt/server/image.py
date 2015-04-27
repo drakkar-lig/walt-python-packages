@@ -1,12 +1,15 @@
 from docker import Client
 from plumbum.cmd import mount, umount, findmnt
 from network import nfs
+from walt.server.tools import \
+        failsafe_makedirs, failsafe_symlink
 import os, sys
 
 DUMMY_CMD = 'tail -f /dev/null'
 IMAGE_IS_USED_BUT_NOT_FOUND=\
     "WARNING: image %s is not found. Cannot attach it to related nodes."
 IMAGE_MOUNT_PATH='/var/lib/walt/images/%s/fs'
+CONFIG_ITEM_DEFAULT_IMAGE='default_image'
 
 def get_mount_path(image_name):
     return IMAGE_MOUNT_PATH % image_name
@@ -35,8 +38,7 @@ class NodeImage(object):
     def mount(self):
         print 'Mounting %s...' % self.name,
         self.mount_path = get_mount_path(self.name)
-        if not os.path.exists(self.mount_path):
-            os.makedirs(self.mount_path)
+        failsafe_makedirs(self.mount_path)
         if self.state == NodeImage.REMOTE:
             self.download()
         self.cid = self.c.create_container(             \
@@ -74,6 +76,7 @@ class NodeImageRepository(object):
             name: NodeImage(self.c, name, NodeImage.LOCAL) \
                 for name in local_images }
         self.add_remote_images()
+        self.update_default_link()
     def add_remote_images(self):
         current_names = set(self.images.keys())
         remote_names = set([ result['name'] \
@@ -114,9 +117,19 @@ class NodeImageRepository(object):
             if img.mounted:
                 img.unmount()
     def get_images_in_use(self):
-        return [ item['image'] for item in \
-            self.db.execute("SELECT DISTINCT image FROM nodes;").fetchall() ]
-
-
-
+        res = set([ item['image'] for item in \
+            self.db.execute("""
+                SELECT DISTINCT image FROM nodes""").fetchall()])
+        res.add(self.db.get_config(CONFIG_ITEM_DEFAULT_IMAGE))
+        print res
+        sys.stdout.flush()
+        return res
+    def update_default_link(self):
+        first_image = self.images.keys()[0]
+        default_image = self.db.get_config(
+                CONFIG_ITEM_DEFAULT_IMAGE, first_image)
+        default_mount_path = get_mount_path(default_image)
+        default_simlink = get_mount_path('default')
+        failsafe_makedirs(default_mount_path)
+        failsafe_symlink(default_mount_path, default_simlink)
 

@@ -24,4 +24,19 @@ class ServerDB(SQLiteDB):
                     mac TEXT PRIMARY KEY, 
                     image TEXT,
                     FOREIGN KEY(mac) REFERENCES devices(mac));""")
+        self.execute("""CREATE TABLE IF NOT EXISTS config (
+                    item TEXT PRIMARY KEY, 
+                    value TEXT);""")
+
+    def get_config(self, item, default = None):
+        res = self.select_unique("config", item=item)
+        if res == None:
+            if default == None:
+                raise RuntimeError(\
+                    "Failed get_config(): item not found and no default provided.")
+            self.insert("config", item=item, value=default)
+            self.commit()
+            return default
+        else:
+            return res['value']
 
