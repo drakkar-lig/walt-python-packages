@@ -74,7 +74,7 @@ class PlatformService(rpyc.Service):
         return self.platform.describe(details)
 
     def exposed_blink(self, node_name, duration):
-        node_ip = self.platform.get_reachable_node_ip(
+        node_ip = self.platform.topology.get_reachable_node_ip(
                         self._client, node_name)
         if node_ip == None:
             return # error was already reported
