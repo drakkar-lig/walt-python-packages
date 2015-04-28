@@ -120,15 +120,18 @@ class DHCPServer(object):
         for item in \
                 self.db.execute(QUERY_DEVICES_WITH_IP):
             device_type = item['type']
+            device_mac = item['mac']
             fs_path = None  # default
             if is_a_node_type_name(device_type):
-                fs_path = image.get_mount_path(item['image'])
+                image_name = self.db.select_unique(
+                            'nodes', mac=device_mac)['image']
+                fs_path = image.get_mount_path(image_name)
             if device_type != 'server':
                 devices.append(dict(
                     type=item['type'],
                     hostname=item['name'],
                     ip=item['ip'],
-                    mac=item['mac'],
+                    mac=device_mac,
                     fs_path=fs_path))
         conf = generate_dhcpd_conf(devices)
         with open(DHCPD_CONF_FILE, 'w') as conf_file:
