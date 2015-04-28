@@ -7,7 +7,7 @@ import os, sys
 
 DUMMY_CMD = 'tail -f /dev/null'
 IMAGE_IS_USED_BUT_NOT_FOUND=\
-    "WARNING: image %s is not found. Cannot attach it to related nodes."
+    "WARNING: image %s is not found. Cannot attach it to related nodes.\n"
 IMAGE_MOUNT_PATH='/var/lib/walt/images/%s/fs'
 CONFIG_ITEM_DEFAULT_IMAGE='default_image'
 
