@@ -120,14 +120,20 @@ class NodeImageRepository(object):
         res = set([ item['image'] for item in \
             self.db.execute("""
                 SELECT DISTINCT image FROM nodes""").fetchall()])
-        res.add(self.db.get_config(CONFIG_ITEM_DEFAULT_IMAGE))
+        res.add(self.get_default_image())
         print res
         sys.stdout.flush()
         return res
+    def get_default_image(self):
+        if len(self.images) > 0:
+            default_if_not_specified = self.images.keys()[0]
+        else:
+            default_if_not_specified = None
+        return self.db.get_config(
+                    CONFIG_ITEM_DEFAULT_IMAGE,
+                    default_if_not_specified)
     def update_default_link(self):
-        first_image = self.images.keys()[0]
-        default_image = self.db.get_config(
-                CONFIG_ITEM_DEFAULT_IMAGE, first_image)
+        default_image = self.get_default_image()
         default_mount_path = get_mount_path(default_image)
         default_simlink = get_mount_path('default')
         failsafe_makedirs(default_mount_path)

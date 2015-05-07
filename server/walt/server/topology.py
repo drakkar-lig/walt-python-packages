@@ -5,6 +5,7 @@ from walt.common.nodetypes import get_node_type_from_mac_address
 from walt.common.nodetypes import is_a_node_type_name
 import snmp, const
 from tree import Tree
+import walt.server
 
 DEVICE_NAME_NOT_FOUND="""No device with name '%s' found.\n"""
 
@@ -154,7 +155,9 @@ class Topology(object):
             self.db.insert("devices", **kwargs)
             # add node info if relevant
             if is_a_node_type_name(kwargs['type']):
-                self.db.insert("nodes", image=const.DEFAULT_IMAGE, **kwargs)
+                # unknown nodes boot with the default image
+                default_image = walt.server.instance.images.get_default_image()
+                self.db.insert("nodes", image=default_image, **kwargs)
         # add topology info
         self.db.insert("topology", **kwargs)
 
@@ -181,4 +184,13 @@ class Topology(object):
     def printed_as_detailed_table(self):
         return self.db.pretty_printed_select(
                     TOPOLOGY_QUERY)
+
+    def register_node(self, node_ip):
+        row = self.db.select_unique("devices", ip=node_ip)
+        if row == None or row['reachable'] == 0:
+            print 'New node detected.'
+            # restart discovery
+            self.update()
+            # update dhcpd
+            walt.server.instance.dhcpd.update()
 

@@ -87,6 +87,10 @@ class PlatformService(rpyc.Service):
     def exposed_rename(self, old_name, new_name):
         self.platform.rename_device(self._client, old_name, new_name)
 
+    def exposed_register_node(self):
+        node_ip, node_port = self._conn._config['endpoints'][1]
+        self.platform.register_node(node_ip)
+
 class WalTServerDaemon(WalTDaemon):
     """WalT (wireless testbed) server daemon."""
     VERSION = WALT_SERVER_DAEMON_VERSION

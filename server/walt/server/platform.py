@@ -36,3 +36,6 @@ class Platform(object):
         time.sleep(const.POE_REBOOT_DELAY)
         proxy.poe.set_port(switch_port, True)
 
+    def register_node(self, node_ip):
+        self.topology.register_node(node_ip)
+
