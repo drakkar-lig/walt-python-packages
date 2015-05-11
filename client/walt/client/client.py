@@ -70,6 +70,13 @@ class WalTRenameDevice(cli.Application):
 class WalTNode(cli.Application):
     """node management sub-commands"""
 
+@WalTNode.subcommand("list")
+class WalTNodeList(cli.Application):
+    """list available WalT nodes"""
+    def main(self):
+        with ClientToServerLink() as server:
+            print server.list_nodes()
+
 @WalTNode.subcommand("blink")
 class WalTNodeBlink(cli.Application):
     """make a node blink for a given number of seconds"""
@@ -83,6 +90,32 @@ class WalTNodeReboot(cli.Application):
     def main(self, node_name):
         with ClientToServerLink() as server:
             server.reboot(node_name)
+
+@WalTNode.subcommand("set-image")
+class WalTNodeSetImage(cli.Application):
+    """associate an operating system image to a node"""
+    def main(self, node_name, image_name):
+        with ClientToServerLink() as server:
+            server.set_image(node_name, image_name)
+
+@WalT.subcommand("image")
+class WalTImage(cli.Application):
+    """Sub-commands related to WalT-nodes operating system images"""
+
+@WalTImage.subcommand("list")
+class WalTImageList(cli.Application):
+    """list available WalT node OS images"""
+    def main(self):
+        with ClientToServerLink() as server:
+            print server.list_images()
+
+@WalTImage.subcommand("set-default")
+class WalTImageSetDefault(cli.Application):
+    """set the default image to be booted when a node connects
+       to the server for the first time"""
+    def main(self, image_name):
+        with ClientToServerLink() as server:
+            server.set_default_image(image_name)
 
 @WalT.subcommand("traces")
 class WalTTraces(cli.Application):

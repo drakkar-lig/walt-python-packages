@@ -39,3 +39,6 @@ class Platform(object):
     def register_node(self, node_ip):
         self.topology.register_node(node_ip)
 
+    def list_nodes(self):
+        return self.topology.list_nodes()
+

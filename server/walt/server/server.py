@@ -11,11 +11,21 @@ class Server(object):
         self.db = ServerDB()
         self.platform = Platform(self.db)
         self.images = NodeImageRepository(self.db)
-        self.images.update_image_mounts()
         self.dhcpd = DHCPServer(self.db)
+
+    def update(self):
+        self.platform.topology.update()
+        self.images.update_image_mounts()
         self.dhcpd.update()
 
     def cleanup(self):
         self.images.cleanup()
 
+    def set_image(self, requester, node_name, image_name):
+        node_info = self.platform.topology.get_node_info(
+                        requester, node_name)
+        if node_info == None:
+            return # error already reported
+        mac = node_info['mac']
+        self.images.set_image(requester, mac, image_name)
 

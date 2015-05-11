@@ -28,7 +28,7 @@ class ClientMirroringService(rpyc.Service):
         self._client = client
 
     @staticmethod
-    def link_node_to_client(node, client): 
+    def link_node_to_client(node, client):
         service = ClientMirroringService.services_per_node[id(node)]
         service.register_client(client)
 
@@ -60,6 +60,8 @@ class PlatformService(rpyc.Service):
     def __init__(self, *args, **kwargs):
         rpyc.Service.__init__(self, *args, **kwargs)
         self.platform = server.instance.platform
+        self.images = server.instance.images
+        self.server = server.instance
 
     def on_connect(self):
         self._client = self._conn.root
@@ -72,6 +74,9 @@ class PlatformService(rpyc.Service):
 
     def exposed_describe(self, details=False):
         return self.platform.describe(details)
+
+    def exposed_list_nodes(self):
+        return self.platform.list_nodes()
 
     def exposed_blink(self, node_name, duration):
         node_ip = self.platform.topology.get_reachable_node_ip(
@@ -91,6 +96,15 @@ class PlatformService(rpyc.Service):
         node_ip, node_port = self._conn._config['endpoints'][1]
         self.platform.register_node(node_ip)
 
+    def exposed_set_image(self, node_name, image_name):
+        self.server.set_image(self._client, node_name, image_name)
+
+    def exposed_list_images(self):
+        return self.images.describe()
+
+    def exposed_set_default_image(self, image_name):
+        self.images.set_default(self._client, image_name)
+
 class WalTServerDaemon(WalTDaemon):
     """WalT (wireless testbed) server daemon."""
     VERSION = WALT_SERVER_DAEMON_VERSION
@@ -100,6 +114,7 @@ class WalTServerDaemon(WalTDaemon):
 
 def run():
     with AutoCleaner(server.Server) as server.instance:
+        server.instance.update()
         WalTServerDaemon.run()
 
 if __name__ == "__main__":

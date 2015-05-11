@@ -10,23 +10,29 @@ import walt.server
 DEVICE_NAME_NOT_FOUND="""No device with name '%s' found.\n"""
 
 TOPOLOGY_QUERY = """
-    SELECT  d1.name as name, d1.type as type, d1.mac as mac, 
-            d1.ip as ip, d1.reachable as reachable, 
-            d2.name as switch_name, t.switch_port as switch_port 
-    FROM devices d1, devices d2, topology t 
-    WHERE   d1.mac = t.mac and d2.mac = t.switch_mac 
+    SELECT  d1.name as name, d1.type as type, d1.mac as mac,
+            d1.ip as ip, d1.reachable as reachable,
+            d2.name as switch_name, t.switch_port as switch_port
+    FROM devices d1, devices d2, topology t
+    WHERE   d1.mac = t.mac and d2.mac = t.switch_mac
     UNION ALL
-    SELECT  d1.name as name, d1.type as type, d1.mac as mac, 
-            d1.ip as ip, d1.reachable as reachable, 
-            NULL as switch_name, NULL as switch_port 
-    FROM devices d1, topology t 
+    SELECT  d1.name as name, d1.type as type, d1.mac as mac,
+            d1.ip as ip, d1.reachable as reachable,
+            NULL as switch_name, NULL as switch_port
+    FROM devices d1, topology t
     WHERE   d1.mac = t.mac and t.switch_mac is null;"""
+
+NODE_LIST_QUERY = """
+    SELECT  d.name as name, d.type as type,
+            n.image as image,
+            d.ip as ip, d.reachable as reachable
+    FROM devices d, nodes n
+    WHERE   d.mac = n.mac; """
 
 class Topology(object):
 
     def __init__(self, db):
         self.db = db
-        self.update()
 
     def get_type(self, mac):
         node_type = get_node_type_from_mac_address(mac)
@@ -64,7 +70,7 @@ class Topology(object):
         # delete some information that will be updated
         self.db.execute('DELETE FROM topology;')
         self.db.execute("""
-            UPDATE devices 
+            UPDATE devices
             SET reachable = 0;""")
 
         self.server_mac = get_mac_address(const.SERVER_TESTBED_INTERFACE)
@@ -81,7 +87,7 @@ class Topology(object):
             requester.write_stderr(err_message % device_name)
         return device_info
 
-    def get_reachable_node_info(self, requester, node_name, after_rescan = False):
+    def get_node_info(self, requester, node_name):
         node_info = self.get_device_info(requester, node_name)
         if node_info == None:
             return None # error already reported
@@ -90,6 +96,12 @@ class Topology(object):
             requester.write_stderr('%s is not a node, it is a %s.\n' % \
                                     (node_name, device_type))
             return None
+        return node_info
+
+    def get_reachable_node_info(self, requester, node_name, after_rescan = False):
+        node_info = self.get_node_info(requester, node_name)
+        if node_info == None:
+            return None # error already reported
         if node_info['reachable'] == 0:
             if after_rescan:
                 requester.write_stderr(
@@ -184,6 +196,10 @@ class Topology(object):
     def printed_as_detailed_table(self):
         return self.db.pretty_printed_select(
                     TOPOLOGY_QUERY)
+
+    def list_nodes(self):
+        return self.db.pretty_printed_select(
+                    NODE_LIST_QUERY)
 
     def register_node(self, node_ip):
         row = self.db.select_unique("devices", ip=node_ip)

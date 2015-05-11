@@ -2,7 +2,7 @@ from docker import Client
 from plumbum.cmd import mount, umount, findmnt
 from network import nfs
 from walt.server.tools import \
-        failsafe_makedirs, failsafe_symlink
+        failsafe_makedirs, failsafe_symlink, columnate
 import os, sys
 
 DUMMY_CMD = 'tail -f /dev/null'
@@ -76,7 +76,6 @@ class NodeImageRepository(object):
             name: NodeImage(self.c, name, NodeImage.LOCAL) \
                 for name in local_images }
         self.add_remote_images()
-        self.update_default_link()
     def add_remote_images(self):
         current_names = set(self.images.keys())
         remote_names = set([ result['name'] \
@@ -106,6 +105,8 @@ class NodeImageRepository(object):
                 img = self.images[name]
                 if img.mounted:
                     img.unmount()
+        # update default image link
+        self.update_default_link()
         # update nfs configuration
         nfs.update_exported_filesystems(images_found)
     def cleanup(self):
@@ -138,4 +139,37 @@ class NodeImageRepository(object):
         default_simlink = get_mount_path('default')
         failsafe_makedirs(default_mount_path)
         failsafe_symlink(default_mount_path, default_simlink)
+    def check_image_exists(self, requester, image_name):
+        if not image_name in self:
+            requester.write_stderr(
+                "No such image '%s'. (tip: walt image list)\n" % image_name)
+            return False
+        return True
+    def set_image(self, requester, node_mac, image_name):
+        if self.check_image_exists(requester, image_name):
+            self.db.update('nodes', 'mac', mac=node_mac, image=image_name)
+            self.update_image_mounts()
+            self.db.commit()
+    def describe(self):
+        tabular_data = []
+        header = [ 'Name', 'State', 'Mounted', 'Default' ]
+        state_labels = {
+                NodeImage.REMOTE: 'Remote',
+                NodeImage.LOCAL: 'Local'
+        }
+        default = self.get_default_image()
+        for name, image in self.images.iteritems():
+            tabular_data.append([
+                        name,
+                        state_labels[image.state],
+                        str(image.mounted),
+                        '*' if name == default else ''])
+        return columnate(tabular_data, header)
+    def set_default(self, requester, image_name):
+        if self.check_image_exists(requester, image_name):
+            self.db.set_config(
+                    CONFIG_ITEM_DEFAULT_IMAGE,
+                    image_name)
+            self.update_image_mounts()
+            self.db.commit()
 
