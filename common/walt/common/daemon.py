@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import sys, logging
+import sys, logging, signal
 from plumbum import cli
 from rpyc.utils.server import Server
 
@@ -32,6 +32,9 @@ class SimpleRPyCServer(Server):
     def _accept_method(self, sock):
         self._authenticate_and_serve_client(sock)
 
+def exit_handler(_signo, _stack_frame):
+    # Raises SystemExit(0):
+    sys.exit(0)
 
 class WalTDaemon(cli.Application):
     """Skeleton for a RPyC daemon application."""
@@ -53,6 +56,7 @@ class WalTDaemon(cli.Application):
     def main(self):
         self.info_message("Initializing... ")
         self.set_log_level()
+        self.set_signal_handlers()
         service_cl, port = self.getRPyCServiceClassAndPort()
         self.init()
         server = SimpleRPyCServer(service_cl, port = port)
@@ -62,6 +66,9 @@ class WalTDaemon(cli.Application):
         except KeyboardInterrupt:
             self.info_message('Interrupted.\n')
             server.close()
+
+    def set_signal_handlers(self):
+        signal.signal(signal.SIGTERM, exit_handler)
 
     # overwrite in subclass if needed
     def init(self):
