@@ -40,3 +40,10 @@ class ServerDB(SQLiteDB):
         else:
             return res['value']
 
+    def set_config(self, item, value):
+        res = self.select_unique("config", item=item)
+        if res == None:
+            self.insert("config", item=item, value=value)
+        else:
+            self.update("config", "item", item=item, value=value)
+
