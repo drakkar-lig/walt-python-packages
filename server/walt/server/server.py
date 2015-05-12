@@ -14,9 +14,18 @@ class Server(object):
         self.dhcpd = DHCPServer(self.db)
 
     def update(self):
-        self.platform.topology.update()
-        self.images.update_image_mounts()
+        # ensure the dhcp server is running,
+        # otherwise the switches may have ip addresses
+        # outside the WalT network, and we will not be able
+        # to communicate with them when trying to update
+        # the topology.
         self.dhcpd.update()
+        # topology exploration
+        self.platform.topology.update()
+        # update dhcp again for any new device
+        self.dhcpd.update()
+        # mount images needed
+        self.images.update_image_mounts()
 
     def cleanup(self):
         self.images.cleanup()

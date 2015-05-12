@@ -1,5 +1,6 @@
 from plumbum.cmd import exportfs
 from walt.server import const
+from walt.common.tools import do, succeeds
 
 IMAGE_EXPORT_PATTERN = """
 %(image_mountpoint)s %(walt_subnet)s(fsid=%(fsid)s,rw,sync,no_root_squash,no_subtree_check)
@@ -20,3 +21,8 @@ def generate_exports_file(images):
 def update_exported_filesystems(images):
     generate_exports_file(images)
     exportfs('-r')
+    ensure_nfsd_is_running()
+
+def ensure_nfsd_is_running():
+    if not succeeds('pidof nfsd >/dev/null'):
+        do('service nfs-kernel-server restart')

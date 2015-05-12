@@ -2,6 +2,7 @@
 
 import rpyc, sys
 import walt.server as server
+from walt.server.network import setup
 from walt.server.tools import AutoCleaner
 from walt.common.daemon import WalTDaemon
 from walt.common.constants import           \
@@ -113,6 +114,8 @@ class WalTServerDaemon(WalTDaemon):
         return (PlatformService, WALT_SERVER_DAEMON_PORT)
 
 def run():
+    if setup.setup_needed():
+        setup.setup()
     with AutoCleaner(server.Server) as server.instance:
         server.instance.update()
         WalTServerDaemon.run()

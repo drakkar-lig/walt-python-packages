@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 from ipaddress import ip_address, ip_network
 from walt.common.tools import do, succeeds
+from walt.server import const
 
 def ip(ip_as_str):
     return ip_address(unicode(ip_as_str))
@@ -52,4 +53,18 @@ def assign_temp_ip_to_reach_neighbor(neighbor_ip, callback):
         if reached:
             break
     return (reached, callback_result)
+
+def lldp_update():
+    do('lldpcli update')
+
+def set_server_ip():
+    subnet = net(const.WALT_SUBNET)
+    server_ip = list(subnet.hosts()).pop(0)
+    add_ip_to_interface(server_ip, subnet, 'eth0')
+    # let neighbors know we have updated things
+    lldp_update()
+
+def ip_in_walt_network(input_ip):
+    subnet = net(const.WALT_SUBNET)
+    return ip(input_ip) in subnet
 

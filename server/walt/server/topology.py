@@ -3,7 +3,8 @@
 from walt.common.tools import get_mac_address
 from walt.common.nodetypes import get_node_type_from_mac_address
 from walt.common.nodetypes import is_a_node_type_name
-import snmp, const
+from walt.server.network.tools import ip_in_walt_network, lldp_update
+import snmp, const, time
 from tree import Tree
 import walt.server
 
@@ -46,25 +47,36 @@ class Topology(object):
 
     def collect_connected_devices(self, host, host_is_a_switch, host_mac):
 
-        # get a SNMP proxy with LLDP feature
-        snmp_proxy = snmp.Proxy(host, lldp=True)
+        print "collect devices connected on %s" % host
+        while True:
+            issue = False
+            # get a SNMP proxy with LLDP feature
+            snmp_proxy = snmp.Proxy(host, lldp=True)
 
-        # record neighbors in db and recurse
-        for port, neighbor_info in snmp_proxy.lldp.get_neighbors().items():
-            ip, mac = neighbor_info['ip'], neighbor_info['mac']
-            device_type = self.get_type(mac)
-            if host_is_a_switch:
-                switch_mac, switch_port = host_mac, port
-            else:
-                switch_mac, switch_port = None, None
-            self.add_device(type=device_type,
-                            mac=mac,
-                            switch_mac=switch_mac,
-                            switch_port=switch_port,
-                            ip=ip)
-            if device_type == 'switch':
-                # recursively discover devices connected to this switch
-                self.collect_connected_devices(ip, True, mac)
+            # record neighbors in db and recurse
+            for port, neighbor_info in snmp_proxy.lldp.get_neighbors().items():
+                ip, mac = neighbor_info['ip'], neighbor_info['mac']
+                if not ip_in_walt_network(ip):
+                    print 'Not ready, one neighbor has ip %s (not in WalT network yet)...' % ip
+                    lldp_update()
+                    time.sleep(1)
+                    issue = True
+                    break
+                device_type = self.get_type(mac)
+                if host_is_a_switch:
+                    switch_mac, switch_port = host_mac, port
+                else:
+                    switch_mac, switch_port = None, None
+                self.add_device(type=device_type,
+                                mac=mac,
+                                switch_mac=switch_mac,
+                                switch_port=switch_port,
+                                ip=ip)
+                if device_type == 'switch':
+                    # recursively discover devices connected to this switch
+                    self.collect_connected_devices(ip, True, mac)
+            if not issue:
+                break   # otherwise restart the loop
 
     def update(self, requester=None):
         # delete some information that will be updated

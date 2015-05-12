@@ -35,3 +35,12 @@ class LLDPProxy(object):
             neighbors[port] = { 'mac': mac, 'ip': ip }
 
         return neighbors
+
+    def get_local_ips(self):
+        ips = []
+        ip_info = set(self.snmp.lldpLocManAddrIfSubtype)
+        for subtype, encoded_ip in ip_info:
+            if enum_label(subtype).lower() == 'ipv4':
+                ips.append(decode_ipv4_address(encoded_ip))
+        return ips
+
