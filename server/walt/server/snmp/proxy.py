@@ -4,12 +4,13 @@ from snimpy.manager import Manager
 from poe import PoEProxy
 from lldp import LLDPProxy
 from vlan import VlanProxy
+from walt.server import const
 
 SNMP_OPTS = {
     "version": 2,
     "community": "private",
     'retries': 2,
-    'timeout': 1
+    'timeout': const.SNMP_TIMEOUT
 }
 
 class Proxy(object):
