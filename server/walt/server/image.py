@@ -3,7 +3,8 @@ from plumbum.cmd import mount, umount, findmnt
 from network import nfs
 from walt.server.tools import \
         failsafe_makedirs, failsafe_symlink, columnate
-import os, sys
+from walt.server import const
+import os, re, sys, requests
 
 DUMMY_CMD = 'tail -f /dev/null'
 IMAGE_IS_USED_BUT_NOT_FOUND=\
@@ -12,14 +13,20 @@ IMAGE_MOUNT_PATH='/var/lib/walt/images/%s/fs'
 CONFIG_ITEM_DEFAULT_IMAGE='default_image'
 
 def get_mount_path(image_name):
-    return IMAGE_MOUNT_PATH % image_name
+    return IMAGE_MOUNT_PATH % \
+            re.sub('[^a-zA-Z0-9/-]+', '_', re.sub(':', '/', image_name))
 
 class NodeImage(object):
     REMOTE = 0
     LOCAL = 1
     def __init__(self, c, name, state):
         self.c = c
-        self.name = name
+        parts = name.split(':')
+        if len(parts) == 1:
+            self.name, self.tag = name, 'latest'
+        else:
+            self.name, self.tag = parts
+        self.tagged_name = name
         self.state = state
         self.cid = None
         self.mount_path = None
@@ -28,28 +35,34 @@ class NodeImage(object):
         if self.mounted:
             self.unmount()
     def download(self):
-        for idx, line in enumerate(self.c.pull(self.name, stream=True)):
+        for idx, line in enumerate(
+                    self.c.pull(
+                        self.name,
+                        tag=requests.utils.quote(self.tag),
+                        stream=True)):
             progress = "-/|\\"[idx % 4]
             sys.stdout.write('Downloading image %s... %s\r' % \
-                                (self.name, progress))
+                                (self.tagged_name, progress))
             sys.stdout.flush()
         sys.stdout.write('\n')
         self.state = NodeImage.LOCAL
+    def get_mount_path(self):
+        return get_mount_path(self.tagged_name)
     def mount(self):
-        print 'Mounting %s...' % self.name,
-        self.mount_path = get_mount_path(self.name)
+        print 'Mounting %s...' % self.tagged_name,
+        self.mount_path = self.get_mount_path()
         failsafe_makedirs(self.mount_path)
         if self.state == NodeImage.REMOTE:
             self.download()
         self.cid = self.c.create_container(             \
-                            image=self.name,            \
+                            image=self.tagged_name,     \
                             command=DUMMY_CMD).get('Id')
         self.c.start(container=self.cid)
         self.bind_mount()
         self.mounted = True
         print 'done'
     def unmount(self):
-        print 'Un-mounting %s...' % self.name,
+        print 'Un-mounting %s...' % self.tagged_name,
         umount('-lf', self.mount_path)
         self.c.kill(container=self.cid)
         self.c.wait(container=self.cid)
@@ -65,22 +78,31 @@ class NodeImage(object):
     def bind_mount(self):
         mount('-o', 'bind', self.get_mount_point(), self.mount_path)
 
-
 class NodeImageRepository(object):
     def __init__(self, db):
         self.db = db
         self.c = Client(base_url='unix://var/run/docker.sock', version='auto')
-        local_images = sum([ i['RepoTags'] for i in self.c.images() ], [])
-        local_images = set([ name.split(':')[0] for name in local_images ])
-        self.images = {
-            name: NodeImage(self.c, name, NodeImage.LOCAL) \
-                for name in local_images }
+        self.images = {}
+        self.add_local_images()
         self.add_remote_images()
+    def add_local_images(self):
+        local_images = sum([ i['RepoTags'] for i in self.c.images() ], [])
+        for name in local_images:
+            if '/walt-node' in name:
+                self.images[name] = NodeImage(self.c, name, NodeImage.LOCAL)
+    def lookup_remote_tags(self, image_name):
+        url = const.DOCKER_HUB_GET_TAGS_URL % dict(image_name = image_name)
+        r = requests.get(url)
+        for elem in requests.get(url).json():
+            tag = requests.utils.unquote(elem['name'])
+            yield "%s:%s" % (image_name, tag)
     def add_remote_images(self):
         current_names = set(self.images.keys())
-        remote_names = set([ result['name'] \
-                for result in self.c.search(term='waltplatform') \
-                if result['name'].startswith('waltplatform/rpi') ])
+        remote_names = set([])
+        for result in self.c.search(term='walt-node'):
+            if '/walt-node' in result['name']:
+                for tagged_image in self.lookup_remote_tags(result['name']):
+                    remote_names.add(tagged_image)
         for name in (remote_names - current_names):
             self.images[name] = NodeImage(self.c, name, NodeImage.REMOTE)
     def __getitem__(self, key):
@@ -122,8 +144,6 @@ class NodeImageRepository(object):
             self.db.execute("""
                 SELECT DISTINCT image FROM nodes""").fetchall()])
         res.add(self.get_default_image())
-        print res
-        sys.stdout.flush()
         return res
     def get_default_image(self):
         if len(self.images) > 0:
