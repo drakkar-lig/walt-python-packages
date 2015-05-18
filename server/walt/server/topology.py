@@ -134,7 +134,7 @@ class Topology(object):
         return node_info['ip']
 
     def get_connectivity_info(self, requester, node_name):
-        node_info = self.topology.get_reachable_node_info(requester, node_name)
+        node_info = self.get_reachable_node_info(requester, node_name)
         if node_info == None:
             return None # error already reported
         node_mac = node_info['mac']
