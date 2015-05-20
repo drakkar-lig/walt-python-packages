@@ -58,14 +58,14 @@ class WalTDaemon(cli.Application):
         self.set_log_level()
         self.set_signal_handlers()
         service_cl, port = self.getRPyCServiceClassAndPort()
+        self.server = SimpleRPyCServer(service_cl, port = port)
         self.init()
-        server = SimpleRPyCServer(service_cl, port = port)
         self.info_message("Done.\n")  # end of initialization
         try:
-            server.start()
+            self.server.start()
         except KeyboardInterrupt:
             self.info_message('Interrupted.\n')
-            server.close()
+            self.server.close()
 
     def set_signal_handlers(self):
         signal.signal(signal.SIGTERM, exit_handler)
