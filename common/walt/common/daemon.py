@@ -3,6 +3,7 @@
 import sys, logging, signal
 from plumbum import cli
 from rpyc.utils.server import Server
+from eventloop import EventLoop
 
 # We define a simple subclass of rpyc.utils.server.Server 
 # that runs a loop in a mono-thread way.
@@ -14,16 +15,20 @@ from rpyc.utils.server import Server
 # We also want to pass any exception to the calling code.
 class SimpleRPyCServer(Server):
     """Mono-thread RPyC Server."""
+    def __init__(self, *args, **kwargs):
+        self.ev_loop = EventLoop()
+        Server.__init__(self, *args, **kwargs)
 
     # we redefine the start() method in order to be able to catch 
     # exceptions in the calling code.
     def start(self):
         self.listener.listen(self.backlog)
+        self.ev_loop.register_listener(self)
         self.active = True
         self.logger.info("server started on [%s]:%s.", self.host, self.port)
-        while self.active:
-            self.accept()
-            self.logger.info("request served.")
+        self.ev_loop.loop()
+        # loop has ended.
+        self.ev_loop = None  # for garbage collection
         self.close()
         self.logger.info("server has terminated.")
 
@@ -31,6 +36,16 @@ class SimpleRPyCServer(Server):
     # we just do what's expected.
     def _accept_method(self, sock):
         self._authenticate_and_serve_client(sock)
+
+    # the event loop needs to know which file descriptor
+    # we are waiting on
+    def fileno(self):
+        return self.listener.fileno()
+
+    # the event loop will call this when there is a new request
+    # for us (i.e. an RPyC client connection)
+    def handle_request(self):
+        self.accept()
 
 def exit_handler(_signo, _stack_frame):
     # Raises SystemExit(0):
