@@ -74,12 +74,14 @@ class SQLiteDB():
     def insert(self, table, **kwargs):
         # insert and return True or return False
         tuples = self.get_tuples(table, kwargs)
+        cursor = self.c.cursor()
         try:
-            self.c.execute("""INSERT INTO %s(%s)
+            cursor.execute("""INSERT INTO %s(%s)
                 VALUES (%s);""" % (
                     table,
                     ','.join(t[0] for t in tuples),
                     ','.join(t[1] for t in tuples)))
+            self.lastrowid = cursor.lastrowid
             return True
         except sqlite3.IntegrityError:
             return False
