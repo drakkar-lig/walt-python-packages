@@ -25,7 +25,10 @@ class EventLoop(object):
             listener = self.listeners[fd]
             should_close = (ev == POLLERR)
             if not should_close:
-                should_close = not listener.handle_event()
+                res = listener.handle_event()
+                # if False was returned, we will
+                # close this listener.
+                should_close = (res == False)
             if should_close:
                 listener.close()
                 del self.listeners[fd]

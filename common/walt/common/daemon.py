@@ -15,20 +15,15 @@ from eventloop import EventLoop
 # We also want to pass any exception to the calling code.
 class SimpleRPyCServer(Server):
     """Mono-thread RPyC Server."""
-    def __init__(self, *args, **kwargs):
-        self.ev_loop = EventLoop()
-        Server.__init__(self, *args, **kwargs)
-
-    # we redefine the start() method in order to be able to catch 
+    # we will use this instead of the start() method
+    # in order to be able to manage the loop and catch
     # exceptions in the calling code.
-    def start(self):
+    def prepare(self):
         self.listener.listen(self.backlog)
-        self.ev_loop.register_listener(self)
         self.active = True
         self.logger.info("server started on [%s]:%s.", self.host, self.port)
-        self.ev_loop.loop()
-        # loop has ended.
-        self.ev_loop = None  # for garbage collection
+
+    def end(self):
         self.close()
         self.logger.info("server has terminated.")
 
@@ -44,7 +39,7 @@ class SimpleRPyCServer(Server):
 
     # the event loop will call this when there is a new request
     # for us (i.e. an RPyC client connection)
-    def handle_request(self):
+    def handle_event(self):
         self.accept()
 
 def exit_handler(_signo, _stack_frame):
@@ -73,14 +68,18 @@ class WalTDaemon(cli.Application):
         self.set_log_level()
         self.set_signal_handlers()
         service_cl, port = self.getRPyCServiceClassAndPort()
-        self.server = SimpleRPyCServer(service_cl, port = port)
+        self.ev_loop = EventLoop()
+        self.rpyc_server = SimpleRPyCServer(
+                        service_cl, port = port)
+        self.ev_loop.register_listener(self.rpyc_server)
         self.init()
         self.info_message("Done.\n")  # end of initialization
         try:
-            self.server.start()
+            self.rpyc_server.prepare()
+            self.ev_loop.loop()
         except KeyboardInterrupt:
             self.info_message('Interrupted.\n')
-            self.server.close()
+            self.rpyc_server.end()
 
     def set_signal_handlers(self):
         signal.signal(signal.SIGTERM, exit_handler)
