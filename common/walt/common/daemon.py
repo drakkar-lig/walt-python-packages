@@ -64,22 +64,23 @@ class WalTDaemon(cli.Application):
         sys.stdout.flush()
 
     def main(self):
+        self.do_main(**self.getParameters())
+
+    def do_main(self, ev_loop, service_cl, port):
         self.info_message("Initializing... ")
         self.set_log_level()
         self.set_signal_handlers()
-        service_cl, port = self.getRPyCServiceClassAndPort()
-        self.ev_loop = EventLoop()
-        self.rpyc_server = SimpleRPyCServer(
+        rpyc_server = SimpleRPyCServer(
                         service_cl, port = port)
-        self.ev_loop.register_listener(self.rpyc_server)
+        ev_loop.register_listener(rpyc_server)
         self.init()
         self.info_message("Done.\n")  # end of initialization
         try:
-            self.rpyc_server.prepare()
-            self.ev_loop.loop()
+            rpyc_server.prepare()
+            ev_loop.loop()
         except KeyboardInterrupt:
             self.info_message('Interrupted.\n')
-            self.rpyc_server.end()
+            rpyc_server.end()
 
     def set_signal_handlers(self):
         signal.signal(signal.SIGTERM, exit_handler)

@@ -8,6 +8,7 @@ from walt.common.tools import get_mac_address
 from walt.common.constants import WALT_NODE_DAEMON_PORT
 from walt.common.constants import WALT_SERVER_DAEMON_PORT
 from walt.common.devices.fake import Fake
+from walt.common.eventloop import EventLoop
 
 WALT_NODE_DAEMON_VERSION = 0.1
 WALT_NODE_NETWORK_INTERFACE = "eth0"
@@ -49,11 +50,13 @@ class NodeToServerLink:
 class WalTNodeDaemon(WalTDaemon):
     """WalT (wireless testbed) node daemon."""
     VERSION = WALT_NODE_DAEMON_VERSION
-    fake = cli.Flag("--fake", default = False, 
+    fake = cli.Flag("--fake", default = False,
             help = "Fake mode, for simulation")
 
-    def getRPyCServiceClassAndPort(self):
-        return (WalTNodeService, WALT_NODE_DAEMON_PORT)
+    def getParameters(self):
+        return dict(service_cl = WalTNodeService,
+                    port = WALT_NODE_DAEMON_PORT,
+                    ev_loop = WalTNodeDaemon.ev_loop)
 
     def init(self):
         if self.fake:
@@ -70,6 +73,7 @@ class WalTNodeDaemon(WalTDaemon):
             server.register_node()
 
 def run():
+    WalTNodeDaemon.ev_loop = EventLoop()
     WalTNodeDaemon.run()
 
 if __name__ == "__main__":

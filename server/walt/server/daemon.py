@@ -110,8 +110,11 @@ class WalTServerDaemon(WalTDaemon):
     """WalT (wireless testbed) server daemon."""
     VERSION = WALT_SERVER_DAEMON_VERSION
 
-    def getRPyCServiceClassAndPort(self):
-        return (PlatformService, WALT_SERVER_DAEMON_PORT)
+    def getParameters(self):
+        return dict(
+                service_cl = PlatformService,
+                port = WALT_SERVER_DAEMON_PORT,
+                ev_loop = server.instance.ev_loop)
 
 def run():
     if setup.setup_needed():

@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+from walt.common.eventloop import EventLoop
 from walt.server.image import NodeImageRepository
 from walt.server.platform import Platform
 from walt.server.db import ServerDB
@@ -8,6 +9,7 @@ from walt.server.network.dhcpd import DHCPServer
 class Server(object):
 
     def __init__(self):
+        self.ev_loop = EventLoop()
         self.db = ServerDB()
         self.platform = Platform(self.db)
         self.images = NodeImageRepository(self.db)
