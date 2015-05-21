@@ -4,6 +4,7 @@ from walt.common.eventloop import EventLoop
 from walt.server.image import NodeImageRepository
 from walt.server.platform import Platform
 from walt.server.db import ServerDB
+from walt.server.logs import LogsManager
 from walt.server.network.dhcpd import DHCPServer
 
 class Server(object):
@@ -14,6 +15,7 @@ class Server(object):
         self.platform = Platform(self.db)
         self.images = NodeImageRepository(self.db)
         self.dhcpd = DHCPServer(self.db)
+        self.logs = LogsManager(self.db, self.ev_loop)
 
     def update(self):
         # ensure the dhcp server is running,
