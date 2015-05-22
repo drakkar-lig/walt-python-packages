@@ -1,7 +1,8 @@
-import socket, cPickle as pickle
+import socket
 from walt.common.constants import WALT_SERVER_LOGS_PORT
+from walt.common.logs import *
 
-class LogsDBHandler(object):
+class LogsToDBHandler(object):
     def __init__(self, db):
         self.db = db
 
@@ -21,8 +22,15 @@ class LogsHub(object):
         self.handlers.remove(handler)
 
     def log(self, **kwargs):
+        to_be_removed = set([])
         for handler in self.handlers:
-            handler.log(**kwargs)
+            res = handler.log(**kwargs)
+            # a handler may request to be deleted
+            # by returning False
+            if res == False:
+                to_be_removed.add(handler)
+        for handler in to_be_removed:
+            self.handlers.remove(handler)
 
 class LogsStreamListener(object):
     def __init__(self, sock_file, stream_id, hub):
@@ -36,10 +44,9 @@ class LogsStreamListener(object):
     # know a log line should be read. 
     def handle_event(self):
         try:
-            record = pickle.load(self.sock_file)
+            record = read_encoded_from_log_stream(self.sock_file)
         except Exception as e:
-            print e
-            print 'Client log connection will be closed.'
+            print 'Log stream with id %d is being closed.' % self.stream_id
             # let the event loop know we should 
             # be removed.
             return False
@@ -49,8 +56,9 @@ class LogsStreamListener(object):
         self.sock_file.close()
 
 class LogsTCPServer(object):
-    def __init__(self, hub):
+    def __init__(self, db, hub):
         self.init_server_socket()
+        self.db = db
         self.hub = hub
 
     def join_event_loop(self, ev_loop):
@@ -77,31 +85,63 @@ class LogsTCPServer(object):
         conn_s, addr = self.s.accept()
         sock_file = conn_s.makefile()
         try:
-            stream_id = pickle.load(sock_file)
-            print 'New log connection: stream_id %d' % stream_id
+            req_type, req_data = read_encoded_from_log_stream(sock_file)
+        except Exception as e:
+            print e
+            print 'Invalid log request.'
+            return
+        if req_type == REQ_NEW_INCOMING_LOGS:
+            stream_id = self.register_new_stream(conn_s, req_data)
+            print 'New log stream with id %d.' % stream_id
             stream_listener = LogsStreamListener(
                         sock_file, stream_id, self.hub)
             self.ev_loop.register_listener(stream_listener)
-        except:
-            print 'Invalid stream_id in new log connection.'
-        finally:
-            # whatever happens, we continue our job in the event 
-            # loop (i.e. waiting for new connections)
-            return True
+        elif req_type == REQ_DUMP_LOGS:
+            self.hub.addHandler(LogsToSocketHandler(self.db, sock_file))
+
+    def register_new_stream(self, sock, name):
+        sender_ip, sender_port = sock.getpeername()
+        sender_info = self.db.select_unique('devices', ip = sender_ip)
+        if sender_info == None:
+            sender_mac = None
+        else:
+            sender_mac = sender_info['mac']
+        self.db.insert('logstreams', sender_mac = sender_mac, name = name)
+        stream_id = self.db.lastrowid
+        return stream_id
 
     def close(self):
         self.s.close()
+
+class LogsToSocketHandler(object):
+    def __init__(self, db, sock_file):
+        self.db = db
+        self.sock_file = sock_file
+        self.cache = {}
+
+    def log(self, record, stream_id):
+        try:
+            if stream_id not in self.cache:
+                self.cache[stream_id] = self.db.execute(
+                """SELECT d.name as sender, s.name as stream
+                   FROM logstreams s, devices d
+                   WHERE s.id = %s
+                     AND s.sender_mac = d.mac
+                """ % stream_id).fetchall()[0]
+            d = {}
+            d.update(record)
+            d.update(self.cache[stream_id])
+            write_encoded_to_log_stream(d, self.sock_file)
+        except Exception as e:
+            # the socket was supposedly closed.
+            # notify the hub that we should be removed.
+            return False
 
 class LogsManager(object):
     def __init__(self, db, ev_loop):
         self.db = db
         self.hub = LogsHub()
-        self.hub.addHandler(LogsDBHandler(db))
-        self.tcp_server = LogsTCPServer(self.hub)
+        self.hub.addHandler(LogsToDBHandler(db))
+        self.tcp_server = LogsTCPServer(db, self.hub)
         self.tcp_server.join_event_loop(ev_loop)
-
-    def create_new_stream(self, sender_mac, name):
-        self.db.insert('logstreams', sender_mac = sender_mac, name = name)
-        stream_id = self.db.lastrowid
-        return stream_id
 

@@ -5,9 +5,12 @@ WalT (wireless testbed) control tool.
 import rpyc, sys
 from plumbum import cli
 from walt.common.constants import WALT_SERVER_DAEMON_PORT
+from walt.common.logs import LogsConnectionToServer
 
 SERVER="localhost"
 WALT_VERSION = "0.1"
+DEFAULT_FORMAT_STRING= \
+   '{timestamp:%H:%M:%S.%f} {sender}.{stream} -> {line}'
 
 # most of the functionality is provided at the server,
 # of course. 
@@ -117,11 +120,35 @@ class WalTImageSetDefault(cli.Application):
         with ClientToServerLink() as server:
             server.set_default_image(image_name)
 
-@WalT.subcommand("traces")
-class WalTTraces(cli.Application):
-    """traces-management sub-commands"""
-    def main(self, remote, branch = None):
-        print "doing the push..."
+@WalT.subcommand("logs")
+class WalTLogs(cli.Application):
+    """logs-management sub-commands"""
+
+@WalTLogs.subcommand("show")
+class WalTLogsShow(cli.Application):
+    """Dump logs on standard output"""
+    format_string = cli.SwitchAttr(
+                "--format",
+                str,
+                default = DEFAULT_FORMAT_STRING,
+                help= """Specify the python format string used to print log records""")
+
+    def main(self):
+        conn = LogsConnectionToServer(SERVER)
+        conn.request_log_dump()
+        while True:
+            try:
+                record = conn.read_log_record()
+                if record == None:
+                    break
+                print self.format_string.format(**record)
+            except KeyboardInterrupt:
+                print
+                break
+            except Exception as e:
+                print 'Could not display the log record.'
+                print 'Verify your format string.'
+                break
 
 def run():
     WalT.run()
