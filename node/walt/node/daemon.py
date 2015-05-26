@@ -9,6 +9,7 @@ from walt.common.constants import WALT_NODE_DAEMON_PORT
 from walt.common.constants import WALT_SERVER_DAEMON_PORT
 from walt.common.devices.fake import Fake
 from walt.common.eventloop import EventLoop
+from walt.node.tools import lookup_server_ip
 
 WALT_NODE_DAEMON_VERSION = 0.1
 WALT_NODE_NETWORK_INTERFACE = "eth0"
@@ -32,7 +33,7 @@ class NodeToServerLink:
     server_ip = None
     def __enter__(self):
         if NodeToServerLink.server_ip == None:
-            self.lookup_server_ip()
+            NodeToServerLink.server_ip = lookup_server_ip()
         self.conn = rpyc.connect(
                 NodeToServerLink.server_ip,
                 WALT_SERVER_DAEMON_PORT)
@@ -40,12 +41,6 @@ class NodeToServerLink:
 
     def __exit__(self, type, value, traceback):
         self.conn.close()
-
-    def lookup_server_ip(self):
-        with open('/proc/cmdline') as f:
-            for t in [ elem.split('=') for elem in f.read().split() ]:
-                if t[0] == 'nfs_server':
-                    NodeToServerLink.server_ip = t[1]
 
 class WalTNodeDaemon(WalTDaemon):
     """WalT (wireless testbed) node daemon."""

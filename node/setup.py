@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 setup(
     name = "walt-node",
-    version = "0.1",
+    version = "0.3",
     packages = find_packages(),
     install_requires = ['rpyc>=3.3','plumbum>=1.4.2','walt-common'],
 
@@ -16,7 +16,8 @@ setup(
     namespace_packages = ['walt'],
     entry_points = {
         'console_scripts': [
-            'walt-node-daemon = walt.node.daemon:run'
+            'walt-node-daemon = walt.node.daemon:run',
+            'walt-monitor = walt.node.monitor:run'
         ]
     },
 )
