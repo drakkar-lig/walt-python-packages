@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 
-from walt.server.sqlite import SQLiteDB
+from walt.server.postgres import PostgresDB
 
-class ServerDB(SQLiteDB):
+class ServerDB(PostgresDB):
 
     def __init__(self):
         # parent constructor
-        SQLiteDB.__init__(self, '/var/lib/walt/server.db')
+        PostgresDB.__init__(self)
         # create the db schema
         self.execute("""CREATE TABLE IF NOT EXISTS devices (
                     mac TEXT PRIMARY KEY,
@@ -15,28 +15,23 @@ class ServerDB(SQLiteDB):
                     reachable INTEGER,
                     type TEXT);""")
         self.execute("""CREATE TABLE IF NOT EXISTS topology (
-                    mac TEXT PRIMARY KEY,
-                    switch_mac TEXT,
-                    switch_port INTEGER,
-                    FOREIGN KEY(mac) REFERENCES devices(mac),
-                    FOREIGN KEY(switch_mac) REFERENCES devices(mac));""")
+                    mac TEXT REFERENCES devices(mac),
+                    switch_mac TEXT REFERENCES devices(mac),
+                    switch_port INTEGER);""")
         self.execute("""CREATE TABLE IF NOT EXISTS nodes (
-                    mac TEXT PRIMARY KEY,
-                    image TEXT,
-                    FOREIGN KEY(mac) REFERENCES devices(mac));""")
+                    mac TEXT REFERENCES devices(mac),
+                    image TEXT);""")
         self.execute("""CREATE TABLE IF NOT EXISTS config (
                     item TEXT PRIMARY KEY,
                     value TEXT);""")
         self.execute("""CREATE TABLE IF NOT EXISTS logstreams (
-                    id INTEGER PRIMARY KEY,
-                    sender_mac TEXT,
-                    name TEXT,
-                    FOREIGN KEY(sender_mac) REFERENCES devices(mac));""")
+                    id SERIAL PRIMARY KEY,
+                    sender_mac TEXT REFERENCES devices(mac),
+                    name TEXT);""")
         self.execute("""CREATE TABLE IF NOT EXISTS logs (
-                    stream_id INTEGER,
+                    stream_id INTEGER REFERENCES logstreams(id),
                     timestamp TIMESTAMP,
-                    line TEXT,
-                    FOREIGN KEY(stream_id) REFERENCES logstreams(id));""")
+                    line TEXT);""")
 
     def get_config(self, item, default = None):
         res = self.select_unique("config", item=item)

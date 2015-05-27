@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 
+from walt.server.const import WALT_DBNAME, WALT_DBUSER
 from walt.server.tools import columnate
-import sqlite3, os
+import psycopg2, os
+from psycopg2.extras import DictCursor
 
 QUOTE="'"
 
@@ -12,30 +14,24 @@ def quoted(string):
     else:
         return QUOTE + s + QUOTE
 
-class SQLiteDB():
+class PostgresDB():
 
-    def __init__(self, path=None):
-        self.c = sqlite3.connect(':memory:')
+    def __init__(self):
+        self.conn = psycopg2.connect(database=WALT_DBNAME, user=WALT_DBUSER)
         # allow name-based access to columns
-        self.c.row_factory = sqlite3.Row
-        self.path = path
-        # load the db dump
-        if path != None and os.path.isfile(path):
-            with open(path, 'r') as file_dump:
-                self.c.executescript(file_dump.read())
-                self.c.commit()
+        self.c = self.conn.cursor(cursor_factory = DictCursor)
 
     def __del__(self):
+        self.conn.commit()
         self.c.close()
+        self.conn.close()
 
     def commit(self):
-        self.c.commit()
-        if self.path != None:
-            with open(self.path, 'w') as file_dump:
-                file_dump.write(self.dump())
+        self.conn.commit()
 
     def execute(self, query):
-        return self.c.execute(query)
+        self.c.execute(query)
+        return self.c
 
     # from a dictionary of the form <col_name> -> <value>
     # we want to filter-out keys that are not column names,
@@ -43,8 +39,8 @@ class SQLiteDB():
     # and return (<col_name>, <value>) tuples.
     def get_tuples(self, table, dictionary):
         # retrieve fields names for this table 
-        table_desc = self.c.execute("PRAGMA table_info(%s)" % table)
-        col_names = set([ col_desc[1] for col_desc in table_desc ])
+        self.c.execute("SELECT * FROM %s LIMIT 0" % table)
+        col_names = set(col_desc[0] for col_desc in self.c.description)
 
         res = {}
         for k in dictionary:
@@ -71,34 +67,33 @@ class SQLiteDB():
 
     # allow statements like:
     # db.insert("network", ip=ip, switch_ip=swip)
-    def insert(self, table, **kwargs):
+    def insert(self, table, returning=None, **kwargs):
         # insert and return True or return False
         tuples = self.get_tuples(table, kwargs)
-        cursor = self.c.cursor()
-        try:
-            cursor.execute("""INSERT INTO %s(%s)
-                VALUES (%s);""" % (
+        sql = """INSERT INTO %s(%s)
+                VALUES (%s)""" % (
                     table,
                     ','.join(t[0] for t in tuples),
-                    ','.join(t[1] for t in tuples)))
-            self.lastrowid = cursor.lastrowid
-            return True
-        except sqlite3.IntegrityError:
-            return False
+                    ','.join(t[1] for t in tuples))
+        if returning:
+            sql += " RETURNING %s" % returning
+        self.c.execute(sql + ';')
+        if returning:
+            return self.c.fetchone()[0]
 
     # allow statements like:
     # db.update("topology", "mac", switch_mac=swmac, switch_port=swport)
     def update(self, table, primary_key_name, **kwargs):
         tuples = self.get_tuples(table, kwargs)
-        num_modified = len(self.c.execute("""
+        self.c.execute("""
                 UPDATE %s 
                 SET %s
                 WHERE %s = %s;""" % (
                     table,
                     ','.join("%s = %s" % t for t in tuples),
                     primary_key_name,
-                    quoted(kwargs[primary_key_name]))).fetchall())
-        return num_modified
+                    quoted(kwargs[primary_key_name])))
+        return self.c.rowcount  # number of rows updated
 
     # allow statements like:
     # mem_db.select("network", ip=ip)
@@ -110,8 +105,9 @@ class SQLiteDB():
                 ' AND '.join(constraints));
         else:
             where_clause = ""
-        return self.c.execute("SELECT * FROM %s %s;" % (
-                    table, where_clause)).fetchall()
+        self.c.execute("SELECT * FROM %s %s;" % (
+                    table, where_clause))
+        return self.c.fetchall()
 
     # same as above but expect only one matching record
     # and return it.
@@ -125,12 +121,7 @@ class SQLiteDB():
     def pretty_printed_table(self, table):
         return self.pretty_printed_select("select * from %s;" % table)
 
-    def dump(self):
-        return "\n".join(self.c.iterdump())
-
     def pretty_printed_select(self, select_query):
-        # it seems there is no pretty printing available from the 
-        # sqlite3 python module itself
         res = self.execute(select_query).fetchall()
         return columnate(res, header=res[0].keys())
 
