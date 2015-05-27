@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import datetime, sys, os, signal
+import datetime, sys, os, signal, socket
 from subprocess import Popen, PIPE
 from plumbum import cli
 from walt.common.logs import LogsConnectionToServer
@@ -64,6 +64,8 @@ class WalTMonitor(cli.Application):
         except KeyboardInterrupt:
             print
             print 'Interrupted.'
+        except socket.error:
+            print 'Socket error.'
 
 def run():
     WalTMonitor.run()
