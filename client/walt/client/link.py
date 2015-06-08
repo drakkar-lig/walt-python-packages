@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 import rpyc, os, sys, signal, threading
 from walt.common.constants import WALT_SERVER_DAEMON_PORT
-
-SERVER="localhost"
+from walt.client.config import conf
 
 class ExposedStream(object):
     def __init__(self, stream):
@@ -58,7 +57,7 @@ class ClientToServerLink:
 
     def __enter__(self):
         self.conn = rpyc.connect(
-                SERVER,
+                conf['server'],
                 WALT_SERVER_DAEMON_PORT,
                 service = WaltClientService)
         if self.bg_thread_enabled:

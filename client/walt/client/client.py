@@ -6,8 +6,8 @@ import readline
 from plumbum import cli
 from walt.common.logs import LogsConnectionToServer
 from walt.client.link import ClientToServerLink
+from walt.client.config import conf
 
-SERVER="localhost"
 WALT_VERSION = "0.1"
 DEFAULT_FORMAT_STRING= \
    '{timestamp:%H:%M:%S.%f} {sender}.{stream} -> {line}'
@@ -110,7 +110,7 @@ class WalTLogsShow(cli.Application):
                 help= """Specify the python format string used to print log records""")
 
     def main(self):
-        conn = LogsConnectionToServer(SERVER)
+        conn = LogsConnectionToServer(conf['server'])
         conn.request_log_dump()
         while True:
             try:
