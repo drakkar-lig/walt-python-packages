@@ -105,7 +105,7 @@ class LogsTCPServer(object):
         if sender_info == None:
             sender_mac = None
         else:
-            sender_mac = sender_info['mac']
+            sender_mac = sender_info.mac
         stream_id = self.db.insert('logstreams', returning='id',
                             sender_mac = sender_mac, name = name)
         return stream_id

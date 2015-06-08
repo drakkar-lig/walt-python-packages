@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
-from walt.common.eventloop import EventLoop
+from walt.common.io import EventLoop
+from walt.common.prompt import RemotePrompt
 from walt.server.image import NodeImageRepository
 from walt.server.platform import Platform
 from walt.server.db import ServerDB
@@ -39,6 +40,11 @@ class Server(object):
                         requester, node_name)
         if node_info == None:
             return # error already reported
-        mac = node_info['mac']
+        mac = node_info.mac
         self.images.set_image(requester, mac, image_name)
 
+    def sql_prompt(self, rpyc_conn, client_handler):
+        prompt = RemotePrompt('psql walt', rpyc_conn,
+                                self.ev_loop, client_handler)
+        prompt.start()
+        return prompt

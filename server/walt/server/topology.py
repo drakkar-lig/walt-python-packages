@@ -90,22 +90,22 @@ class Topology(object):
         self.db.commit()
 
         if requester != None:
-            requester.write_stdout('done.\n')
+            requester.stdout.write('done.\n')
 
     def get_device_info(self, requester, device_name, \
                         err_message = DEVICE_NAME_NOT_FOUND):
         device_info = self.db.select_unique("devices", name=device_name)
         if device_info == None and err_message != None:
-            requester.write_stderr(err_message % device_name)
+            requester.stderr.write(err_message % device_name)
         return device_info
 
     def get_node_info(self, requester, node_name):
         node_info = self.get_device_info(requester, node_name)
         if node_info == None:
             return None # error already reported
-        device_type = node_info['type']
+        device_type = node_info.type
         if not is_a_node_type_name(device_type):
-            requester.write_stderr('%s is not a node, it is a %s.\n' % \
+            requester.stderr.write('%s is not a node, it is a %s.\n' % \
                                     (node_name, device_type))
             return None
         return node_info
@@ -114,9 +114,9 @@ class Topology(object):
         node_info = self.get_node_info(requester, node_name)
         if node_info == None:
             return None # error already reported
-        if node_info['reachable'] == 0:
+        if node_info.reachable == 0:
             if after_rescan:
-                requester.write_stderr(
+                requester.stderr.write(
                         'Connot reach %s. The node seems dead or disconnected.\n' % \
                                     node_name)
                 return None
@@ -131,19 +131,19 @@ class Topology(object):
         node_info = self.get_reachable_node_info(requester, node_name)
         if node_info == None:
             return None # error already reported
-        return node_info['ip']
+        return node_info.ip
 
     def get_connectivity_info(self, requester, node_name):
         node_info = self.get_reachable_node_info(requester, node_name)
         if node_info == None:
             return None # error already reported
-        node_mac = node_info['mac']
+        node_mac = node_info.mac
         topology_info = self.db.select_unique("topology", mac=node_mac)
-        switch_mac = topology_info['switch_mac']
-        switch_port = topology_info['switch_port']
+        switch_mac = topology_info.switch_mac
+        switch_port = topology_info.switch_port
         switch_info = self.db.select_unique("devices", mac=switch_mac)
         return dict(
-            switch_ip = switch_info['ip'],
+            switch_ip = switch_info.ip,
             switch_port = switch_port
         )
 
@@ -152,10 +152,10 @@ class Topology(object):
         if device_info == None:
             return
         if self.get_device_info(requester, new_name, err_message = None) != None:
-            requester.write_stderr("""Failed: a device with name '%s' already exists.\n""" % new_name)
+            requester.stderr.write("""Failed: a device with name '%s' already exists.\n""" % new_name)
             return
         # all is fine, let's update it
-        self.db.update("devices", 'mac', mac = device_info['mac'], name = new_name)
+        self.db.update("devices", 'mac', mac = device_info.mac, name = new_name)
         self.db.commit()
 
     def generate_device_name(self, **kwargs):
@@ -188,8 +188,8 @@ class Topology(object):
     def printed_as_tree(self):
         t = Tree()
         for device in self.db.execute(TOPOLOGY_QUERY).fetchall():
-            name = device['name']
-            swport = device['switch_port']
+            name = device.name
+            swport = device.switch_port
             if swport == None:
                 label = name
                 # align to 2nd letter of the name
@@ -198,7 +198,7 @@ class Topology(object):
                 label = '%d: %s' % (swport, name)
                 # align to 2nd letter of the name
                 subtree_offset = label.find(' ') + 2
-            parent_key = device['switch_name']
+            parent_key = device.switch_name
             t.add_node( name,   # will be the key in the tree
                         label,
                         subtree_offset=subtree_offset,
@@ -215,7 +215,7 @@ class Topology(object):
 
     def register_node(self, node_ip):
         row = self.db.select_unique("devices", ip=node_ip)
-        if row == None or row['reachable'] == 0:
+        if row == None or row.reachable == 0:
             print 'New node detected.'
             # restart discovery
             self.update()

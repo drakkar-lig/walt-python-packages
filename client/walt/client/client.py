@@ -2,39 +2,15 @@
 """
 WalT (wireless testbed) control tool.
 """
-import rpyc, sys
+import readline
 from plumbum import cli
-from walt.common.constants import WALT_SERVER_DAEMON_PORT
 from walt.common.logs import LogsConnectionToServer
+from walt.client.link import ClientToServerLink
 
 SERVER="localhost"
 WALT_VERSION = "0.1"
 DEFAULT_FORMAT_STRING= \
    '{timestamp:%H:%M:%S.%f} {sender}.{stream} -> {line}'
-
-# most of the functionality is provided at the server,
-# of course. 
-# but the client also offers to the server a small 
-# set of features implemented in the following class.
-class WaltClientService(rpyc.Service):
-    def exposed_write_stdout(self, s):
-        sys.stdout.write(s)
-        sys.stdout.flush()
-
-    def exposed_write_stderr(self, s):
-        sys.stderr.write(s)
-        sys.stdout.flush()
-
-class ClientToServerLink:
-    def __enter__(self):
-        self.conn = rpyc.connect(
-                SERVER,
-                WALT_SERVER_DAEMON_PORT,
-                service = WaltClientService)
-        return self.conn.root
-
-    def __exit__(self, type, value, traceback):
-        self.conn.close()
 
 class WalT(cli.Application):
     """WalT (wireless testbed) control tool."""
@@ -149,6 +125,18 @@ class WalTLogsShow(cli.Application):
                 print 'Could not display the log record.'
                 print 'Verify your format string.'
                 break
+
+@WalT.subcommand("advanced")
+class WalTAdvanced(cli.Application):
+    """advanced sub-commands"""
+
+@WalTAdvanced.subcommand("sql")
+class WalTAdvancedSql(cli.Application):
+    """Start a remote SQL prompt on the Walt server database"""
+    def main(self):
+        link = ClientToServerLink(True)
+        with link as server:
+            link.sql_prompt()
 
 def run():
     WalT.run()

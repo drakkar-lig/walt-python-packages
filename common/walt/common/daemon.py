@@ -3,22 +3,44 @@
 import sys, logging, signal
 from plumbum import cli
 from rpyc.utils.server import Server
-from eventloop import EventLoop
+from rpyc.core import SocketStream, Channel, Connection
+from io import EventLoop
 
-# We define a simple subclass of rpyc.utils.server.Server 
-# that runs a loop in a mono-thread way.
+# This class is designed to manage 1 RPyC client
+# connexion, and integrate our event loop 
+# mechanism. 
+class RPyCClientManager(object):
+    def __init__(self, conn):
+        self.conn = conn
+
+    def start(self):
+        self.conn._init_service()
+
+    def fileno(self):
+        return self.conn.fileno()
+
+    def handle_event(self):
+        try:
+            self.conn.serve()
+        except:
+            return False    # leave the event loop
+
+    def close(self):
+        self.conn.close()
+
+# We define a subclass of rpyc.utils.server.Server 
+# that integrates with our event loop.
 # This allows to avoid thread concurrency handling.
-# As a side effect we will process only one client
-# request at a time. 
-# This is a preliminary implementation that could be 
-# improved if the need arises.
-# We also want to pass any exception to the calling code.
-class SimpleRPyCServer(Server):
+# As a side effect we will process only one RPyC 
+# request at a time, so we should avoid lengthy 
+# processing when answering a client. 
+class RPyCServer(Server):
     """Mono-thread RPyC Server."""
     # we will use this instead of the start() method
     # in order to be able to manage the loop and catch
     # exceptions in the calling code.
-    def prepare(self):
+    def prepare(self, ev_loop):
+        self.ev_loop = ev_loop
         self.listener.listen(self.backlog)
         self.active = True
         self.logger.info("server started on [%s]:%s.", self.host, self.port)
@@ -27,10 +49,21 @@ class SimpleRPyCServer(Server):
         self.close()
         self.logger.info("server has terminated.")
 
-    # any subclass of Server should define this.
-    # we just do what's expected.
+    # define what we will do with our new client
     def _accept_method(self, sock):
-        self._authenticate_and_serve_client(sock)
+        config = dict(
+                self.protocol_config,
+                credentials = None,
+                endpoints = (sock.getsockname(), sock.getpeername()),
+                logger = self.logger)
+        conn = Connection(
+                self.service,
+                Channel(SocketStream(sock)),
+                config = config,
+                _lazy = True)
+        manager = RPyCClientManager(conn)
+        manager.start()
+        self.ev_loop.register_listener(manager)
 
     # the event loop needs to know which file descriptor
     # we are waiting on
@@ -70,13 +103,13 @@ class WalTDaemon(cli.Application):
         self.info_message("Initializing... ")
         self.set_log_level()
         self.set_signal_handlers()
-        rpyc_server = SimpleRPyCServer(
+        rpyc_server = RPyCServer(
                         service_cl, port = port)
         ev_loop.register_listener(rpyc_server)
         self.init()
         self.info_message("Done.\n")  # end of initialization
         try:
-            rpyc_server.prepare()
+            rpyc_server.prepare(ev_loop)
             ev_loop.loop()
         except KeyboardInterrupt:
             self.info_message('Interrupted.\n')

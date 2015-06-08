@@ -25,7 +25,7 @@ class Platform(object):
             return None # error already reported
         # all is fine, let's reboot it
         self.poe_reboot_port(**connectivity_info)
-        requester.write_stdout('done.\n')
+        requester.stdout.write('done.\n')
 
     def rename_device(self, requester, old_name, new_name):
         self.topology.rename_device(requester, old_name, new_name)

@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-
 from walt.server.postgres import PostgresDB
 
 class ServerDB(PostgresDB):
@@ -43,7 +42,7 @@ class ServerDB(PostgresDB):
             self.commit()
             return default
         else:
-            return res['value']
+            return res.value
 
     def set_config(self, item, value):
         res = self.select_unique("config", item=item)
@@ -51,4 +50,3 @@ class ServerDB(PostgresDB):
             self.insert("config", item=item, value=value)
         else:
             self.update("config", "item", item=item, value=value)
-

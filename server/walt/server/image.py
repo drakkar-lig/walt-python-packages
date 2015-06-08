@@ -140,7 +140,7 @@ class NodeImageRepository(object):
             if img.mounted:
                 img.unmount()
     def get_images_in_use(self):
-        res = set([ item['image'] for item in \
+        res = set([ item.image for item in \
             self.db.execute("""
                 SELECT DISTINCT image FROM nodes""").fetchall()])
         res.add(self.get_default_image())
@@ -161,7 +161,7 @@ class NodeImageRepository(object):
         failsafe_symlink(default_mount_path, default_simlink)
     def check_image_exists(self, requester, image_name):
         if not image_name in self:
-            requester.write_stderr(
+            requester.stderr.write(
                 "No such image '%s'. (tip: walt image list)\n" % image_name)
             return False
         return True

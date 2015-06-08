@@ -8,7 +8,7 @@ from walt.common.tools import get_mac_address
 from walt.common.constants import WALT_NODE_DAEMON_PORT
 from walt.common.constants import WALT_SERVER_DAEMON_PORT
 from walt.common.devices.fake import Fake
-from walt.common.eventloop import EventLoop
+from walt.common.io import EventLoop
 from walt.node.tools import lookup_server_ip
 
 WALT_NODE_DAEMON_VERSION = 0.1
@@ -24,10 +24,10 @@ class WalTNodeService(rpyc.Service):
 
     def exposed_blink(self, duration):
         WalTNodeService.NodeClass.blink(True)
-        self._client.write_stdout('blinking for %ds... ' % duration)
+        self._client.stdout.write('blinking for %ds... ' % duration)
         time.sleep(duration)
         WalTNodeService.NodeClass.blink(False)
-        self._client.write_stdout('done.\n')
+        self._client.stdout.write('done.\n')
 
 class NodeToServerLink:
     server_ip = None

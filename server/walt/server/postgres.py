@@ -3,7 +3,7 @@
 from walt.server.const import WALT_DBNAME, WALT_DBUSER
 from walt.server.tools import columnate
 import psycopg2, os
-from psycopg2.extras import DictCursor
+from psycopg2.extras import NamedTupleCursor
 
 QUOTE="'"
 
@@ -19,7 +19,7 @@ class PostgresDB():
     def __init__(self):
         self.conn = psycopg2.connect(database=WALT_DBNAME, user=WALT_DBUSER)
         # allow name-based access to columns
-        self.c = self.conn.cursor(cursor_factory = DictCursor)
+        self.c = self.conn.cursor(cursor_factory = NamedTupleCursor)
 
     def __del__(self):
         self.conn.commit()
@@ -123,5 +123,5 @@ class PostgresDB():
 
     def pretty_printed_select(self, select_query):
         res = self.execute(select_query).fetchall()
-        return columnate(res, header=res[0].keys())
+        return columnate(res, header=res[0]._fields)
 
