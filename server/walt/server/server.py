@@ -1,12 +1,15 @@
 #!/usr/bin/env python
 
+import uuid
 from walt.common.io import EventLoop
-from walt.common.prompt import RemotePrompt
+from walt.common.tcp import TCPServer
+from walt.common.constants import WALT_SERVER_TCP_PORT
 from walt.server.image import NodeImageRepository
 from walt.server.platform import Platform
 from walt.server.db import ServerDB
 from walt.server.logs import LogsManager
 from walt.server.network.dhcpd import DHCPServer
+from walt.server.interactive import InteractionManager
 
 class Server(object):
 
@@ -16,7 +19,11 @@ class Server(object):
         self.platform = Platform(self.db)
         self.images = NodeImageRepository(self.db)
         self.dhcpd = DHCPServer(self.db)
-        self.logs = LogsManager(self.db, self.ev_loop)
+        self.tcp_server = TCPServer(WALT_SERVER_TCP_PORT)
+        self.logs = LogsManager(self.db, self.tcp_server)
+        self.interaction = InteractionManager(\
+                self.tcp_server, self.ev_loop, self.images)
+        self.tcp_server.join_event_loop(self.ev_loop)
 
     def update(self):
         # ensure the dhcp server is running,
@@ -43,8 +50,3 @@ class Server(object):
         mac = node_info.mac
         self.images.set_image(requester, mac, image_name)
 
-    def sql_prompt(self, rpyc_conn, client_handler):
-        prompt = RemotePrompt('psql walt', rpyc_conn,
-                                self.ev_loop, client_handler)
-        prompt.start()
-        return prompt

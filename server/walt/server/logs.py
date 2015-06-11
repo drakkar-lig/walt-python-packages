@@ -1,6 +1,6 @@
 import socket
-from walt.common.constants import WALT_SERVER_LOGS_PORT
-from walt.common.logs import *
+from walt.common.tcp import read_pickle, write_pickle, \
+                            REQ_NEW_INCOMING_LOGS, REQ_DUMP_LOGS
 
 class LogsToDBHandler(object):
     def __init__(self, db):
@@ -33,19 +33,38 @@ class LogsHub(object):
             self.handlers.remove(handler)
 
 class LogsStreamListener(object):
-    def __init__(self, sock_file, stream_id, hub):
-        self.sock_file = sock_file
-        self.stream_id = stream_id
+    def __init__(self, db, hub, sock, sock_file, **kwargs):
+        self.db = db
         self.hub = hub
+        self.sock = sock
+        self.sock_file = sock_file
+        self.stream_id = None
+
+    def register_new_stream(self):
+        name = str(read_pickle(self.sock_file))
+        sender_ip, sender_port = self.sock.getpeername()
+        sender_info = self.db.select_unique('devices', ip = sender_ip)
+        if sender_info == None:
+            sender_mac = None
+        else:
+            sender_mac = sender_info.mac
+        stream_id = self.db.insert('logstreams', returning='id',
+                            sender_mac = sender_mac, name = name)
+        # these are not needed anymore
+        self.db = None
+        self.sock = None
+        return stream_id
+
     # let the event loop know what we are reading on
     def fileno(self):
         return self.sock_file.fileno()
     # when the event loop detects an event for us, we
     # know a log line should be read. 
     def handle_event(self):
-        try:
-            record = read_encoded_from_log_stream(self.sock_file)
-        except Exception as e:
+        if self.stream_id == None:
+            self.stream_id = self.register_new_stream()
+        record = read_pickle(self.sock_file)
+        if record == None:
             print 'Log stream with id %d is being closed.' % self.stream_id
             # let the event loop know we should 
             # be removed.
@@ -55,70 +74,12 @@ class LogsStreamListener(object):
     def close(self):
         self.sock_file.close()
 
-class LogsTCPServer(object):
-    def __init__(self, db, hub):
-        self.init_server_socket()
-        self.db = db
-        self.hub = hub
-
-    def join_event_loop(self, ev_loop):
-        self.ev_loop = ev_loop
-        ev_loop.register_listener(self)
-
-    def init_server_socket(self):
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        s.bind(('', WALT_SERVER_LOGS_PORT))
-        s.listen(1)
-        self.s = s
-
-    # let the event loop know what we are reading on
-    def fileno(self):
-        return self.s.fileno()
-
-    # when the event loop detects an event for us, this is 
-    # what we will do: accept the tcp connection, create
-    # a stream listener that will register the logs coming
-    # from there, and register this listener in the event
-    # loop.
-    def handle_event(self):
-        conn_s, addr = self.s.accept()
-        sock_file = conn_s.makefile()
-        try:
-            req_type, req_data = read_encoded_from_log_stream(sock_file)
-        except Exception as e:
-            print e
-            print 'Invalid log request.'
-            return
-        if req_type == REQ_NEW_INCOMING_LOGS:
-            stream_id = self.register_new_stream(conn_s, req_data)
-            print 'New log stream with id %d.' % stream_id
-            stream_listener = LogsStreamListener(
-                        sock_file, stream_id, self.hub)
-            self.ev_loop.register_listener(stream_listener)
-        elif req_type == REQ_DUMP_LOGS:
-            self.hub.addHandler(LogsToSocketHandler(self.db, sock_file))
-
-    def register_new_stream(self, sock, name):
-        sender_ip, sender_port = sock.getpeername()
-        sender_info = self.db.select_unique('devices', ip = sender_ip)
-        if sender_info == None:
-            sender_mac = None
-        else:
-            sender_mac = sender_info.mac
-        stream_id = self.db.insert('logstreams', returning='id',
-                            sender_mac = sender_mac, name = name)
-        return stream_id
-
-    def close(self):
-        self.s.close()
-
 class LogsToSocketHandler(object):
-    def __init__(self, db, sock_file):
+    def __init__(self, db, hub, sock_file, **kwargs):
         self.db = db
         self.sock_file = sock_file
         self.cache = {}
-
+        hub.addHandler(self)
     def log(self, record, stream_id):
         try:
             if stream_id not in self.cache:
@@ -127,21 +88,37 @@ class LogsToSocketHandler(object):
                    FROM logstreams s, devices d
                    WHERE s.id = %s
                      AND s.sender_mac = d.mac
-                """ % stream_id).fetchall()[0]
+                """ % stream_id).fetchall()[0]._asdict()
             d = {}
             d.update(record)
             d.update(self.cache[stream_id])
-            write_encoded_to_log_stream(d, self.sock_file)
+            write_pickle(d, self.sock_file)
         except Exception as e:
+            print e
             # the socket was supposedly closed.
             # notify the hub that we should be removed.
             return False
+    # let the event loop know what we are reading on
+    def fileno(self):
+        return self.sock_file.fileno()
+    # this is what we do when the event loop detects an event for us
+    def handle_event(self):
+        return False    # no communication is expected this way
+    def close(self):
+        self.sock_file.close()
 
 class LogsManager(object):
-    def __init__(self, db, ev_loop):
+    def __init__(self, db, tcp_server):
         self.db = db
         self.hub = LogsHub()
         self.hub.addHandler(LogsToDBHandler(db))
-        self.tcp_server = LogsTCPServer(db, self.hub)
-        self.tcp_server.join_event_loop(ev_loop)
-
+        tcp_server.register_listener_class(
+                    req_id = REQ_DUMP_LOGS,
+                    cls = LogsToSocketHandler,
+                    db = self.db,
+                    hub = self.hub)
+        tcp_server.register_listener_class(
+                    req_id = REQ_NEW_INCOMING_LOGS,
+                    cls = LogsStreamListener,
+                    db = self.db,
+                    hub = self.hub)

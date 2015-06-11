@@ -106,10 +106,6 @@ class PlatformService(rpyc.Service):
     def exposed_set_default_image(self, image_name):
         self.images.set_default(self._client, image_name)
 
-    def exposed_sql_prompt(self, client_handler):
-        return self.server.sql_prompt(\
-                self._conn, client_handler)
-
 class WalTServerDaemon(WalTDaemon):
     """WalT (wireless testbed) server daemon."""
     VERSION = WALT_SERVER_DAEMON_VERSION

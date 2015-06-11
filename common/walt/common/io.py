@@ -3,16 +3,13 @@ import os, sys, pexpect
 from select import poll, POLLIN, POLLPRI, POLLOUT
 
 POLL_OPS_READ = POLLIN | POLLPRI
-POLL_OPS_WRITE = POLLOUT
-POLL_OPS = {    'r': POLL_OPS_READ,
-                'w': POLL_OPS_WRITE }
 
-def is_ok(ev, target_ops):
+def is_read_event_ok(ev):
     # check that there is nothing more
     # than the events we were looking at
-    # (i.e. POLLIN, POLLPRI, POLLOUT but 
+    # (i.e. POLLIN, POLLPRI but 
     # not POLLERR, POLLUP or POLLNVAL)
-    return (ev & (~target_ops) == 0)
+    return (ev & (~POLL_OPS_READ) == 0)
 
 # EventLoop allows to monitor incoming data on a set of
 # file descriptors, and call the appropriate listener when 
@@ -30,6 +27,8 @@ class EventLoop(object):
 
     def register_listener(self, listener):
         fd = listener.fileno()
+        if fd == None:
+            return  # registration aborted
         self.listeners[fd] = listener
         self.poller.register(fd, POLL_OPS_READ)
         print 'new listener:', listener
@@ -62,7 +61,7 @@ class EventLoop(object):
             fd, ev = self.poller.poll()[0]
             listener = self.listeners[fd]
             # if error, we will remove the listener below
-            should_close = not is_ok(ev, POLL_OPS_READ)
+            should_close = not is_read_event_ok(ev)
             if not should_close:
                 # no error, let the listener
                 # handle the event
@@ -73,25 +72,6 @@ class EventLoop(object):
             if should_close:
                 self.remove_listener(listener)
             sys.stdout.flush()
-
-# this class allows to check that a file
-# is OK for being read or written
-class FileChecker(object):
-    def __init__(self, f, mode, blocking=True):
-        self.poll_op = POLL_OPS[mode]
-        self.poller = poll()
-        self.poller.register(f, self.poll_op)
-        if blocking:
-            self.timeout = None
-        else:
-            self.timeout = 0
-    def check(self):
-        res = self.poller.poll(self.timeout)
-        if len(res) > 0:
-            fd, ev = res[0]
-            return is_ok(ev, self.poll_op)
-        else:   # no event (timeout)
-            return False
 
 # This function allows to disable buffering
 # of a file.
@@ -110,13 +90,32 @@ def unbuffered(f, mode):
 class SmartBufferingFileReader(object):
     def __init__(self, in_file):
         self.in_file = in_file
-        self.in_file_checker = FileChecker(
-                        self.in_file, 'r', False)
+        self.poller = poll()
+        self.poller.register(self.in_file, POLL_OPS_READ)
     def read_available(self):
         # continue reading until there
         # is nothing more to read
         s = ''
-        while self.in_file_checker.check():
-            s += self.in_file.read(1)
+        while True:
+            # timeout=0, do not block
+            res = self.poller.poll(0)
+            if len(res) == 0:   # no event (timeout)
+                break
+            fd, ev = res[0]
+            if not is_read_event_ok(ev):
+                break
+            c = self.in_file.read(1)
+            if c == '':
+                break   # empty read
+            s += c
         return s
+    def readline(self):
+        return self.in_file.readline()
+
+def read_and_copy(in_reader, out):
+    buf = in_reader.read_available()
+    if buf == '':
+        return False    # close
+    out.write(buf)
+    out.flush()
 

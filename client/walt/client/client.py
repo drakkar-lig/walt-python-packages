@@ -7,6 +7,8 @@ from plumbum import cli
 from walt.common.logs import LogsConnectionToServer
 from walt.client.link import ClientToServerLink
 from walt.client.config import conf
+from walt.client.interactive import run_sql_prompt, \
+                                    run_modify_image_prompt
 
 WALT_VERSION = "0.1"
 DEFAULT_FORMAT_STRING= \
@@ -96,6 +98,13 @@ class WalTImageSetDefault(cli.Application):
         with ClientToServerLink() as server:
             server.set_default_image(image_name)
 
+@WalTImage.subcommand("modify")
+class WalTImageSetDefault(cli.Application):
+    """run an interactive shell allowing to modify a given
+       image"""
+    def main(self, image_name):
+        run_modify_image_prompt(image_name)
+
 @WalT.subcommand("logs")
 class WalTLogs(cli.Application):
     """logs-management sub-commands"""
@@ -134,9 +143,7 @@ class WalTAdvanced(cli.Application):
 class WalTAdvancedSql(cli.Application):
     """Start a remote SQL prompt on the Walt server database"""
     def main(self):
-        link = ClientToServerLink(True)
-        with link as server:
-            link.sql_prompt()
+        run_sql_prompt()
 
 def run():
     WalT.run()
