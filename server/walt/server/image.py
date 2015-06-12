@@ -4,7 +4,7 @@ from network import nfs
 from walt.server.tools import \
         failsafe_makedirs, failsafe_symlink, columnate
 from walt.server import const
-import os, re, sys, requests
+import os, re, sys, requests, uuid
 
 DUMMY_CMD = 'tail -f /dev/null'
 IMAGE_IS_USED_BUT_NOT_FOUND=\
@@ -16,6 +16,45 @@ def get_mount_path(image_name):
     return IMAGE_MOUNT_PATH % \
             re.sub('[^a-zA-Z0-9/-]+', '_', re.sub(':', '/', image_name))
 
+class ModifySession(object):
+    def __init__(self, requester, docker_image_name, image_name, repo):
+        self.requester = requester
+        self.docker_image_name = docker_image_name
+        self.image_name = image_name
+        self.new_image_name = None
+        self.repo = repo
+        self.container_name = str(uuid.uuid4())
+        # expose methods to the RPyC client
+        self.exposed___enter__ = self.__enter__
+        self.exposed___exit__ = self.__exit__
+        self.exposed_get_parameters = self.get_parameters
+        self.exposed_get_default_new_name = self.get_default_new_name
+        self.exposed_validate_new_name = self.validate_new_name
+        self.exposed_select_new_name = self.select_new_name
+    def __enter__(self):
+        return self
+    def __exit__(self, type, value, traceback):
+        self.repo.finalize_modify(
+            self.requester,
+            self.new_image_name,
+            self.container_name
+        )
+    def get_parameters(self):
+        # return an immutable object (a tuple, not a dict)
+        # otherwise we will cause other RPyC calls
+        return self.docker_image_name, self.container_name
+    def get_default_new_name(self):
+        return self.repo.get_default_new_image_name(
+            self.image_name
+        )
+    def validate_new_name(self, new_image_name):
+        return self.repo.validate_new_image_name(
+            self.requester,
+            new_image_name
+        )
+    def select_new_name(self, new_image_name):
+        self.new_image_name = new_image_name
+
 class NodeImage(object):
     REMOTE = 0
     LOCAL = 1
@@ -26,6 +65,7 @@ class NodeImage(object):
             self.name, self.tag = name, 'latest'
         else:
             self.name, self.tag = parts
+        self.docker_user = name.split('/')[0]
         self.tagged_name = name
         self.state = state
         self.cid = None
@@ -159,37 +199,77 @@ class NodeImageRepository(object):
         default_simlink = get_mount_path('default')
         failsafe_makedirs(default_mount_path)
         failsafe_symlink(default_mount_path, default_simlink)
-    def check_image_exists(self, requester, image_name):
-        if not image_name in self:
+    def get_image_from_tag(self, image_tag, requester = None):
+        for image in self.images.values():
+            if image.tag == image_tag:
+                return image
+        if requester:
             requester.stderr.write(
                 "No such image '%s'. (tip: walt image list)\n" % image_name)
-            return False
-        return True
-    def set_image(self, requester, node_mac, image_name):
-        if self.check_image_exists(requester, image_name):
-            self.db.update('nodes', 'mac', mac=node_mac, image=image_name)
+        return None
+    def set_image(self, requester, node_mac, image_tag):
+        image = self.get_image_from_tag(image_tag, requester)
+        if image:
+            self.db.update('nodes', 'mac',
+                    mac=node_mac,
+                    image=image.tagged_name)
             self.update_image_mounts()
             self.db.commit()
     def describe(self):
         tabular_data = []
-        header = [ 'Name', 'State', 'Mounted', 'Default' ]
-        state_labels = {
-                NodeImage.REMOTE: 'Remote',
-                NodeImage.LOCAL: 'Local'
-        }
+        header = [ 'Name', 'Origin', 'Mounted', 'Default' ]
         default = self.get_default_image()
         for name, image in self.images.iteritems():
             tabular_data.append([
-                        name,
-                        state_labels[image.state],
+                        image.tag,
+                        image.docker_user,
                         str(image.mounted),
                         '*' if name == default else ''])
         return columnate(tabular_data, header)
-    def set_default(self, requester, image_name):
-        if self.check_image_exists(requester, image_name):
+    def set_default(self, requester, image_tag):
+        image = self.get_image_from_tag(image_tag, requester)
+        if image:
             self.db.set_config(
                     CONFIG_ITEM_DEFAULT_IMAGE,
-                    image_name)
+                    image.tagged_name)
             self.update_image_mounts()
             self.db.commit()
+    def create_modify_session(self, requester, image_tag):
+        image = self.get_image_from_tag(image_tag, requester)
+        if not image:
+            requester.stderr.write('No such image.\n')
+            return None
+        else:
+            return ModifySession(requester, image.tagged_name, image_tag, self)
+    def get_default_new_image_name(self, old_image_tag):
+        new_tag = old_image_tag
+        while self.get_image_from_tag(new_tag):
+            new_tag += '_new'
+        return new_tag
+    def validate_new_image_name(self, requester, new_image_tag):
+        if self.get_image_from_tag(new_image_tag):
+            requester.stderr.write('Bad name: Image already exists.\n')
+            return False
+        if not re.match('^[a-zA-Z0-9\-_]+$', new_image_tag):
+            requester.stderr.write(\
+                'Bad name: Only alnum, dash(-) and underscore(_) characters are allowed.\n')
+            return False
+        return True
+    def finalize_modify(self, requester,
+                        new_image_tag, container_name):
+        if new_image_tag:
+            self.c.commit(
+                    container=container_name,
+                    repository='local/walt-node',
+                    tag=new_image_tag,
+                    message='Image modified using walt image modify')
+            full_name = 'local/walt-node:%s' % new_image_tag
+            self.images[full_name] = NodeImage(self.c, full_name, NodeImage.LOCAL)
+            requester.stdout.write('New image %s saved.\n' % new_image_tag)
+        # remove the container if it ever existed
+        try:
+            self.c.remove_container(
+                    container=container_name)
+        except:
+            pass
 

@@ -99,11 +99,30 @@ class WalTImageSetDefault(cli.Application):
             server.set_default_image(image_name)
 
 @WalTImage.subcommand("modify")
-class WalTImageSetDefault(cli.Application):
+class WalTImageModify(cli.Application):
     """run an interactive shell allowing to modify a given
        image"""
     def main(self, image_name):
-        run_modify_image_prompt(image_name)
+        with ClientToServerLink() as server:
+            session = server.create_modify_image_session(image_name)
+            if session == None:
+                return  # issue already reported
+            with session:
+                run_modify_image_prompt(session)
+                default_new_name = session.get_default_new_name()
+                try:
+                    while True:
+                        print 'New image name [%s]:' % default_new_name,
+                        new_name = raw_input()
+                        if new_name == '':
+                            new_name = default_new_name
+                            break
+                        else:
+                            if session.validate_new_name(new_name):
+                                break
+                    session.select_new_name(new_name)
+                except KeyboardInterrupt:
+                    print 'Aborted.'
 
 @WalT.subcommand("logs")
 class WalTLogs(cli.Application):

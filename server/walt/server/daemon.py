@@ -106,6 +106,10 @@ class PlatformService(rpyc.Service):
     def exposed_set_default_image(self, image_name):
         self.images.set_default(self._client, image_name)
 
+    def exposed_create_modify_image_session(self, image_name):
+        return self.images.create_modify_session(self._client, image_name)
+
+
 class WalTServerDaemon(WalTDaemon):
     """WalT (wireless testbed) server daemon."""
     VERSION = WALT_SERVER_DAEMON_VERSION

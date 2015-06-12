@@ -22,7 +22,7 @@ class Server(object):
         self.tcp_server = TCPServer(WALT_SERVER_TCP_PORT)
         self.logs = LogsManager(self.db, self.tcp_server)
         self.interaction = InteractionManager(\
-                self.tcp_server, self.ev_loop, self.images)
+                        self.tcp_server, self.ev_loop)
         self.tcp_server.join_event_loop(self.ev_loop)
 
     def update(self):

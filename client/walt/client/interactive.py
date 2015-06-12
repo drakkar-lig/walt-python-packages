@@ -80,8 +80,15 @@ class PromptClient(object):
 def run_sql_prompt():
     PromptClient(REQ_SQL_PROMPT).run()
 
-def run_modify_image_prompt(image_name):
+def run_modify_image_prompt(session):
+    # caution with deadlocks.
+    # the server will not be able to initialize the prompt
+    # connection and respond to RPyC requests at the same
+    # time (and 'session' is a remote RPyC object).
+    # So calling get_parameters() in request_finalize()
+    # would not be a good idea.
+    parameters = session.get_parameters()
     def request_finalize(socket_w):
-        write_pickle(image_name, socket_w)
+        write_pickle(parameters, socket_w)
     PromptClient(REQ_DOCKER_PROMPT, request_finalize).run()
 

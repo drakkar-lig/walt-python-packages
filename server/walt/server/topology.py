@@ -23,9 +23,11 @@ TOPOLOGY_QUERY = """
     FROM devices d1, topology t
     WHERE   d1.mac = t.mac and t.switch_mac is null;"""
 
+# the split_part() expression below allows to show only
+# the image tag to the user (instead of the full docker name).
 NODE_LIST_QUERY = """
     SELECT  d.name as name, d.type as type,
-            n.image as image,
+            split_part(n.image, ':', 2) as image,
             d.ip as ip, d.reachable as reachable
     FROM devices d, nodes n
     WHERE   d.mac = n.mac; """

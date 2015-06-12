@@ -97,18 +97,14 @@ class SQLPromptSocketListener(PromptSocketListener):
         return 'psql walt'
 
 class DockerPromptSocketListener(PromptSocketListener):
-    def get_command(self, images, **kwargs):
-        image_name = read_pickle(self.sock_file_r)
-        if image_name not in images:
-            self.send_message_to_user('No such image.')
-            return None
-        container_name = str(uuid.uuid4())
+    def get_command(self, **kwargs):
+        image, container = read_pickle(self.sock_file_r)
         return 'docker run -it --entrypoint %s -h %s --name %s %s' % \
                        ('/bin/bash', 'image-modify',
-                        container_name, image_name)
+                        container, image)
 
 class InteractionManager(object):
-    def __init__(self, tcp_server, ev_loop, images):
+    def __init__(self, tcp_server, ev_loop):
         tcp_server.register_listener_class(
                         req_id = REQ_SQL_PROMPT,
                         cls = SQLPromptSocketListener,
@@ -116,6 +112,5 @@ class InteractionManager(object):
         tcp_server.register_listener_class(
                         req_id = REQ_DOCKER_PROMPT,
                         cls = DockerPromptSocketListener,
-                        ev_loop = ev_loop,
-                        images = images)
+                        ev_loop = ev_loop)
 
