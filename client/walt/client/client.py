@@ -124,6 +124,20 @@ class WalTImageModify(cli.Application):
                 except KeyboardInterrupt:
                     print 'Aborted.'
 
+@WalTImage.subcommand("remove")
+class WalTImageRemove(cli.Application):
+    """remove an image"""
+    def main(self, image_name):
+        with ClientToServerLink() as server:
+            server.remove_image(image_name)
+
+@WalTImage.subcommand("rename")
+class WalTImageRename(cli.Application):
+    """rename an image"""
+    def main(self, image_name, new_name):
+        with ClientToServerLink() as server:
+            server.rename_image(image_name, new_name)
+
 @WalT.subcommand("logs")
 class WalTLogs(cli.Application):
     """logs-management sub-commands"""

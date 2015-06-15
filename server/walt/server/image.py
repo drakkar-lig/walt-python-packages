@@ -60,6 +60,12 @@ class NodeImage(object):
     LOCAL = 1
     def __init__(self, c, name, state):
         self.c = c
+        self.rename(name)
+        self.state = state
+        self.cid = None
+        self.mount_path = None
+        self.mounted = False
+    def rename(self, name):
         parts = name.split(':')
         if len(parts) == 1:
             self.name, self.tag = name, 'latest'
@@ -67,10 +73,6 @@ class NodeImage(object):
             self.name, self.tag = parts
         self.docker_user = name.split('/')[0]
         self.tagged_name = name
-        self.state = state
-        self.cid = None
-        self.mount_path = None
-        self.mounted = False
     def __del__(self):
         if self.mounted:
             self.unmount()
@@ -205,7 +207,7 @@ class NodeImageRepository(object):
                 return image
         if requester:
             requester.stderr.write(
-                "No such image '%s'. (tip: walt image list)\n" % image_name)
+                "No such image '%s'. (tip: walt image list)\n" % image_tag)
         return None
     def set_image(self, requester, node_mac, image_tag):
         image = self.get_image_from_tag(image_tag, requester)
@@ -273,3 +275,38 @@ class NodeImageRepository(object):
         except:
             pass
 
+    def get_local_unmounted_image_from_tag(self, image_tag, requester):
+        image = self.get_image_from_tag(image_tag, requester)
+        if image:   # otherwise issue is already reported
+            if image.docker_user != 'local':
+                requester.stderr.write('Sorry, this operation is allowed on local images only.\n')
+                return None
+            if image.mounted:
+                requester.stderr.write('Sorry, cannot proceed because the image is mounted.\n')
+                return None
+        return image
+
+    def remove(self, requester, image_tag):
+        image = self.get_local_unmounted_image_from_tag(image_tag, requester)
+        if image:   # otherwise issue is already reported
+            name = image.tagged_name
+            del self.images[name]
+            self.c.remove_image(
+                    image=name, force=True)
+
+    def rename(self, requester, image_tag, new_tag):
+        image = self.get_local_unmounted_image_from_tag(image_tag, requester)
+        if image:   # otherwise issue is already reported
+            if self.get_image_from_tag(new_tag):
+                requester.stderr.write('Bad name: Image already exists.\n')
+                return
+            name = image.tagged_name
+            new_name = 'local/walt-node:' + new_tag
+            # update image internal attributes
+            image.rename(new_name)
+            # rename in this repo
+            self.images[new_name] = image
+            del self.images[name]
+            # rename the docker image
+            self.c.tag(image=name, repository='local/walt-node', tag=new_tag)
+            self.c.remove_image(image=name, force=True)

@@ -109,6 +109,11 @@ class PlatformService(rpyc.Service):
     def exposed_create_modify_image_session(self, image_name):
         return self.images.create_modify_session(self._client, image_name)
 
+    def exposed_remove_image(self, image_name):
+        self.images.remove(self._client, image_name)
+
+    def exposed_rename_image(self, image_name, new_name):
+        self.images.rename(self._client, image_name, new_name)
 
 class WalTServerDaemon(WalTDaemon):
     """WalT (wireless testbed) server daemon."""
