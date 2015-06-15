@@ -163,16 +163,16 @@ class NodeImageRepository(object):
                 images_found.append(img)
             else:
                 sys.stderr.write(IMAGE_IS_USED_BUT_NOT_FOUND % name)
+        # update default image link
+        self.update_default_link()
+        # update nfs configuration
+        nfs.update_exported_filesystems(images_found)
         # unmount images that are not needed anymore
         for name in self.images:
             if name not in images_in_use:
                 img = self.images[name]
                 if img.mounted:
                     img.unmount()
-        # update default image link
-        self.update_default_link()
-        # update nfs configuration
-        nfs.update_exported_filesystems(images_found)
     def cleanup(self):
         # release nfs mounts
         nfs.update_exported_filesystems([])
