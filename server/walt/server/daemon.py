@@ -87,8 +87,11 @@ class PlatformService(rpyc.Service):
         with ServerToNodeLink(node_ip, self._client) as node_service:
             node_service.blink(duration)
 
-    def exposed_reboot(self, node_name):
-        self.platform.reboot_node(self._client, node_name)
+    def exposed_poweroff(self, node_name):
+        return self.platform.setpower(self._client, node_name, False)
+
+    def exposed_poweron(self, node_name):
+        return self.platform.setpower(self._client, node_name, True)
 
     def exposed_rename(self, old_name, new_name):
         self.platform.rename_device(self._client, old_name, new_name)

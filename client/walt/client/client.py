@@ -2,7 +2,7 @@
 """
 WalT (wireless testbed) control tool.
 """
-import readline
+import readline, time
 from plumbum import cli
 from walt.common.logs import LogsConnectionToServer
 from walt.client.link import ClientToServerLink
@@ -13,6 +13,7 @@ from walt.client.interactive import run_sql_prompt, \
 WALT_VERSION = "0.1"
 DEFAULT_FORMAT_STRING= \
    '{timestamp:%H:%M:%S.%f} {sender}.{stream} -> {line}'
+POE_REBOOT_DELAY            = 2  # seconds
 
 class WalT(cli.Application):
     """WalT (wireless testbed) control tool."""
@@ -70,7 +71,11 @@ class WalTNodeReboot(cli.Application):
     """reboot a node"""
     def main(self, node_name):
         with ClientToServerLink() as server:
-            server.reboot(node_name)
+            if server.poweroff(node_name):
+                print node_name, 'was powered off.'
+                time.sleep(POE_REBOOT_DELAY)
+                server.poweron(node_name)
+                print node_name, 'was powered on.'
 
 @WalTNode.subcommand("set-image")
 class WalTNodeSetImage(cli.Application):
