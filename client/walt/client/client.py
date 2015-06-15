@@ -77,12 +77,20 @@ class WalTNodeReboot(cli.Application):
                 server.poweron(node_name)
                 print node_name, 'was powered on.'
 
-@WalTNode.subcommand("set-image")
-class WalTNodeSetImage(cli.Application):
-    """associate an operating system image to a node"""
+@WalTNode.subcommand("deploy")
+class WalTNodeDeploy(cli.Application):
+    """deploy an operating system image on a node"""
     def main(self, node_name, image_name):
         with ClientToServerLink() as server:
-            server.set_image(node_name, image_name)
+            if server.has_image(image_name):
+                if server.poweroff(node_name):
+                    print node_name, 'was powered off.'
+                    server.set_image(node_name, image_name)
+                    time.sleep(POE_REBOOT_DELAY)
+                    print '%s will now boot %s.' % \
+                                (node_name, image_name)
+                    server.poweron(node_name)
+                    print node_name, 'was powered on.'
 
 @WalT.subcommand("image")
 class WalTImage(cli.Application):

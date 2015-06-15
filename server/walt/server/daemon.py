@@ -100,6 +100,9 @@ class PlatformService(rpyc.Service):
         node_ip, node_port = self._conn._config['endpoints'][1]
         self.platform.register_node(node_ip)
 
+    def exposed_has_image(self, image_name):
+        return self.images.has_image(self._client, image_name)
+
     def exposed_set_image(self, node_name, image_name):
         self.server.set_image(self._client, node_name, image_name)
 
