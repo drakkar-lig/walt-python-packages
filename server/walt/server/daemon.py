@@ -107,7 +107,7 @@ class PlatformService(rpyc.Service):
         return self.images.describe()
 
     def exposed_set_default_image(self, image_name):
-        self.images.set_default(self._client, image_name)
+        self.server.set_default_image(self._client, image_name)
 
     def exposed_create_modify_image_session(self, image_name):
         return self.images.create_modify_session(self._client, image_name)

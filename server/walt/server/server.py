@@ -49,4 +49,9 @@ class Server(object):
             return # error already reported
         mac = node_info.mac
         self.images.set_image(requester, mac, image_name)
+        self.dhcpd.update()
+
+    def set_default_image(self, requester, image_name):
+        self.images.set_default(requester, image_name)
+        self.dhcpd.update()
 
