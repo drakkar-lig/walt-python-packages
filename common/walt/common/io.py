@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import os, sys, pexpect
+import os, sys
 from select import poll, POLLIN, POLLPRI, POLLOUT
 
 POLL_OPS_READ = POLLIN | POLLPRI
