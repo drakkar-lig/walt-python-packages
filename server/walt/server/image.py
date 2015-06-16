@@ -1,12 +1,12 @@
 from docker import Client
 from plumbum.cmd import mount, umount, findmnt
 from network import nfs
+from network.tools import get_server_ip
 from walt.server.tools import \
         failsafe_makedirs, failsafe_symlink, columnate
 from walt.server import const
-import os, re, sys, requests, uuid
+import os, re, sys, requests, uuid, shlex
 
-DUMMY_CMD = 'tail -f /dev/null'
 IMAGE_IS_USED_BUT_NOT_FOUND=\
     "WARNING: image %s is not found. Cannot attach it to related nodes.\n"
 IMAGE_MOUNT_PATH='/var/lib/walt/images/%s/fs'
@@ -65,6 +65,7 @@ class NodeImage(object):
         self.cid = None
         self.mount_path = None
         self.mounted = False
+        self.server_ip = get_server_ip()
     def rename(self, name):
         parts = name.split(':')
         if len(parts) == 1:
@@ -90,15 +91,23 @@ class NodeImage(object):
         self.state = NodeImage.LOCAL
     def get_mount_path(self):
         return get_mount_path(self.tagged_name)
+    def docker_command_split(self, cmd):
+        args = shlex.split(cmd)
+        return dict(
+            entrypoint=args[0],
+            command=' '.join(args[1:])
+        )
     def mount(self):
         print 'Mounting %s...' % self.tagged_name,
         self.mount_path = self.get_mount_path()
         failsafe_makedirs(self.mount_path)
         if self.state == NodeImage.REMOTE:
             self.download()
-        self.cid = self.c.create_container(             \
-                            image=self.tagged_name,     \
-                            command=DUMMY_CMD).get('Id')
+        params = dict(image=self.tagged_name)
+        params.update(self.docker_command_split(
+            'walt-node-install %s' % self.server_ip))
+        print params
+        self.cid = self.c.create_container(**params).get('Id')
         self.c.start(container=self.cid)
         self.bind_mount()
         self.mounted = True

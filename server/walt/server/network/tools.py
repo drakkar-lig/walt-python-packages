@@ -57,10 +57,15 @@ def assign_temp_ip_to_reach_neighbor(neighbor_ip, callback):
 def lldp_update():
     do('lldpcli update')
 
-def set_server_ip():
+def get_server_ip():
     subnet = net(const.WALT_SUBNET)
-    server_ip = list(subnet.hosts()).pop(0)
-    add_ip_to_interface(server_ip, subnet, 'eth0')
+    return list(subnet.hosts()).pop(0)
+
+def set_server_ip():
+    add_ip_to_interface(
+            get_server_ip(),
+            net(const.WALT_SUBNET),
+            'eth0')
     # let neighbors know we have updated things
     lldp_update()
 
