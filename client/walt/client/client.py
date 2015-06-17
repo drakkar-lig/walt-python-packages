@@ -8,7 +8,8 @@ from walt.common.logs import LogsConnectionToServer
 from walt.client.link import ClientToServerLink
 from walt.client.config import conf
 from walt.client.interactive import run_sql_prompt, \
-                                    run_modify_image_prompt
+                                    run_modify_image_prompt, \
+                                    run_node_shell
 
 WALT_VERSION = "0.1"
 DEFAULT_FORMAT_STRING= \
@@ -91,6 +92,16 @@ class WalTNodeDeploy(cli.Application):
                                 (node_name, image_name)
                     server.poweron(node_name)
                     print node_name, 'was powered on.'
+
+@WalTNode.subcommand("shell")
+class WalTNodeShell(cli.Application):
+    """run an interactive shell connected to the node"""
+    def main(self, node_name):
+        node_ip = None
+        with ClientToServerLink() as server:
+            node_ip = server.get_reachable_node_ip(node_name)
+        if node_ip:
+            run_node_shell(node_ip)
 
 @WalT.subcommand("image")
 class WalTImage(cli.Application):

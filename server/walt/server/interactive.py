@@ -4,7 +4,7 @@ from walt.common.io import POLL_OPS_READ, SmartBufferingFileReader, \
                             is_read_event_ok, unbuffered, \
                             read_and_copy
 from walt.common.tcp import REQ_SQL_PROMPT, REQ_DOCKER_PROMPT, \
-                            read_pickle
+                            REQ_NODE_SHELL, read_pickle
 
 class PromptProcessListener(object):
     def __init__(self, slave_r, slave_w, sock_file_r, sock_file_w):
@@ -103,6 +103,11 @@ class DockerPromptSocketListener(PromptSocketListener):
                        ('/bin/bash', 'image-modify',
                         container, image)
 
+class NodeShellSocketListener(PromptSocketListener):
+    def get_command(self, **kwargs):
+        node_ip = read_pickle(self.sock_file_r)
+        return 'ssh root@%s' % node_ip
+
 class InteractionManager(object):
     def __init__(self, tcp_server, ev_loop):
         tcp_server.register_listener_class(
@@ -112,5 +117,9 @@ class InteractionManager(object):
         tcp_server.register_listener_class(
                         req_id = REQ_DOCKER_PROMPT,
                         cls = DockerPromptSocketListener,
+                        ev_loop = ev_loop)
+        tcp_server.register_listener_class(
+                        req_id = REQ_NODE_SHELL,
+                        cls = NodeShellSocketListener,
                         ev_loop = ev_loop)
 

@@ -11,10 +11,15 @@ IMAGE_IS_USED_BUT_NOT_FOUND=\
     "WARNING: image %s is not found. Cannot attach it to related nodes.\n"
 IMAGE_MOUNT_PATH='/var/lib/walt/images/%s/fs'
 CONFIG_ITEM_DEFAULT_IMAGE='default_image'
+SERVER_PUBKEY_PATH = '/root/.ssh/id_dsa.pub'
 
 def get_mount_path(image_name):
     return IMAGE_MOUNT_PATH % \
             re.sub('[^a-zA-Z0-9/-]+', '_', re.sub(':', '/', image_name))
+
+def get_server_pubkey():
+    with open(SERVER_PUBKEY_PATH, 'r') as f:
+        return f.read()
 
 class ModifySession(object):
     def __init__(self, requester, docker_image_name, image_name, repo):
@@ -56,6 +61,7 @@ class ModifySession(object):
         self.new_image_name = new_image_name
 
 class NodeImage(object):
+    server_pubkey = get_server_pubkey()
     REMOTE = 0
     LOCAL = 1
     def __init__(self, c, name, state):
@@ -95,7 +101,7 @@ class NodeImage(object):
         args = shlex.split(cmd)
         return dict(
             entrypoint=args[0],
-            command=' '.join(args[1:])
+            command=args[1:]
         )
     def mount(self):
         print 'Mounting %s...' % self.tagged_name,
@@ -105,8 +111,8 @@ class NodeImage(object):
             self.download()
         params = dict(image=self.tagged_name)
         params.update(self.docker_command_split(
-            'walt-node-install %s' % self.server_ip))
-        print params
+            'walt-node-install %s "%s"' % \
+                    (self.server_ip, NodeImage.server_pubkey)))
         self.cid = self.c.create_container(**params).get('Id')
         self.c.start(container=self.cid)
         self.bind_mount()

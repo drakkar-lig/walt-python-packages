@@ -8,6 +8,7 @@ from walt.common.io import POLL_OPS_READ, SmartBufferingFileReader, \
                             is_read_event_ok, unbuffered, \
                             read_and_copy
 from walt.common.tcp import REQ_SQL_PROMPT, REQ_DOCKER_PROMPT, \
+                            REQ_NODE_SHELL, \
                             write_pickle, client_socket
 
 class TTYSettings(object):
@@ -91,4 +92,9 @@ def run_modify_image_prompt(session):
     def request_finalize(socket_w):
         write_pickle(parameters, socket_w)
     PromptClient(REQ_DOCKER_PROMPT, request_finalize).run()
+
+def run_node_shell(node_ip):
+    def request_finalize(socket_w):
+        write_pickle(node_ip, socket_w)
+    PromptClient(REQ_NODE_SHELL, request_finalize).run()
 
