@@ -2,8 +2,10 @@
 
 from walt.server.const import WALT_DBNAME, WALT_DBUSER
 from walt.server.tools import columnate
-import psycopg2, os
+import psycopg2, os, shlex
 from psycopg2.extras import NamedTupleCursor
+from subprocess import Popen, PIPE
+from sys import stdout, stderr
 
 QUOTE="'"
 
@@ -17,7 +19,13 @@ def quoted(string):
 class PostgresDB():
 
     def __init__(self):
-        self.conn = psycopg2.connect(database=WALT_DBNAME, user=WALT_DBUSER)
+        self.conn = None
+        while self.conn == None:
+            try:
+                self.conn = psycopg2.connect(
+                        database=WALT_DBNAME, user=WALT_DBUSER)
+            except psycopg2.OperationalError:
+                self.create_db_and_user()
         # allow name-based access to columns
         self.c = self.conn.cursor(cursor_factory = NamedTupleCursor)
 
@@ -25,6 +33,18 @@ class PostgresDB():
         self.conn.commit()
         self.c.close()
         self.conn.close()
+
+    def create_db_and_user(self):
+        # we must use the postgres admin user for this
+        args = shlex.split('su -c psql -l postgres')
+        popen = Popen(args, stdin=PIPE, stdout=stdout, stderr=stderr)
+        popen.stdin.write('''
+                CREATE USER %(user)s;
+                ALTER ROLE %(user)s WITH CREATEDB;
+                CREATE DATABASE %(db)s OWNER %(user)s;
+                ''' % dict(user=WALT_DBUSER, db=WALT_DBNAME))
+        popen.stdin.close()
+        popen.wait()
 
     def commit(self):
         self.conn.commit()
