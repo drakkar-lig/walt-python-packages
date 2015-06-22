@@ -48,34 +48,30 @@ class VlanProxy(object):
         return existing_vlans
     def vlan_exists(self, vlan_name):
         return vlan_name in self.snmp.dot1qVlanStaticName.values()
-    def update_vlan_name(self, vlan_id, new_name, batch_proxy = None):
-        if batch_proxy == None:
-            proxy = self.snmp
-        else:
-            proxy = batch_proxy
-        proxy.dot1qVlanStaticName[vlan_id] = new_name
     def apply_config_to_device(self, config):
-        with self.snmp as batch_snmp:
-            print 'setting the default vlan id on each port...'
-            for port_config in config.port_configs:
-                batch_snmp.dot1qPvid[port_config.port] = port_config.default_vlan_id
-            print 'configuring vlans...'
-            existing_vlans = self.get_existing_vlans()
-            for vlan_id in config.registered_vlans:
-                print 'vlan', vlan_id
+        print 'setting the default vlan id on each port...'
+        for port_config in config.port_configs:
+            self.snmp.dot1qPvid[port_config.port] = port_config.default_vlan_id
+        print 'configuring vlans...'
+        existing_vlans = self.get_existing_vlans()
+        for vlan_id in config.registered_vlans:
+            print 'vlan', vlan_id
+            # create missing vlans and update vlan names.
+            # note: this operation will update the size of the 2 tables used below
+            # dot1qVlanStaticEgressPorts & dot1qVlanStaticUntaggedPorts
+            if not vlan_id in existing_vlans:
+                print '-> new vlan, creating it...'
+                self.snmp.dot1qVlanStaticRowStatus[vlan_id] = Q_BRIDGE_MIB_CreateAndGo
+                existing_vlans[vlan_id] = { 'preconfigured': False,
+                                            'name': '' }
+            if existing_vlans[vlan_id]['preconfigured']:
+                print '-> bypassing vlan name update (this vlan was preconfigured in the device)'
+            else:
                 new_vlan_name = config.registered_vlans[vlan_id]
-                if not vlan_id in existing_vlans:
-                    print '-> new vlan, creating it...'
-                    batch_snmp.dot1qVlanStaticRowStatus[vlan_id] = Q_BRIDGE_MIB_CreateAndGo
-                    self.update_vlan_name(vlan_id, new_vlan_name, batch_snmp)
-                else:
-                    if existing_vlans[vlan_id]['preconfigured']:
-                        print '-> bypassing vlan name update (this vlan was preconfigured in the device)'
-                    else:
-                        old_name = existing_vlans[vlan_id]['name']
-                        if old_name != new_vlan_name:
-                            print '-> setting vlan name to', new_vlan_name
-                            self.update_vlan_name(vlan_id, new_vlan_name, batch_snmp)
+                old_name = existing_vlans[vlan_id]['name']
+                if old_name != new_vlan_name:
+                    print '-> setting vlan name to', new_vlan_name, '(was %s)' % old_name
+                    self.snmp.dot1qVlanStaticName[vlan_id] = new_vlan_name
                 print '-> retrieving current config egress / untagged ports'
                 egress_ports = PortsBitField(self.snmp.dot1qVlanStaticEgressPorts[vlan_id])
                 untagged_ports = PortsBitField(self.snmp.dot1qVlanStaticUntaggedPorts[vlan_id])
@@ -86,6 +82,6 @@ class VlanProxy(object):
                     egress_ports[port_config.port] = egress
                     untagged_ports[port_config.port] = untag
                 print '-> saving egress / untagged ports config on device'
-                batch_snmp.dot1qVlanStaticEgressPorts[vlan_id] = egress_ports.toOctetString()
-                batch_snmp.dot1qVlanStaticUntaggedPorts[vlan_id] = untagged_ports.toOctetString()
+                self.snmp.dot1qVlanStaticEgressPorts[vlan_id] = egress_ports.toOctetString()
+                self.snmp.dot1qVlanStaticUntaggedPorts[vlan_id] = untagged_ports.toOctetString()
 
