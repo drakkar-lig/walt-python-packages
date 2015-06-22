@@ -13,10 +13,11 @@ def main_switch_conf_callback(local_ip, switch_ip):
 def setup_needed():
     # check if an ip was already assigned, which 
     # shows that setup was already done
+    server_ip = str(network.tools.get_server_ip())
     while True:
         try:
             snmp_local = snmp.Proxy('localhost', lldp=True)
-            if len(snmp_local.lldp.get_local_ips()) > 0:
+            if server_ip in snmp_local.lldp.get_local_ips():
                 return False    # setup already done
             else:
                 return True     # setup needed
