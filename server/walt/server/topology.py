@@ -48,14 +48,12 @@ class Topology(object):
             return 'switch'
 
     def collect_connected_devices(self, host, host_is_a_switch,
-                            host_mac, already_processed = None):
+                            host_mac, processed_switches):
 
         print "collect devices connected on %s" % host
         # avoid to loop forever...
-        if already_processed == None:
-            already_processed = set([host_mac])
-        else:
-            already_processed.add(host_mac)
+        if host_is_a_switch:
+            processed_switches.add(host_mac)
         while True:
             issue = False
             # get a SNMP proxy with LLDP feature
@@ -64,6 +62,8 @@ class Topology(object):
             # record neighbors in db and recurse
             for port, neighbor_info in snmp_proxy.lldp.get_neighbors().items():
                 ip, mac = neighbor_info['ip'], neighbor_info['mac']
+                if mac in processed_switches:
+                    continue
                 if not ip_in_walt_network(ip):
                     print 'Not ready, one neighbor has ip %s (not in WalT network yet)...' % ip
                     lldp_update()
@@ -80,11 +80,10 @@ class Topology(object):
                                 switch_mac=switch_mac,
                                 switch_port=switch_port,
                                 ip=ip)
-                if device_type == 'switch' and \
-                        mac not in already_processed:
+                if device_type == 'switch':
                     # recursively discover devices connected to this switch
                     self.collect_connected_devices(ip, True,
-                                            mac, already_processed)
+                                            mac, processed_switches)
             if not issue:
                 break   # otherwise restart the loop
 
@@ -96,7 +95,7 @@ class Topology(object):
             SET reachable = 0;""")
 
         self.server_mac = get_mac_address(const.SERVER_TESTBED_INTERFACE)
-        self.collect_connected_devices("localhost", False, self.server_mac)
+        self.collect_connected_devices("localhost", False, self.server_mac, set())
         self.db.commit()
 
         if requester != None:
