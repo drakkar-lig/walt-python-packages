@@ -47,9 +47,12 @@ class Topology(object):
         else:
             return 'switch'
 
-    def collect_connected_devices(self, host, host_is_a_switch, host_mac):
+    def collect_connected_devices(self, host, host_is_a_switch,
+                            host_mac, already_processed = set([])):
 
         print "collect devices connected on %s" % host
+        # avoid to loop forever...
+        already_processed.add(host_mac)
         while True:
             issue = False
             # get a SNMP proxy with LLDP feature
@@ -74,9 +77,11 @@ class Topology(object):
                                 switch_mac=switch_mac,
                                 switch_port=switch_port,
                                 ip=ip)
-                if device_type == 'switch':
+                if device_type == 'switch' and \
+                        mac not in already_processed:
                     # recursively discover devices connected to this switch
-                    self.collect_connected_devices(ip, True, mac)
+                    self.collect_connected_devices(ip, True,
+                                            mac, already_processed)
             if not issue:
                 break   # otherwise restart the loop
 
