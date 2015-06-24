@@ -53,26 +53,19 @@ WantedBy=multi-user.target
 # thus, when mounting an image, we will overwrite its
 # authentication key with the following one, which will
 # remain constant.
-NODE_DSA_KEYPAIR = dict(
+NODE_ECDSA_KEYPAIR = dict(
     private_key = """\
------BEGIN DSA PRIVATE KEY-----
-MIIBvQIBAAKBgQDlqf9HzsAhiWuCKK7vO73y0BeUeIxQi27pLnpBuevTyycR8QA+
-Ayn7lmw2WDML9DyhWSDh3954aSOpmtCG/G9i6OQIhfvPtnbGbL7jCph5KNDeNTHh
-D3ME7Yg4Mx4rxZNfNGUKnRdMjV5bPlcwrdTki8vwMFFYD5eTEfrJUSbIJwIVAMoM
-VowNNHgwdR6SQ90kXdNbU+O/AoGBANzB+MXSxGMK7F+7edPpG5vv6lkjt8fhERMa
-jfiEH3EMoNIB/WNv6iKiEn9fBEc6U+38L4z6n1KrXhgKBt3c5pHoce41TEfThV1y
-M/unkmU3YWgJcODj92B35mTNrcCcxrZNYiVuwqUyEaU50hAyKsGB2h8p7QN8K4zY
-OO377uEPAoGBANCPhPblyuuCDXCQ/td8QHaesENhiOLGc+KlEwEzTaSZ833rt1II
-c18yGt9C86cxW4drWQNlGiBivicrNv82s0vlDARziYeGbQlpIO2x3SWWJDvlVbmw
-xiVcdUeMwe3Xnusz0aIEBicJM/FC2DM6Yogg0o4nk2SDkhYoUD+KBNb4AhUArld+
-wvxMEdvTpj6gkC+FaXL+Rmw=
------END DSA PRIVATE KEY-----
+-----BEGIN EC PRIVATE KEY-----
+MHcCAQEEIDWsENxcRUkFkTi/gqNog7XbEUgJqXto4LBmR912mESMoAoGCCqGSM49
+AwEHoUQDQgAE219o+OBl5qGa6iYOkHlCBbdPZs20vvIQf+bp0kIwI4Lmdq79bTTz
+REHbx9/LKRGRn8z2QMq3EY9V/stQpHc68w==
+-----END EC PRIVATE KEY-----
 """,
-    private_key_path = '/etc/ssh/ssh_host_dsa_key',
+    private_key_path = '/etc/ssh/ssh_host_ecdsa_key',
     public_key = """\
-ssh-dss AAAAB3NzaC1kc3MAAACBAOWp/0fOwCGJa4Ioru87vfLQF5R4jFCLbukuekG569PLJxHxAD4DKfuWbDZYMwv0PKFZIOHf3nhpI6ma0Ib8b2Lo5AiF+8+2dsZsvuMKmHko0N41MeEPcwTtiDgzHivFk180ZQqdF0yNXls+VzCt1OSLy/AwUVgPl5MR+slRJsgnAAAAFQDKDFaMDTR4MHUekkPdJF3TW1PjvwAAAIEA3MH4xdLEYwrsX7t50+kbm+/qWSO3x+ERExqN+IQfcQyg0gH9Y2/qIqISf18ERzpT7fwvjPqfUqteGAoG3dzmkehx7jVMR9OFXXIz+6eSZTdhaAlw4OP3YHfmZM2twJzGtk1iJW7CpTIRpTnSEDIqwYHaHyntA3wrjNg47fvu4Q8AAACBANCPhPblyuuCDXCQ/td8QHaesENhiOLGc+KlEwEzTaSZ833rt1IIc18yGt9C86cxW4drWQNlGiBivicrNv82s0vlDARziYeGbQlpIO2x3SWWJDvlVbmwxiVcdUeMwe3Xnusz0aIEBicJM/FC2DM6Yogg0o4nk2SDkhYoUD+KBNb4 root@rpi-ED
+ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBNtfaPjgZeahmuomDpB5QgW3T2bNtL7yEH/m6dJCMCOC5nau/W0080RB28ffyykRkZ/M9kDKtxGPVf7LUKR3OvM= root@rpi_ED
 """,
-    public_key_path = '/etc/ssh/ssh_host_dsa_key.pub'
+    public_key_path = '/etc/ssh/ssh_host_ecdsa_key.pub'
 )
 
 AUTHORIZED_KEYS_PATH = '/root/.ssh/authorized_keys'
@@ -89,10 +82,10 @@ def run():
         f.write(NTP_CONF % env)
     with open(SYSTEMD_SERVICE_PATH, 'w') as f:
         f.write(SYSTEMD_SERVICE_CONF % env)
-    with open(NODE_DSA_KEYPAIR['private_key_path'], 'w') as f:
-        f.write(NODE_DSA_KEYPAIR['private_key'])
-    with open(NODE_DSA_KEYPAIR['public_key_path'], 'w') as f:
-        f.write(NODE_DSA_KEYPAIR['public_key'])
+    with open(NODE_ECDSA_KEYPAIR['private_key_path'], 'w') as f:
+        f.write(NODE_ECDSA_KEYPAIR['private_key'])
+    with open(NODE_ECDSA_KEYPAIR['public_key_path'], 'w') as f:
+        f.write(NODE_ECDSA_KEYPAIR['public_key'])
     if not os.path.exists(os.path.dirname(AUTHORIZED_KEYS_PATH)):
         os.makedirs(os.path.dirname(AUTHORIZED_KEYS_PATH))
     with open(AUTHORIZED_KEYS_PATH, 'w') as f:
