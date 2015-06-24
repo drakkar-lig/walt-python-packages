@@ -48,11 +48,14 @@ class Topology(object):
             return 'switch'
 
     def collect_connected_devices(self, host, host_is_a_switch,
-                            host_mac, already_processed = set([])):
+                            host_mac, already_processed = None):
 
         print "collect devices connected on %s" % host
         # avoid to loop forever...
-        already_processed.add(host_mac)
+        if already_processed == None:
+            already_processed = set([host_mac])
+        else:
+            already_processed.add(host_mac)
         while True:
             issue = False
             # get a SNMP proxy with LLDP feature
