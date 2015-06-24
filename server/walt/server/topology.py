@@ -21,7 +21,8 @@ TOPOLOGY_QUERY = """
             d1.ip as ip, d1.reachable as reachable,
             NULL as switch_name, NULL as switch_port
     FROM devices d1, topology t
-    WHERE   d1.mac = t.mac and t.switch_mac is null;"""
+    WHERE   d1.mac = t.mac and t.switch_mac is null
+    ORDER BY switch_name, switch_port;"""
 
 # the split_part() expression below allows to show only
 # the image tag to the user (instead of the full docker name).
