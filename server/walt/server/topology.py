@@ -137,6 +137,26 @@ class Topology(object):
                         requester, node_name, after_rescan = True)
         return node_info
 
+    def notify_unknown_ip(self, requester, device_name):
+        requester.stderr.write('Sorry, IP address of %s in unknown.\n' \
+                            % device_name)
+
+    def get_device_ip(self, requester, device_name):
+        device_info = self.get_device_info(requester, device_name)
+        if device_info == None:
+            return None # error already reported
+        if device_info.ip == None:
+            self.notify_unknown_ip(requester, device_name)
+        return device_info.ip
+
+    def get_node_ip(self, requester, node_name):
+        node_info = self.get_node_info(requester, node_name)
+        if node_info == None:
+            return None # error already reported
+        if node_info.ip == None:
+            self.notify_unknown_ip(requester, node_name)
+        return node_info.ip
+
     def get_reachable_node_ip(self, requester, node_name):
         node_info = self.get_reachable_node_info(requester, node_name)
         if node_info == None:

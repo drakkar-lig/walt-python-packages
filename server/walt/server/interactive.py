@@ -4,7 +4,8 @@ from walt.common.io import POLL_OPS_READ, SmartBufferingFileReader, \
                             is_read_event_ok, unbuffered, \
                             read_and_copy
 from walt.common.tcp import REQ_SQL_PROMPT, REQ_DOCKER_PROMPT, \
-                            REQ_NODE_SHELL, read_pickle
+                            REQ_NODE_SHELL, REQ_DEVICE_PING, \
+                            read_pickle
 
 class PromptProcessListener(object):
     def __init__(self, slave_r, slave_w, sock_file_r, sock_file_w):
@@ -93,10 +94,12 @@ class PromptSocketListener(object):
             self.slave_w.close()
 
 class SQLPromptSocketListener(PromptSocketListener):
+    REQ_ID = REQ_SQL_PROMPT
     def get_command(self, **kwargs):
         return 'psql walt'
 
 class DockerPromptSocketListener(PromptSocketListener):
+    REQ_ID = REQ_DOCKER_PROMPT
     def get_command(self, **kwargs):
         image, container = read_pickle(self.sock_file_r)
         return 'docker run -it --entrypoint %s -h %s --name %s %s' % \
@@ -104,22 +107,25 @@ class DockerPromptSocketListener(PromptSocketListener):
                         container, image)
 
 class NodeShellSocketListener(PromptSocketListener):
+    REQ_ID = REQ_NODE_SHELL
     def get_command(self, **kwargs):
         node_ip = read_pickle(self.sock_file_r)
         return 'ssh root@%s' % node_ip
 
+class DevicePingSocketListener(PromptSocketListener):
+    REQ_ID = REQ_DEVICE_PING
+    def get_command(self, **kwargs):
+        device_ip = read_pickle(self.sock_file_r)
+        return 'ping %s' % device_ip
+
 class InteractionManager(object):
     def __init__(self, tcp_server, ev_loop):
-        tcp_server.register_listener_class(
-                        req_id = REQ_SQL_PROMPT,
-                        cls = SQLPromptSocketListener,
-                        ev_loop = ev_loop)
-        tcp_server.register_listener_class(
-                        req_id = REQ_DOCKER_PROMPT,
-                        cls = DockerPromptSocketListener,
-                        ev_loop = ev_loop)
-        tcp_server.register_listener_class(
-                        req_id = REQ_NODE_SHELL,
-                        cls = NodeShellSocketListener,
-                        ev_loop = ev_loop)
+        for cls in [    SQLPromptSocketListener,
+                        DockerPromptSocketListener,
+                        NodeShellSocketListener,
+                        DevicePingSocketListener ]:
+            tcp_server.register_listener_class(
+                    req_id = cls.REQ_ID,
+                    cls = cls,
+                    ev_loop = ev_loop)
 

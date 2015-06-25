@@ -83,6 +83,14 @@ class PlatformService(rpyc.Service):
         return self.platform.topology.get_reachable_node_ip(
                         self._client, node_name)
 
+    def exposed_get_device_ip(self, device_name):
+        return self.platform.topology.get_device_ip(
+                        self._client, device_name)
+
+    def exposed_get_node_ip(self, node_name):
+        return self.platform.topology.get_node_ip(
+                        self._client, node_name)
+
     def exposed_blink(self, node_name, duration):
         node_ip = self.platform.topology.get_reachable_node_ip(
                         self._client, node_name)

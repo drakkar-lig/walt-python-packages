@@ -2,14 +2,15 @@
 """
 WalT (wireless testbed) control tool.
 """
-import readline, time
+import readline, time, sys
 from plumbum import cli
 from walt.common.logs import LogsConnectionToServer
 from walt.client.link import ClientToServerLink
 from walt.client.config import conf
 from walt.client.interactive import run_sql_prompt, \
                                     run_modify_image_prompt, \
-                                    run_node_shell
+                                    run_node_shell, \
+                                    run_device_ping
 
 WALT_VERSION = "0.1"
 DEFAULT_FORMAT_STRING= \
@@ -48,6 +49,16 @@ class WalTRenameDevice(cli.Application):
     def main(self, old_name, new_name):
         with ClientToServerLink() as server:
             server.rename(old_name, new_name)
+
+@WalTPlatform.subcommand("ping")
+class WalTDevicePing(cli.Application):
+    """check that a device is reachable on WalT network"""
+    def main(self, device_name):
+        device_ip = None
+        with ClientToServerLink() as server:
+            device_ip = server.get_device_ip(device_name)
+        if device_ip:
+            run_device_ping(device_ip)
 
 @WalT.subcommand("node")
 class WalTNode(cli.Application):
@@ -92,6 +103,16 @@ class WalTNodeDeploy(cli.Application):
                                 (node_name, image_name)
                     server.poweron(node_name)
                     print node_name, 'was powered on.'
+
+@WalTNode.subcommand("ping")
+class WalTNodePing(cli.Application):
+    """check that a node is reachable on WalT network"""
+    def main(self, node_name):
+        node_ip = None
+        with ClientToServerLink() as server:
+            node_ip = server.get_node_ip(node_name)
+        if node_ip:
+            run_device_ping(node_ip)
 
 @WalTNode.subcommand("shell")
 class WalTNodeShell(cli.Application):

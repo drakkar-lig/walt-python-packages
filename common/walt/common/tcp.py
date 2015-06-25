@@ -5,6 +5,7 @@ REQ_DUMP_LOGS = 1
 REQ_SQL_PROMPT = 2
 REQ_DOCKER_PROMPT = 3
 REQ_NODE_SHELL = 4
+REQ_DEVICE_PING = 5
 
 def read_pickle(stream):
     try:
