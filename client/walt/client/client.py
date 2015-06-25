@@ -21,12 +21,12 @@ class WalT(cli.Application):
     """WalT (wireless testbed) control tool."""
     VERSION = WALT_VERSION
 
-@WalT.subcommand("platform")
-class WalTPlatform(cli.Application):
-    """platform-management sub-commands"""
+@WalT.subcommand("device")
+class WalTDevice(cli.Application):
+    """management of WalT platform devices"""
 
-@WalTPlatform.subcommand("show")
-class WalTPlatformPrint(cli.Application):
+@WalTDevice.subcommand("show")
+class WalTDevicePrint(cli.Application):
     """print a view of the devices involved in the platform"""
     _details = False # default
     def main(self):
@@ -36,21 +36,21 @@ class WalTPlatformPrint(cli.Application):
     def details(self):
         self._details = True
 
-@WalTPlatform.subcommand("rescan")
-class WalTPlatformRescan(cli.Application):
+@WalTDevice.subcommand("rescan")
+class WalTDeviceRescan(cli.Application):
     """rescan the network devices involved in the platform"""
     def main(self):
         with ClientToServerLink() as server:
             server.update()
 
-@WalTPlatform.subcommand("rename-device")
+@WalTDevice.subcommand("rename")
 class WalTRenameDevice(cli.Application):
     """rename a device"""
     def main(self, old_name, new_name):
         with ClientToServerLink() as server:
             server.rename(old_name, new_name)
 
-@WalTPlatform.subcommand("ping")
+@WalTDevice.subcommand("ping")
 class WalTDevicePing(cli.Application):
     """check that a device is reachable on WalT network"""
     def main(self, device_name):
@@ -62,9 +62,9 @@ class WalTDevicePing(cli.Application):
 
 @WalT.subcommand("node")
 class WalTNode(cli.Application):
-    """node management sub-commands"""
+    """WalT node management sub-commands"""
 
-@WalTNode.subcommand("list")
+@WalTNode.subcommand("show")
 class WalTNodeList(cli.Application):
     """list available WalT nodes"""
     def main(self):
@@ -126,9 +126,9 @@ class WalTNodeShell(cli.Application):
 
 @WalT.subcommand("image")
 class WalTImage(cli.Application):
-    """Sub-commands related to WalT-nodes operating system images"""
+    """management of WalT-nodes operating system images"""
 
-@WalTImage.subcommand("list")
+@WalTImage.subcommand("show")
 class WalTImageList(cli.Application):
     """list available WalT node OS images"""
     def main(self):
@@ -183,12 +183,12 @@ class WalTImageRename(cli.Application):
         with ClientToServerLink() as server:
             server.rename_image(image_name, new_name)
 
-@WalT.subcommand("logs")
-class WalTLogs(cli.Application):
-    """logs-management sub-commands"""
+@WalT.subcommand("log")
+class WaltLog(cli.Application):
+    """management of logs"""
 
-@WalTLogs.subcommand("show")
-class WalTLogsShow(cli.Application):
+@WaltLog.subcommand("show")
+class WaltLogShow(cli.Application):
     """Dump logs on standard output"""
     format_string = cli.SwitchAttr(
                 "--format",
