@@ -6,6 +6,7 @@ from walt.server.tools import \
         failsafe_makedirs, failsafe_symlink, columnate
 from walt.server import const
 import os, re, sys, requests, uuid, shlex
+from datetime import datetime
 
 IMAGE_IS_USED_BUT_NOT_FOUND=\
     "WARNING: image %s is not found. Cannot attach it to related nodes.\n"
@@ -67,6 +68,7 @@ class NodeImage(object):
     def __init__(self, c, name, state):
         self.c = c
         self.rename(name)
+        self.set_created_at()
         self.state = state
         self.cid = None
         self.mount_path = None
@@ -80,6 +82,13 @@ class NodeImage(object):
             self.name, self.tag = parts
         self.docker_user = name.split('/')[0]
         self.tagged_name = name
+    def set_created_at(self):
+        # created_at is only available on local images
+        # (downloaded or created locally)
+        self.created_at = None
+        for i in self.c.images():
+            if self.tagged_name in i['RepoTags']:
+                self.created_at = datetime.fromtimestamp(i['Created'])
     def __del__(self):
         if self.mounted:
             self.unmount()
@@ -236,15 +245,24 @@ class NodeImageRepository(object):
             self.db.commit()
     def describe(self):
         tabular_data = []
-        header = [ 'Name', 'Origin', 'Mounted', 'Default' ]
+        header = [ 'Name', 'Origin', 'Mounted', 'Default', 'Created' ]
         default = self.get_default_image()
+        missing_created_at = False
         for name, image in self.images.iteritems():
+            created_at = image.created_at
+            if not created_at:
+                created_at = 'N/A (1)'
+                missing_created_at = True
             tabular_data.append([
                         image.tag,
                         image.docker_user,
                         str(image.mounted),
-                        '*' if name == default else ''])
-        return columnate(tabular_data, header)
+                        '*' if name == default else '',
+                        created_at])
+        res = columnate(tabular_data, header)
+        if missing_created_at:
+            res += '\n\n(1): no info about creation date for remote images.'
+        return res
     def set_default(self, requester, image_tag):
         image = self.get_image_from_tag(image_tag, requester)
         if image:
