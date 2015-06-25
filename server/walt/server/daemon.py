@@ -71,7 +71,7 @@ class PlatformService(rpyc.Service):
         self._client = None
 
     def exposed_update(self):
-        self.platform.update(self._client)
+        self.server.platform_update(self._client)
 
     def exposed_describe(self, details=False):
         return self.platform.describe(details)
@@ -98,11 +98,11 @@ class PlatformService(rpyc.Service):
         return self.platform.setpower(self._client, node_name, True)
 
     def exposed_rename(self, old_name, new_name):
-        self.platform.rename_device(self._client, old_name, new_name)
+        self.server.rename_device(self._client, old_name, new_name)
 
     def exposed_register_node(self):
         node_ip, node_port = self._conn._config['endpoints'][1]
-        self.platform.register_node(node_ip)
+        self.server.register_node(node_ip)
 
     def exposed_has_image(self, image_name):
         return self.images.has_image(self._client, image_name)

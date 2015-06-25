@@ -109,7 +109,7 @@ def generate_dhcpd_conf(devices):
     return CONF_PATTERN % infos
 
 QUERY_DEVICES_WITH_IP="""
-    SELECT * FROM devices WHERE ip IS NOT NULL;
+    SELECT * FROM devices WHERE ip IS NOT NULL ORDER BY mac;
 """
 
 class DHCPServer(object):
@@ -134,7 +134,11 @@ class DHCPServer(object):
                     mac=device_mac,
                     fs_path=fs_path))
         conf = generate_dhcpd_conf(devices)
-        with open(DHCPD_CONF_FILE, 'w') as conf_file:
-            conf_file.write(conf)
-        do('service isc-dhcp-server restart')
+        with open(DHCPD_CONF_FILE, 'r') as conf_file:
+            old_conf = conf_file.read()
+        if conf != old_conf:
+            with open(DHCPD_CONF_FILE, 'w') as conf_file:
+                conf_file.write(conf)
+            do('service isc-dhcp-server restart')
+            print 'dhcpd conf updated.'
 

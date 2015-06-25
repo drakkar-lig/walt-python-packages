@@ -55,3 +55,15 @@ class Server(object):
         self.images.set_default(requester, image_name)
         self.dhcpd.update()
 
+    def register_node(self, node_ip):
+        self.platform.register_node(node_ip)
+        self.dhcpd.update()
+
+    def rename_device(self, requester, old_name, new_name):
+        self.platform.rename_device(requester, old_name, new_name)
+        self.dhcpd.update()
+
+    def platform_update(self, requester):
+        self.platform.update(requester)
+        self.dhcpd.update()
+
