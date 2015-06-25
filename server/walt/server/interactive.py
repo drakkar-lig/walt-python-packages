@@ -110,7 +110,7 @@ class NodeShellSocketListener(PromptSocketListener):
     REQ_ID = REQ_NODE_SHELL
     def get_command(self, **kwargs):
         node_ip = read_pickle(self.sock_file_r)
-        return 'ssh root@%s' % node_ip
+        return 'ssh -o StrictHostKeyChecking=no root@%s' % node_ip
 
 class DevicePingSocketListener(PromptSocketListener):
     REQ_ID = REQ_DEVICE_PING
