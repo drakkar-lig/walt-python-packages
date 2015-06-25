@@ -118,7 +118,7 @@ class DHCPServer(object):
     def update(self):
         devices = []
         for item in \
-                self.db.execute(QUERY_DEVICES_WITH_IP):
+                self.db.execute(QUERY_DEVICES_WITH_IP).fetchall():
             device_type = item.type
             device_mac = item.mac
             fs_path = None  # default
