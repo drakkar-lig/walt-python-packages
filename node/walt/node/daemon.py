@@ -22,12 +22,8 @@ class WalTNodeService(rpyc.Service):
     def on_disconnect(self):
         self._client = None
 
-    def exposed_blink(self, duration):
-        WalTNodeService.NodeClass.blink(True)
-        self._client.stdout.write('blinking for %ds... ' % duration)
-        time.sleep(duration)
-        WalTNodeService.NodeClass.blink(False)
-        self._client.stdout.write('done.\n')
+    def exposed_blink(self, blink_status):
+        WalTNodeService.NodeClass.blink(blink_status)
 
 class NodeToServerLink:
     server_ip = None

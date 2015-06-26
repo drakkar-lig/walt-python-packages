@@ -117,8 +117,22 @@ class WalTNodeList(cli.Application):
 class WalTNodeBlink(cli.Application):
     """make a node blink for a given number of seconds"""
     def main(self, node_name, duration=60):
-        with ClientToServerLink() as server:
-            server.blink(node_name, int(duration))
+        try:
+            seconds = int(duration)
+        except:
+            sys.stderr.write(
+                '<duration> must be an integer (number of seconds).\n')
+        else:
+            with ClientToServerLink() as server:
+                if server.blink(node_name, True):
+                    print 'blinking for %ds... ' % seconds
+                    try:
+                        time.sleep(seconds)
+                        print 'done.'
+                    except KeyboardInterrupt:
+                        print 'Aborted.'
+                    finally:
+                        server.blink(node_name, False)
 
 @WalTNode.subcommand("reboot")
 class WalTNodeReboot(cli.Application):

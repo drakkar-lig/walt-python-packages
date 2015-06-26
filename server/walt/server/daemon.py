@@ -91,13 +91,14 @@ class PlatformService(rpyc.Service):
         return self.platform.topology.get_node_ip(
                         self._client, node_name)
 
-    def exposed_blink(self, node_name, duration):
+    def exposed_blink(self, node_name, blink_status):
         node_ip = self.platform.topology.get_reachable_node_ip(
                         self._client, node_name)
         if node_ip == None:
-            return # error was already reported
+            return False # error was already reported
         with ServerToNodeLink(node_ip, self._client) as node_service:
-            node_service.blink(duration)
+            node_service.blink(blink_status)
+        return True
 
     def exposed_poweroff(self, node_name):
         return self.platform.setpower(self._client, node_name, False)
