@@ -51,10 +51,7 @@ class PromptSocketListener(object):
     def get_command(self, **kwargs):
         '''this should be defined in subclasses'''
         raise NotImplementedError
-    def send_message_to_user(self, msg):
-        self.sock_file_w.write(msg + '\r\n')
     def start(self, cmd):
-        self.send_message_to_user('Starting an interactive shell...')
         self.slave_pid, fd_slave = pty.fork()
         # the child (slave process) should execute the command
         if self.slave_pid == 0:

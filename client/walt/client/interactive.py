@@ -11,6 +11,18 @@ from walt.common.tcp import REQ_SQL_PROMPT, REQ_DOCKER_PROMPT, \
                             REQ_NODE_SHELL, REQ_DEVICE_PING, \
                             write_pickle, client_socket
 
+SQL_SHELL_MESSAGE = """\
+Type \dt for a list of tables.
+"""
+IMAGE_SHELL_MESSAGE = """\
+Notice: this is a limited virtual environment.
+Run 'walt --help-shell' for more info.
+"""
+NODE_SHELL_MESSAGE = """\
+Caution: changes will be lost on next node reboot.
+Run 'walt --help-shell' for more info.
+"""
+
 class TTYSettings(object):
     def __init__(self):
         self.tty_fd = sys.stdout.fileno()
@@ -79,9 +91,11 @@ class PromptClient(object):
             tty_settings.restore()
 
 def run_sql_prompt():
+    print SQL_SHELL_MESSAGE
     PromptClient(REQ_SQL_PROMPT).run()
 
-def run_modify_image_prompt(session):
+def run_image_shell_prompt(session):
+    print IMAGE_SHELL_MESSAGE
     # caution with deadlocks.
     # the server will not be able to initialize the prompt
     # connection and respond to RPyC requests at the same
@@ -94,6 +108,7 @@ def run_modify_image_prompt(session):
     PromptClient(REQ_DOCKER_PROMPT, request_finalize).run()
 
 def run_node_shell(node_ip):
+    print NODE_SHELL_MESSAGE
     def request_finalize(socket_w):
         write_pickle(node_ip, socket_w)
     PromptClient(REQ_NODE_SHELL, request_finalize).run()
