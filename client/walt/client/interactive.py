@@ -2,11 +2,10 @@
 import sys, tty, termios
 from walt.client.config import conf
 from sys import stdin, stdout
-from select import poll
+from select import select
 from walt.common.constants import WALT_SERVER_TCP_PORT
-from walt.common.io import POLL_OPS_READ, SmartBufferingFileReader, \
-                            is_read_event_ok, unbuffered, \
-                            read_and_copy
+from walt.common.io import SmartBufferingFileReader, \
+                            unbuffered, read_and_copy
 from walt.common.tcp import REQ_SQL_PROMPT, REQ_DOCKER_PROMPT, \
                             REQ_NODE_SHELL, REQ_DEVICE_PING, \
                             write_pickle, client_socket
@@ -54,12 +53,11 @@ class PromptClient(object):
         # provide read_available() method
         self.stdin_reader = SmartBufferingFileReader(unbuffered(stdin, 'r'))
         self.socket_reader = SmartBufferingFileReader(self.socket_r)
-        # we will wait on 2 file descriptors
-        self.poller = poll()
-        self.poller.register(stdin, POLL_OPS_READ)
-        self.poller.register(self.socket_r, POLL_OPS_READ)
 
     def run(self):
+        # we will wait on 2 file descriptors
+        select_args = [ [ stdin, self.socket_r ], [], [ stdin, self.socket_r ] ]
+
         # this is the main trick when trying to provide a virtual
         # terminal remotely: the client should set its own terminal
         # in 'raw' mode, in order to avoid interpreting any escape
@@ -78,9 +76,10 @@ class PromptClient(object):
         tty_settings.set_raw_no_echo()
         try:
             while True:
-                fd, ev = self.poller.poll()[0]
-                if not is_read_event_ok(ev):
+                rlist, wlist, elist = select(*select_args)
+                if len(elist) > 0:
                     break
+                fd = rlist[0].fileno()
                 if fd == self.socket_r.fileno():
                     if read_and_copy(self.socket_reader, stdout) == False:
                         break

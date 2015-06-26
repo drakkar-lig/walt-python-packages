@@ -4,7 +4,7 @@ import datetime, sys, os, signal, socket
 from subprocess import Popen, PIPE
 from plumbum import cli
 from walt.common.logs import LogsConnectionToServer
-from walt.common.io import EventLoop
+from walt.common.evloop import EventLoop
 from walt.node.tools import lookup_server_ip
 
 STDOUT = 1

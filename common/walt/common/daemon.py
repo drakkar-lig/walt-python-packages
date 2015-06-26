@@ -4,7 +4,7 @@ import sys, logging, signal
 from plumbum import cli
 from rpyc.utils.server import Server
 from rpyc.core import SocketStream, Channel, Connection
-from io import EventLoop
+from evloop import EventLoop
 
 # This class is designed to manage 1 RPyC client
 # connexion, and integrate our event loop 

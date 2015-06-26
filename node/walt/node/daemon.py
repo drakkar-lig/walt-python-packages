@@ -8,7 +8,7 @@ from walt.common.tools import get_mac_address
 from walt.common.constants import WALT_NODE_DAEMON_PORT
 from walt.common.constants import WALT_SERVER_DAEMON_PORT
 from walt.common.devices.fake import Fake
-from walt.common.io import EventLoop
+from walt.common.evloop import EventLoop
 from walt.node.tools import lookup_server_ip
 
 WALT_NODE_DAEMON_VERSION = 0.1

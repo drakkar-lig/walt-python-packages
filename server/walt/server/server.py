@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import uuid
-from walt.common.io import EventLoop
+from walt.common.evloop import EventLoop
 from walt.common.tcp import TCPServer
 from walt.common.constants import WALT_SERVER_TCP_PORT
 from walt.server.image import NodeImageRepository

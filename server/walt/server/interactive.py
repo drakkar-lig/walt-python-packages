@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 import os, pty, shlex, uuid
-from walt.common.io import POLL_OPS_READ, SmartBufferingFileReader, \
-                            is_read_event_ok, unbuffered, \
-                            read_and_copy
+from walt.common.io import SmartBufferingFileReader, \
+                            unbuffered, read_and_copy
 from walt.common.tcp import REQ_SQL_PROMPT, REQ_DOCKER_PROMPT, \
                             REQ_NODE_SHELL, REQ_DEVICE_PING, \
                             read_pickle
