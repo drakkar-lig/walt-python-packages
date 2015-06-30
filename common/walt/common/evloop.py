@@ -31,11 +31,11 @@ class EventLoop(object):
             return  # registration aborted
         self.listeners[fd] = listener
         self.poller.register(fd, POLL_OPS_READ)
-        print 'new listener:', listener
+        #print 'new listener:', listener
 
     def remove_listener(self, in_listener):
-        print 'removing ' + str(in_listener)
-        sys.stdout.flush()
+        #print 'removing ' + str(in_listener)
+        #sys.stdout.flush()
         # find fd
         for fd, listener in self.listeners.iteritems():
             if listener is in_listener:
@@ -71,5 +71,4 @@ class EventLoop(object):
                 should_close = (res == False)
             if should_close:
                 self.remove_listener(listener)
-            sys.stdout.flush()
 
