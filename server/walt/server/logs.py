@@ -63,6 +63,11 @@ class LogsStreamListener(object):
     def handle_event(self):
         if self.stream_id == None:
             self.stream_id = self.register_new_stream()
+            # register_new_stream() involves a read on the stream
+            # to get its name.
+            # supposedly that's why we have been woken up.
+            # let the event loop call us again if there is more.
+            return True
         record = read_pickle(self.sock_file)
         if record == None:
             print 'Log stream with id %d is being closed.' % self.stream_id
