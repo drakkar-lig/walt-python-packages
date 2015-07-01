@@ -40,7 +40,12 @@ class EventLoop(object):
         for fd, listener in self.listeners.iteritems():
             if listener is in_listener:
                 break
-        listener.close()
+        # do no fail in case of issue in listener.close()
+        # because anyway we do not need this listener anymore
+        try:
+            listener.close()
+        except Exception as e:
+            print 'warning: got exception in listener.close():', e
         del self.listeners[fd]
         self.poller.unregister(fd)
 
