@@ -261,6 +261,7 @@ class WaltLogShow(cli.Application):
                 if record == None:
                     break
                 print self.format_string.format(**record)
+                sys.stdout.flush()
             except KeyboardInterrupt:
                 print
                 break
