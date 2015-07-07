@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import os, pty, shlex, uuid
+import os, pty, shlex, uuid, fcntl, termios, sys
 from walt.common.io import SmartBufferingFileReader, \
                             unbuffered, read_and_copy
 from walt.common.tcp import REQ_SQL_PROMPT, REQ_DOCKER_PROMPT, \
@@ -36,27 +36,25 @@ class PromptProcessListener(object):
 class PromptSocketListener(object):
     def __init__(self, ev_loop, sock_file, **kwargs):
         self.ev_loop = ev_loop
+        self.win_size = None
+        self.cmd = None
         # use unbuffered reading & writing on the socket
         self.sock_file_r = unbuffered(sock_file, 'r')
         self.sock_file_w = unbuffered(sock_file, 'w')
         self.slave_r = None
         self.slave_w = None
-        # get the command to execute
-        cmd = self.get_command(**kwargs)
-        if cmd == None: # issue
-            self.close()
-        else:           # all is fine
-            self.start(cmd)
-    def get_command(self, **kwargs):
+    def get_command(self):
         '''this should be defined in subclasses'''
         raise NotImplementedError
-    def start(self, cmd):
+    def start(self):
         self.slave_pid, fd_slave = pty.fork()
         # the child (slave process) should execute the command
         if self.slave_pid == 0:
+            # set the window size appropriate for the remote client
+            fcntl.ioctl(sys.stdout.fileno(), termios.TIOCSWINSZ, self.win_size)
             env = os.environ.copy()
             env.update({'TERM':'xterm'})
-            cmd_args = shlex.split(cmd)
+            cmd_args = shlex.split(self.cmd)
             os.execvpe(cmd_args[0], cmd_args, env)
         # the parent should communicate.
         # use unbuffered communication with the slave process
@@ -75,11 +73,27 @@ class PromptSocketListener(object):
         if self.sock_file_r.closed:
             return None
         return self.sock_file_r.fileno()
-    # when the event loop detects an event for us, this means
-    # the user wrote something on the prompt (i.e. the socket)
-    # we just have to copy this to the slave process input
+    # handle_event() will be called when the event loop detects
+    # new input data for us.
     def handle_event(self):
-        return read_and_copy(
+        if self.win_size == None:
+            # we did not read the window size yet, let's do it
+            self.win_size = read_pickle(self.sock_file_r)
+            if self.win_size == None:
+                self.close()    # issue
+        elif self.cmd == None:
+            # we did not compute the command to be run yet, let's do it
+            self.cmd = self.get_command()
+            if self.cmd == None:
+                self.close()    # issue
+                return
+            # we now have all info to start the child process
+            self.start()
+        else:
+            # otherwise we are all set. Thus, getting input data means
+            # the user wrote something on the prompt (i.e. the socket)
+            # we just have to copy this to the slave process input
+            return read_and_copy(
                 self.sock_reader, self.slave_w)
     def close(self):
         self.sock_file_r.close()
@@ -91,12 +105,12 @@ class PromptSocketListener(object):
 
 class SQLPromptSocketListener(PromptSocketListener):
     REQ_ID = REQ_SQL_PROMPT
-    def get_command(self, **kwargs):
+    def get_command(self):
         return 'psql walt'
 
 class DockerPromptSocketListener(PromptSocketListener):
     REQ_ID = REQ_DOCKER_PROMPT
-    def get_command(self, **kwargs):
+    def get_command(self):
         image, container = read_pickle(self.sock_file_r)
         return 'docker run -it --entrypoint %s -h %s --name %s %s' % \
                        ('/bin/bash', 'image-modify',
@@ -104,13 +118,13 @@ class DockerPromptSocketListener(PromptSocketListener):
 
 class NodeShellSocketListener(PromptSocketListener):
     REQ_ID = REQ_NODE_SHELL
-    def get_command(self, **kwargs):
+    def get_command(self):
         node_ip = read_pickle(self.sock_file_r)
         return 'ssh -o StrictHostKeyChecking=no root@%s' % node_ip
 
 class DevicePingSocketListener(PromptSocketListener):
     REQ_ID = REQ_DEVICE_PING
-    def get_command(self, **kwargs):
+    def get_command(self):
         device_ip = read_pickle(self.sock_file_r)
         return 'ping %s' % device_ip
 
