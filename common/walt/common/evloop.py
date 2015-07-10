@@ -5,11 +5,9 @@ from select import poll, POLLIN, POLLPRI
 POLL_OPS_READ = POLLIN | POLLPRI
 
 def is_read_event_ok(ev):
-    # check that there is nothing more
-    # than the events we were looking at
-    # (i.e. POLLIN, POLLPRI but 
-    # not POLLERR, POLLUP or POLLNVAL)
-    return (ev & (~POLL_OPS_READ) == 0)
+    # check that there is something to read
+    # (i.e. POLLIN or POLLPRI)
+    return (ev & (POLL_OPS_READ) > 0)
 
 # EventLoop allows to monitor incoming data on a set of
 # file descriptors, and call the appropriate listener when 
