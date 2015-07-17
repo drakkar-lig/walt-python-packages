@@ -2,8 +2,9 @@ from docker import Client
 from plumbum.cmd import mount, umount, findmnt
 from network import nfs
 from network.tools import get_server_ip
-from walt.server.tools import \
-        failsafe_makedirs, failsafe_symlink, columnate
+from walt.server.tools import columnate
+from walt.common.tools import \
+        failsafe_makedirs, failsafe_symlink
 from walt.server import const
 import os, re, sys, requests, uuid, shlex
 from datetime import datetime

@@ -19,7 +19,7 @@ class RPyCClientManager(object):
     def fileno(self):
         return self.conn.fileno()
 
-    def handle_event(self):
+    def handle_event(self, ts):
         try:
             self.conn.serve()
         except:
@@ -72,7 +72,7 @@ class RPyCServer(Server):
 
     # the event loop will call this when there is a new request
     # for us (i.e. an RPyC client connection)
-    def handle_event(self):
+    def handle_event(self, ts):
         self.accept()
 
 def exit_handler(_signo, _stack_frame):

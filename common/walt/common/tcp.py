@@ -52,7 +52,7 @@ class TCPServer(object):
     # what we will do: accept the tcp connection, read
     # the request and create the appropriate listener, 
     # and register this listener in the event loop.
-    def handle_event(self):
+    def handle_event(self, ts):
         conn_s, addr = self.s.accept()
         sock_file = conn_s.makefile()
         req_id = read_pickle(sock_file)

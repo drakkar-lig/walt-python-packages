@@ -21,7 +21,7 @@ class LogListener(object):
                 prog_name + '.' + str(pid) + '.' +
                 STREAM_NAMES[stream])
         self.stdstream = STD_STREAMS[stream]
-    def handle_event(self):
+    def handle_event(self, ts):
         line = self.f.readline()
         if line == '':  # empty read
             return False # remove from loop

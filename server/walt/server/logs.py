@@ -1,4 +1,5 @@
 import socket
+from datetime import datetime
 from walt.common.tcp import read_pickle, write_pickle, \
                             REQ_NEW_INCOMING_LOGS, REQ_DUMP_LOGS
 
@@ -60,7 +61,7 @@ class LogsStreamListener(object):
         return self.sock_file.fileno()
     # when the event loop detects an event for us, we
     # know a log line should be read. 
-    def handle_event(self):
+    def handle_event(self, ts):
         if self.stream_id == None:
             self.stream_id = self.register_new_stream()
             # register_new_stream() involves a read on the stream
@@ -74,6 +75,9 @@ class LogsStreamListener(object):
             # let the event loop know we should 
             # be removed.
             return False
+        # convert timestamp to datetime
+        record['timestamp'] = \
+            datetime.fromtimestamp(record['timestamp'])
         self.hub.log(record=record, stream_id=self.stream_id)
         return True
     def close(self):
@@ -107,7 +111,7 @@ class LogsToSocketHandler(object):
     def fileno(self):
         return self.sock_file.fileno()
     # this is what we do when the event loop detects an event for us
-    def handle_event(self):
+    def handle_event(self, ts):
         return False    # no communication is expected this way
     def close(self):
         self.sock_file.close()

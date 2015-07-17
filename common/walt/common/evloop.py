@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import os, sys
 from select import poll, POLLIN, POLLPRI
+from time import time
 
 POLL_OPS_READ = POLLIN | POLLPRI
 
@@ -61,14 +62,18 @@ class EventLoop(object):
             if len(self.listeners) == 0:
                 break
             # wait for an event
-            fd, ev = self.poller.poll()[0]
+            res = self.poller.poll()
+            # save the time of the event as soon as possible
+            ts = time()
+            # process the event
+            fd, ev = res[0]
             listener = self.listeners[fd]
             # if error, we will remove the listener below
             should_close = not is_read_event_ok(ev)
             if not should_close:
                 # no error, let the listener
                 # handle the event
-                res = listener.handle_event()
+                res = listener.handle_event(ts)
                 # if False was returned, we will
                 # close this listener.
                 should_close = (res == False)

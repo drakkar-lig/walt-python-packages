@@ -19,7 +19,7 @@ class PromptProcessListener(object):
     # when the event loop detects an event for us, this means
     # the slave proces wrote something on its output
     # we just have to copy this to the user socket
-    def handle_event(self):
+    def handle_event(self, ts):
         return read_and_copy(
                 self.slave_reader, self.sock_file_w)
     def close(self):
@@ -75,7 +75,7 @@ class PromptSocketListener(object):
         return self.sock_file_r.fileno()
     # handle_event() will be called when the event loop detects
     # new input data for us.
-    def handle_event(self):
+    def handle_event(self, ts):
         if self.win_size == None:
             # we did not read the window size yet, let's do it
             self.win_size = read_pickle(self.sock_file_r)

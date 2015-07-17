@@ -10,6 +10,7 @@ from walt.common.constants import WALT_SERVER_DAEMON_PORT
 from walt.common.devices.fake import Fake
 from walt.common.evloop import EventLoop
 from walt.node.tools import lookup_server_ip
+from walt.node.logs import LogsFifoServer
 
 WALT_NODE_DAEMON_VERSION = 0.1
 WALT_NODE_NETWORK_INTERFACE = "eth0"
@@ -64,7 +65,10 @@ class WalTNodeDaemon(WalTDaemon):
             server.register_node()
 
 def run():
-    WalTNodeDaemon.ev_loop = EventLoop()
+    ev_loop = EventLoop()
+    logs_fifo_server = LogsFifoServer()
+    logs_fifo_server.join_event_loop(ev_loop)
+    WalTNodeDaemon.ev_loop = ev_loop
     WalTNodeDaemon.run()
 
 if __name__ == "__main__":

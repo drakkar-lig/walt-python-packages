@@ -15,4 +15,6 @@ class LogsConnectionToServer(object):
         write_pickle(stream_name, self.stream)
     def log(self, **kwargs):
         write_pickle(kwargs, self.stream)
+    def close(self):
+        self.stream.close()
 
