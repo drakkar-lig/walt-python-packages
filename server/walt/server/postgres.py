@@ -7,15 +7,6 @@ from psycopg2.extras import NamedTupleCursor
 from subprocess import Popen, PIPE
 from sys import stdout, stderr
 
-QUOTE="'"
-
-def quoted(string):
-    s = str(string)
-    if s == 'NULL':
-        return s
-    else:
-        return QUOTE + s + QUOTE
-
 class PostgresDB():
 
     def __init__(self):
@@ -49,15 +40,14 @@ class PostgresDB():
     def commit(self):
         self.conn.commit()
 
-    def execute(self, query):
-        self.c.execute(query)
+    def execute(self, query, query_args = None):
+        self.c.execute(query, query_args)
         return self.c
 
     # from a dictionary of the form <col_name> -> <value>
     # we want to filter-out keys that are not column names,
-    # format the value for usage in an SQL statement,
-    # and return (<col_name>, <value>) tuples.
-    def get_tuples(self, table, dictionary):
+    # and return ([<col_name>, ...], [<value>, ...]).
+    def get_cols_and_values(self, table, dictionary):
         # retrieve fields names for this table 
         self.c.execute("SELECT * FROM %s LIMIT 0" % table)
         col_names = set(col_desc[0] for col_desc in self.c.description)
@@ -68,65 +58,59 @@ class PostgresDB():
             # a column name
             if k not in col_names:
                 continue
-
-            # format the value appropriately for an SQL
-            # statement
-            value = dictionary[k]
-            if value == None:
-                value = 'NULL'
-            else:
-                value = quoted(value)
-
             # store in the result dict
-            res[k] = value
-        # we prefer a list of (k,v) items instead of
+            res[k] = dictionary[k]
+        # we prefer a tuple ([k,...],[v,...]) instead of
         # a dictionary, because in an insert query,
         # we need a list of keys and a list of values 
         # with the same ordering.
-        return res.items()
+        items = res.items()
+        return (list(t[0] for t in items),
+                list(t[1] for t in items))
 
     # allow statements like:
     # db.insert("network", ip=ip, switch_ip=swip)
     def insert(self, table, returning=None, **kwargs):
         # insert and return True or return False
-        tuples = self.get_tuples(table, kwargs)
+        cols, values = self.get_cols_and_values(table, kwargs)
         sql = """INSERT INTO %s(%s)
                 VALUES (%s)""" % (
                     table,
-                    ','.join(t[0] for t in tuples),
-                    ','.join(t[1] for t in tuples))
+                    ','.join(cols),
+                    ','.join(['%s'] * len(values)))
         if returning:
             sql += " RETURNING %s" % returning
-        self.c.execute(sql + ';')
+        self.c.execute(sql + ';', tuple(values))
         if returning:
             return self.c.fetchone()[0]
 
     # allow statements like:
     # db.update("topology", "mac", switch_mac=swmac, switch_port=swport)
     def update(self, table, primary_key_name, **kwargs):
-        tuples = self.get_tuples(table, kwargs)
+        cols, values = self.get_cols_and_values(table, kwargs)
+        values.append(kwargs[primary_key_name])
         self.c.execute("""
                 UPDATE %s 
                 SET %s
-                WHERE %s = %s;""" % (
+                WHERE %s = %%s;""" % (
                     table,
-                    ','.join("%s = %s" % t for t in tuples),
-                    primary_key_name,
-                    quoted(kwargs[primary_key_name])))
+                    ','.join("%s = %%s" % col for col in cols),
+                    primary_key_name),
+                    values)
         return self.c.rowcount  # number of rows updated
 
     # allow statements like:
     # mem_db.select("network", ip=ip)
     def select(self, table, **kwargs):
-        constraints = [ "%s=%s" % t for t in \
-                self.get_tuples(table, kwargs) ]
+        cols, values = self.get_cols_and_values(table, kwargs)
+        constraints = [ "%s=%%s" % col for col in cols ]
         if len(constraints) > 0:
             where_clause = "WHERE %s" % (
                 ' AND '.join(constraints));
         else:
             where_clause = ""
-        self.c.execute("SELECT * FROM %s %s;" % (
-                    table, where_clause))
+        sql = "SELECT * FROM %s %s;" % (table, where_clause)
+        self.c.execute(sql, values)
         return self.c.fetchall()
 
     # same as above but expect only one matching record
