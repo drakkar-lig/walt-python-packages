@@ -17,6 +17,9 @@ CONF_PATTERN = """
 # and updated when needed.
 #
 
+# allow sending DHCP NAKs
+authoritative;
+
 # custom parameters declaration
 option nfs-server code 138 = string;
 option nfs-fs-path code 140 = string;
