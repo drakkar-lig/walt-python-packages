@@ -213,8 +213,8 @@ class WalTImageShell(cli.Application):
                 default_new_name = session.get_default_new_name()
                 try:
                     while True:
-                        print 'New image name [%s]:' % default_new_name,
-                        new_name = raw_input()
+                        new_name = raw_input(\
+                            'New image name [%s]: ' % default_new_name)
                         if new_name == '':
                             new_name = default_new_name
                             break
@@ -222,7 +222,7 @@ class WalTImageShell(cli.Application):
                             if session.validate_new_name(new_name):
                                 break
                     session.select_new_name(new_name)
-                except KeyboardInterrupt:
+                except (KeyboardInterrupt, EOFError):
                     print 'Aborted.'
 
 @WalTImage.subcommand("remove")
