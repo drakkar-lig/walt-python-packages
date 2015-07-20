@@ -2,7 +2,7 @@
 """
 WalT (wireless testbed) control tool.
 """
-import readline, time, sys
+import readline, time, sys, socket
 from plumbum import cli
 from walt.common.logs import LogsConnectionToServer
 from walt.client.link import ClientToServerLink
@@ -281,7 +281,10 @@ class WalTAdvancedSql(cli.Application):
         run_sql_prompt()
 
 def run():
-    WalT.run()
+    try:
+        WalT.run()
+    except socket.error:
+        print 'Network connection to WalT server failed.'
 
 if __name__ == "__main__":
     run()
