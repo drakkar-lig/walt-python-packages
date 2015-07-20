@@ -118,7 +118,7 @@ QUERY_DEVICES_WITH_IP="""
 class DHCPServer(object):
     def __init__(self, db):
         self.db = db
-    def update(self):
+    def update(self, force=False):
         devices = []
         for item in \
                 self.db.execute(QUERY_DEVICES_WITH_IP).fetchall():
@@ -142,6 +142,8 @@ class DHCPServer(object):
         if conf != old_conf:
             with open(DHCPD_CONF_FILE, 'w') as conf_file:
                 conf_file.write(conf)
+            force = True # perform the restart below
+        if force == True:
             do('service isc-dhcp-server restart')
             print 'dhcpd conf updated.'
 

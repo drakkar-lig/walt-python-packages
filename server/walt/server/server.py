@@ -31,7 +31,7 @@ class Server(object):
         # outside the WalT network, and we will not be able
         # to communicate with them when trying to update
         # the topology.
-        self.dhcpd.update()
+        self.dhcpd.update(force=True)
         # topology exploration
         self.platform.topology.update()
         # update dhcp again for any new device
