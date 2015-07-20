@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import os, sys
-from select import poll, POLLIN, POLLPRI
+from select import poll, select, POLLIN, POLLPRI
 from time import time
 
 POLL_OPS_READ = POLLIN | POLLPRI
@@ -55,7 +55,12 @@ class EventLoop(object):
             for listener in self.listeners.values():
                 try:
                     if listener.is_valid() == False:
-                        self.remove_listener(listener)
+                        # some data may have been buffered, we check this.
+                        # (if this is the case, then we will delay the
+                        # removal of this listener)
+                        r, w, x = select([listener], [], [], 0)
+                        if len(r) == 0:     # ok, no data
+                            self.remove_listener(listener)
                 except AttributeError:
                     pass # this listener does not implement is_valid()
             # stop the loop if no more listeners
