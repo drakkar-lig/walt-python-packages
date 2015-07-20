@@ -31,6 +31,7 @@ class ModifySession(object):
         self.new_image_name = None
         self.repo = repo
         self.container_name = str(uuid.uuid4())
+        self.repo.register_modify_session(self)
         # expose methods to the RPyC client
         self.exposed___enter__ = self.__enter__
         self.exposed___exit__ = self.__exit__
@@ -41,11 +42,7 @@ class ModifySession(object):
     def __enter__(self):
         return self
     def __exit__(self, type, value, traceback):
-        self.repo.finalize_modify(
-            self.requester,
-            self.new_image_name,
-            self.container_name
-        )
+        self.repo.finalize_modify(self)
     def get_parameters(self):
         # return an immutable object (a tuple, not a dict)
         # otherwise we will cause other RPyC calls
@@ -150,6 +147,7 @@ class NodeImageRepository(object):
         self.db = db
         self.c = Client(base_url='unix://var/run/docker.sock', version='auto')
         self.images = {}
+        self.modify_sessions = set()
         self.add_local_images()
         self.add_remote_images()
     def add_local_images(self):
@@ -199,6 +197,9 @@ class NodeImageRepository(object):
                 if img.mounted:
                     img.unmount()
     def cleanup(self):
+        # give up modify sessions
+        for session in self.modify_sessions.copy():
+            self.cleanup_modify_session(session)
         # release nfs mounts
         nfs.update_exported_filesystems([])
         # unmount images
@@ -293,8 +294,28 @@ class NodeImageRepository(object):
                 'Bad name: Only alnum, dash(-) and underscore(_) characters are allowed.\n')
             return False
         return True
-    def finalize_modify(self, requester,
-                        new_image_tag, container_name):
+    def register_modify_session(self, session):
+        self.modify_sessions.add(session)
+    def cleanup_modify_session(self, session):
+        cname = session.container_name
+        # kill/remove the container if it ever existed
+        try:
+            self.c.kill(container=cname)
+        except:
+            pass
+        try:
+            self.c.wait(container=cname)
+        except:
+            pass
+        try:
+            self.c.remove_container(container=cname)
+        except:
+            pass
+        self.modify_sessions.remove(session)
+    def finalize_modify(self, session):
+        requester = session.requester
+        new_image_tag = session.new_image_name
+        container_name = session.container_name
         if new_image_tag:
             self.c.commit(
                     container=container_name,
@@ -304,13 +325,7 @@ class NodeImageRepository(object):
             full_name = 'local/walt-node:%s' % new_image_tag
             self.images[full_name] = NodeImage(self.c, full_name, NodeImage.LOCAL)
             requester.stdout.write('New image %s saved.\n' % new_image_tag)
-        # remove the container if it ever existed
-        try:
-            self.c.remove_container(
-                    container=container_name)
-        except:
-            pass
-
+        self.cleanup_modify_session(session)
     def get_local_unmounted_image_from_tag(self, image_tag, requester):
         image = self.get_image_from_tag(image_tag, requester)
         if image:   # otherwise issue is already reported
