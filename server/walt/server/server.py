@@ -24,6 +24,7 @@ class Server(object):
         self.interaction = InteractionManager(\
                         self.tcp_server, self.ev_loop)
         self.tcp_server.join_event_loop(self.ev_loop)
+        self.db.plan_auto_commit(self.ev_loop)
 
     def update(self):
         # ensure the dhcp server is running,

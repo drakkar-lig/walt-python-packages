@@ -1,5 +1,9 @@
 #!/usr/bin/env python
 from walt.server.postgres import PostgresDB
+from time import time
+
+EV_AUTO_COMMIT              = 0
+EV_AUTO_COMMIT_PERIOD       = 2
 
 class ServerDB(PostgresDB):
 
@@ -31,6 +35,21 @@ class ServerDB(PostgresDB):
                     stream_id INTEGER REFERENCES logstreams(id),
                     timestamp TIMESTAMP,
                     line TEXT);""")
+
+    # Some types of events are numerous and commiting the
+    # database each time would be costly.
+    # That's why we auto-commit every few seconds.
+    def plan_auto_commit(self, ev_loop):
+        ev_loop.plan_event(
+            ts = time(),
+            target = self,
+            repeat_delay = EV_AUTO_COMMIT_PERIOD,
+            ev_type = EV_AUTO_COMMIT
+        )
+
+    def handle_planned_event(self, ev_type):
+        assert(ev_type == EV_AUTO_COMMIT)
+        self.commit()
 
     def get_config(self, item, default = None):
         res = self.select_unique("config", item=item)
