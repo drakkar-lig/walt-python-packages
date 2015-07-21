@@ -4,7 +4,7 @@ from walt.common.tools import get_mac_address
 from walt.common.nodetypes import get_node_type_from_mac_address
 from walt.common.nodetypes import is_a_node_type_name
 from walt.server.network.tools import ip_in_walt_network, lldp_update
-import snmp, const, time
+import snmp, const, time, re
 from tree import Tree
 import walt.server
 
@@ -32,6 +32,14 @@ NODE_LIST_QUERY = """
             d.ip as ip, d.reachable as reachable
     FROM devices d, nodes n
     WHERE   d.mac = n.mac; """
+
+NEW_NAME_ERROR_AND_GUIDELINES = """\
+Failed: invalid new name.
+This name must be a valid network hostname. 
+Only alphanumeric characters and '-' are allowed.
+The 1st character must be an alphabet letter.
+(Example: rpi-D327)
+"""
 
 class Topology(object):
 
@@ -184,6 +192,9 @@ class Topology(object):
         if self.get_device_info(requester, new_name, err_message = None) != None:
             requester.stderr.write("""Failed: a device with name '%s' already exists.\n""" % new_name)
             return
+        if not re.match('^[a-zA-Z][a-zA-Z0-9-]*$', new_name):
+            requester.stderr.write(NEW_NAME_ERROR_AND_GUIDELINES)
+            return
         # all is fine, let's update it
         self.db.update("devices", 'mac', mac = device_info.mac, name = new_name)
         self.db.commit()
@@ -191,7 +202,7 @@ class Topology(object):
     def generate_device_name(self, **kwargs):
         if kwargs['type'] == 'server':
             return 'walt-server'
-        return "%s_%s" %(
+        return "%s-%s" %(
             kwargs['type'],
             "".join(kwargs['mac'].split(':')[3:]))
 
