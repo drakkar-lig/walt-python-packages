@@ -76,8 +76,9 @@ class LogsStreamListener(object):
             # be removed.
             return False
         # convert timestamp to datetime
-        record['timestamp'] = \
-            datetime.fromtimestamp(record['timestamp'])
+        ts = record['timestamp']
+        if not isinstance(ts, datetime):
+            record['timestamp'] = datetime.fromtimestamp(ts)
         self.hub.log(record=record, stream_id=self.stream_id)
         return True
     def close(self):
