@@ -14,6 +14,12 @@ IMAGE_IS_USED_BUT_NOT_FOUND=\
 IMAGE_MOUNT_PATH='/var/lib/walt/images/%s/fs'
 CONFIG_ITEM_DEFAULT_IMAGE='default_image'
 SERVER_PUBKEY_PATH = '/root/.ssh/id_dsa.pub'
+HOSTS_FILE_CONTENT="""\
+127.0.0.1   localhost
+::1     localhost ip6-localhost ip6-loopback
+ff02::1     ip6-allnodes
+ff02::2     ip6-allrouters
+"""
 
 def get_mount_path(image_name):
     return IMAGE_MOUNT_PATH % \
@@ -123,6 +129,7 @@ class NodeImage(object):
         self.cid = self.c.create_container(**params).get('Id')
         self.c.start(container=self.cid)
         self.bind_mount()
+        self.create_hosts_file()
         self.mounted = True
         print 'done'
     def unmount(self):
@@ -134,6 +141,12 @@ class NodeImage(object):
         os.rmdir(self.mount_path)
         self.mounted = False
         print 'done'
+    def create_hosts_file(self):
+        # since file /etc/hosts is managed by docker,
+        # it appears empty on the bind mount.
+        # let's create it appropriately.
+        with open(self.mount_path + '/etc/hosts', 'w') as f:
+            f.write(HOSTS_FILE_CONTENT)
     def list_mountpoints(self):
         return findmnt('-nlo', 'TARGET').splitlines()
     def get_mount_point(self):
