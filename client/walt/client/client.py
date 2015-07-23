@@ -74,7 +74,7 @@ class WalTDevicePrint(cli.Application):
     def main(self):
         with ClientToServerLink() as server:
             print server.describe(self._details)
-    @cli.autoswitch()
+    @cli.autoswitch(help='Print more detailed information.')
     def details(self):
         self._details = True
 
