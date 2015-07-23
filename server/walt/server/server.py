@@ -68,3 +68,7 @@ class Server(object):
         self.platform.update(requester)
         self.dhcpd.update()
 
+    def forget_device(self, device_name):
+        self.db.forget_device(device_name)
+        self.dhcpd.update()
+

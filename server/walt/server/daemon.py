@@ -134,6 +134,19 @@ class PlatformService(rpyc.Service):
     def exposed_rename_image(self, image_name, new_name):
         self.images.rename(self._client, image_name, new_name)
 
+    def exposed_check_device_exists(self, device_name):
+        return self.platform.topology.get_device_info(
+                        self._client, device_name) != None
+
+    def exposed_is_disconnected(self, device_name):
+        return self.platform.topology.is_disconnected(device_name)
+
+    def exposed_count_logs(self, device_name):
+        return self.server.db.count_logs(device_name)
+
+    def exposed_forget(self, device_name):
+        self.server.forget_device(device_name)
+
 class WalTServerDaemon(WalTDaemon):
     """WalT (wireless testbed) server daemon."""
     VERSION = WALT_SERVER_DAEMON_VERSION

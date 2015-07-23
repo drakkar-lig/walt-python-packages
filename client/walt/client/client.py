@@ -102,6 +102,36 @@ class WalTDevicePing(cli.Application):
         if device_ip:
             run_device_ping(device_ip)
 
+MSG_FORGET_DEVICE_WITH_LOGS = """\
+This would delete any information about %s, including %s log \
+lines.
+If this is what you want, run 'walt node forget --force %s'."""
+
+@WalTDevice.subcommand("forget")
+class WalTDeviceForget(cli.Application):
+    """let the WalT system forget about an obsolete device"""
+    _force = False # default
+    def main(self, device_name):
+        with ClientToServerLink() as server:
+            if server.check_device_exists(device_name):
+                if not server.is_disconnected(device_name):
+                    print '%s seems currently connected to the WalT network. Cannot forget it!' \
+                             % device_name
+                    return
+                if not self._force:
+                    logs_cnt = server.count_logs(device_name)
+                    if logs_cnt > 0:
+                        print MSG_FORGET_DEVICE_WITH_LOGS % (
+                            device_name, logs_cnt, device_name
+                        )
+                        return  # give up for now
+                # ok, do it
+                server.forget(device_name)
+                print 'done.'
+    @cli.autoswitch(help='do it, even if related data will be lost')
+    def force(self):
+        self._force = True
+
 @WalT.subcommand("node")
 class WalTNode(cli.Application):
     """WalT node management sub-commands"""

@@ -24,6 +24,38 @@ TOPOLOGY_QUERY = """
     WHERE   d1.mac = t.mac and t.switch_mac is null
     ORDER BY switch_name, switch_port;"""
 
+DISCONNECTED_DEVICES_QUERY = """
+    SELECT  d1.name as name, d1.type as type, d1.mac as mac,
+            d1.ip as ip
+    FROM devices d1 LEFT JOIN topology t
+    ON   d1.mac = t.mac
+    WHERE t.mac is NULL;"""
+
+MSG_DEVICE_SHOW_MORE_DETAILS = """
+(tip: use --details option for more info)
+"""
+
+MSG_DEVICE_SHOW_DETAILS_MAIN = """\
+
+\033[1m\
+The WalT network contains the following devices:
+\033[0m\
+
+%s
+
+"""
+
+MSG_DEVICE_SHOW_DETAILS_DISCONNECTED = """\
+
+\033[1m\
+The following devices are currently disconnected:
+\033[0m\
+
+%s
+
+(tip: walt device forget <device_name>)
+"""
+
 # the split_part() expression below allows to show only
 # the image tag to the user (instead of the full docker name).
 NODE_LIST_QUERY = """
@@ -245,11 +277,20 @@ class Topology(object):
                         label,
                         subtree_offset=subtree_offset,
                         parent_key = parent_key)
-        return t.printed()
+        return "\n%s%s" % (
+            t.printed(), MSG_DEVICE_SHOW_MORE_DETAILS)
 
     def printed_as_detailed_table(self):
-        return self.db.pretty_printed_select(
+        # message about connected devices
+        msg = MSG_DEVICE_SHOW_DETAILS_MAIN % \
+            self.db.pretty_printed_select(
                     TOPOLOGY_QUERY)
+        # message about disconnected devices, if at least one
+        res = self.db.execute(DISCONNECTED_DEVICES_QUERY).fetchall()
+        if len(res) > 0:
+            msg += MSG_DEVICE_SHOW_DETAILS_DISCONNECTED % \
+            self.db.pretty_printed_resultset(res)
+        return msg
 
     def list_nodes(self):
         return self.db.pretty_printed_select(
@@ -264,3 +305,10 @@ class Topology(object):
             # update dhcpd
             walt.server.instance.dhcpd.update()
 
+    def is_disconnected(self, device_name):
+        res = self.db.execute("""
+            SELECT count(*)
+            FROM devices d, topology t
+            WHERE d.name = %s AND d.mac = t.mac;""",
+            (device_name,)).fetchall()
+        return res[0][0] == 0

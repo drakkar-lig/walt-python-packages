@@ -51,6 +51,24 @@ class ServerDB(PostgresDB):
         assert(ev_type == EV_AUTO_COMMIT)
         self.commit()
 
+    def count_logs(self, dev_name):
+        return self.execute("""
+            SELECT COUNT(*) FROM devices d, logstreams s, logs l
+                WHERE d.name = %s AND s.sender_mac = d.mac AND l.stream_id = s.id;
+        """, (dev_name,)).fetchall()[0][0]
+
+    def forget_device(self, dev_name):
+        self.execute("""
+            DELETE FROM logs l USING devices d, logstreams s
+                WHERE d.name = %s AND s.sender_mac = d.mac AND l.stream_id = s.id;
+            DELETE FROM logstreams s USING devices d WHERE d.name = %s AND s.sender_mac = d.mac;
+            DELETE FROM nodes n USING devices d WHERE d.name = %s AND d.mac = n.mac;
+            DELETE FROM topology t USING devices d WHERE d.name = %s AND d.mac = t.mac;
+            DELETE FROM topology t USING devices d WHERE d.name = %s AND d.mac = t.switch_mac;
+            DELETE FROM devices d WHERE d.name = %s;
+        """,  (dev_name,)*6)
+        self.commit()
+
     def get_config(self, item, default = None):
         res = self.select_unique("config", item=item)
         if res == None:

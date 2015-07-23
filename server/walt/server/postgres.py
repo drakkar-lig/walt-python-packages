@@ -127,5 +127,8 @@ class PostgresDB():
 
     def pretty_printed_select(self, select_query):
         res = self.execute(select_query).fetchall()
+        return self.pretty_printed_resultset(res)
+
+    def pretty_printed_resultset(self, res):
         return columnate(res, header=res[0]._fields)
 
