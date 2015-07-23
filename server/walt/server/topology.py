@@ -31,7 +31,8 @@ NODE_LIST_QUERY = """
             split_part(n.image, ':', 2) as image,
             d.ip as ip, d.reachable as reachable
     FROM devices d, nodes n
-    WHERE   d.mac = n.mac; """
+    WHERE   d.mac = n.mac
+    ORDER BY name;"""
 
 NEW_NAME_ERROR_AND_GUIDELINES = """\
 Failed: invalid new name.
