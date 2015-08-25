@@ -85,10 +85,11 @@ class LogsStreamListener(object):
         self.sock_file.close()
 
 class LogsToSocketHandler(object):
-    def __init__(self, db, hub, sock_file, **kwargs):
+    def __init__(self, db, hub, sock, sock_file, **kwargs):
         self.db = db
         self.sock_file = sock_file
         self.cache = {}
+        sock.settimeout(1.0)
         hub.addHandler(self)
     def log(self, record, stream_id):
         try:
