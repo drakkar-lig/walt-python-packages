@@ -103,10 +103,12 @@ class LogsToSocketHandler(object):
             d = {}
             d.update(record)
             d.update(self.cache[stream_id])
+            if self.sock_file.closed:
+                raise IOError()
             write_pickle(d, self.sock_file)
-        except Exception as e:
-            print e
+        except IOError as e:
             # the socket was supposedly closed.
+            print "client log connection closing"
             # notify the hub that we should be removed.
             return False
     # let the event loop know what we are reading on
