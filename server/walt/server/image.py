@@ -4,9 +4,9 @@ from network import nfs
 from network.tools import get_server_ip
 from walt.server.tools import columnate
 from walt.common.tools import \
-        failsafe_makedirs, failsafe_symlink
+        failsafe_makedirs, failsafe_symlink, succeeds
 from walt.server import const
-import os, re, sys, requests, uuid, shlex
+import os, re, sys, requests, uuid, shlex, time
 from datetime import datetime
 
 IMAGE_IS_USED_BUT_NOT_FOUND=\
@@ -134,7 +134,8 @@ class NodeImage(object):
         print 'done'
     def unmount(self):
         print 'Un-mounting %s...' % self.tagged_name,
-        umount('-lf', self.mount_path)
+        while not succeeds('umount %s 2>/dev/null' % self.mount_path):
+            time.sleep(0.1)
         self.c.kill(container=self.cid)
         self.c.wait(container=self.cid)
         self.c.remove_container(container=self.cid)
