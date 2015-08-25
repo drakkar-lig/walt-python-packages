@@ -246,7 +246,7 @@ class NodeImageRepository(object):
                 return image
         if requester:
             requester.stderr.write(
-                "No such image '%s'. (tip: walt image list)\n" % image_tag)
+                "No such image '%s'. (tip: walt image show)\n" % image_tag)
         return None
     def has_image(self, requester, image_tag):
         return self.get_image_from_tag(image_tag, requester) != None
