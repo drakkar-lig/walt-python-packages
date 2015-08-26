@@ -25,6 +25,7 @@ class WaltClientService(rpyc.Service):
         self.exposed_stdin = ExposedStream(sys.stdin)
         self.exposed_stdout = ExposedStream(sys.stdout)
         self.exposed_stderr = ExposedStream(sys.stderr)
+        self.exposed_username = conf['username']
 
 # in some cases we need a background thread that will handle
 # RPyC events.

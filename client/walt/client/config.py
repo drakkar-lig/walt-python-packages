@@ -11,6 +11,26 @@ CONF_ITEMS = OrderedDict([
         itemtype=str,
         default='localhost',
         user_input=True
+    )),
+    ('username', dict(
+        desc='walt username',
+        explain='''\
+This name is used to indicate the author of the walt images you create.
+If you have an account on the docker hub, you should input the same username,
+because walt will also look for any walt image stored there.
+Otherwise you are free to choose the one you want.''',
+        itemtype=str,
+        default=None,
+        user_input=True
+    )),
+    ('friends', dict(
+        default=[ 'waltplatform' ],
+        desc='walt friends',
+        explain='''\
+When working with walt images, the images you created are displayed, plus
+the ones created by team \'waltplatform\'. If you want to work with some
+images created by other users, append their usernames here.''',
+        user_input=False
     ))
 ])
 
@@ -49,8 +69,7 @@ def get_config_file():
 # Note: json comments are not allowed in the standard
 # and thus not handled in the json python module.
 # We handle them manually.
-def get_config():
-    config_file = get_config_file()
+def get_config(config_file):
     conf = None
     modified = False
     try:
@@ -72,11 +91,11 @@ def get_config():
                 conf[key] = CONF_ITEMS[key]['default']
             modified = True
     if modified:
-        save_config(conf)
-        print 'Configuration was stored in %s.' % config_file
+        save_config(conf, config_file)
+        print '\nConfiguration was stored in %s.\n' % config_file
     return conf
 
-def save_config(conf):
+def save_config(conf, config_file):
     lines=[ ]
     for k in conf:
         # if not the 1st item add ',' before continuing
@@ -94,8 +113,9 @@ def save_config(conf):
         item_and_value = json.dumps({k:conf[k]}, indent=4).splitlines()[1:-1]
         lines.extend(item_and_value)
     # concatenate all and write the file
-    with open(get_config_file(), 'w') as f:
+    with open(config_file, 'w') as f:
         f.write('{' + '\n'.join(lines) + '\n}\n')
 
-conf = get_config()
+conf_path = get_config_file()
+conf = get_config(conf_path)
 

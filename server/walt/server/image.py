@@ -259,12 +259,14 @@ class NodeImageRepository(object):
                     image=image.tagged_name)
             self.update_image_mounts()
             self.db.commit()
-    def describe(self):
+    def describe(self, users):
         tabular_data = []
-        header = [ 'Name', 'Origin', 'Mounted', 'Default', 'Created' ]
+        header = [ 'Name', 'User', 'Mounted', 'Default', 'Created' ]
         default = self.get_default_image()
         missing_created_at = False
         for name, image in self.images.iteritems():
+            if image.docker_user not in users:
+                continue
             created_at = image.created_at
             if not created_at:
                 created_at = 'N/A (1)'
@@ -331,19 +333,20 @@ class NodeImageRepository(object):
         new_image_tag = session.new_image_name
         container_name = session.container_name
         if new_image_tag:
+            reponame = '%s/walt-node' % requester.username
             self.c.commit(
                     container=container_name,
-                    repository='local/walt-node',
+                    repository=reponame,
                     tag=new_image_tag,
-                    message='Image modified using walt image modify')
-            full_name = 'local/walt-node:%s' % new_image_tag
+                    message='Image modified using walt image shell')
+            full_name = '%s:%s' % (reponame, new_image_tag)
             self.images[full_name] = NodeImage(self.c, full_name, NodeImage.LOCAL)
             requester.stdout.write('New image %s saved.\n' % new_image_tag)
         self.cleanup_modify_session(session)
     def get_local_unmounted_image_from_tag(self, image_tag, requester):
         image = self.get_image_from_tag(image_tag, requester)
         if image:   # otherwise issue is already reported
-            if image.docker_user != 'local':
+            if image.state != NodeImage.LOCAL:
                 requester.stderr.write('Sorry, this operation is allowed on local images only.\n')
                 return None
             if image.mounted:
@@ -359,19 +362,34 @@ class NodeImageRepository(object):
             self.c.remove_image(
                     image=name, force=True)
 
+    def do_rename(self, image, new_user, new_tag):
+        old_fullname = image.tagged_name
+        new_repo = "%s/walt-node" % new_user
+        new_fullname = "%s:%s" % (new_repo, new_tag)
+        # update image internal attributes
+        image.rename(new_fullname)
+        # rename in this repo
+        self.images[new_fullname] = image
+        del self.images[old_fullname]
+        # rename the docker image
+        self.c.tag(image=old_fullname, repository=new_repo, tag=new_tag)
+        self.c.remove_image(image=old_fullname, force=True)
+
     def rename(self, requester, image_tag, new_tag):
         image = self.get_local_unmounted_image_from_tag(image_tag, requester)
         if image:   # otherwise issue is already reported
             if self.get_image_from_tag(new_tag):
                 requester.stderr.write('Bad name: Image already exists.\n')
                 return
-            name = image.tagged_name
-            new_name = 'local/walt-node:' + new_tag
-            # update image internal attributes
-            image.rename(new_name)
-            # rename in this repo
-            self.images[new_name] = image
-            del self.images[name]
-            # rename the docker image
-            self.c.tag(image=name, repository='local/walt-node', tag=new_tag)
-            self.c.remove_image(image=name, force=True)
+            self.do_rename(image, image.docker_user, new_tag)
+
+    def get_owner(self, requester, image_tag):
+        image = self.get_image_from_tag(image_tag, requester)
+        if image:   # otherwise issue is already reported
+            return image.docker_user
+
+    def fix_owner(self, requester, image_tag):
+        image = self.get_local_unmounted_image_from_tag(image_tag, requester)
+        if image:   # otherwise issue is already reported
+            self.do_rename(image, requester.username, image_tag)
+

@@ -6,7 +6,7 @@ import readline, time, sys, socket
 from plumbum import cli
 from walt.common.logs import LogsConnectionToServer
 from walt.client.link import ClientToServerLink
-from walt.client.config import conf
+from walt.client.config import conf, conf_path
 from walt.client.interactive import run_sql_prompt, \
                                     run_image_shell_prompt, \
                                     run_node_shell, \
@@ -215,11 +215,15 @@ class WalTImage(cli.Application):
     """management of WalT-nodes operating system images"""
 
 @WalTImage.subcommand("show")
-class WalTImageList(cli.Application):
+class WalTImageShow(cli.Application):
     """list available WalT node OS images"""
     def main(self):
         with ClientToServerLink() as server:
-            print server.list_images()
+            users = set(conf['friends'])
+            users.add(conf['username'])
+            print server.list_images(users)
+            print '\nSelected users: %s.\n(conforming to %s)' % \
+                    (', '.join(users), conf_path)
 
 @WalTImage.subcommand("set-default")
 class WalTImageSetDefault(cli.Application):
@@ -235,7 +239,8 @@ class WalTImageShell(cli.Application):
        image"""
     def main(self, image_name):
         with ClientToServerLink() as server:
-            session = server.create_modify_image_session(image_name)
+            session = server.create_modify_image_session(
+                            image_name)
             if session == None:
                 return  # issue already reported
             with session:
@@ -255,19 +260,35 @@ class WalTImageShell(cli.Application):
                 except (KeyboardInterrupt, EOFError):
                     print 'Aborted.'
 
+MSG_NOT_OWNER_OF_IMAGE = """\
+You do not own this image. Owner is %s.
+If this is really what you want, run this before:
+walt advanced fix-image-owner %s"""
+
+def verify_owner(server, image_name):
+    owner = server.get_image_owner(image_name)
+    if owner == None:
+        return False # issue already reported
+    if owner != conf['username']:
+        print MSG_NOT_OWNER_OF_IMAGE % (owner, image_name)
+        return False # give up
+    return True
+
 @WalTImage.subcommand("remove")
 class WalTImageRemove(cli.Application):
     """remove an image"""
     def main(self, image_name):
         with ClientToServerLink() as server:
-            server.remove_image(image_name)
+            if verify_owner(server, image_name):
+                server.remove_image(image_name)
 
 @WalTImage.subcommand("rename")
 class WalTImageRename(cli.Application):
     """rename an image"""
     def main(self, image_name, new_name):
         with ClientToServerLink() as server:
-            server.rename_image(image_name, new_name)
+            if verify_owner(server, image_name):
+                server.rename_image(image_name, new_name)
 
 @WalT.subcommand("log")
 class WaltLog(cli.Application):
@@ -309,6 +330,26 @@ class WalTAdvancedSql(cli.Application):
     """Start a remote SQL prompt on the Walt server database"""
     def main(self):
         run_sql_prompt()
+
+@WalTAdvanced.subcommand("fix-image-owner")
+class WalTAdvancedFixImageOwner(cli.Application):
+    """fix the owner of an image"""
+    _force = False # default
+    def main(self, image_name):
+        if not self._force:
+            print """\
+This will change the owner of an image to you. It is intended
+for maintenance only (e.g. when a user is no longer working with
+walt and you want to work with the images he created).
+If this is really what you want, run:
+walt advanced fix-image-owner --yes-i-know-do-it-please %s
+""" % image_name
+        else:
+            with ClientToServerLink() as server:
+                server.fix_image_owner(image_name)
+    @cli.autoswitch(help='yes, I know, do it!')
+    def yes_i_know_do_it_please(self):
+        self._force = True
 
 def run():
     try:
