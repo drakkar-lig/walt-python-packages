@@ -20,6 +20,11 @@ HOSTS_FILE_CONTENT="""\
 ff02::1     ip6-allnodes
 ff02::2     ip6-allrouters
 """
+MSG_BAD_NAME_SAME_AND_NOT_OWNER="""\
+Bad name: Choosing the same name is only allowed if you own
+the image, because it would cause the image to be overwritten.
+And you do not own this image.
+"""
 
 def get_mount_path(image_name):
     return IMAGE_MOUNT_PATH % \
@@ -30,6 +35,12 @@ def get_server_pubkey():
         return f.read()
 
 class ModifySession(object):
+    NAME_OK             = 0
+    NAME_NOT_OK         = 1
+    NAME_NEEDS_CONFIRM  = 2
+    exposed_NAME_OK             = NAME_OK
+    exposed_NAME_NOT_OK         = NAME_NOT_OK
+    exposed_NAME_NEEDS_CONFIRM  = NAME_NEEDS_CONFIRM
     def __init__(self, requester, docker_image_name, image_name, repo):
         self.requester = requester
         self.docker_image_name = docker_image_name
@@ -55,11 +66,13 @@ class ModifySession(object):
         return self.docker_image_name, self.container_name
     def get_default_new_name(self):
         return self.repo.get_default_new_image_name(
+            self.requester,
             self.image_name
         )
     def validate_new_name(self, new_image_name):
         return self.repo.validate_new_image_name(
             self.requester,
+            self.image_name,
             new_image_name
         )
     def select_new_name(self, new_image_name):
@@ -188,8 +201,9 @@ class NodeImageRepository(object):
         return self.images[key]
     def __iter__(self):
         return self.images.iterkeys()
-    def update_image_mounts(self):
-        images_in_use = self.get_images_in_use()
+    def update_image_mounts(self, images_in_use = None):
+        if images_in_use == None:
+            images_in_use = self.get_images_in_use()
         images_found = []
         # ensure all needed images are mounted
         for name in images_in_use:
@@ -296,20 +310,41 @@ class NodeImageRepository(object):
             return None
         else:
             return ModifySession(requester, image.tagged_name, image_tag, self)
-    def get_default_new_image_name(self, old_image_tag):
-        new_tag = old_image_tag
-        while self.get_image_from_tag(new_tag):
-            new_tag += '_new'
-        return new_tag
-    def validate_new_image_name(self, requester, new_image_tag):
-        if self.get_image_from_tag(new_image_tag):
-            requester.stderr.write('Bad name: Image already exists.\n')
-            return False
+    def get_default_new_image_name(self, requester, old_image_tag):
+        image = self.get_image_from_tag(old_image_tag)
+        if image.docker_user == requester.username:
+            # we can override the image, since we own it
+            # => propose the same name
+            return old_image_tag
+        else:
+            # we cannot override the image, since we do not own it
+            # => propose another name
+            new_tag = old_image_tag
+            while self.get_image_from_tag(new_tag):
+                new_tag += '_new'
+            return new_tag
+    def validate_new_image_name(self, requester, old_image_tag, new_image_tag):
+        existing_image = self.get_image_from_tag(new_image_tag)
+        if old_image_tag == new_image_tag:
+            # same name for the modified image.
+            if existing_image.docker_user != requester.username:
+                requester.stderr.write(MSG_BAD_NAME_SAME_AND_NOT_OWNER)
+                return ModifySession.NAME_NOT_OK
+            # since the user owns the image, he is allowed to overwrite it with the modified one.
+            # however, we will let the user confirm this.
+            num_nodes = len(self.db.select("nodes", image=existing_image.tagged_name))
+            reboot_message = '' if num_nodes == 0 else ' (and reboot %d node(s))' % num_nodes
+            requester.stderr.write('This would overwrite the existing image%s.\n' % reboot_message)
+            return ModifySession.NAME_NEEDS_CONFIRM
+        else:
+            if existing_image:
+                requester.stderr.write('Bad name: Image already exists.\n')
+                return ModifySession.NAME_NOT_OK
         if not re.match('^[a-zA-Z0-9\-_]+$', new_image_tag):
             requester.stderr.write(\
                 'Bad name: Only alnum, dash(-) and underscore(_) characters are allowed.\n')
-            return False
-        return True
+            return ModifySession.NAME_NOT_OK
+        return ModifySession.NAME_OK
     def register_modify_session(self, session):
         self.modify_sessions.add(session)
     def cleanup_modify_session(self, session):
@@ -328,8 +363,15 @@ class NodeImageRepository(object):
         except:
             pass
         self.modify_sessions.remove(session)
+
+    def umount_used_image(self, image):
+        images = self.get_images_in_use()
+        images.remove(image.tagged_name)
+        self.update_image_mounts(images)
+
     def finalize_modify(self, session):
         requester = session.requester
+        old_image_tag = session.image_name
         new_image_tag = session.new_image_name
         container_name = session.container_name
         if new_image_tag:
@@ -339,10 +381,26 @@ class NodeImageRepository(object):
                     repository=reponame,
                     tag=new_image_tag,
                     message='Image modified using walt image shell')
-            full_name = '%s:%s' % (reponame, new_image_tag)
-            self.images[full_name] = NodeImage(self.c, full_name, NodeImage.LOCAL)
-            requester.stdout.write('New image %s saved.\n' % new_image_tag)
+            if old_image_tag == new_image_tag:
+                # same name, we are modifying the image
+                image = self.get_image_from_tag(new_image_tag)
+                # if image is mounted, umount/mount it in order to make
+                # the nodes reboot with the new version
+                if image.mounted:
+                    # umount
+                    self.umount_used_image(image)
+                    # re-mount
+                    self.update_image_mounts()
+                # done.
+                requester.stdout.write('Image %s updated.\n' % new_image_tag)
+            else:
+                # we are saving changes to a new image, leaving the initial one
+                # unchanged
+                full_name = '%s:%s' % (reponame, new_image_tag)
+                self.images[full_name] = NodeImage(self.c, full_name, NodeImage.LOCAL)
+                requester.stdout.write('New image %s saved.\n' % new_image_tag)
         self.cleanup_modify_session(session)
+
     def get_local_unmounted_image_from_tag(self, image_tag, requester):
         image = self.get_image_from_tag(image_tag, requester)
         if image:   # otherwise issue is already reported

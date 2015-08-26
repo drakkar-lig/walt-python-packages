@@ -7,6 +7,7 @@ from plumbum import cli
 from walt.common.logs import LogsConnectionToServer
 from walt.client.link import ClientToServerLink
 from walt.client.config import conf, conf_path
+from walt.client.tools import confirm
 from walt.client.interactive import run_sql_prompt, \
                                     run_image_shell_prompt, \
                                     run_node_shell, \
@@ -252,10 +253,18 @@ class WalTImageShell(cli.Application):
                             'New image name [%s]: ' % default_new_name)
                         if new_name == '':
                             new_name = default_new_name
+                            print 'Selected: %s' % new_name
+                        res = session.validate_new_name(new_name)
+                        if res == session.NAME_NEEDS_CONFIRM:
+                            if confirm():
+                                res = session.NAME_OK
+                            else:
+                                res = session.NAME_NOT_OK
+                        if res == session.NAME_OK:
                             break
-                        else:
-                            if session.validate_new_name(new_name):
-                                break
+                        if res == session.NAME_NOT_OK:
+                            continue
+                    # we left the loop, this means we have a valid name
                     session.select_new_name(new_name)
                 except (KeyboardInterrupt, EOFError):
                     print 'Aborted.'
