@@ -9,6 +9,22 @@ from walt.server import const
 import os, re, sys, requests, uuid, shlex, time
 from datetime import datetime
 
+# Terminology:
+#
+# - on the server side source code:
+#   we follow the *docker terminology*
+#
+#   <user>/<repository>:<tag>
+#   <-- name --------->
+#   <-- fullname ----------->
+#
+#   note: all walt images have <repository>='walt-node',
+#   which allows to find them.
+#
+# - on the client side source code:
+#   we follow the *walt user point of view*
+#   the 'name' of an image is actually the docker <tag> only.
+
 IMAGE_IS_USED_BUT_NOT_FOUND=\
     "WARNING: image %s is not found. Cannot attach it to related nodes.\n"
 IMAGE_MOUNT_PATH='/var/lib/walt/images/%s/fs'
@@ -26,13 +42,18 @@ the image, because it would cause the image to be overwritten.
 And you do not own this image.
 """
 
-def get_mount_path(image_name):
+def get_mount_path(image_fullname):
     return IMAGE_MOUNT_PATH % \
-            re.sub('[^a-zA-Z0-9/-]+', '_', re.sub(':', '/', image_name))
+            re.sub('[^a-zA-Z0-9/-]+', '_', re.sub(':', '/', image_fullname))
 
 def get_server_pubkey():
     with open(SERVER_PUBKEY_PATH, 'r') as f:
         return f.read()
+
+def parse_image_fullname(image_fullname):
+    image_name, image_tag = image_fullname.split(':')
+    image_user, dummy = image_name.split('/')
+    return image_fullname, image_name, image_user, image_tag
 
 class ModifySession(object):
     NAME_OK             = 0
@@ -41,11 +62,11 @@ class ModifySession(object):
     exposed_NAME_OK             = NAME_OK
     exposed_NAME_NOT_OK         = NAME_NOT_OK
     exposed_NAME_NEEDS_CONFIRM  = NAME_NEEDS_CONFIRM
-    def __init__(self, requester, docker_image_name, image_name, repo):
+    def __init__(self, requester, image_fullname, repo):
         self.requester = requester
-        self.docker_image_name = docker_image_name
-        self.image_name = image_name
-        self.new_image_name = None
+        self.image_fullname, dummy1, dummy2, self.image_tag = \
+            parse_image_fullname(image_fullname)
+        self.new_image_tag = None
         self.repo = repo
         self.container_name = str(uuid.uuid4())
         self.repo.register_modify_session(self)
@@ -63,48 +84,43 @@ class ModifySession(object):
     def get_parameters(self):
         # return an immutable object (a tuple, not a dict)
         # otherwise we will cause other RPyC calls
-        return self.docker_image_name, self.container_name
+        return self.image_fullname, self.container_name
     def get_default_new_name(self):
-        return self.repo.get_default_new_image_name(
+        return self.repo.get_default_new_image_tag(
             self.requester,
-            self.image_name
+            self.image_tag
         )
-    def validate_new_name(self, new_image_name):
-        return self.repo.validate_new_image_name(
+    def validate_new_name(self, new_image_tag):
+        return self.repo.validate_new_image_tag(
             self.requester,
-            self.image_name,
-            new_image_name
+            self.image_tag,
+            new_image_tag
         )
-    def select_new_name(self, new_image_name):
-        self.new_image_name = new_image_name
+    def select_new_name(self, new_image_tag):
+        self.new_image_tag = new_image_tag
 
 class NodeImage(object):
     server_pubkey = get_server_pubkey()
     REMOTE = 0
     LOCAL = 1
-    def __init__(self, c, name, state):
+    def __init__(self, c, fullname, state):
         self.c = c
-        self.rename(name)
+        self.rename(fullname)
         self.set_created_at()
         self.state = state
         self.cid = None
         self.mount_path = None
         self.mounted = False
         self.server_ip = get_server_ip()
-    def rename(self, name):
-        parts = name.split(':')
-        if len(parts) == 1:
-            self.name, self.tag = name, 'latest'
-        else:
-            self.name, self.tag = parts
-        self.docker_user = name.split('/')[0]
-        self.tagged_name = name
+    def rename(self, fullname):
+        self.fullname, self.name, self.user, self.tag = \
+            parse_image_fullname(fullname)
     def set_created_at(self):
         # created_at is only available on local images
         # (downloaded or created locally)
         self.created_at = None
         for i in self.c.images():
-            if self.tagged_name in i['RepoTags']:
+            if self.fullname in i['RepoTags']:
                 self.created_at = datetime.fromtimestamp(i['Created'])
     def __del__(self):
         if self.mounted:
@@ -117,12 +133,12 @@ class NodeImage(object):
                         stream=True)):
             progress = "-/|\\"[idx % 4]
             sys.stdout.write('Downloading image %s... %s\r' % \
-                                (self.tagged_name, progress))
+                                (self.fullname, progress))
             sys.stdout.flush()
         sys.stdout.write('\n')
         self.state = NodeImage.LOCAL
     def get_mount_path(self):
-        return get_mount_path(self.tagged_name)
+        return get_mount_path(self.fullname)
     def docker_command_split(self, cmd):
         args = shlex.split(cmd)
         return dict(
@@ -130,12 +146,12 @@ class NodeImage(object):
             command=args[1:]
         )
     def mount(self):
-        print 'Mounting %s...' % self.tagged_name,
+        print 'Mounting %s...' % self.fullname,
         self.mount_path = self.get_mount_path()
         failsafe_makedirs(self.mount_path)
         if self.state == NodeImage.REMOTE:
             self.download()
-        params = dict(image=self.tagged_name)
+        params = dict(image=self.fullname)
         params.update(self.docker_command_split(
             'walt-node-install %s "%s"' % \
                     (self.server_ip, NodeImage.server_pubkey)))
@@ -146,7 +162,7 @@ class NodeImage(object):
         self.mounted = True
         print 'done'
     def unmount(self):
-        print 'Un-mounting %s...' % self.tagged_name,
+        print 'Un-mounting %s...' % self.fullname,
         while not succeeds('umount %s 2>/dev/null' % self.mount_path):
             time.sleep(0.1)
         self.c.kill(container=self.cid)
@@ -179,9 +195,9 @@ class NodeImageRepository(object):
         self.add_remote_images()
     def add_local_images(self):
         local_images = sum([ i['RepoTags'] for i in self.c.images() ], [])
-        for name in local_images:
-            if '/walt-node' in name:
-                self.images[name] = NodeImage(self.c, name, NodeImage.LOCAL)
+        for fullname in local_images:
+            if '/walt-node' in fullname:
+                self.images[fullname] = NodeImage(self.c, fullname, NodeImage.LOCAL)
     def lookup_remote_tags(self, image_name):
         url = const.DOCKER_HUB_GET_TAGS_URL % dict(image_name = image_name)
         r = requests.get(url)
@@ -193,12 +209,12 @@ class NodeImageRepository(object):
         remote_names = set([])
         for result in self.c.search(term='walt-node'):
             if '/walt-node' in result['name']:
-                for tagged_image in self.lookup_remote_tags(result['name']):
-                    remote_names.add(tagged_image)
-        for name in (remote_names - current_names):
-            self.images[name] = NodeImage(self.c, name, NodeImage.REMOTE)
-    def __getitem__(self, key):
-        return self.images[key]
+                for fullname in self.lookup_remote_tags(result['name']):
+                    remote_names.add(fullname)
+        for fullname in (remote_names - current_names):
+            self.images[fullname] = NodeImage(self.c, fullname, NodeImage.REMOTE)
+    def __getitem__(self, image_fullname):
+        return self.images[image_fullname]
     def __iter__(self):
         return self.images.iterkeys()
     def update_image_mounts(self, images_in_use = None):
@@ -206,22 +222,22 @@ class NodeImageRepository(object):
             images_in_use = self.get_images_in_use()
         images_found = []
         # ensure all needed images are mounted
-        for name in images_in_use:
-            if name in self.images:
-                img = self.images[name]
+        for fullname in images_in_use:
+            if fullname in self.images:
+                img = self.images[fullname]
                 if not img.mounted:
                     img.mount()
                 images_found.append(img)
             else:
-                sys.stderr.write(IMAGE_IS_USED_BUT_NOT_FOUND % name)
+                sys.stderr.write(IMAGE_IS_USED_BUT_NOT_FOUND % fullname)
         # update default image link
         self.update_default_link()
         # update nfs configuration
         nfs.update_exported_filesystems(images_found)
         # unmount images that are not needed anymore
-        for name in self.images:
-            if name not in images_in_use:
-                img = self.images[name]
+        for fullname in self.images:
+            if fullname not in images_in_use:
+                img = self.images[fullname]
                 if img.mounted:
                     img.unmount()
     def cleanup(self):
@@ -231,8 +247,8 @@ class NodeImageRepository(object):
         # release nfs mounts
         nfs.update_exported_filesystems([])
         # unmount images
-        for name in self.images:
-            img = self.images[name]
+        for fullname in self.images:
+            img = self.images[fullname]
             if img.mounted:
                 img.unmount()
     def get_images_in_use(self):
@@ -270,16 +286,16 @@ class NodeImageRepository(object):
         if image:
             self.db.update('nodes', 'mac',
                     mac=node_mac,
-                    image=image.tagged_name)
+                    image=image.fullname)
             self.update_image_mounts()
             self.db.commit()
     def describe(self, users):
         tabular_data = []
         header = [ 'Name', 'User', 'Mounted', 'Default', 'Created' ]
-        default = self.get_default_image()
+        default_image_fullname = self.get_default_image()
         missing_created_at = False
-        for name, image in self.images.iteritems():
-            if image.docker_user not in users:
+        for fullname, image in self.images.iteritems():
+            if image.user not in users:
                 continue
             created_at = image.created_at
             if not created_at:
@@ -287,9 +303,9 @@ class NodeImageRepository(object):
                 missing_created_at = True
             tabular_data.append([
                         image.tag,
-                        image.docker_user,
+                        image.user,
                         str(image.mounted),
-                        '*' if name == default else '',
+                        '*' if fullname == default_image_fullname else '',
                         created_at])
         res = columnate(tabular_data, header)
         if missing_created_at:
@@ -300,7 +316,7 @@ class NodeImageRepository(object):
         if image:
             self.db.set_config(
                     CONFIG_ITEM_DEFAULT_IMAGE,
-                    image.tagged_name)
+                    image.fullname)
             self.update_image_mounts()
             self.db.commit()
     def create_modify_session(self, requester, image_tag):
@@ -309,10 +325,10 @@ class NodeImageRepository(object):
             requester.stderr.write('No such image.\n')
             return None
         else:
-            return ModifySession(requester, image.tagged_name, image_tag, self)
-    def get_default_new_image_name(self, requester, old_image_tag):
+            return ModifySession(requester, image.fullname, self)
+    def get_default_new_image_tag(self, requester, old_image_tag):
         image = self.get_image_from_tag(old_image_tag)
-        if image.docker_user == requester.username:
+        if image.user == requester.username:
             # we can override the image, since we own it
             # => propose the same name
             return old_image_tag
@@ -323,16 +339,16 @@ class NodeImageRepository(object):
             while self.get_image_from_tag(new_tag):
                 new_tag += '_new'
             return new_tag
-    def validate_new_image_name(self, requester, old_image_tag, new_image_tag):
+    def validate_new_image_tag(self, requester, old_image_tag, new_image_tag):
         existing_image = self.get_image_from_tag(new_image_tag)
         if old_image_tag == new_image_tag:
             # same name for the modified image.
-            if existing_image.docker_user != requester.username:
+            if existing_image.user != requester.username:
                 requester.stderr.write(MSG_BAD_NAME_SAME_AND_NOT_OWNER)
                 return ModifySession.NAME_NOT_OK
             # since the user owns the image, he is allowed to overwrite it with the modified one.
             # however, we will let the user confirm this.
-            num_nodes = len(self.db.select("nodes", image=existing_image.tagged_name))
+            num_nodes = len(self.db.select("nodes", image=existing_image.fullname))
             reboot_message = '' if num_nodes == 0 else ' (and reboot %d node(s))' % num_nodes
             requester.stderr.write('This would overwrite the existing image%s.\n' % reboot_message)
             return ModifySession.NAME_NEEDS_CONFIRM
@@ -366,19 +382,19 @@ class NodeImageRepository(object):
 
     def umount_used_image(self, image):
         images = self.get_images_in_use()
-        images.remove(image.tagged_name)
+        images.remove(image.fullname)
         self.update_image_mounts(images)
 
     def finalize_modify(self, session):
         requester = session.requester
-        old_image_tag = session.image_name
-        new_image_tag = session.new_image_name
+        old_image_tag = session.image_tag
+        new_image_tag = session.new_image_tag
         container_name = session.container_name
         if new_image_tag:
-            reponame = '%s/walt-node' % requester.username
+            image_name = '%s/walt-node' % requester.username
             self.c.commit(
                     container=container_name,
-                    repository=reponame,
+                    repository=image_name,
                     tag=new_image_tag,
                     message='Image modified using walt image shell')
             if old_image_tag == new_image_tag:
@@ -396,8 +412,8 @@ class NodeImageRepository(object):
             else:
                 # we are saving changes to a new image, leaving the initial one
                 # unchanged
-                full_name = '%s:%s' % (reponame, new_image_tag)
-                self.images[full_name] = NodeImage(self.c, full_name, NodeImage.LOCAL)
+                fullname = '%s:%s' % (image_name, new_image_tag)
+                self.images[fullname] = NodeImage(self.c, fullname, NodeImage.LOCAL)
                 requester.stdout.write('New image %s saved.\n' % new_image_tag)
         self.cleanup_modify_session(session)
 
@@ -415,22 +431,22 @@ class NodeImageRepository(object):
     def remove(self, requester, image_tag):
         image = self.get_local_unmounted_image_from_tag(image_tag, requester)
         if image:   # otherwise issue is already reported
-            name = image.tagged_name
+            name = image.fullname
             del self.images[name]
             self.c.remove_image(
                     image=name, force=True)
 
     def do_rename(self, image, new_user, new_tag):
-        old_fullname = image.tagged_name
-        new_repo = "%s/walt-node" % new_user
-        new_fullname = "%s:%s" % (new_repo, new_tag)
+        old_fullname = image.fullname
+        new_name = "%s/walt-node" % new_user
+        new_fullname = "%s:%s" % (new_name, new_tag)
         # update image internal attributes
         image.rename(new_fullname)
         # rename in this repo
         self.images[new_fullname] = image
         del self.images[old_fullname]
         # rename the docker image
-        self.c.tag(image=old_fullname, repository=new_repo, tag=new_tag)
+        self.c.tag(image=old_fullname, repository=new_name, tag=new_tag)
         self.c.remove_image(image=old_fullname, force=True)
 
     def rename(self, requester, image_tag, new_tag):
@@ -439,12 +455,12 @@ class NodeImageRepository(object):
             if self.get_image_from_tag(new_tag):
                 requester.stderr.write('Bad name: Image already exists.\n')
                 return
-            self.do_rename(image, image.docker_user, new_tag)
+            self.do_rename(image, image.user, new_tag)
 
     def get_owner(self, requester, image_tag):
         image = self.get_image_from_tag(image_tag, requester)
         if image:   # otherwise issue is already reported
-            return image.docker_user
+            return image.user
 
     def fix_owner(self, requester, image_tag):
         image = self.get_local_unmounted_image_from_tag(image_tag, requester)

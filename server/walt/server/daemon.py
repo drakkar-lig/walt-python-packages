@@ -113,26 +113,26 @@ class PlatformService(rpyc.Service):
         node_ip, node_port = self._conn._config['endpoints'][1]
         self.server.register_node(node_ip)
 
-    def exposed_has_image(self, image_name):
-        return self.images.has_image(self._client, image_name)
+    def exposed_has_image(self, image_tag):
+        return self.images.has_image(self._client, image_tag)
 
-    def exposed_set_image(self, node_name, image_name):
-        self.server.set_image(self._client, node_name, image_name)
+    def exposed_set_image(self, node_name, image_tag):
+        self.server.set_image(self._client, node_name, image_tag)
 
     def exposed_list_images(self, users):
         return self.images.describe(users)
 
-    def exposed_set_default_image(self, image_name):
-        self.server.set_default_image(self._client, image_name)
+    def exposed_set_default_image(self, image_tag):
+        self.server.set_default_image(self._client, image_tag)
 
-    def exposed_create_modify_image_session(self, image_name):
-        return self.images.create_modify_session(self._client, image_name)
+    def exposed_create_modify_image_session(self, image_tag):
+        return self.images.create_modify_session(self._client, image_tag)
 
-    def exposed_remove_image(self, image_name):
-        self.images.remove(self._client, image_name)
+    def exposed_remove_image(self, image_tag):
+        self.images.remove(self._client, image_tag)
 
-    def exposed_rename_image(self, image_name, new_name):
-        self.images.rename(self._client, image_name, new_name)
+    def exposed_rename_image(self, image_tag, new_tag):
+        self.images.rename(self._client, image_tag, new_tag)
 
     def exposed_check_device_exists(self, device_name):
         return self.platform.topology.get_device_info(
@@ -147,11 +147,11 @@ class PlatformService(rpyc.Service):
     def exposed_forget(self, device_name):
         self.server.forget_device(device_name)
 
-    def exposed_get_image_owner(self, image_name):
-        return self.images.get_owner(self._client, image_name)
+    def exposed_get_image_owner(self, image_tag):
+        return self.images.get_owner(self._client, image_tag)
 
-    def exposed_fix_image_owner(self, image_name):
-        return self.images.fix_owner(self._client, image_name)
+    def exposed_fix_image_owner(self, image_tag):
+        return self.images.fix_owner(self._client, image_tag)
 
 class WalTServerDaemon(WalTDaemon):
     """WalT (wireless testbed) server daemon."""

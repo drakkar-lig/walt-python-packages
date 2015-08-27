@@ -43,17 +43,17 @@ class Server(object):
     def cleanup(self):
         self.images.cleanup()
 
-    def set_image(self, requester, node_name, image_name):
+    def set_image(self, requester, node_name, image_tag):
         node_info = self.platform.topology.get_node_info(
                         requester, node_name)
         if node_info == None:
             return # error already reported
         mac = node_info.mac
-        self.images.set_image(requester, mac, image_name)
+        self.images.set_image(requester, mac, image_tag)
         self.dhcpd.update()
 
-    def set_default_image(self, requester, image_name):
-        self.images.set_default(requester, image_name)
+    def set_default_image(self, requester, image_tag):
+        self.images.set_default(requester, image_tag)
         self.dhcpd.update()
 
     def register_node(self, node_ip):
