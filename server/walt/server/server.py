@@ -4,7 +4,7 @@ import uuid
 from walt.common.evloop import EventLoop
 from walt.common.tcp import TCPServer
 from walt.common.constants import WALT_SERVER_TCP_PORT
-from walt.server.image import NodeImageRepository
+from walt.server.images.store import NodeImageStore
 from walt.server.platform import Platform
 from walt.server.db import ServerDB
 from walt.server.logs import LogsManager
@@ -17,7 +17,7 @@ class Server(object):
         self.ev_loop = EventLoop()
         self.db = ServerDB()
         self.platform = Platform(self.db)
-        self.images = NodeImageRepository(self.db)
+        self.images = NodeImageStore(self.db)
         self.dhcpd = DHCPServer(self.db)
         self.tcp_server = TCPServer(WALT_SERVER_TCP_PORT)
         self.logs = LogsManager(self.db, self.tcp_server)
