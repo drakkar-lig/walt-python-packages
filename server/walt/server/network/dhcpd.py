@@ -4,7 +4,7 @@ from walt.server.network.tools import ip, net
 from walt.common.nodetypes import is_a_node_type_name
 from operator import itemgetter
 from itertools import groupby
-from walt.server import image
+from walt.server.images import image
 from walt.common.tools import do
 
 DHCPD_CONF_FILE = '/etc/dhcp/dhcpd.conf'
