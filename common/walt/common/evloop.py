@@ -63,7 +63,8 @@ class EventLoop(object):
     def loop(self):
         while True:
             # handle any expired planned event
-            while self.planned_events[0][0] <= time():
+            while len(self.planned_events) > 0 and \
+                        self.planned_events[0][0] <= time():
                 ts, target, repeat_delay, kwargs = \
                                     heappop(self.planned_events)
                 target.handle_planned_event(**kwargs)
