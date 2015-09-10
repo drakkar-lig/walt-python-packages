@@ -10,20 +10,23 @@ from walt.server.db import ServerDB
 from walt.server.logs import LogsManager
 from walt.server.network.dhcpd import DHCPServer
 from walt.server.interactive import InteractionManager
+from walt.server.blocking import BlockingTasksManager
 
 class Server(object):
 
     def __init__(self):
         self.ev_loop = EventLoop()
         self.db = ServerDB()
+        self.blocking = BlockingTasksManager()
         self.platform = Platform(self.db)
-        self.images = NodeImageStore(self.db)
+        self.images = NodeImageStore(self.db, self.blocking)
         self.dhcpd = DHCPServer(self.db)
         self.tcp_server = TCPServer(WALT_SERVER_TCP_PORT)
         self.logs = LogsManager(self.db, self.tcp_server)
         self.interaction = InteractionManager(\
                         self.tcp_server, self.ev_loop)
         self.tcp_server.join_event_loop(self.ev_loop)
+        self.blocking.join_event_loop(self.ev_loop)
         self.db.plan_auto_commit(self.ev_loop)
 
     def update(self):
@@ -42,6 +45,7 @@ class Server(object):
 
     def cleanup(self):
         self.images.cleanup()
+        self.blocking.cleanup()
 
     def set_image(self, requester, node_name, image_tag):
         node_info = self.platform.topology.get_node_info(

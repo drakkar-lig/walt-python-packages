@@ -1,52 +1,37 @@
-import re, sys, requests
+import re, sys
 from docker import Client
 from walt.server.images.image import get_mount_path, NodeImage
 from walt.server.images.shell import ModifySession
+from walt.server.images.search import search
+from walt.server.images.clone import clone
 from walt.server.network import nfs
 from walt.server.tools import columnate
 from walt.common.tools import \
         failsafe_makedirs, failsafe_symlink
-from walt.server import const
 
 # About terminology: See comment about it in image.py.
 
 IMAGE_IS_USED_BUT_NOT_FOUND=\
     "WARNING: image %s is not found. Cannot attach it to related nodes.\n"
 CONFIG_ITEM_DEFAULT_IMAGE='default_image'
-MSG_BAD_NAME_SAME_AND_NOT_OWNER="""\
-Bad name: Choosing the same name is only allowed if you own
-the image, because it would cause the image to be overwritten.
-And you do not own this image.
-"""
 
 class NodeImageStore(object):
-    def __init__(self, db):
+    def __init__(self, db, blocking_manager):
         self.db = db
+        self.blocking = blocking_manager
         self.c = Client(base_url='unix://var/run/docker.sock', version='auto')
-        self.images = {}
         self.modify_sessions = set()
         self.add_local_images()
-        self.add_remote_images()
     def add_local_images(self):
         local_images = sum([ i['RepoTags'] for i in self.c.images() ], [])
+        self.images = {}
         for fullname in local_images:
             if '/walt-node' in fullname:
-                self.images[fullname] = NodeImage(self.c, fullname, NodeImage.LOCAL)
-    def lookup_remote_tags(self, image_name):
-        url = const.DOCKER_HUB_GET_TAGS_URL % dict(image_name = image_name)
-        r = requests.get(url)
-        for elem in requests.get(url).json():
-            tag = requests.utils.unquote(elem['name'])
-            yield "%s:%s" % (image_name, tag)
-    def add_remote_images(self):
-        current_names = set(self.images.keys())
-        remote_names = set([])
-        for result in self.c.search(term='walt-node'):
-            if '/walt-node' in result['name']:
-                for fullname in self.lookup_remote_tags(result['name']):
-                    remote_names.add(fullname)
-        for fullname in (remote_names - current_names):
-            self.images[fullname] = NodeImage(self.c, fullname, NodeImage.REMOTE)
+                self.images[fullname] = NodeImage(self.c, fullname)
+    def search(self, requester, q, keyword):
+        search(q, self.blocking, self.c, requester, keyword)
+    def clone(self, requester, q, clonable_link):
+        clone(q, self.blocking, self.c, requester, clonable_link)
     def __getitem__(self, image_fullname):
         return self.images[image_fullname]
     def __iter__(self):

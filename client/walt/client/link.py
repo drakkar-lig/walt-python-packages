@@ -2,6 +2,19 @@
 import rpyc, os, sys, signal, threading
 from walt.common.constants import WALT_SERVER_DAEMON_PORT
 from walt.client.config import conf
+from multiprocessing import Queue
+
+class ResponseQueue(object):
+    def __init__(self):
+        self.q = Queue()
+    def exposed_put(self, *args, **kwargs):
+        self.q.put(*args, **kwargs)
+    def exposed_done(self):
+        self.q.put(None)
+    def get(self):
+        return self.q.get()
+    def wait(self):
+        self.q.get()
 
 class ExposedStream(object):
     def __init__(self, stream):

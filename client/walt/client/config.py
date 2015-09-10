@@ -17,20 +17,11 @@ CONF_ITEMS = OrderedDict([
         explain='''\
 This name is used to indicate the author of the walt images you create.
 If you have an account on the docker hub, you should input the same username,
-because walt will also look for any walt image stored there.
+because walt looks for any walt image stored there.
 Otherwise you are free to choose the one you want.''',
         itemtype=str,
         default=None,
         user_input=True
-    )),
-    ('friends', dict(
-        default=[ 'waltplatform' ],
-        desc='walt friends',
-        explain='''\
-When working with walt images, the images you created are displayed, plus
-the ones created by team \'waltplatform\'. If you want to work with some
-images created by other users, append their usernames here.''',
-        user_input=False
     ))
 ])
 
