@@ -145,8 +145,7 @@ class PlatformService(rpyc.Service):
         self.images.clone(self._client, q, clonable_link)
 
     def exposed_show_images(self):
-        #return self.images.describe(users)
-        pass
+        return self.images.show(self._client.username)
 
     def exposed_create_modify_image_session(self, image_tag):
         return self.images.create_modify_session(self._client, image_tag)

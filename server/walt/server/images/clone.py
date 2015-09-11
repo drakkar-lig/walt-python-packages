@@ -57,7 +57,7 @@ def pull(c, requester, user, tag):
         display_transient_label(requester.stdout, label)
     hide_transient_label(requester.stdout, label)
 
-def perform_clone(c, requester, clonable_link):
+def perform_clone(c, requester, clonable_link, image_store):
     remote_location, remote_user, remote_tag = parse_clonable_link(
                                                 requester, clonable_link)
     if remote_location == None:
@@ -132,20 +132,26 @@ def perform_clone(c, requester, clonable_link):
     else:
         # tag an image of the server
         c.tag(image=remote_fullname, repository=new_repo, tag=remote_tag)
+    image_store.refresh()
     requester.stdout.write('Done.\n')
 
 class CloneTask(object):
-    def __init__(self, q, c, requester, clonable_link):
+    def __init__(self, q, c, requester, clonable_link, image_store):
         self.response_q = q
         self.docker = c
         self.requester = requester
         self.clonable_link = clonable_link
+        self.image_store = image_store
     def perform(self):
-        perform_clone(self.docker, self.requester, self.clonable_link)
+        perform_clone(
+                self.docker,
+                self.requester,
+                self.clonable_link,
+                self.image_store)
     def handle_result(self, res):
         self.response_q.put(res)
 
 # this implements walt image clone
-def clone(q, blocking_manager, c, requester, clonable_link):
-    blocking_manager.do(CloneTask(q, c, requester, clonable_link))
+def clone(q, blocking_manager, c, requester, clonable_link, image_store):
+    blocking_manager.do(CloneTask(q, c, requester, clonable_link, image_store))
 
