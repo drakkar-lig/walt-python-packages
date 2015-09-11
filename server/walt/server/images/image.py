@@ -66,6 +66,13 @@ def parse_image_fullname(image_fullname):
     image_user, dummy = image_name.split('/')
     return image_fullname, image_name, image_user, image_tag
 
+def validate_image_tag(requester, image_tag):
+    is_ok = re.match('^[a-zA-Z0-9\-]+$', image_tag)
+    if not is_ok:
+        requester.stderr.write(\
+                'Bad name: Only alnum and dash(-) characters are allowed.\n')
+    return is_ok
+
 class NodeImage(object):
     server_pubkey = get_server_pubkey()
     def __init__(self, c, fullname):

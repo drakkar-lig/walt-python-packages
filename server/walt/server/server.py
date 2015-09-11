@@ -41,7 +41,7 @@ class Server(object):
         # update dhcp again for any new device
         self.dhcpd.update()
         # mount images needed
-        self.images.update_image_mounts()
+        self.images.update()
 
     def cleanup(self):
         self.images.cleanup()

@@ -147,8 +147,8 @@ class PlatformService(rpyc.Service):
     def exposed_show_images(self):
         return self.images.show(self._client.username)
 
-    def exposed_create_modify_image_session(self, image_tag):
-        return self.images.create_modify_session(self._client, image_tag)
+    def exposed_create_image_shell_session(self, image_tag):
+        return self.images.create_shell_session(self._client, image_tag)
 
     def exposed_remove_image(self, image_tag):
         self.images.remove(self._client, image_tag)

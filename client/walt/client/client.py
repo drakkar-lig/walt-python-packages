@@ -245,7 +245,7 @@ class WalTImageShell(cli.Application):
     """modify an image through an interactive shell"""
     def main(self, image_name):
         with ClientToServerLink() as server:
-            session = server.create_modify_image_session(
+            session = server.create_image_shell_session(
                             image_name)
             if session == None:
                 return  # issue already reported

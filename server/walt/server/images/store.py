@@ -1,9 +1,19 @@
+import sys
 from walt.server.images.image import NodeImage
+from walt.server.network import nfs
+from walt.common.tools import \
+        failsafe_makedirs, failsafe_symlink
+from walt.server.images.image import get_mount_path
 # About terminology: See comment about it in image.py.
 
+IMAGE_IS_USED_BUT_NOT_FOUND=\
+    "WARNING: image %s is not found. Cannot attach it to related nodes.\n"
+CONFIG_ITEM_DEFAULT_IMAGE='default_image'
+
 class NodeImageStore(object):
-    def __init__(self, c):
+    def __init__(self, c, db):
         self.c = c
+        self.db = db
         self.images = {}
     def refresh(self):
         local_images = sum([ i['RepoTags'] for i in self.c.images() ], [])
@@ -52,3 +62,59 @@ class NodeImageStore(object):
                 requester.stderr.write('Sorry, cannot proceed because the image is mounted.\n')
                 return None
         return image
+    def update_image_mounts(self, images_in_use = None):
+        if images_in_use == None:
+            images_in_use = self.get_images_in_use()
+        images_found = []
+        # ensure all needed images are mounted
+        for fullname in images_in_use:
+            if fullname in self.images:
+                img = self.images[fullname]
+                if not img.mounted:
+                    img.mount()
+                images_found.append(img)
+            else:
+                sys.stderr.write(IMAGE_IS_USED_BUT_NOT_FOUND % fullname)
+        # update default image link
+        self.update_default_link()
+        # update nfs configuration
+        nfs.update_exported_filesystems(images_found)
+        # unmount images that are not needed anymore
+        for fullname in self.images:
+            if fullname not in images_in_use:
+                img = self.images[fullname]
+                if img.mounted:
+                    img.unmount()
+    def cleanup(self):
+        # release nfs mounts
+        nfs.update_exported_filesystems([])
+        # unmount images
+        for fullname in self.images:
+            img = self.images[fullname]
+            if img.mounted:
+                img.unmount()
+    def get_images_in_use(self):
+        res = set([ item.image for item in \
+            self.db.execute("""
+                SELECT DISTINCT image FROM nodes""").fetchall()])
+        res.add(self.get_default_image())
+        return res
+    def get_default_image(self):
+        if len(self.images) > 0:
+            default_if_not_specified = self.images.keys()[0]
+        else:
+            default_if_not_specified = None
+        return self.db.get_config(
+                    CONFIG_ITEM_DEFAULT_IMAGE,
+                    default_if_not_specified)
+    def update_default_link(self):
+        default_image = self.get_default_image()
+        default_mount_path = get_mount_path(default_image)
+        default_simlink = get_mount_path('default')
+        failsafe_makedirs(default_mount_path)
+        failsafe_symlink(default_mount_path, default_simlink)
+    def umount_used_image(self, image):
+        images = self.get_images_in_use()
+        images.remove(image.fullname)
+        self.update_image_mounts(images)
+
