@@ -25,3 +25,30 @@ class NodeImageStore(object):
         return self.images.keys()
     def iteritems(self):
         return self.images.iteritems()
+    def values(self):
+        return self.images.values()
+    # look for an image belonging to the requester.
+    # The 'expected' parameter allows to specify if we expect a matching
+    # result (expected = True), no matching result (expected = False),
+    # or if both options are ok (expected = None).
+    # If expected is True or False and the result does not match expectation,
+    # an error message will be printed.
+    def get_user_image_from_tag(self, requester, image_tag, expected = True):
+        found = None
+        for image in self.images.values():
+            if image.tag == image_tag and image.user == requester.username:
+                found = image
+        if expected == True and found is None:
+            requester.stderr.write(
+                "Error: No such image '%s'. (tip: walt image show)\n" % image_tag)
+        if expected == False and found is not None:
+            requester.stderr.write(
+                "Error: Image '%s' already exists.\n" % image_tag)
+        return found
+    def get_user_unmounted_image_from_tag(self, requester, image_tag):
+        image = self.get_user_image_from_tag(requester, image_tag)
+        if image:   # otherwise issue is already reported
+            if image.mounted:
+                requester.stderr.write('Sorry, cannot proceed because the image is mounted.\n')
+                return None
+        return image

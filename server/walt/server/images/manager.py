@@ -5,6 +5,10 @@ from walt.server.images.shell import ModifySession
 from walt.server.images.search import search
 from walt.server.images.clone import clone
 from walt.server.images.show import show
+from walt.server.images.rename import rename
+from walt.server.images.remove import remove
+from walt.server.images.copy import copy
+from walt.server.images.fixowner import fix_owner
 from walt.server.images.store import NodeImageStore
 from walt.server.network import nfs
 from walt.common.tools import \
@@ -30,6 +34,14 @@ class NodeImageManager(object):
         clone(q, self.blocking, self.c, requester, clonable_link, self.images)
     def show(self, username):
         return show(self.images, username)
+    def rename(self, requester, image_tag, new_tag):
+        rename(self.images, self.c, requester, image_tag, new_tag)
+    def remove(self, requester, image_tag):
+        remove(self.images, self.c, requester, image_tag)
+    def copy(self, requester, image_tag, new_tag):
+        copy(self.images, self.c, requester, image_tag, new_tag)
+    def fix_owner(self, requester, other_user):
+        fix_owner(self.images, self.c, requester, other_user)
     def update_image_mounts(self, images_in_use = None):
         if images_in_use == None:
             images_in_use = self.get_images_in_use()
@@ -84,18 +96,10 @@ class NodeImageManager(object):
         default_simlink = get_mount_path('default')
         failsafe_makedirs(default_mount_path)
         failsafe_symlink(default_mount_path, default_simlink)
-    def get_image_from_tag(self, image_tag, requester = None):
-        for image in self.images.values():
-            if image.tag == image_tag:
-                return image
-        if requester:
-            requester.stderr.write(
-                "No such image '%s'. (tip: walt image show)\n" % image_tag)
-        return None
     def has_image(self, requester, image_tag):
-        return self.get_image_from_tag(image_tag, requester) != None
+        return self.images.get_user_image_from_tag(requester, image_tag) != None
     def set_image(self, requester, node_mac, image_tag):
-        image = self.get_image_from_tag(image_tag, requester)
+        image = self.images.get_user_image_from_tag(requester, image_tag)
         if image:
             self.db.update('nodes', 'mac',
                     mac=node_mac,
@@ -103,7 +107,7 @@ class NodeImageManager(object):
             self.update_image_mounts()
             self.db.commit()
     def set_default(self, requester, image_tag):
-        image = self.get_image_from_tag(image_tag, requester)
+        image = self.images.get_user_image_from_tag(requester, image_tag)
         if image:
             self.db.set_config(
                     CONFIG_ITEM_DEFAULT_IMAGE,
@@ -111,27 +115,16 @@ class NodeImageManager(object):
             self.update_image_mounts()
             self.db.commit()
     def create_modify_session(self, requester, image_tag):
-        image = self.get_image_from_tag(image_tag, requester)
-        if not image:
-            requester.stderr.write('No such image.\n')
-            return None
-        else:
+        image = self.images.get_user_image_from_tag(requester, image_tag)
+        if image:
             return ModifySession(requester, image.fullname, self)
     def get_default_new_image_tag(self, requester, old_image_tag):
-        image = self.get_image_from_tag(old_image_tag)
-        if image.user == requester.username:
-            # we can override the image, since we own it
-            # => propose the same name
-            return old_image_tag
-        else:
-            # we cannot override the image, since we do not own it
-            # => propose another name
-            new_tag = old_image_tag
-            while self.get_image_from_tag(new_tag):
-                new_tag += '_new'
-            return new_tag
+        # default is to propose the same name
+        # (override the image after confirmation)
+        return old_image_tag
     def validate_new_image_tag(self, requester, old_image_tag, new_image_tag):
-        existing_image = self.get_image_from_tag(new_image_tag)
+        existing_image = self.images.get_user_image_from_tag(requester, new_image_tag,
+                                                        expected=None)
         if old_image_tag == new_image_tag:
             # same name for the modified image.
             if existing_image.user != requester.username:
@@ -190,7 +183,7 @@ class NodeImageManager(object):
                     message='Image modified using walt image shell')
             if old_image_tag == new_image_tag:
                 # same name, we are modifying the image
-                image = self.get_image_from_tag(new_image_tag)
+                image = self.images.get_user_image_from_tag(requester, new_image_tag)
                 # if image is mounted, umount/mount it in order to make
                 # the nodes reboot with the new version
                 if image.mounted:
@@ -208,53 +201,4 @@ class NodeImageManager(object):
                 requester.stdout.write('New image %s saved.\n' % new_image_tag)
         self.cleanup_modify_session(session)
 
-    def get_local_unmounted_image_from_tag(self, image_tag, requester):
-        image = self.get_image_from_tag(image_tag, requester)
-        if image:   # otherwise issue is already reported
-            if image.state != NodeImage.LOCAL:
-                requester.stderr.write('Sorry, this operation is allowed on local images only.\n')
-                return None
-            if image.mounted:
-                requester.stderr.write('Sorry, cannot proceed because the image is mounted.\n')
-                return None
-        return image
-
-    def remove(self, requester, image_tag):
-        image = self.get_local_unmounted_image_from_tag(image_tag, requester)
-        if image:   # otherwise issue is already reported
-            name = image.fullname
-            del self.images[name]
-            self.c.remove_image(
-                    image=name, force=True)
-
-    def do_rename(self, image, new_user, new_tag):
-        old_fullname = image.fullname
-        new_name = "%s/walt-node" % new_user
-        new_fullname = "%s:%s" % (new_name, new_tag)
-        # update image internal attributes
-        image.rename(new_fullname)
-        # rename in this repo
-        self.images[new_fullname] = image
-        del self.images[old_fullname]
-        # rename the docker image
-        self.c.tag(image=old_fullname, repository=new_name, tag=new_tag)
-        self.c.remove_image(image=old_fullname, force=True)
-
-    def rename(self, requester, image_tag, new_tag):
-        image = self.get_local_unmounted_image_from_tag(image_tag, requester)
-        if image:   # otherwise issue is already reported
-            if self.get_image_from_tag(new_tag):
-                requester.stderr.write('Bad name: Image already exists.\n')
-                return
-            self.do_rename(image, image.user, new_tag)
-
-    def get_owner(self, requester, image_tag):
-        image = self.get_image_from_tag(image_tag, requester)
-        if image:   # otherwise issue is already reported
-            return image.user
-
-    def fix_owner(self, requester, image_tag):
-        image = self.get_local_unmounted_image_from_tag(image_tag, requester)
-        if image:   # otherwise issue is already reported
-            self.do_rename(image, requester.username, image_tag)
 

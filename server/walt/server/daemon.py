@@ -135,8 +135,8 @@ class PlatformService(rpyc.Service):
     def exposed_forget(self, device_name):
         self.server.forget_device(device_name)
 
-    def exposed_fix_image_owner(self, image_tag):
-        return self.images.fix_owner(self._client, image_tag)
+    def exposed_fix_image_owner(self, other_user):
+        return self.images.fix_owner(self._client, other_user)
 
     def exposed_search_images(self, q, keyword):
         self.images.search(self._client, q, keyword)
@@ -157,8 +157,7 @@ class PlatformService(rpyc.Service):
         self.images.rename(self._client, image_tag, new_tag)
 
     def exposed_copy_image(self, image_tag, new_tag):
-        #self.images.copy(self._client, image_tag, new_tag)
-        pass
+        self.images.copy(self._client, image_tag, new_tag)
 
 class WalTServerDaemon(WalTDaemon):
     """WalT (wireless testbed) server daemon."""
