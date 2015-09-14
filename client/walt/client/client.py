@@ -5,8 +5,8 @@ WalT (wireless testbed) control tool.
 import readline, time, sys, socket
 from plumbum import cli
 from walt.common.logs import LogsConnectionToServer
-from walt.client.link import ClientToServerLink
-from walt.client.config import conf, conf_path
+from walt.client.link import ClientToServerLink, ResponseQueue
+from walt.client.config import conf
 from walt.client.tools import confirm
 from walt.client.interactive import run_sql_prompt, \
                                     run_image_shell_prompt, \
@@ -215,32 +215,41 @@ class WalTNodeShell(cli.Application):
 class WalTImage(cli.Application):
     """management of WalT-nodes operating system images"""
 
+@WalTImage.subcommand("search")
+class WalTImageSearch(cli.Application):
+    """search for remote WalT node OS images"""
+    def main(self, keyword=None):
+        with ClientToServerLink(True) as server:
+            q = ResponseQueue()
+            server.search_images(q, keyword)
+            print q.get()
+
+@WalTImage.subcommand("clone")
+class WalTImageClone(cli.Application):
+    """clone a remote image into your working set"""
+    _force = False # default
+    def main(self, clonable_image_link):
+        q = ResponseQueue()
+        with ClientToServerLink(True) as server:
+            server.clone_image(q, clonable_image_link, self._force)
+            q.wait()
+    @cli.autoswitch(help='do it, even if it overwrites an existing image.')
+    def force(self):
+        self._force = True
+
 @WalTImage.subcommand("show")
 class WalTImageShow(cli.Application):
-    """list available WalT node OS images"""
+    """display your working set of walt images"""
     def main(self):
         with ClientToServerLink() as server:
-            users = set(conf['friends'])
-            users.add(conf['username'])
-            print server.list_images(users)
-            print '\nSelected users: %s.\n(conforming to %s)' % \
-                    (', '.join(users), conf_path)
-
-@WalTImage.subcommand("set-default")
-class WalTImageSetDefault(cli.Application):
-    """set the default image to be booted when a node connects
-       to the server for the first time"""
-    def main(self, image_name):
-        with ClientToServerLink() as server:
-            server.set_default_image(image_name)
+            print server.show_images()
 
 @WalTImage.subcommand("shell")
 class WalTImageShell(cli.Application):
-    """run an interactive shell allowing to modify a given
-       image"""
+    """modify an image through an interactive shell"""
     def main(self, image_name):
         with ClientToServerLink() as server:
-            session = server.create_modify_image_session(
+            session = server.create_image_shell_session(
                             image_name)
             if session == None:
                 return  # issue already reported
@@ -269,35 +278,26 @@ class WalTImageShell(cli.Application):
                 except (KeyboardInterrupt, EOFError):
                     print 'Aborted.'
 
-MSG_NOT_OWNER_OF_IMAGE = """\
-You do not own this image. Owner is %s.
-If this is really what you want, run this before:
-walt advanced fix-image-owner %s"""
-
-def verify_owner(server, image_name):
-    owner = server.get_image_owner(image_name)
-    if owner == None:
-        return False # issue already reported
-    if owner != conf['username']:
-        print MSG_NOT_OWNER_OF_IMAGE % (owner, image_name)
-        return False # give up
-    return True
-
 @WalTImage.subcommand("remove")
 class WalTImageRemove(cli.Application):
-    """remove an image"""
+    """remove an image from your working set"""
     def main(self, image_name):
         with ClientToServerLink() as server:
-            if verify_owner(server, image_name):
-                server.remove_image(image_name)
+            server.remove_image(image_name)
 
 @WalTImage.subcommand("rename")
 class WalTImageRename(cli.Application):
-    """rename an image"""
-    def main(self, image_name, new_name):
+    """rename an image of your working set"""
+    def main(self, image_name, new_image_name):
         with ClientToServerLink() as server:
-            if verify_owner(server, image_name):
-                server.rename_image(image_name, new_name)
+            server.rename_image(image_name, new_image_name)
+
+@WalTImage.subcommand("copy")
+class WalTImageCopy(cli.Application):
+    """copy an image of your working set"""
+    def main(self, image_name, new_image_name):
+        with ClientToServerLink() as server:
+            server.copy_image(image_name, new_image_name)
 
 @WalT.subcommand("log")
 class WaltLog(cli.Application):
@@ -342,23 +342,31 @@ class WalTAdvancedSql(cli.Application):
 
 @WalTAdvanced.subcommand("fix-image-owner")
 class WalTAdvancedFixImageOwner(cli.Application):
-    """fix the owner of an image"""
+    """fix the owner of images"""
     _force = False # default
-    def main(self, image_name):
+    def main(self, other_user):
         if not self._force:
             print """\
-This will change the owner of an image to you. It is intended
-for maintenance only (e.g. when a user is no longer working with
-walt and you want to work with the images he created).
+This will make you own all images of user '%s'. It is intended
+for maintenance only (i.e. if user '%s' is no longer working with
+walt).
 If this is really what you want, run:
 walt advanced fix-image-owner --yes-i-know-do-it-please %s
-""" % image_name
+""" % ((other_user,) * 3)
         else:
             with ClientToServerLink() as server:
-                server.fix_image_owner(image_name)
+                server.fix_image_owner(other_user)
     @cli.autoswitch(help='yes, I know, do it!')
     def yes_i_know_do_it_please(self):
         self._force = True
+
+@WalTAdvanced.subcommand("set-default-image")
+class WalTImageSetDefaultImage(cli.Application):
+    """set the default image to be booted when a node connects
+       to the server for the first time"""
+    def main(self, image_name):
+        with ClientToServerLink() as server:
+            server.set_default_image(image_name)
 
 def run():
     try:

@@ -42,3 +42,11 @@ def columnate(tabular_data, header = None):
     # format and return
     return '\n'.join(formating % tuple(record) for record in tabular_data_copy)
 
+def display_transient_label(stdout, label):
+    stdout.write(label)
+    stdout.flush()
+
+def hide_transient_label(stdout, label):
+    # override with space
+    display_transient_label(stdout, '\r%s\r' % (' '*len(label)))
+

@@ -119,20 +119,8 @@ class PlatformService(rpyc.Service):
     def exposed_set_image(self, node_name, image_tag):
         self.server.set_image(self._client, node_name, image_tag)
 
-    def exposed_list_images(self, users):
-        return self.images.describe(users)
-
     def exposed_set_default_image(self, image_tag):
         self.server.set_default_image(self._client, image_tag)
-
-    def exposed_create_modify_image_session(self, image_tag):
-        return self.images.create_modify_session(self._client, image_tag)
-
-    def exposed_remove_image(self, image_tag):
-        self.images.remove(self._client, image_tag)
-
-    def exposed_rename_image(self, image_tag, new_tag):
-        self.images.rename(self._client, image_tag, new_tag)
 
     def exposed_check_device_exists(self, device_name):
         return self.platform.topology.get_device_info(
@@ -147,11 +135,29 @@ class PlatformService(rpyc.Service):
     def exposed_forget(self, device_name):
         self.server.forget_device(device_name)
 
-    def exposed_get_image_owner(self, image_tag):
-        return self.images.get_owner(self._client, image_tag)
+    def exposed_fix_image_owner(self, other_user):
+        return self.images.fix_owner(self._client, other_user)
 
-    def exposed_fix_image_owner(self, image_tag):
-        return self.images.fix_owner(self._client, image_tag)
+    def exposed_search_images(self, q, keyword):
+        self.images.search(self._client, q, keyword)
+
+    def exposed_clone_image(self, q, clonable_link, force=False):
+        self.images.clone(self._client, q, clonable_link, force)
+
+    def exposed_show_images(self):
+        return self.images.show(self._client.username)
+
+    def exposed_create_image_shell_session(self, image_tag):
+        return self.images.create_shell_session(self._client, image_tag)
+
+    def exposed_remove_image(self, image_tag):
+        self.images.remove(self._client, image_tag)
+
+    def exposed_rename_image(self, image_tag, new_tag):
+        self.images.rename(self._client, image_tag, new_tag)
+
+    def exposed_copy_image(self, image_tag, new_tag):
+        self.images.copy(self._client, image_tag, new_tag)
 
 class WalTServerDaemon(WalTDaemon):
     """WalT (wireless testbed) server daemon."""

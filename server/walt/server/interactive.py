@@ -113,7 +113,7 @@ class DockerPromptSocketListener(PromptSocketListener):
     def get_command(self):
         image, container = read_pickle(self.sock_file_r)
         return 'docker run -it --entrypoint %s -h %s --name %s %s' % \
-                       ('/bin/bash', 'image-modify',
+                       ('/bin/bash', 'image-shell',
                         container, image)
 
 class NodeShellSocketListener(PromptSocketListener):

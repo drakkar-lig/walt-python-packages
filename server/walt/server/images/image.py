@@ -1,25 +1,48 @@
-import os, re, sys, requests, shlex, time
+import os, re, shlex, time
 from datetime import datetime
 from plumbum.cmd import mount, umount, findmnt
 from walt.server.network.tools import get_server_ip
 from walt.common.tools import \
         failsafe_makedirs, succeeds
 
-# Terminology:
+# IMPORTANT TERMINOLOGY NOTES:
 #
-# - on the server side source code:
-#   we follow the *docker terminology*
+# In the client side source code
+# ------------------------------
+# we follow the *walt user point of view*:
+# the 'name' of an image is actually the docker <tag> only.
 #
-#   <user>/<repository>:<tag>
-#   <-- name --------->
-#   <-- fullname ----------->
+# In the server side source code
+# ------------------------------
+# we follow the *docker terminology*
 #
-#   note: all walt images have <repository>='walt-node',
-#   which allows to find them.
+# <user>/<repository>:<tag>
+# <-- name --------->
+# <-- fullname ----------->
 #
-# - on the client side source code:
-#   we follow the *walt user point of view*
-#   the 'name' of an image is actually the docker <tag> only.
+# note: all walt images have <repository>='walt-node',
+# which allows to find them. (1)
+# As a result of (1), all docker images that walt manages
+# have a fullname with the following format:
+# <username>/walt-node:<tag>
+#
+# About clonable images
+# ---------------------
+# For a given user <username>=<u>,
+# the usage of an image is describe by the table below:
+#
+# In the docker hub  | yes | yes | yes | yes | no  | no  |
+# On the walt server | yes | yes | no  | no  | yes | yes |
+# User is <u>        | yes | no  | yes | no  | yes | no  |
+# --------------------------------------------------------
+# displayed by show  | yes | no  | no  | no  | yes | no  |
+# returned by search | no  | yes | yes | yes | no  | yes |
+# <u> may clone it   | no  | yes | yes | yes | no  | yes |
+#
+# In order to clone an image, the user must specify
+# a 'clonable image link' as an argument to 'walt image clone'.
+# Such a clonable link is formatted as follows:
+# [server|hub]:<user>/<image_tag>
 
 IMAGE_MOUNT_PATH='/var/lib/walt/images/%s/fs'
 SERVER_PUBKEY_PATH = '/root/.ssh/id_dsa.pub'
@@ -43,15 +66,19 @@ def parse_image_fullname(image_fullname):
     image_user, dummy = image_name.split('/')
     return image_fullname, image_name, image_user, image_tag
 
+def validate_image_tag(requester, image_tag):
+    is_ok = re.match('^[a-zA-Z0-9\-]+$', image_tag)
+    if not is_ok:
+        requester.stderr.write(\
+                'Bad name: Only alnum and dash(-) characters are allowed.\n')
+    return is_ok
+
 class NodeImage(object):
     server_pubkey = get_server_pubkey()
-    REMOTE = 0
-    LOCAL = 1
-    def __init__(self, c, fullname, state):
+    def __init__(self, c, fullname):
         self.c = c
         self.rename(fullname)
         self.set_created_at()
-        self.state = state
         self.cid = None
         self.mount_path = None
         self.mounted = False
@@ -69,18 +96,6 @@ class NodeImage(object):
     def __del__(self):
         if self.mounted:
             self.unmount()
-    def download(self):
-        for idx, line in enumerate(
-                    self.c.pull(
-                        self.name,
-                        tag=requests.utils.quote(self.tag),
-                        stream=True)):
-            progress = "-/|\\"[idx % 4]
-            sys.stdout.write('Downloading image %s... %s\r' % \
-                                (self.fullname, progress))
-            sys.stdout.flush()
-        sys.stdout.write('\n')
-        self.state = NodeImage.LOCAL
     def get_mount_path(self):
         return get_mount_path(self.fullname)
     def docker_command_split(self, cmd):
@@ -93,8 +108,6 @@ class NodeImage(object):
         print 'Mounting %s...' % self.fullname,
         self.mount_path = self.get_mount_path()
         failsafe_makedirs(self.mount_path)
-        if self.state == NodeImage.REMOTE:
-            self.download()
         params = dict(image=self.fullname)
         params.update(self.docker_command_split(
             'walt-node-install %s "%s"' % \
