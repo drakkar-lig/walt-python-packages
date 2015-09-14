@@ -1,5 +1,5 @@
 import uuid
-from walt.server.images.image import parse_image_fullname
+from walt.server.images.image import parse_image_fullname, validate_image_tag
 
 # About terminology: See comment about it in image.py.
 class ImageShellSessionStore(object):
