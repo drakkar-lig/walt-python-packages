@@ -227,11 +227,15 @@ class WalTImageSearch(cli.Application):
 @WalTImage.subcommand("clone")
 class WalTImageClone(cli.Application):
     """clone a remote image into your working set"""
+    _force = False # default
     def main(self, clonable_image_link):
         q = ResponseQueue()
         with ClientToServerLink(True) as server:
-            server.clone_image(q, clonable_image_link)
+            server.clone_image(q, clonable_image_link, self._force)
             q.wait()
+    @cli.autoswitch(help='do it, even if it overwrites an existing image.')
+    def force(self):
+        self._force = True
 
 @WalTImage.subcommand("show")
 class WalTImageShow(cli.Application):

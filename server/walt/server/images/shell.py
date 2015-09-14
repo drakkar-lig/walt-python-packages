@@ -3,8 +3,7 @@ from walt.server.images.image import parse_image_fullname, validate_image_tag
 
 # About terminology: See comment about it in image.py.
 class ImageShellSessionStore(object):
-    def __init__(self, db, c, images):
-        self.db = db
+    def __init__(self, c, images):
         self.c = c
         self.images = images
         self.sessions = set()
@@ -32,7 +31,6 @@ class ImageShellSession(object):
     exposed_NAME_NEEDS_CONFIRM  = NAME_NEEDS_CONFIRM
     def __init__(self, store, images, requester, image_fullname):
         self.store = store
-        self.db = store.db
         self.c = store.c
         self.images = images
         self.requester = requester
@@ -70,9 +68,7 @@ class ImageShellSession(object):
             # same name for the modified image.
             # this would overwrite the existing one.
             # we will let the user confirm this.
-            num_nodes = len(self.db.select("nodes", image=existing_image.fullname))
-            reboot_message = '' if num_nodes == 0 else ' (and reboot %d node(s))' % num_nodes
-            self.requester.stderr.write('This would overwrite the existing image%s.\n' % reboot_message)
+            self.images.warn_overwrite_image(self.requester, existing_image.fullname)
             return ImageShellSession.NAME_NEEDS_CONFIRM
         else:
             if existing_image:

@@ -17,14 +17,14 @@ class NodeImageManager(object):
         self.blocking = blocking_manager
         self.c = Client(base_url='unix://var/run/docker.sock', version='auto')
         self.images = NodeImageStore(self.c, self.db)
-        self.shells = ImageShellSessionStore(self.db, self.c, self.images)
+        self.shells = ImageShellSessionStore(self.c, self.images)
     def update(self):
         self.images.refresh()
         self.images.update_image_mounts()
     def search(self, requester, q, keyword):
         search(q, self.blocking, self.c, requester, keyword)
-    def clone(self, requester, q, clonable_link):
-        clone(q, self.blocking, self.c, requester, clonable_link, self.images)
+    def clone(self, requester, q, clonable_link, force):
+        clone(q, self.blocking, self.c, requester, clonable_link, self.images, force)
     def show(self, username):
         return show(self.images, username)
     def rename(self, requester, image_tag, new_tag):

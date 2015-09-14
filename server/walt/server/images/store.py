@@ -6,9 +6,15 @@ from walt.common.tools import \
 from walt.server.images.image import get_mount_path
 # About terminology: See comment about it in image.py.
 
-IMAGE_IS_USED_BUT_NOT_FOUND=\
+MSG_IMAGE_IS_USED_BUT_NOT_FOUND=\
     "WARNING: image %s is not found. Cannot attach it to related nodes.\n"
 CONFIG_ITEM_DEFAULT_IMAGE='default_image'
+MSG_WOULD_OVERWRITE_IMAGE="""\
+An image has the same name in your working set.
+This operation would overwrite it%s.
+"""
+MSG_WOULD_OVERWRITE_IMAGE_REBOOTED_NODES='\
+ (and reboot %d node(s))'
 
 class NodeImageStore(object):
     def __init__(self, c, db):
@@ -74,7 +80,7 @@ class NodeImageStore(object):
                     img.mount()
                 images_found.append(img)
             else:
-                sys.stderr.write(IMAGE_IS_USED_BUT_NOT_FOUND % fullname)
+                sys.stderr.write(MSG_IMAGE_IS_USED_BUT_NOT_FOUND % fullname)
         # update default image link
         self.update_default_link()
         # update nfs configuration
@@ -117,4 +123,11 @@ class NodeImageStore(object):
         images = self.get_images_in_use()
         images.remove(image.fullname)
         self.update_image_mounts(images)
+    def warn_overwrite_image(self, requester, image_fullname):
+        num_nodes = len(self.db.select("nodes", image=image_fullname))
+        if num_nodes == 0:
+            reboot_message = ''
+        else:
+            reboot_message = MSG_WOULD_OVERWRITE_IMAGE_REBOOTED_NODES % num_nodes
+        requester.stderr.write(MSG_WOULD_OVERWRITE_IMAGE % reboot_message)
 

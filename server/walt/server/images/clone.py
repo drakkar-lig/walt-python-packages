@@ -13,10 +13,8 @@ Invalid clonable image link.
 Images of the form 'server:%s/<image_name>' already belong to
 your working set and thus are not clonable.
 """
-MSG_WOULD_OVERWRITE_WS_IMAGE = """\
-This would overwrite image '%s' of your working set.
-If this is what you want, you should remove or rename this image
-before proceeding again.
+MSG_USE_FORCE = """\
+If this is what you want, rerun with --force.
 """
 MSG_INVALID_CLONABLE_LINK = """\
 Invalid clonable image link. Format must be:
@@ -57,7 +55,31 @@ def pull(c, requester, user, tag):
         display_transient_label(requester.stdout, label)
     hide_transient_label(requester.stdout, label)
 
-def perform_clone(c, requester, clonable_link, image_store):
+def retag_image(c, image_store, requester, source_fullname):
+    source_image = image_store[source_fullname]
+    tag = source_image.tag
+    dest_repo = '%s/walt-node' % requester.username
+    dest_fullname = '%s:%s' % (dest_repo, tag)
+    if dest_fullname in image_store:
+        # an image with the target name exists...
+        existing_dest_image = image_store[dest_fullname]
+        # if image is mounted, umount/mount it in order to make
+        # the nodes reboot with the new version
+        need_mount_umount = existing_dest_image.mounted
+        if need_mount_umount:
+            # umount
+            image_store.umount_used_image(existing_dest_image)
+        # remove existing image
+        c.remove_image(image=dest_fullname, force=True)
+        # re-tag the source image
+        c.tag(image=source_fullname, repository=dest_repo, tag=tag)
+        if need_mount_umount:
+            # re-mount
+            image_store.update_image_mounts()
+    else:
+        c.tag(image=source_fullname, repository=dest_repo, tag=tag)
+
+def perform_clone(c, requester, clonable_link, image_store, force):
     remote_location, remote_user, remote_tag = parse_clonable_link(
                                                 requester, clonable_link)
     if remote_location == None:
@@ -80,6 +102,7 @@ def perform_clone(c, requester, clonable_link, image_store):
     # filter out error cases
     users = result[remote_tag]
     locations = users[remote_user]
+    would_overwrite_ws_image = False
     if requester.username == remote_user:
         if remote_location == LOCATION_WALT_SERVER:
             requester.stderr.write(
@@ -87,13 +110,16 @@ def perform_clone(c, requester, clonable_link, image_store):
             return
         else:
             if len(locations) == 2:
-                requester.stderr.write(MSG_WOULD_OVERWRITE_WS_IMAGE % remote_tag)
-                return
+                would_overwrite_ws_image = True
     else:
         if requester.username in users and \
                 LOCATION_WALT_SERVER in users[requester.username]:
-            requester.stderr.write(MSG_WOULD_OVERWRITE_WS_IMAGE % remote_tag)
-            return
+            would_overwrite_ws_image = True
+    if would_overwrite_ws_image and not force:
+        ws_image_fullname = "%s/walt-node:%s" % (requester.username, remote_tag)
+        image_store.warn_overwrite_image(requester, ws_image_fullname)
+        requester.stderr.write(MSG_USE_FORCE)
+        return
     # proceed
     remote_repo = "%s/%s" % (remote_user, 'walt-node')
     remote_fullname = "%s:%s" % (remote_repo, remote_tag)
@@ -118,7 +144,7 @@ def perform_clone(c, requester, clonable_link, image_store):
             pull(c, requester, remote_user, remote_tag)
             # tag the updated version of server:<u2>/<image> to server:<u1>/<image>
             # (this will make the image appear in <u1>'s working set)
-            c.tag(image=remote_fullname, repository=new_repo, tag=remote_tag)
+            retag_image(c, image_store, requester, remote_fullname)
             # restore the tag on server:<u2>/<image>
             c.tag(image=temp_fullname, repository=remote_repo, tag=remote_tag)
             # remove the temporary tag
@@ -127,31 +153,24 @@ def perform_clone(c, requester, clonable_link, image_store):
             # pull the image
             pull(c, requester, remote_user, remote_tag)
             # re-tag the image with the requester username (make it appear in its WS)
-            c.tag(image=remote_fullname, repository=new_repo, tag=remote_tag)
+            retag_image(c, image_store, requester, remote_fullname)
             c.remove_image(image=remote_fullname, force=True) # remove the old tag
     else:
         # tag an image of the server
-        c.tag(image=remote_fullname, repository=new_repo, tag=remote_tag)
+        retag_image(c, image_store, requester, remote_fullname)
     image_store.refresh()
     requester.stdout.write('Done.\n')
 
 class CloneTask(object):
-    def __init__(self, q, c, requester, clonable_link, image_store):
+    def __init__(self, q, *args):
         self.response_q = q
-        self.docker = c
-        self.requester = requester
-        self.clonable_link = clonable_link
-        self.image_store = image_store
+        self.args = args
     def perform(self):
-        perform_clone(
-                self.docker,
-                self.requester,
-                self.clonable_link,
-                self.image_store)
+        perform_clone(*self.args)
     def handle_result(self, res):
         self.response_q.put(res)
 
 # this implements walt image clone
-def clone(q, blocking_manager, c, requester, clonable_link, image_store):
-    blocking_manager.do(CloneTask(q, c, requester, clonable_link, image_store))
+def clone(q, blocking_manager, *args):
+    blocking_manager.do(CloneTask(q, *args))
 
