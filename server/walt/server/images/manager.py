@@ -50,6 +50,8 @@ class NodeImageManager(object):
                     image=image.fullname)
             self.images.update_image_mounts()
             self.db.commit()
+    def get_default_image(self):
+	return self.images.get_default_image()
     def set_default(self, requester, image_tag):
         image = self.images.get_user_image_from_tag(requester, image_tag)
         if image:
