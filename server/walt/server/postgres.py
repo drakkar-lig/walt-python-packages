@@ -126,9 +126,12 @@ class PostgresDB():
         return self.pretty_printed_select("select * from %s;" % table)
 
     def pretty_printed_select(self, select_query):
-        res = self.execute(select_query).fetchall()
-        return self.pretty_printed_resultset(res)
+        self.execute(select_query)
+        col_names = [col_desc[0] for col_desc in self.c.description]
+        return columnate(self.c.fetchall(), header=col_names)
 
     def pretty_printed_resultset(self, res):
+	if len(res) == 0:
+		raise Exception('pretty_printed_resultset() does not work if resultset is empty!')
         return columnate(res, header=res[0]._fields)
 
