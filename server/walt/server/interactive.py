@@ -41,10 +41,12 @@ class PromptSocketListener(object):
         self.sock_file_w = unbuffered(sock_file, 'w')
         self.slave_r = None
         self.slave_w = None
+        self.sock_file_w.write('READY\n')
     def get_command(self):
         '''this should be defined in subclasses'''
         raise NotImplementedError
     def start(self):
+        # fork a child process in its own virtual terminal
         self.slave_pid, fd_slave = pty.fork()
         # the child (slave process) should execute the command
         if self.slave_pid == 0:

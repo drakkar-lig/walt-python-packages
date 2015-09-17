@@ -50,8 +50,11 @@ class PromptClient(object):
         # use unbuffered communication
         self.socket_r = s.makefile('r', 0)
         self.socket_w = s.makefile('w', 0)
-        # write request id, and finalize request if needed
+        # write request id
         Requests.send_id(self.socket_w, req_id)
+        # wait for the READY message from the server
+        self.socket_r.readline()
+        # send terminal width and finalize request if needed
         write_pickle(self.tty_settings.win_size, self.socket_w)
         if request_finalize_func != None:
             request_finalize_func(self.socket_w)

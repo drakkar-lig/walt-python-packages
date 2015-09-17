@@ -4,10 +4,16 @@ from select import select
 
 # This function allows to disable buffering
 # of a file.
-# CAUTION: since we use the fileno() method,
-# this will not work when called on a remote
-# (RPyC) object (the filedescriptor integer
-# is only relevant on the local machine...)
+# CAUTION:
+# * doing this may cause data loss if some
+#   data is available to be read at the time
+#   unbuffered() is called.
+#   A kind of synchronization with the other
+#   end can prevent this issue.
+# * since we use the fileno() method,
+#   this will not work when called on a remote
+#   (RPyC) object (the filedescriptor integer
+#   is only relevant on the local machine...)
 def unbuffered(f, mode):
     # we need to duplicate the filedescriptor
     # in order to avoid the same filedescriptor 
