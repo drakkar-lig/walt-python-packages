@@ -23,6 +23,7 @@ class Requests(object):
     @staticmethod
     def read_id(stream):
         return Requests.get_id(stream.readline().strip())
+    @staticmethod
     def send_id(stream, req_id):
         stream.write('%d\n' % req_id)
         stream.flush()
