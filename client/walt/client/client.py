@@ -360,14 +360,6 @@ walt advanced fix-image-owner --yes-i-know-do-it-please %s
     def yes_i_know_do_it_please(self):
         self._force = True
 
-@WalTAdvanced.subcommand("set-default-image")
-class WalTImageSetDefaultImage(cli.Application):
-    """set the default image to be booted when a node connects
-       to the server for the first time"""
-    def main(self, image_name):
-        with ClientToServerLink() as server:
-            server.set_default_image(image_name)
-
 def run():
     try:
         WalT.run()

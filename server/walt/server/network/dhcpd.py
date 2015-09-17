@@ -4,7 +4,7 @@ from walt.server.network.tools import ip, net
 from walt.common.nodetypes import is_a_node_type_name
 from operator import itemgetter
 from itertools import groupby
-from walt.server.images import image
+from walt.server.images.image import get_mount_path
 from walt.common.tools import do
 
 DHCPD_CONF_FILE = '/etc/dhcp/dhcpd.conf'
@@ -38,9 +38,6 @@ subnet %(subnet_ip)s netmask %(subnet_netmask)s {
     # declare ranges of unallocated addresses
 %(walt_unallocated_ranges_conf)s
 
-    # load default image, if node
-    option nfs-fs-path "%(default_fs_path)s";
-
     # check if the ip is already used
     ping-check = 1;
 
@@ -60,8 +57,12 @@ host %(hostname)s {
     hardware ethernet %(mac)s;
     fixed-address %(ip)s;
     option host-name "%(hostname)s";
-    option nfs-fs-path "%(fs_path)s";
+    %(image_path_option)s
 }
+"""
+
+NODE_IMAGE_PATH_OPTION_PATTERN = """\
+    option nfs-fs-path "%(fs_path)s";
 """
 
 SWITCH_CONF_PATTERN = """\
@@ -89,6 +90,13 @@ def generate_dhcpd_conf(devices):
             conf_pattern = SWITCH_CONF_PATTERN
         else:
             conf_pattern = NODE_CONF_PATTERN
+            fs_path = device_info['fs_path']
+            if fs_path:
+                option = NODE_IMAGE_PATH_OPTION_PATTERN % \
+                            dict(fs_path=fs_path)
+            else:
+                option = ''
+            device_info['image_path_option'] = option
         devices_confs.append(conf_pattern % device_info)
         free_ips.remove(ip(device_info['ip']))
     range_confs = []
@@ -99,9 +107,7 @@ def generate_dhcpd_conf(devices):
                     first=first,
                     last=last
         ))
-    default_fs = image.get_mount_path(const.DEFAULT_IMAGE)
     infos = dict(
-        default_fs_path=default_fs,
         walt_server_ip=server_ip,
         subnet_ip=subnet.network_address,
         subnet_broadcast=subnet.broadcast_address,
@@ -126,9 +132,11 @@ class DHCPServer(object):
             device_mac = item.mac
             fs_path = None  # default
             if is_a_node_type_name(device_type):
-                image_name = self.db.select_unique(
-                            'nodes', mac=device_mac).image
-                fs_path = image.get_mount_path(image_name)
+                node_info = self.db.select_unique(
+                            'nodes', mac=device_mac)
+                # node_info is None if this node is not yet registered
+                if node_info is not None:
+                    fs_path = get_mount_path(node_info.image)
             if device_type != 'server':
                 devices.append(dict(
                     type=item.type,

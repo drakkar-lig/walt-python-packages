@@ -1,7 +1,7 @@
 import socket
 from datetime import datetime
 from walt.common.tcp import read_pickle, write_pickle, \
-                            REQ_NEW_INCOMING_LOGS, REQ_DUMP_LOGS
+                            Requests
 
 class LogsToDBHandler(object):
     def __init__(self, db):
@@ -126,12 +126,12 @@ class LogsManager(object):
         self.hub = LogsHub()
         self.hub.addHandler(LogsToDBHandler(db))
         tcp_server.register_listener_class(
-                    req_id = REQ_DUMP_LOGS,
+                    req_id = Requests.REQ_DUMP_LOGS,
                     cls = LogsToSocketHandler,
                     db = self.db,
                     hub = self.hub)
         tcp_server.register_listener_class(
-                    req_id = REQ_NEW_INCOMING_LOGS,
+                    req_id = Requests.REQ_NEW_INCOMING_LOGS,
                     cls = LogsStreamListener,
                     db = self.db,
                     hub = self.hub)

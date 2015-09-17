@@ -251,13 +251,9 @@ class Topology(object):
             kwargs['name'] = name
             # insert a new row
             self.db.insert("devices", **kwargs)
-            # add node info if relevant
-            if is_a_node_type_name(kwargs['type']):
-                # unknown nodes boot with the default image
-                default_image = walt.server.instance.images.get_default_image()
-                self.db.insert("nodes", image=default_image, **kwargs)
-        # add topology info
-        self.db.insert("topology", **kwargs)
+        if 'switch_mac' in kwargs:
+            # add topology info
+            self.db.insert("topology", **kwargs)
 
     def printed_as_tree(self):
         t = Tree()
@@ -295,15 +291,6 @@ class Topology(object):
     def list_nodes(self):
         return self.db.pretty_printed_select(
                     NODE_LIST_QUERY)
-
-    def register_node(self, node_ip):
-        row = self.db.select_unique("devices", ip=node_ip)
-        if row == None or row.reachable == 0:
-            print 'New node detected.'
-            # restart discovery
-            self.update()
-            # update dhcpd
-            walt.server.instance.dhcpd.update()
 
     def is_disconnected(self, device_name):
         res = self.db.execute("""

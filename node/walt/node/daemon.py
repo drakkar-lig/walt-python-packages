@@ -26,6 +26,8 @@ class WalTNodeService(rpyc.Service):
     def exposed_blink(self, blink_status):
         WalTNodeService.NodeClass.blink(blink_status)
 
+# the following class is not used for now
+# (RPyC connection node -> server)
 class NodeToServerLink:
     server_ip = None
     def __enter__(self):
@@ -61,8 +63,6 @@ class WalTNodeDaemon(WalTDaemon):
                 raise RuntimeError(
                     'Mac address does not match any known WalT node hardware.')
         WalTNodeService.NodeClass = node_type
-        with NodeToServerLink() as server:
-            server.register_node()
 
 def run():
     ev_loop = EventLoop()

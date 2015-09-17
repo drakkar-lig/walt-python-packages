@@ -11,6 +11,7 @@ from walt.server.logs import LogsManager
 from walt.server.network.dhcpd import DHCPServer
 from walt.server.interactive import InteractionManager
 from walt.server.blocking import BlockingTasksManager
+from walt.server.nodes.manager import NodesManager
 
 class Server(object):
 
@@ -19,12 +20,18 @@ class Server(object):
         self.db = ServerDB()
         self.blocking = BlockingTasksManager()
         self.platform = Platform(self.db)
-        self.images = NodeImageManager(self.db, self.blocking)
         self.dhcpd = DHCPServer(self.db)
+        self.images = NodeImageManager(self.db, self.blocking, self.dhcpd)
         self.tcp_server = TCPServer(WALT_SERVER_TCP_PORT)
         self.logs = LogsManager(self.db, self.tcp_server)
         self.interaction = InteractionManager(\
                         self.tcp_server, self.ev_loop)
+        self.nodes = NodesManager(  db = self.db,
+                                    tcp_server = self.tcp_server,
+                                    blocking = self.blocking,
+                                    images = self.images.store,
+                                    topology = self.platform.topology,
+                                    dhcpd = self.dhcpd)
         self.tcp_server.join_event_loop(self.ev_loop)
         self.blocking.join_event_loop(self.ev_loop)
         self.db.plan_auto_commit(self.ev_loop)
@@ -38,8 +45,6 @@ class Server(object):
         self.dhcpd.update(force=True)
         # topology exploration
         self.platform.topology.update()
-        # update dhcp again for any new device
-        self.dhcpd.update()
         # mount images needed
         self.images.update()
 
@@ -54,15 +59,6 @@ class Server(object):
             return # error already reported
         mac = node_info.mac
         self.images.set_image(requester, mac, image_tag)
-        self.dhcpd.update()
-
-    def set_default_image(self, requester, image_tag):
-        self.images.set_default(requester, image_tag)
-        self.dhcpd.update()
-
-    def register_node(self, node_ip):
-        self.platform.register_node(node_ip)
-        self.dhcpd.update()
 
     def rename_device(self, requester, old_name, new_name):
         self.platform.rename_device(requester, old_name, new_name)

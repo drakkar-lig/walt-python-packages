@@ -1,11 +1,31 @@
 import socket, cPickle as pickle
 
-REQ_NEW_INCOMING_LOGS = 0
-REQ_DUMP_LOGS = 1
-REQ_SQL_PROMPT = 2
-REQ_DOCKER_PROMPT = 3
-REQ_NODE_SHELL = 4
-REQ_DEVICE_PING = 5
+class Requests(object):
+    REQ_REGISTER_NODE = -1
+    REQ_NEW_INCOMING_LOGS = 0
+    REQ_DUMP_LOGS = 1
+    REQ_SQL_PROMPT = 2
+    REQ_DOCKER_PROMPT = 3
+    REQ_NODE_SHELL = 4
+    REQ_DEVICE_PING = 5
+    # the request id message may be specified directly as
+    # as a decimal string (e.g. '4') or by the corresponding
+    # name (e.g. 'REQ_NODE_SHELL')
+    @staticmethod
+    def get_id(s):
+        try:
+            return int(s)
+        except:
+            try:
+                return getattr(Requests, s)
+            except:
+                return None
+    @staticmethod
+    def read_id(stream):
+        return Requests.get_id(stream.readline().strip())
+    def send_id(stream, req_id):
+        stream.write('%d\n' % req_id)
+        stream.flush()
 
 def read_pickle(stream):
     try:
@@ -55,7 +75,7 @@ class TCPServer(object):
     def handle_event(self, ts):
         conn_s, addr = self.s.accept()
         sock_file = conn_s.makefile()
-        req_id = read_pickle(sock_file)
+        req_id = Requests.read_id(sock_file)
         if req_id not in self.listener_classes:
             print 'Invalid request.'
             sock_file.close()

@@ -81,8 +81,6 @@ class NodeImageStore(object):
                 images_found.append(img)
             else:
                 sys.stderr.write(MSG_IMAGE_IS_USED_BUT_NOT_FOUND % fullname)
-        # update default image link
-        self.update_default_link()
         # update nfs configuration
         nfs.update_exported_filesystems(images_found)
         # unmount images that are not needed anymore
@@ -103,22 +101,9 @@ class NodeImageStore(object):
         res = set([ item.image for item in \
             self.db.execute("""
                 SELECT DISTINCT image FROM nodes""").fetchall()])
-        res.add(self.get_default_image())
         return res
-    def get_default_image(self):
-        if len(self.images) > 0:
-            default_if_not_specified = self.images.keys()[0]
-        else:
-            default_if_not_specified = None
-        return self.db.get_config(
-                    CONFIG_ITEM_DEFAULT_IMAGE,
-                    default_if_not_specified)
-    def update_default_link(self):
-        default_image = self.get_default_image()
-        default_mount_path = get_mount_path(default_image)
-        default_simlink = get_mount_path('default')
-        failsafe_makedirs(default_mount_path)
-        failsafe_symlink(default_mount_path, default_simlink)
+    def get_default_image(self, node_type):
+        return 'waltplatform/walt-node:%s-default' % node_type
     def umount_used_image(self, image):
         images = self.get_images_in_use()
         images.remove(image.fullname)

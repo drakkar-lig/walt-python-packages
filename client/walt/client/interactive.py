@@ -6,9 +6,7 @@ from select import select
 from walt.common.constants import WALT_SERVER_TCP_PORT
 from walt.common.io import SmartBufferingFileReader, \
                             unbuffered, read_and_copy
-from walt.common.tcp import REQ_SQL_PROMPT, REQ_DOCKER_PROMPT, \
-                            REQ_NODE_SHELL, REQ_DEVICE_PING, \
-                            write_pickle, client_socket
+from walt.common.tcp import Requests, write_pickle, client_socket
 
 SQL_SHELL_MESSAGE = """\
 Type \dt for a list of tables.
@@ -53,7 +51,7 @@ class PromptClient(object):
         self.socket_r = s.makefile('r', 0)
         self.socket_w = s.makefile('w', 0)
         # write request id, and finalize request if needed
-        write_pickle(req_id, self.socket_w)
+        Requests.send_id(self.socket_w, req_id)
         write_pickle(self.tty_settings.win_size, self.socket_w)
         if request_finalize_func != None:
             request_finalize_func(self.socket_w)
@@ -97,7 +95,7 @@ class PromptClient(object):
 
 def run_sql_prompt():
     print SQL_SHELL_MESSAGE
-    PromptClient(REQ_SQL_PROMPT).run()
+    PromptClient(Requests.REQ_SQL_PROMPT).run()
 
 def run_image_shell_prompt(session):
     print IMAGE_SHELL_MESSAGE
@@ -110,16 +108,16 @@ def run_image_shell_prompt(session):
     parameters = session.get_parameters()
     def request_finalize(socket_w):
         write_pickle(parameters, socket_w)
-    PromptClient(REQ_DOCKER_PROMPT, request_finalize).run()
+    PromptClient(Requests.REQ_DOCKER_PROMPT, request_finalize).run()
 
 def run_node_shell(node_ip):
     print NODE_SHELL_MESSAGE
     def request_finalize(socket_w):
         write_pickle(node_ip, socket_w)
-    PromptClient(REQ_NODE_SHELL, request_finalize).run()
+    PromptClient(Requests.REQ_NODE_SHELL, request_finalize).run()
 
 def run_device_ping(device_ip):
     def request_finalize(socket_w):
         write_pickle(device_ip, socket_w)
-    PromptClient(REQ_DEVICE_PING, request_finalize).run()
+    PromptClient(Requests.REQ_DEVICE_PING, request_finalize).run()
 
