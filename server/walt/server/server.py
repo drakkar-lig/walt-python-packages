@@ -12,16 +12,18 @@ from walt.server.network.dhcpd import DHCPServer
 from walt.server.interactive import InteractionManager
 from walt.server.blocking import BlockingTasksManager
 from walt.server.nodes.manager import NodesManager
+from walt.server.mydocker import DockerClient
 
 class Server(object):
 
     def __init__(self):
         self.ev_loop = EventLoop()
         self.db = ServerDB()
+        self.docker = DockerClient()
         self.blocking = BlockingTasksManager()
         self.platform = Platform(self.db)
         self.dhcpd = DHCPServer(self.db)
-        self.images = NodeImageManager(self.db, self.blocking, self.dhcpd)
+        self.images = NodeImageManager(self.db, self.blocking, self.dhcpd, self.docker)
         self.tcp_server = TCPServer(WALT_SERVER_TCP_PORT)
         self.logs = LogsManager(self.db, self.tcp_server)
         self.interaction = InteractionManager(\
@@ -31,7 +33,8 @@ class Server(object):
                                     blocking = self.blocking,
                                     images = self.images.store,
                                     topology = self.platform.topology,
-                                    dhcpd = self.dhcpd)
+                                    dhcpd = self.dhcpd,
+                                    docker = self.docker)
         self.tcp_server.join_event_loop(self.ev_loop)
         self.blocking.join_event_loop(self.ev_loop)
         self.db.plan_auto_commit(self.ev_loop)

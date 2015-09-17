@@ -3,8 +3,6 @@ from walt.server.images.search import \
         Search, \
         LOCATION_WALT_SERVER, LOCATION_DOCKER_HUB, \
         LOCATION_LABEL, LOCATION_PER_LABEL
-from walt.server.tools import \
-        display_transient_label, hide_transient_label
 
 # About terminology: See comment about it in image.py.
 
@@ -43,23 +41,10 @@ def parse_clonable_link(requester, clonable_link):
         requester.stderr.write(MSG_INVALID_CLONABLE_LINK)
         return None, None, None
 
-def pull(c, requester, user, tag):
-    image_name = '%s/walt-node' % user
-    for idx, line in enumerate(
-                c.pull(
-                    image_name,
-                    tag=requests.utils.quote(tag),
-                    stream=True)):
-        progress = "-/|\\"[idx % 4]
-        label = 'Downloading... %s\r' % progress
-        display_transient_label(requester.stdout, label)
-    hide_transient_label(requester.stdout, label)
 
-def retag_image(c, image_store, requester, source_fullname):
+def retag_image_to_requester_ws(docker, image_store, requester, source_fullname):
     source_image = image_store[source_fullname]
-    tag = source_image.tag
-    dest_repo = '%s/walt-node' % requester.username
-    dest_fullname = '%s:%s' % (dest_repo, tag)
+    dest_fullname = '%s/walt-node:%s' % (requester.username, source_image.tag)
     if dest_fullname in image_store:
         # an image with the target name exists...
         existing_dest_image = image_store[dest_fullname]
@@ -70,16 +55,16 @@ def retag_image(c, image_store, requester, source_fullname):
             # umount
             image_store.umount_used_image(existing_dest_image)
         # remove existing image
-        c.remove_image(image=dest_fullname, force=True)
+        docker.rmi(dest_fullname)
         # re-tag the source image
-        c.tag(image=source_fullname, repository=dest_repo, tag=tag)
+        docker.tag(source_fullname, dest_fullname)
         if need_mount_umount:
             # re-mount
             image_store.update_image_mounts()
     else:
-        c.tag(image=source_fullname, repository=dest_repo, tag=tag)
+        docker.tag(source_fullname, dest_fullname)
 
-def perform_clone(c, requester, clonable_link, image_store, force):
+def perform_clone(docker, requester, clonable_link, image_store, force):
     remote_location, remote_user, remote_tag = parse_clonable_link(
                                                 requester, clonable_link)
     if remote_location == None:
@@ -91,7 +76,7 @@ def perform_clone(c, requester, clonable_link, image_store, force):
     def validate(user, tag, location):
         return tag == remote_tag
     # search
-    result = Search(c, requester, 'Validating...').search(validate)
+    result = Search(docker, requester, 'Validating...').search(validate)
     # check that the requested image is in the resultset
     if      len(result) == 0 or \
             remote_user not in result[remote_tag] or \
@@ -121,9 +106,7 @@ def perform_clone(c, requester, clonable_link, image_store, force):
         requester.stderr.write(MSG_USE_FORCE)
         return
     # proceed
-    remote_repo = "%s/%s" % (remote_user, 'walt-node')
-    remote_fullname = "%s:%s" % (remote_repo, remote_tag)
-    new_repo = '%s/walt-node' % requester.username
+    remote_fullname = "%s/walt-node:%s" % (remote_user, remote_tag)
     if remote_location == LOCATION_DOCKER_HUB:
         # need to pull the image
         if LOCATION_WALT_SERVER in locations:
@@ -139,25 +122,25 @@ def perform_clone(c, requester, clonable_link, image_store, force):
             temp_repo = 'walt-temp-' + str(uuid.uuid4()).split('-')[0]
             temp_fullname = "%s:%s" % (temp_repo, remote_tag)
             # save server:<u2>/<image> by tagging it with the temp name
-            c.tag(image=remote_fullname, repository=temp_repo, tag=remote_tag)
+            docker.tag(remote_fullname, temp_fullname)
             # pull hub:<u2>/<image> (we get an updated version of server:<u2>/<image>)
-            pull(c, requester, remote_user, remote_tag)
+            docker.pull(remote_fullname, requester.stdout)
             # tag the updated version of server:<u2>/<image> to server:<u1>/<image>
             # (this will make the image appear in <u1>'s working set)
-            retag_image(c, image_store, requester, remote_fullname)
+            retag_image_to_requester_ws(docker, image_store, requester, remote_fullname)
             # restore the tag on server:<u2>/<image>
-            c.tag(image=temp_fullname, repository=remote_repo, tag=remote_tag)
+            docker.tag(temp_fullname, remote_fullname)
             # remove the temporary tag
-            c.remove_image(image=temp_fullname, force=True)
+            docker.untag(temp_fullname)
         else:
             # pull the image
-            pull(c, requester, remote_user, remote_tag)
+            docker.pull(remote_fullname, requester.stdout)
             # re-tag the image with the requester username (make it appear in its WS)
-            retag_image(c, image_store, requester, remote_fullname)
-            c.remove_image(image=remote_fullname, force=True) # remove the old tag
+            retag_image_to_requester_ws(docker, image_store, requester, remote_fullname)
+            docker.untag(remote_fullname) # remove the old tag
     else:
         # tag an image of the server
-        retag_image(c, image_store, requester, remote_fullname)
+        retag_image_to_requester_ws(docker, image_store, requester, remote_fullname)
     image_store.refresh()
     requester.stdout.write('Done.\n')
 

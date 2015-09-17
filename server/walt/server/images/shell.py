@@ -3,8 +3,8 @@ from walt.server.images.image import parse_image_fullname, validate_image_tag
 
 # About terminology: See comment about it in image.py.
 class ImageShellSessionStore(object):
-    def __init__(self, c, images):
-        self.c = c
+    def __init__(self, docker, images):
+        self.docker = docker
         self.images = images
         self.sessions = set()
     def create_session(self, requester, image_tag):
@@ -31,10 +31,10 @@ class ImageShellSession(object):
     exposed_NAME_NEEDS_CONFIRM  = NAME_NEEDS_CONFIRM
     def __init__(self, store, images, requester, image_fullname):
         self.store = store
-        self.c = store.c
+        self.docker = store.docker
         self.images = images
         self.requester = requester
-        self.image_fullname, dummy1, dummy2, self.image_tag = \
+        self.image_fullname, dummy1, dummy2, dummy3, self.image_tag = \
             parse_image_fullname(image_fullname)
         self.new_image_tag = None
         self.container_name = str(uuid.uuid4())
@@ -79,12 +79,10 @@ class ImageShellSession(object):
         return ImageShellSession.NAME_OK
     def finalize(self):
         if self.new_image_tag:
-            image_name = '%s/walt-node' % self.requester.username
-            self.c.commit(
-                    container=self.container_name,
-                    repository=image_name,
-                    tag=self.new_image_tag,
-                    message='Image modified using walt image shell')
+            image_fullname = '%s/walt-node:%s' % (
+                    self.requester.username, self.new_image_tag)
+            self.docker.commit(self.container_name, image_fullname,
+                    'Image modified using walt image shell')
             if self.image_tag == self.new_image_tag:
                 # same name, we are modifying the image
                 image = self.images.get_user_image_from_tag(self.requester, self.new_image_tag)
@@ -104,18 +102,5 @@ class ImageShellSession(object):
                 self.requester.stdout.write('New image %s saved.\n' % self.new_image_tag)
         self.store.cleanup_session(self)
     def cleanup(self):
-        cname = self.container_name
-        # kill/remove the container if it ever existed
-        try:
-            self.c.kill(container=cname)
-        except:
-            pass
-        try:
-            self.c.wait(container=cname)
-        except:
-            pass
-        try:
-            self.c.remove_container(container=cname)
-        except:
-            pass
+        self.docker.stop_container(self.container_name)
 

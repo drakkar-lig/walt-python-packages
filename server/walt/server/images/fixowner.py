@@ -23,7 +23,7 @@ MSG_CHANGED_OWNER="""\
 Image %s now belongs to you.
 """
 
-def fix_owner(images, c, requester, other_user):
+def fix_owner(images, docker, requester, other_user):
     if requester.username == other_user:
         requester.stderr.write(MSG_SAME_USER % other_user)
         return
@@ -51,11 +51,11 @@ def fix_owner(images, c, requester, other_user):
         requester.stderr.write(MSG_NO_SUCH_USER % other_user)
         return
     # ok, let's do it
-    new_name = "%s/walt-node" % requester.username
+    new_fullname = "%s/walt-node:%s" % (requester.username, image.tag)
     for image in candidates:
         # rename the docker image
-        c.tag(image=image.fullname, repository=new_name, tag=image.tag)
-        c.remove_image(image=image.fullname, force=True)
+        docker.tag(image.fullname, new_fullname)
+        docker.rmi(image.fullname)
         requester.stdout.write(MSG_CHANGED_OWNER % image.tag)
     # update the store
     images.refresh()

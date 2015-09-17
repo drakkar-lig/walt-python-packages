@@ -1,4 +1,3 @@
-from walt.server.tools import DockerClient
 
 def node_exists(db, mac):
     return db.select_unique("nodes", mac=mac) != None
@@ -21,15 +20,16 @@ def register_node(  images, topology, db, dhcpd, \
     current_requests.remove(mac)
 
 class RegisterNodeTask(object):
-    def __init__(self, images, node_type, **kwargs):
+    def __init__(self, images, node_type, docker, **kwargs):
         self.images = images
         self.node_type = node_type
         self.image_fullname = images.get_default_image(node_type)
+        self.docker = docker
         self.kwargs = kwargs
     def perform(self):
         # this is where things may take some time...
         if self.image_fullname not in self.images:
-            DockerClient().pull(self.image_fullname)
+            self.docker.pull(self.image_fullname)
     def handle_result(self, res):
         # this should go fast
         register_node(  images = self.images,

@@ -1,5 +1,3 @@
-import requests
-from walt.server import const
 from walt.server.tools import columnate, \
                 display_transient_label, hide_transient_label
 
@@ -19,17 +17,11 @@ LOCATION_LONG_LABEL = {
 LOCATION_PER_LABEL = {v: k for k, v in LOCATION_LABEL.items()}
 
 class Search(object):
-    def __init__(self, c, requester, transient_label='Searching...'):
-        self.c = c
+    def __init__(self, docker, requester, transient_label='Searching...'):
+        self.docker = docker
         self.requester = requester
         self.result = {}
         self.transient_label = transient_label
-    def lookup_remote_tags(self, image_name):
-        url = const.DOCKER_HUB_GET_TAGS_URL % dict(image_name = image_name)
-        r = requests.get(url)
-        for elem in requests.get(url).json():
-            tag = requests.utils.unquote(elem['name'])
-            yield (image_name.split('/')[0], tag)
     # search returns a dictionary with the following format:
     # { <tag> -> { <user> -> <location> } }
     def search(self, validate = None):
@@ -39,12 +31,12 @@ class Search(object):
             def validate(user, tag, location):
                 return True
         # look up for candidates on the docker hub
-        for result in self.c.search(term='walt-node'):
+        for result in self.docker.search('walt-node'):
             if '/walt-node' in result['name']:
-                for user, tag in self.lookup_remote_tags(result['name']):
+                for user, tag in self.docker.lookup_remote_tags(result['name']):
                     candidates.append((user, tag, LOCATION_DOCKER_HUB))
         # look up for candidates locally on the server
-        for fullname in sum([ i['RepoTags'] for i in self.c.images() ], []):
+        for fullname in self.docker.get_local_images():
             if '/walt-node' in fullname:
                 user, tag = fullname.split('/walt-node:')
                 candidates.append((user, tag, LOCATION_WALT_SERVER))
@@ -62,7 +54,7 @@ class Search(object):
         self.result[tag][user].add(location)
 
 # this implements walt image search
-def perform_search(c, requester, keyword):
+def perform_search(docker, requester, keyword):
     # images owned by the requester and present locally on
     # the server are not considered "remote images".
     # (they belong to the working set of the user, instead.)
@@ -79,7 +71,7 @@ def perform_search(c, requester, keyword):
     else:
         validate = validate_not_in_ws
     # search
-    result = Search(c, requester).search(validate)
+    result = Search(docker, requester).search(validate)
     # print
     records = []
     for tag in result:
@@ -97,9 +89,9 @@ def perform_search(c, requester, keyword):
                ['User', 'Image name', 'Location', 'Clonable link'])
 
 class SearchTask(object):
-    def __init__(self, q, c, requester, keyword):
+    def __init__(self, q, docker, requester, keyword):
         self.response_q = q
-        self.docker = c
+        self.docker = docker
         self.requester = requester
         self.keyword = keyword
     def perform(self):
@@ -108,7 +100,7 @@ class SearchTask(object):
         self.response_q.put(res)
 
 # this implements walt image search
-def search(q, blocking_manager, c, requester, keyword):
-    blocking_manager.do(SearchTask(q, c, requester, keyword))
+def search(q, blocking_manager, docker, requester, keyword):
+    blocking_manager.do(SearchTask(q, docker, requester, keyword))
 
 

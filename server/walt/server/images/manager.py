@@ -12,30 +12,30 @@ from walt.server.images.store import NodeImageStore
 # About terminology: See comment about it in image.py.
 
 class NodeImageManager(object):
-    def __init__(self, db, blocking_manager, dhcpd):
+    def __init__(self, db, blocking_manager, dhcpd, docker):
         self.db = db
         self.blocking = blocking_manager
         self.dhcpd = dhcpd
-        self.c = Client(base_url='unix://var/run/docker.sock', version='auto')
-        self.store = NodeImageStore(self.c, self.db)
-        self.shells = ImageShellSessionStore(self.c, self.store)
+        self.docker = docker
+        self.store = NodeImageStore(self.docker, self.db)
+        self.shells = ImageShellSessionStore(self.docker, self.store)
     def update(self):
         self.store.refresh()
         self.store.update_image_mounts()
     def search(self, requester, q, keyword):
-        search(q, self.blocking, self.c, requester, keyword)
+        search(q, self.blocking, self.docker, requester, keyword)
     def clone(self, requester, q, clonable_link, force):
-        clone(q, self.blocking, self.c, requester, clonable_link, self.store, force)
+        clone(q, self.blocking, self.docker, requester, clonable_link, self.store, force)
     def show(self, username):
         return show(self.store, username)
     def rename(self, requester, image_tag, new_tag):
-        rename(self.store, self.c, requester, image_tag, new_tag)
+        rename(self.store, self.docker, requester, image_tag, new_tag)
     def remove(self, requester, image_tag):
-        remove(self.store, self.c, requester, image_tag)
+        remove(self.store, self.docker, requester, image_tag)
     def copy(self, requester, image_tag, new_tag):
-        copy(self.store, self.c, requester, image_tag, new_tag)
+        copy(self.store, self.docker, requester, image_tag, new_tag)
     def fix_owner(self, requester, other_user):
-        fix_owner(self.store, self.c, requester, other_user)
+        fix_owner(self.store, self.docker, requester, other_user)
     def cleanup(self):
         # give up image shell sessions
         self.shells.cleanup()

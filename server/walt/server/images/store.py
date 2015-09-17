@@ -17,16 +17,16 @@ MSG_WOULD_OVERWRITE_IMAGE_REBOOTED_NODES='\
  (and reboot %d node(s))'
 
 class NodeImageStore(object):
-    def __init__(self, c, db):
-        self.c = c
+    def __init__(self, docker, db):
+        self.docker = docker
         self.db = db
         self.images = {}
     def refresh(self):
-        local_images = sum([ i['RepoTags'] for i in self.c.images() ], [])
+        local_images = self.docker.get_local_images()
         # add missing images
         for fullname in local_images:
             if '/walt-node' in fullname and fullname not in self.images:
-                self.images[fullname] = NodeImage(self.c, fullname)
+                self.images[fullname] = NodeImage(self.docker, fullname)
         # remove deleted images
         for fullname in self.images.keys():
             if fullname not in local_images:

@@ -1,18 +1,4 @@
-from walt.server.images.image import parse_image_fullname
-from docker import Client
-import requests
-
 COLUMNATE_SPACING = 2
-
-class DockerClient(object):
-    def __init__(self):
-        self.c = Client(base_url='unix://var/run/docker.sock', version='auto')
-    def pull(self, image_fullname):
-        fullname, name, user, tag = parse_image_fullname(image_fullname)
-        print 'Downloading %s/%s...' % (user, tag)
-        for line in self.c.pull(name, tag=requests.utils.quote(tag), stream=True):
-            pass
-        print 'Done.'
 
 # use the following like this:
 #
