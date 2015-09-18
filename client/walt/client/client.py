@@ -138,11 +138,15 @@ class WalTNode(cli.Application):
     """WalT node management sub-commands"""
 
 @WalTNode.subcommand("show")
-class WalTNodeList(cli.Application):
-    """list available WalT nodes"""
+class WalTNodeShow(cli.Application):
+    """show WalT nodes"""
+    _all = False # default
     def main(self):
         with ClientToServerLink() as server:
-            print server.list_nodes()
+            print server.show_nodes(self._all)
+    @cli.autoswitch(help='show nodes used by other users too')
+    def all(self):
+        self._all = True
 
 @WalTNode.subcommand("blink")
 class WalTNodeBlink(cli.Application):

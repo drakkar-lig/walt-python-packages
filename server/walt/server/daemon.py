@@ -76,8 +76,8 @@ class PlatformService(rpyc.Service):
     def exposed_describe(self, details=False):
         return self.platform.describe(details)
 
-    def exposed_list_nodes(self):
-        return self.platform.list_nodes()
+    def exposed_show_nodes(self, show_all):
+        return self.server.nodes.show(self._client, show_all)
 
     def exposed_get_reachable_node_ip(self, node_name):
         return self.platform.topology.get_reachable_node_ip(

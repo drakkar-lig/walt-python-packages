@@ -4,6 +4,7 @@ from walt.common.tools import get_mac_address
 from walt.common.nodetypes import get_node_type_from_mac_address
 from walt.common.nodetypes import is_a_node_type_name
 from walt.server.network.tools import ip_in_walt_network, lldp_update
+from walt.server.tools import format_paragraph
 import snmp, const, time, re
 from tree import Tree
 import walt.server
@@ -35,36 +36,14 @@ MSG_DEVICE_SHOW_MORE_DETAILS = """
 (tip: use --details option for more info)
 """
 
-MSG_DEVICE_SHOW_DETAILS_MAIN = """\
+TITLE_DEVICE_SHOW_DETAILS_MAIN = """\
+The WalT network contains the following devices:"""
 
-\033[1m\
-The WalT network contains the following devices:
-\033[0m\
+TITLE_DEVICE_SHOW_DETAILS_DISCONNECTED = """\
+The following devices are currently disconnected:"""
 
-%s
-
-"""
-
-MSG_DEVICE_SHOW_DETAILS_DISCONNECTED = """\
-
-\033[1m\
-The following devices are currently disconnected:
-\033[0m\
-
-%s
-
-(tip: walt device forget <device_name>)
-"""
-
-# the split_part() expression below allows to show only
-# the image tag to the user (instead of the full docker name).
-NODE_LIST_QUERY = """
-    SELECT  d.name as name, d.type as type,
-            split_part(n.image, ':', 2) as image,
-            d.ip as ip, d.reachable as reachable
-    FROM devices d, nodes n
-    WHERE   d.mac = n.mac
-    ORDER BY name;"""
+FOOTNOTE_DEVICE_SHOW_DETAILS_DISCONNECTED = """\
+(tip: walt device forget <device_name>)"""
 
 NEW_NAME_ERROR_AND_GUIDELINES = """\
 Failed: invalid new name.
@@ -278,19 +257,17 @@ class Topology(object):
 
     def printed_as_detailed_table(self):
         # message about connected devices
-        msg = MSG_DEVICE_SHOW_DETAILS_MAIN % \
-            self.db.pretty_printed_select(
-                    TOPOLOGY_QUERY)
+        msg = format_paragraph(
+                TITLE_DEVICE_SHOW_DETAILS_MAIN,
+                self.db.pretty_printed_select(TOPOLOGY_QUERY))
         # message about disconnected devices, if at least one
         res = self.db.execute(DISCONNECTED_DEVICES_QUERY).fetchall()
         if len(res) > 0:
-            msg += MSG_DEVICE_SHOW_DETAILS_DISCONNECTED % \
-            self.db.pretty_printed_resultset(res)
+            msg += format_paragraph(
+                        TITLE_DEVICE_SHOW_DETAILS_DISCONNECTED,
+                        self.db.pretty_printed_resultset(res),
+                        FOOTNOTE_DEVICE_SHOW_DETAILS_DISCONNECTED)
         return msg
-
-    def list_nodes(self):
-        return self.db.pretty_printed_select(
-                    NODE_LIST_QUERY)
 
     def is_disconnected(self, device_name):
         res = self.db.execute("""

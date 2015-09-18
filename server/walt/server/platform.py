@@ -33,6 +33,3 @@ class Platform(object):
     def rename_device(self, requester, old_name, new_name):
         self.topology.rename_device(requester, old_name, new_name)
 
-    def list_nodes(self):
-        return self.topology.list_nodes()
-

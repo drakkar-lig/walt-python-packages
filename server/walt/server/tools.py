@@ -1,5 +1,15 @@
 COLUMNATE_SPACING = 2
 
+PARAGRAPH_FORMATING = """\
+
+\033[1m\
+%(title)s
+\033[0m\
+
+%(content)s
+
+%(footnote)s"""
+
 # use the following like this:
 #
 # with AutoCleaner(<cls>) as <var>:
@@ -50,3 +60,12 @@ def hide_transient_label(stdout, label):
     # override with space
     display_transient_label(stdout, '\r%s\r' % (' '*len(label)))
 
+def format_paragraph(title, content, footnote=None):
+    if footnote:
+        footnote += '\n\n'
+    else:
+        footnote = ''
+    return PARAGRAPH_FORMATING % dict(
+                                    title = title,
+                                    content = content,
+                                    footnote = footnote)
