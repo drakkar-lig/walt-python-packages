@@ -2,7 +2,6 @@
 
 from walt.common.tools import get_mac_address
 from walt.common.nodetypes import get_node_type_from_mac_address
-from walt.common.nodetypes import is_a_node_type_name
 from walt.server.network.tools import ip_in_walt_network, lldp_update
 from walt.server.tools import format_paragraph
 from walt.server.tree import Tree
@@ -184,12 +183,16 @@ class Topology(object):
 
     def setpower(self, device_mac, poweron):
         switch_ip, switch_port = self.get_connectivity_info(device_mac)
+        if not switch_ip:
+            return False
         proxy = snmp.Proxy(switch_ip, poe=True)
         proxy.poe.set_port(switch_port, poweron)
         return True
 
     def get_connectivity_info(self, device_mac):
         topology_info = self.db.select_unique("topology", mac=device_mac)
+        if not topology_info:
+            return (None, None)
         switch_mac = topology_info.switch_mac
         switch_port = topology_info.switch_port
         switch_info = self.db.select_unique("devices", mac=switch_mac)

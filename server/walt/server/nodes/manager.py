@@ -1,6 +1,7 @@
 from walt.common.tcp import Requests
 from walt.server.nodes.register import NodeRegistrationHandler
 from walt.server.tools import format_paragraph
+from walt.common.nodetypes import is_a_node_type_name
 
 # the split_part() expression below allows to show only
 # the image tag to the user (instead of the full docker name).
@@ -134,5 +135,5 @@ class NodesManager(object):
         node_info = self.get_node_info(requester, node_name)
         if node_info == None:
             return None # error already reported
-        self.devices.topology.setpower(node_info.mac, poweron)
+        return self.devices.topology.setpower(node_info.mac, poweron)
 
