@@ -39,8 +39,9 @@ def columnate(tabular_data, header = None):
     # stringify all (and work on a copy)
     tabular_data_copy = [ [as_string(s) for s in i] for i in tabular_data ]
     # if header is specified, add it
+    # and replace underscores with spaces
     if header != None:
-        tabular_data_copy.insert(0, header)
+        tabular_data_copy.insert(0, [ i.replace('_', ' ') for i in header ])
     # compute the max length of elements in each column
     colwidths = [ max([ len(s) for s in i ]) for i in zip(*tabular_data_copy) ]
     # if header, underline it 
