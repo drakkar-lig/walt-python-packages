@@ -23,12 +23,6 @@ class DevicesManager(object):
     def rescan(self, requester=None):
         self.topology.rescan(requester)
 
-    def show(self, details=False):
-        if details:
-            return self.topology.printed_as_detailed_table()
-        else:
-            return self.topology.printed_as_tree()
-
     def rename(self, requester, old_name, new_name):
         device_info = self.get_device_info(requester, old_name)
         if device_info == None:

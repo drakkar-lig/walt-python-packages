@@ -74,8 +74,11 @@ class PlatformService(rpyc.Service):
     def exposed_device_rescan(self):
         self.server.device_rescan(self._client)
 
-    def exposed_device_show(self, details=False):
-        return self.devices.show(details)
+    def exposed_device_tree(self):
+        return self.devices.topology.tree()
+
+    def exposed_device_show(self):
+        return self.devices.topology.show()
 
     def exposed_show_nodes(self, show_all):
         return self.nodes.show(self._client, show_all)

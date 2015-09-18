@@ -68,16 +68,19 @@ class WalT(cli.Application):
 class WalTDevice(cli.Application):
     """management of WalT platform devices"""
 
-@WalTDevice.subcommand("show")
-class WalTDevicePrint(cli.Application):
-    """print a view of the devices involved in the platform"""
-    _details = False # default
+@WalTDevice.subcommand("tree")
+class WalTDeviceTree(cli.Application):
+    """print the network structure of the platform"""
     def main(self):
         with ClientToServerLink() as server:
-            print server.device_show(self._details)
-    @cli.autoswitch(help='Print more detailed information.')
-    def details(self):
-        self._details = True
+            print server.device_tree()
+
+@WalTDevice.subcommand("show")
+class WalTDeviceShow(cli.Application):
+    """print details about devices involved in the platform"""
+    def main(self):
+        with ClientToServerLink() as server:
+            print server.device_show()
 
 @WalTDevice.subcommand("rescan")
 class WalTDeviceRescan(cli.Application):

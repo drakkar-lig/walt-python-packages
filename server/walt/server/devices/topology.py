@@ -30,17 +30,20 @@ DISCONNECTED_DEVICES_QUERY = """
     ON   d1.mac = t.mac
     WHERE t.mac is NULL;"""
 
-MSG_DEVICE_SHOW_MORE_DETAILS = """
-(tip: use --details option for more info)
+MSG_DEVICE_TREE_MORE_DETAILS = """
+(tip: use walt device show for more info)
 """
 
-TITLE_DEVICE_SHOW_DETAILS_MAIN = """\
+TITLE_DEVICE_SHOW_MAIN = """\
 The WalT network contains the following devices:"""
 
-TITLE_DEVICE_SHOW_DETAILS_DISCONNECTED = """\
+FOOTNOTE_DEVICE_SHOW_MAIN = """\
+(Use 'walt device tree' for a tree view of the network.)"""
+
+TITLE_DEVICE_SHOW_DISCONNECTED = """\
 The following devices are currently disconnected:"""
 
-FOOTNOTE_DEVICE_SHOW_DETAILS_DISCONNECTED = """\
+FOOTNOTE_DEVICE_SHOW_DISCONNECTED = """\
 (tip: walt device forget <device_name>)"""
 
 class Topology(object):
@@ -135,7 +138,7 @@ class Topology(object):
             # add topology info
             self.db.insert("topology", **kwargs)
 
-    def printed_as_tree(self):
+    def tree(self):
         t = Tree()
         for device in self.db.execute(TOPOLOGY_QUERY).fetchall():
             name = device.name
@@ -154,20 +157,21 @@ class Topology(object):
                         subtree_offset=subtree_offset,
                         parent_key = parent_key)
         return "\n%s%s" % (
-            t.printed(), MSG_DEVICE_SHOW_MORE_DETAILS)
+            t.printed(), MSG_DEVICE_TREE_MORE_DETAILS)
 
-    def printed_as_detailed_table(self):
+    def show(self):
         # message about connected devices
         msg = format_paragraph(
-                TITLE_DEVICE_SHOW_DETAILS_MAIN,
-                self.db.pretty_printed_select(TOPOLOGY_QUERY))
+                TITLE_DEVICE_SHOW_MAIN,
+                self.db.pretty_printed_select(TOPOLOGY_QUERY),
+                FOOTNOTE_DEVICE_SHOW_MAIN)
         # message about disconnected devices, if at least one
         res = self.db.execute(DISCONNECTED_DEVICES_QUERY).fetchall()
         if len(res) > 0:
             msg += format_paragraph(
-                        TITLE_DEVICE_SHOW_DETAILS_DISCONNECTED,
+                        TITLE_DEVICE_SHOW_DISCONNECTED,
                         self.db.pretty_printed_resultset(res),
-                        FOOTNOTE_DEVICE_SHOW_DETAILS_DISCONNECTED)
+                        FOOTNOTE_DEVICE_SHOW_DISCONNECTED)
         return msg
 
     def is_disconnected(self, device_name):
