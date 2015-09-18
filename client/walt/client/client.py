@@ -74,7 +74,7 @@ class WalTDevicePrint(cli.Application):
     _details = False # default
     def main(self):
         with ClientToServerLink() as server:
-            print server.describe(self._details)
+            print server.device_show(self._details)
     @cli.autoswitch(help='Print more detailed information.')
     def details(self):
         self._details = True
@@ -84,7 +84,7 @@ class WalTDeviceRescan(cli.Application):
     """rescan the network devices involved in the platform"""
     def main(self):
         with ClientToServerLink() as server:
-            server.update()
+            server.device_rescan()
 
 @WalTDevice.subcommand("rename")
 class WalTRenameDevice(cli.Application):

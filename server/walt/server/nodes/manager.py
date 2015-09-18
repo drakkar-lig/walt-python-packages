@@ -46,16 +46,19 @@ MSG_NO_OTHER_NODES = """\
 No other nodes were detected (apart from the ones listed above)."""
 
 class NodesManager(object):
-    def __init__(self, db, tcp_server, **kwargs):
-        self.kwargs = kwargs
+    def __init__(self, db, tcp_server, devices, **kwargs):
         self.db = db
         self.current_register_requests = set()
+        self.devices = devices
+        self.kwargs = kwargs
         tcp_server.register_listener_class(
                     req_id = Requests.REQ_REGISTER_NODE,
                     cls = NodeRegistrationHandler,
                     current_requests = self.current_register_requests,
                     db = self.db,
+                    devices = self.devices,
                     **self.kwargs)
+
     def show(self, requester, show_all):
         result_msg = ''
         user_nodes_query = USER_NODES_QUERY % requester.username
@@ -84,4 +87,52 @@ class NodesManager(object):
                             TITLE_NODE_SHOW_OTHER_NODES_PART,
                             self.db.pretty_printed_resultset(res_other))
         return result_msg
+
+    def get_node_info(self, requester, node_name):
+        node_info = self.devices.get_device_info(requester, node_name)
+        if node_info == None:
+            return None # error already reported
+        device_type = node_info.type
+        if not is_a_node_type_name(device_type):
+            requester.stderr.write('%s is not a node, it is a %s.\n' % \
+                                    (node_name, device_type))
+            return None
+        return node_info
+
+    def get_reachable_node_info(self, requester, node_name, after_rescan = False):
+        node_info = self.get_node_info(requester, node_name)
+        if node_info == None:
+            return None # error already reported
+        if node_info.reachable == 0:
+            if after_rescan:
+                requester.stderr.write(
+                        'Connot reach %s. The node seems dead or disconnected.\n' % \
+                                    node_name)
+                return None
+            else:
+                # rescan, just in case, and retry
+                self.devices.topology.rescan()   # just in case
+                return self.get_reachable_node_info(
+                        requester, node_name, after_rescan = True)
+        return node_info
+
+    def get_node_ip(self, requester, node_name):
+        node_info = self.get_node_info(requester, node_name)
+        if node_info == None:
+            return None # error already reported
+        if node_info.ip == None:
+            self.notify_unknown_ip(requester, node_name)
+        return node_info.ip
+
+    def get_reachable_node_ip(self, requester, node_name):
+        node_info = self.get_reachable_node_info(requester, node_name)
+        if node_info == None:
+            return None # error already reported
+        return node_info.ip
+
+    def setpower(self, requester, node_name, poweron):
+        node_info = self.get_node_info(requester, node_name)
+        if node_info == None:
+            return None # error already reported
+        self.devices.topology.setpower(node_info.mac, poweron)
 

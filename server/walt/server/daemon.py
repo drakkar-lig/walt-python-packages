@@ -60,9 +60,10 @@ class PlatformService(rpyc.Service):
 
     def __init__(self, *args, **kwargs):
         rpyc.Service.__init__(self, *args, **kwargs)
-        self.platform = server.instance.platform
-        self.images = server.instance.images
         self.server = server.instance
+        self.images = server.instance.images
+        self.devices = server.instance.devices
+        self.nodes = server.instance.nodes
 
     def on_connect(self):
         self._client = self._conn.root
@@ -70,29 +71,29 @@ class PlatformService(rpyc.Service):
     def on_disconnect(self):
         self._client = None
 
-    def exposed_update(self):
-        self.server.platform_update(self._client)
+    def exposed_device_rescan(self):
+        self.server.device_rescan(self._client)
 
-    def exposed_describe(self, details=False):
-        return self.platform.describe(details)
+    def exposed_device_show(self, details=False):
+        return self.devices.show(details)
 
     def exposed_show_nodes(self, show_all):
-        return self.server.nodes.show(self._client, show_all)
+        return self.nodes.show(self._client, show_all)
 
     def exposed_get_reachable_node_ip(self, node_name):
-        return self.platform.topology.get_reachable_node_ip(
+        return self.nodes.get_reachable_node_ip(
                         self._client, node_name)
 
     def exposed_get_device_ip(self, device_name):
-        return self.platform.topology.get_device_ip(
+        return self.devices.get_device_ip(
                         self._client, device_name)
 
     def exposed_get_node_ip(self, node_name):
-        return self.platform.topology.get_node_ip(
+        return self.nodes.get_node_ip(
                         self._client, node_name)
 
     def exposed_blink(self, node_name, blink_status):
-        node_ip = self.platform.topology.get_reachable_node_ip(
+        node_ip = self.nodes.get_reachable_node_ip(
                         self._client, node_name)
         if node_ip == None:
             return False # error was already reported
@@ -101,10 +102,10 @@ class PlatformService(rpyc.Service):
         return True
 
     def exposed_poweroff(self, node_name):
-        return self.platform.setpower(self._client, node_name, False)
+        return self.nodes.setpower(self._client, node_name, False)
 
     def exposed_poweron(self, node_name):
-        return self.platform.setpower(self._client, node_name, True)
+        return self.nodes.setpower(self._client, node_name, True)
 
     def exposed_rename(self, old_name, new_name):
         self.server.rename_device(self._client, old_name, new_name)
@@ -116,11 +117,11 @@ class PlatformService(rpyc.Service):
         self.server.set_image(self._client, node_name, image_tag)
 
     def exposed_check_device_exists(self, device_name):
-        return self.platform.topology.get_device_info(
+        return self.devices.get_device_info(
                         self._client, device_name) != None
 
     def exposed_is_disconnected(self, device_name):
-        return self.platform.topology.is_disconnected(device_name)
+        return self.devices.topology.is_disconnected(device_name)
 
     def exposed_count_logs(self, device_name):
         return self.server.db.count_logs(device_name)

@@ -5,7 +5,7 @@ from walt.common.evloop import EventLoop
 from walt.common.tcp import TCPServer
 from walt.common.constants import WALT_SERVER_TCP_PORT
 from walt.server.images.manager import NodeImageManager
-from walt.server.platform import Platform
+from walt.server.devices.manager import DevicesManager
 from walt.server.db import ServerDB
 from walt.server.logs import LogsManager
 from walt.server.network.dhcpd import DHCPServer
@@ -21,7 +21,7 @@ class Server(object):
         self.db = ServerDB()
         self.docker = DockerClient()
         self.blocking = BlockingTasksManager()
-        self.platform = Platform(self.db)
+        self.devices = DevicesManager(self.db)
         self.dhcpd = DHCPServer(self.db)
         self.images = NodeImageManager(self.db, self.blocking, self.dhcpd, self.docker)
         self.tcp_server = TCPServer(WALT_SERVER_TCP_PORT)
@@ -32,9 +32,9 @@ class Server(object):
                                     tcp_server = self.tcp_server,
                                     blocking = self.blocking,
                                     images = self.images.store,
-                                    topology = self.platform.topology,
                                     dhcpd = self.dhcpd,
-                                    docker = self.docker)
+                                    docker = self.docker,
+                                    devices = self.devices)
         self.tcp_server.join_event_loop(self.ev_loop)
         self.blocking.join_event_loop(self.ev_loop)
         self.db.plan_auto_commit(self.ev_loop)
@@ -47,7 +47,9 @@ class Server(object):
         # the topology.
         self.dhcpd.update(force=True)
         # topology exploration
-        self.platform.topology.update()
+        self.devices.rescan()
+        # re-update dhcp with any new device discovered
+        self.dhcpd.update()
         # mount images needed
         self.images.update()
 
@@ -56,7 +58,7 @@ class Server(object):
         self.blocking.cleanup()
 
     def set_image(self, requester, node_name, image_tag):
-        node_info = self.platform.topology.get_node_info(
+        node_info = self.nodes.get_node_info(
                         requester, node_name)
         if node_info == None:
             return # error already reported
@@ -64,11 +66,11 @@ class Server(object):
         self.images.set_image(requester, mac, image_tag)
 
     def rename_device(self, requester, old_name, new_name):
-        self.platform.rename_device(requester, old_name, new_name)
+        self.devices.rename(requester, old_name, new_name)
         self.dhcpd.update()
 
-    def platform_update(self, requester):
-        self.platform.update(requester)
+    def device_rescan(self, requester):
+        self.devices.rescan(requester)
         self.dhcpd.update()
 
     def forget_device(self, device_name):

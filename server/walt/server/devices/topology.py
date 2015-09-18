@@ -5,11 +5,9 @@ from walt.common.nodetypes import get_node_type_from_mac_address
 from walt.common.nodetypes import is_a_node_type_name
 from walt.server.network.tools import ip_in_walt_network, lldp_update
 from walt.server.tools import format_paragraph
-import snmp, const, time, re
-from tree import Tree
-import walt.server
-
-DEVICE_NAME_NOT_FOUND="""No device with name '%s' found.\n"""
+from walt.server.tree import Tree
+from walt.server import snmp, const
+import time, re
 
 TOPOLOGY_QUERY = """
     SELECT  d1.name as name, d1.type as type, d1.mac as mac,
@@ -44,14 +42,6 @@ The following devices are currently disconnected:"""
 
 FOOTNOTE_DEVICE_SHOW_DETAILS_DISCONNECTED = """\
 (tip: walt device forget <device_name>)"""
-
-NEW_NAME_ERROR_AND_GUIDELINES = """\
-Failed: invalid new name.
-This name must be a valid network hostname. 
-Only alphanumeric characters and '-' are allowed.
-The 1st character must be an alphabet letter.
-(Example: rpi-D327)
-"""
 
 class Topology(object):
 
@@ -108,7 +98,7 @@ class Topology(object):
             if not issue:
                 break   # otherwise restart the loop
 
-    def update(self, requester=None):
+    def rescan(self, requester=None):
         # delete some information that will be updated
         self.db.execute('DELETE FROM topology;')
         self.db.execute("""
@@ -121,95 +111,6 @@ class Topology(object):
 
         if requester != None:
             requester.stdout.write('done.\n')
-
-    def get_device_info(self, requester, device_name, \
-                        err_message = DEVICE_NAME_NOT_FOUND):
-        device_info = self.db.select_unique("devices", name=device_name)
-        if device_info == None and err_message != None:
-            requester.stderr.write(err_message % device_name)
-        return device_info
-
-    def get_node_info(self, requester, node_name):
-        node_info = self.get_device_info(requester, node_name)
-        if node_info == None:
-            return None # error already reported
-        device_type = node_info.type
-        if not is_a_node_type_name(device_type):
-            requester.stderr.write('%s is not a node, it is a %s.\n' % \
-                                    (node_name, device_type))
-            return None
-        return node_info
-
-    def get_reachable_node_info(self, requester, node_name, after_rescan = False):
-        node_info = self.get_node_info(requester, node_name)
-        if node_info == None:
-            return None # error already reported
-        if node_info.reachable == 0:
-            if after_rescan:
-                requester.stderr.write(
-                        'Connot reach %s. The node seems dead or disconnected.\n' % \
-                                    node_name)
-                return None
-            else:
-                # rescan, just in case, and retry
-                self.update()   # rescan, just in case
-                return self.get_reachable_node_info(
-                        requester, node_name, after_rescan = True)
-        return node_info
-
-    def notify_unknown_ip(self, requester, device_name):
-        requester.stderr.write('Sorry, IP address of %s in unknown.\n' \
-                            % device_name)
-
-    def get_device_ip(self, requester, device_name):
-        device_info = self.get_device_info(requester, device_name)
-        if device_info == None:
-            return None # error already reported
-        if device_info.ip == None:
-            self.notify_unknown_ip(requester, device_name)
-        return device_info.ip
-
-    def get_node_ip(self, requester, node_name):
-        node_info = self.get_node_info(requester, node_name)
-        if node_info == None:
-            return None # error already reported
-        if node_info.ip == None:
-            self.notify_unknown_ip(requester, node_name)
-        return node_info.ip
-
-    def get_reachable_node_ip(self, requester, node_name):
-        node_info = self.get_reachable_node_info(requester, node_name)
-        if node_info == None:
-            return None # error already reported
-        return node_info.ip
-
-    def get_connectivity_info(self, requester, node_name):
-        node_info = self.get_reachable_node_info(requester, node_name)
-        if node_info == None:
-            return None # error already reported
-        node_mac = node_info.mac
-        topology_info = self.db.select_unique("topology", mac=node_mac)
-        switch_mac = topology_info.switch_mac
-        switch_port = topology_info.switch_port
-        switch_info = self.db.select_unique("devices", mac=switch_mac)
-        return dict(
-            switch_ip = switch_info.ip,
-            switch_port = switch_port
-        )
-
-    def rename_device(self, requester, old_name, new_name):
-        device_info = self.get_device_info(requester, old_name)
-        if device_info == None:
-            return
-        if self.get_device_info(requester, new_name, err_message = None) != None:
-            requester.stderr.write("""Failed: a device with name '%s' already exists.\n""" % new_name)
-            return
-        if not re.match('^[a-zA-Z][a-zA-Z0-9-]*$', new_name):
-            requester.stderr.write(NEW_NAME_ERROR_AND_GUIDELINES)
-            return
-        # all is fine, let's update it
-        self.db.update("devices", 'mac', mac = device_info.mac, name = new_name)
-        self.db.commit()
 
     def generate_device_name(self, **kwargs):
         if kwargs['type'] == 'server':
@@ -276,3 +177,16 @@ class Topology(object):
             WHERE d.name = %s AND d.mac = t.mac;""",
             (device_name,)).fetchall()
         return res[0][0] == 0
+
+    def setpower(self, device_mac, poweron):
+        switch_ip, switch_port = self.get_connectivity_info(device_mac)
+        proxy = snmp.Proxy(switch_ip, poe=True)
+        proxy.poe.set_port(switch_port, poweron)
+        return True
+
+    def get_connectivity_info(self, device_mac):
+        topology_info = self.db.select_unique("topology", mac=device_mac)
+        switch_mac = topology_info.switch_mac
+        switch_port = topology_info.switch_port
+        switch_info = self.db.select_unique("devices", mac=switch_mac)
+        return switch_info.ip, switch_port

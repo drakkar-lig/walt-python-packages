@@ -2,12 +2,12 @@
 def node_exists(db, mac):
     return db.select_unique("nodes", mac=mac) != None
 
-def register_node(  images, topology, db, dhcpd, \
+def register_node(  images, devices, db, dhcpd, \
                     mac, ip, node_type, \
                     image_fullname, current_requests):
     # insert in table devices if missing
     if not db.select_unique("devices", mac=mac):
-        topology.add_device(type=node_type, mac=mac, ip=ip)
+        devices.add(type=node_type, mac=mac, ip=ip)
     # insert in table nodes
     db.insert('nodes', mac=mac, image=image_fullname)
     # refresh local cache of node images, mount needed images
