@@ -120,7 +120,7 @@ def perform_clone(docker, requester, clonable_link, image_store, force):
             # ---------------------
             # generate a temporary docker image name
             temp_repo = 'walt-temp-' + str(uuid.uuid4()).split('-')[0]
-            temp_fullname = "%s:%s" % (temp_repo, remote_tag)
+            temp_fullname = "%s/%s:%s" % (requester.username, temp_repo, remote_tag)
             # save server:<u2>/<image> by tagging it with the temp name
             docker.tag(remote_fullname, temp_fullname)
             # pull hub:<u2>/<image> (we get an updated version of server:<u2>/<image>)
