@@ -131,7 +131,7 @@ class PostgresDB():
         return columnate(self.c.fetchall(), header=col_names)
 
     def pretty_printed_resultset(self, res):
-	if len(res) == 0:
-		raise Exception('pretty_printed_resultset() does not work if resultset is empty!')
+        if len(res) == 0:
+            raise Exception('pretty_printed_resultset() does not work if resultset is empty!')
         return columnate(res, header=res[0]._fields)
 
