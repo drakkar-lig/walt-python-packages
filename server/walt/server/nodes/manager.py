@@ -8,7 +8,8 @@ from walt.common.nodetypes import is_a_node_type_name
 USER_NODES_QUERY = """
     SELECT  d.name as name, d.type as type,
             split_part(n.image, ':', 2) as image,
-            d.ip as ip, d.reachable as reachable
+            d.ip as ip,
+            (case when d.reachable = 1 then 'yes' else 'NO' end) as reachable
     FROM devices d, nodes n
     WHERE   d.mac = n.mac
     AND     split_part(n.image, '/', 1) = '%s'
@@ -21,7 +22,8 @@ OTHER_NODES_QUERY = """
             split_part(n.image, '/', 1) ||
             '/' ||
             split_part(n.image, ':', 2) as clonable_image_link,
-            d.ip as ip, d.reachable as reachable
+            d.ip as ip,
+            (case when d.reachable = 1 then 'yes' else 'NO' end) as reachable
     FROM devices d, nodes n
     WHERE   d.mac = n.mac
     AND     split_part(n.image, '/', 1) != '%s'

@@ -68,6 +68,14 @@ class PostgresDB():
         return (list(t[0] for t in items),
                 list(t[1] for t in items))
 
+    # format a where clause with ANDs on the specified columns
+    def get_where_clause_pattern(self, cols):
+        constraints = [ "%s=%%s" % col for col in cols ]
+        if len(constraints) > 0:
+            return "WHERE %s" % (' AND '.join(constraints));
+        else:
+            return ""
+
     # allow statements like:
     # db.insert("network", ip=ip, switch_ip=swip)
     def insert(self, table, returning=None, **kwargs):
@@ -83,6 +91,15 @@ class PostgresDB():
         self.c.execute(sql + ';', tuple(values))
         if returning:
             return self.c.fetchone()[0]
+
+    # allow statements like:
+    # db.delete("topology", switch_mac=swmac, switch_port=swport)
+    def delete(self, table, **kwargs):
+        cols, values = self.get_cols_and_values(table, kwargs)
+        where_clause = self.get_where_clause_pattern(cols)
+        sql = "DELETE FROM %s %s;" % (table, where_clause)
+        self.c.execute(sql, values)
+        return self.c.rowcount  # number of rows deleted
 
     # allow statements like:
     # db.update("topology", "mac", switch_mac=swmac, switch_port=swport)
@@ -103,12 +120,7 @@ class PostgresDB():
     # mem_db.select("network", ip=ip)
     def select(self, table, **kwargs):
         cols, values = self.get_cols_and_values(table, kwargs)
-        constraints = [ "%s=%%s" % col for col in cols ]
-        if len(constraints) > 0:
-            where_clause = "WHERE %s" % (
-                ' AND '.join(constraints));
-        else:
-            where_clause = ""
+        where_clause = self.get_where_clause_pattern(cols)
         sql = "SELECT * FROM %s %s;" % (table, where_clause)
         self.c.execute(sql, values)
         return self.c.fetchall()

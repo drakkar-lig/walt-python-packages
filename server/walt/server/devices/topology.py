@@ -3,46 +3,57 @@
 from walt.common.tools import get_mac_address
 from walt.common.nodetypes import get_node_type_from_mac_address
 from walt.server.network.tools import ip_in_walt_network, lldp_update
-from walt.server.tools import format_paragraph
+from walt.server.tools import format_paragraph, columnate
 from walt.server.tree import Tree
 from walt.server import snmp, const
 import time, re
 
 TOPOLOGY_QUERY = """
     SELECT  d1.name as name, d1.type as type, d1.mac as mac,
-            d1.ip as ip, d1.reachable as reachable,
+            d1.ip as ip,
+            (case when d1.reachable = 1 then 'yes' else 'NO' end) as reachable,
             d2.name as switch_name, t.switch_port as switch_port
     FROM devices d1, devices d2, topology t
     WHERE   d1.mac = t.mac and d2.mac = t.switch_mac
     UNION ALL
     SELECT  d1.name as name, d1.type as type, d1.mac as mac,
-            d1.ip as ip, d1.reachable as reachable,
+            d1.ip as ip,
+            (case when d1.reachable = 1 then 'yes' else 'NO' end) as reachable,
             NULL as switch_name, NULL as switch_port
     FROM devices d1, topology t
     WHERE   d1.mac = t.mac and t.switch_mac is null
     ORDER BY switch_name, switch_port;"""
 
-DISCONNECTED_DEVICES_QUERY = """
+REPLACED_DEVICES_QUERY = """
     SELECT  d1.name as name, d1.type as type, d1.mac as mac,
             d1.ip as ip
     FROM devices d1 LEFT JOIN topology t
     ON   d1.mac = t.mac
     WHERE t.mac is NULL;"""
 
+MSG_DEVICE_TREE_EXPLAIN_UNREACHABLE = """\
+note: devices marked with parentheses are unreachable
+"""
+
 MSG_DEVICE_TREE_MORE_DETAILS = """
-(tip: use walt device show for more info)
+tips:
+- use 'walt device rescan' to update
+- use 'walt device show' for more info
 """
 
 TITLE_DEVICE_SHOW_MAIN = """\
 The WalT network contains the following devices:"""
 
 FOOTNOTE_DEVICE_SHOW_MAIN = """\
-(Use 'walt device tree' for a tree view of the network.)"""
+tips:
+- use 'walt device tree' for a tree view of the network
+- use 'walt device rescan' to update
+- use 'walt device forget <device_name>' in case of a broken device"""
 
-TITLE_DEVICE_SHOW_DISCONNECTED = """\
-The following devices are currently disconnected:"""
+TITLE_DEVICE_SHOW_REPLACED = """\
+The following devices seem to have been replaced:"""
 
-FOOTNOTE_DEVICE_SHOW_DISCONNECTED = """\
+FOOTNOTE_DEVICE_SHOW_REPLACED = """\
 (tip: walt device forget <device_name>)"""
 
 class Topology(object):
@@ -101,8 +112,6 @@ class Topology(object):
                 break   # otherwise restart the loop
 
     def rescan(self, requester=None):
-        # delete some information that will be updated
-        self.db.execute('DELETE FROM topology;')
         self.db.execute("""
             UPDATE devices
             SET reachable = 0;""")
@@ -134,13 +143,26 @@ class Topology(object):
             # insert a new row
             self.db.insert("devices", **kwargs)
         if 'switch_mac' in kwargs:
-            # add topology info
+            mac = kwargs['mac']
+            switch_mac = kwargs['switch_mac']
+            switch_port = kwargs['switch_port']
+            # add/update topology info:
+            # - update or insert topology info for device with specified mac
+            # - if any other device was connected at this place, it will
+            #   be replaced (thus this other device will appear disconnected)
+            self.db.delete('topology', mac = mac)
+            self.db.delete('topology', switch_mac = switch_mac,
+                                       switch_port = switch_port)
             self.db.insert("topology", **kwargs)
 
     def tree(self):
         t = Tree()
+        unreachable_found = False
         for device in self.db.execute(TOPOLOGY_QUERY).fetchall():
             name = device.name
+            if device.reachable == 'NO':
+                unreachable_found = True
+                name = '(%s)' % name
             swport = device.switch_port
             if swport == None:
                 label = name
@@ -155,31 +177,25 @@ class Topology(object):
                         label,
                         subtree_offset=subtree_offset,
                         parent_key = parent_key)
-        return "\n%s%s" % (
-            t.printed(), MSG_DEVICE_TREE_MORE_DETAILS)
+        note = MSG_DEVICE_TREE_MORE_DETAILS
+        if unreachable_found:
+            note += MSG_DEVICE_TREE_EXPLAIN_UNREACHABLE
+        return "\n%s%s" % (t.printed(), note)
 
     def show(self):
-        # message about connected devices
+        # ** message about connected devices
         msg = format_paragraph(
                 TITLE_DEVICE_SHOW_MAIN,
                 self.db.pretty_printed_select(TOPOLOGY_QUERY),
                 FOOTNOTE_DEVICE_SHOW_MAIN)
-        # message about disconnected devices, if at least one
-        res = self.db.execute(DISCONNECTED_DEVICES_QUERY).fetchall()
+        # ** message about replaced devices, if at least one
+        res = self.db.execute(REPLACED_DEVICES_QUERY).fetchall()
         if len(res) > 0:
             msg += format_paragraph(
-                        TITLE_DEVICE_SHOW_DISCONNECTED,
+                        TITLE_DEVICE_SHOW_REPLACED,
                         self.db.pretty_printed_resultset(res),
-                        FOOTNOTE_DEVICE_SHOW_DISCONNECTED)
+                        FOOTNOTE_DEVICE_SHOW_REPLACED)
         return msg
-
-    def is_disconnected(self, device_name):
-        res = self.db.execute("""
-            SELECT count(*)
-            FROM devices d, topology t
-            WHERE d.name = %s AND d.mac = t.mac;""",
-            (device_name,)).fetchall()
-        return res[0][0] == 0
 
     def setpower(self, device_mac, poweron):
         switch_ip, switch_port = self.get_connectivity_info(device_mac)

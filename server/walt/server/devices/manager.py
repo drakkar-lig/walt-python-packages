@@ -58,3 +58,14 @@ class DevicesManager(object):
 
     def add(self, **kwargs):
         self.topology.add_device(**kwargs)
+
+    def is_reachable(self, requester, device_name):
+        res = self.get_device_info(requester, device_name)
+        if res == None:
+            return
+        return res.reachable != 0
+
+    def node_bootup_event(self, node_ip):
+        # if we got this event, then the node is reachable
+        self.db.update('devices', 'ip', ip=node_ip, reachable=1)
+        self.db.commit()

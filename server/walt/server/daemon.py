@@ -119,12 +119,8 @@ class PlatformService(rpyc.Service):
     def exposed_set_image(self, node_name, image_tag):
         self.server.set_image(self._client, node_name, image_tag)
 
-    def exposed_check_device_exists(self, device_name):
-        return self.devices.get_device_info(
-                        self._client, device_name) != None
-
-    def exposed_is_disconnected(self, device_name):
-        return self.devices.topology.is_disconnected(device_name)
+    def exposed_is_device_reachable(self, device_name):
+        return self.devices.is_reachable(self._client, device_name)
 
     def exposed_count_logs(self, device_name):
         return self.server.db.count_logs(device_name)
@@ -155,6 +151,10 @@ class PlatformService(rpyc.Service):
 
     def exposed_copy_image(self, image_tag, new_tag):
         self.images.copy(self._client, image_tag, new_tag)
+
+    def exposed_node_bootup_event(self):
+        node_ip, node_port = self._conn._config['endpoints'][1]
+        self.devices.node_bootup_event(node_ip)
 
 class WalTServerDaemon(WalTDaemon):
     """WalT (wireless testbed) server daemon."""
