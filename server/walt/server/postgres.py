@@ -2,10 +2,25 @@
 
 from walt.server.const import WALT_DBNAME, WALT_DBUSER
 from walt.server.tools import columnate
-import psycopg2, os, shlex
+import psycopg2, os, shlex, uuid
 from psycopg2.extras import NamedTupleCursor
 from subprocess import Popen, PIPE
 from sys import stdout, stderr
+
+class ServerCursor(object):
+    def __init__(self, conn, query, query_args):
+        self.cursor_name = str(uuid.uuid4())
+        self.conn = conn
+        self.query = query
+        self.query_args = query_args
+    def __enter__(self):
+        self.server_cursor = self.conn.cursor(
+                                name = self.cursor_name,
+                                cursor_factory = NamedTupleCursor)
+        self.server_cursor.execute(self.query, self.query_args)
+        return self.server_cursor
+    def __exit__(self, type, value, traceback):
+        self.server_cursor.close()
 
 class PostgresDB():
 
@@ -43,6 +58,10 @@ class PostgresDB():
     def execute(self, query, query_args = None):
         self.c.execute(query, query_args)
         return self.c
+
+    # with server cursors, the resultset is not sent all at once to the client.
+    def prepare_server_cursor(self, query, query_args = None):
+        return ServerCursor(self.conn, query, query_args)
 
     # from a dictionary of the form <col_name> -> <value>
     # we want to filter-out keys that are not column names,
