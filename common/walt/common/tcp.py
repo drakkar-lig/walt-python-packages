@@ -75,7 +75,7 @@ class TCPServer(object):
     # and register this listener in the event loop.
     def handle_event(self, ts):
         conn_s, addr = self.s.accept()
-        sock_file = conn_s.makefile()
+        sock_file = conn_s.makefile('r+', 0)
         req_id = Requests.read_id(sock_file)
         if req_id not in self.listener_classes:
             print 'Invalid request.'
