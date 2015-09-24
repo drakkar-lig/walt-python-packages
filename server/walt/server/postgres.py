@@ -87,13 +87,17 @@ class PostgresDB():
         return (list(t[0] for t in items),
                 list(t[1] for t in items))
 
-    # format a where clause with ANDs on the specified columns
-    def get_where_clause_pattern(self, cols):
-        constraints = [ "%s=%%s" % col for col in cols ]
+    # format a where clause with ANDs on the specified constraints
+    def get_where_clause_from_constraints(self, constraints):
         if len(constraints) > 0:
             return "WHERE %s" % (' AND '.join(constraints));
         else:
             return ""
+
+    # format a where clause with ANDs on the specified columns
+    def get_where_clause_pattern(self, cols):
+        constraints = [ "%s=%%s" % col for col in cols ]
+        return self.get_where_clause_from_constraints(constraints)
 
     # allow statements like:
     # db.insert("network", ip=ip, switch_ip=swip)

@@ -7,10 +7,8 @@ class LogsToDBHandler(object):
     def __init__(self, db):
         self.db = db
 
-    def log(self, record, stream_id):
-        self.db.insert('logs',
-                stream_id = stream_id,
-                **record)
+    def log(self, **record):
+        self.db.insert('logs', **record)
 
 class LogsHub(object):
     def __init__(self):
@@ -79,7 +77,8 @@ class LogsStreamListener(object):
         ts = record['timestamp']
         if not isinstance(ts, datetime):
             record['timestamp'] = datetime.fromtimestamp(ts)
-        self.hub.log(record=record, stream_id=self.stream_id)
+        record.update(stream_id=self.stream_id)
+        self.hub.log(**record)
         return True
     def close(self):
         self.sock_file.close()
@@ -87,11 +86,13 @@ class LogsStreamListener(object):
 class LogsToSocketHandler(object):
     def __init__(self, db, hub, sock, sock_file, **kwargs):
         self.db = db
-        self.sock_file = sock_file
+        self.sock_file_r = sock_file
+        self.sock_file_w = sock.makefile('w', 0)
         self.cache = {}
-        sock.settimeout(1.0)
-        hub.addHandler(self)
-    def log(self, record, stream_id):
+        self.params = None
+        self.hub = hub
+        #sock.settimeout(1.0)
+    def log(self, stream_id, **record):
         try:
             if stream_id not in self.cache:
                 self.cache[stream_id] = self.db.execute(
@@ -103,9 +104,9 @@ class LogsToSocketHandler(object):
             d = {}
             d.update(record)
             d.update(self.cache[stream_id])
-            if self.sock_file.closed:
+            if self.sock_file_w.closed:
                 raise IOError()
-            write_pickle(d, self.sock_file)
+            write_pickle(d, self.sock_file_w)
         except IOError as e:
             # the socket was supposedly closed.
             print "client log connection closing"
@@ -113,12 +114,30 @@ class LogsToSocketHandler(object):
             return False
     # let the event loop know what we are reading on
     def fileno(self):
-        return self.sock_file.fileno()
+        return self.sock_file_r.fileno()
+    # this is what we will do depending on the client request params
+    def handle_params(self):
+        history = self.params['history']
+        realtime = self.params['realtime']
+        if history:
+            with self.db.get_logs(**self.params) as server_cursor:
+                for record in server_cursor:
+                    d = record._asdict()
+                    self.log(**d)
+        if realtime:
+            self.hub.addHandler(self)
+        else:
+            return False    # we are done, we can quit the ev loop
     # this is what we do when the event loop detects an event for us
     def handle_event(self, ts):
-        return False    # no communication is expected this way
+        if self.params == None:
+            self.params = read_pickle(self.sock_file_r)
+            return self.handle_params()
+        else:
+            return False    # no more communication is expected this way
     def close(self):
-        self.sock_file.close()
+        self.sock_file_r.close()
+        self.sock_file_w.close()
 
 class LogsManager(object):
     def __init__(self, db, tcp_server):

@@ -4,18 +4,15 @@ WalT (wireless testbed) control tool.
 """
 import readline, time, sys, socket
 from plumbum import cli
-from walt.common.logs import LogsConnectionToServer
 from walt.client.link import ClientToServerLink, ResponseQueue
-from walt.client.config import conf
 from walt.client.tools import confirm
+from walt.client.logs import WaltLogShowImpl
 from walt.client.interactive import run_sql_prompt, \
                                     run_image_shell_prompt, \
                                     run_node_shell, \
                                     run_device_ping
 
 WALT_VERSION = "0.1"
-DEFAULT_FORMAT_STRING= \
-   '{timestamp:%H:%M:%S.%f} {sender}.{stream} -> {line}'
 POE_REBOOT_DELAY            = 2  # seconds
 HELP_SHELL = """
                 | walt node shell    | walt image shell
@@ -128,7 +125,7 @@ class WalTDeviceForget(cli.Application):
                 print MSG_REACHABLE_CANNOT_FORGET % device_name
                 return
             if not self._force:
-                logs_cnt = server.count_logs(device_name)
+                logs_cnt = server.count_logs(sender = device_name)
                 if logs_cnt > 0:
                     print MSG_FORGET_DEVICE_WITH_LOGS % (
                         device_name, logs_cnt, device_name
@@ -316,31 +313,8 @@ class WaltLog(cli.Application):
     """management of logs"""
 
 @WaltLog.subcommand("show")
-class WaltLogShow(cli.Application):
-    """Dump logs on standard output"""
-    format_string = cli.SwitchAttr(
-                "--format",
-                str,
-                default = DEFAULT_FORMAT_STRING,
-                help= """Specify the python format string used to print log records""")
-
-    def main(self):
-        conn = LogsConnectionToServer(conf['server'])
-        conn.request_log_dump()
-        while True:
-            try:
-                record = conn.read_log_record()
-                if record == None:
-                    break
-                print self.format_string.format(**record)
-                sys.stdout.flush()
-            except KeyboardInterrupt:
-                print
-                break
-            except Exception as e:
-                print 'Could not display the log record.'
-                print 'Verify your format string.'
-                break
+class WaltLogShow(WaltLogShowImpl):
+    pass
 
 @WalT.subcommand("advanced")
 class WalTAdvanced(cli.Application):

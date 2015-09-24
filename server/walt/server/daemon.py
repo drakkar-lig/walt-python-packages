@@ -122,8 +122,8 @@ class PlatformService(rpyc.Service):
     def exposed_is_device_reachable(self, device_name):
         return self.devices.is_reachable(self._client, device_name)
 
-    def exposed_count_logs(self, device_name):
-        return self.server.db.count_logs(device_name)
+    def exposed_count_logs(self, **kwargs):
+        return self.server.db.count_logs(**kwargs)
 
     def exposed_forget(self, device_name):
         self.server.forget_device(device_name)

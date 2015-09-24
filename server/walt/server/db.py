@@ -51,11 +51,33 @@ class ServerDB(PostgresDB):
         assert(ev_type == EV_AUTO_COMMIT)
         self.commit()
 
-    def count_logs(self, dev_name):
-        return self.execute("""
-            SELECT COUNT(*) FROM devices d, logstreams s, logs l
-                WHERE d.name = %s AND s.sender_mac = d.mac AND l.stream_id = s.id;
-        """, (dev_name,)).fetchall()[0][0]
+    def get_logs(self, **kwargs):
+        return self.query_logs('l.*', ordering='l.timestamp', **kwargs)
+
+    def count_logs(self, **kwargs):
+        with self.query_logs('count(*)', **kwargs) as c:
+            return c.fetchall()[0][0]
+
+    def query_logs(self, projections, ordering=None, \
+                    sender=None, history=(None,None), **kwargs):
+        constraints = [ 's.sender_mac = d.mac', 'l.stream_id = s.id' ]
+        if sender:
+            constraints.append('''d.name = '%s' ''' % sender)
+        history = [ '''now() - interval '%d seconds' ''' % secs if secs else None \
+                        for secs in history ]
+        start, end = history
+        if start:
+            constraints.append('l.timestamp > %s' % start)
+        if end:
+            constraints.append('l.timestamp < %s' % end)
+        where_clause = self.get_where_clause_from_constraints(constraints)
+        if ordering:
+            ordering = 'order by ' + ordering
+        else:
+            ordering = ''
+        sql = "SELECT %s FROM devices d, logstreams s, logs l %s %s;" % \
+                                (projections, where_clause, ordering)
+        return self.prepare_server_cursor(sql)
 
     def forget_device(self, dev_name):
         self.execute("""

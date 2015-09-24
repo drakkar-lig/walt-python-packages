@@ -2,7 +2,10 @@ import os
 from walt.node.const import SERVER_LOGS_FIFO
 from walt.node.tools import lookup_server_ip
 from walt.common.tools import failsafe_mkfifo
-from walt.common.logs import LogsConnectionToServer
+from walt.common.constants import WALT_SERVER_TCP_PORT
+from walt.common.tcp import write_pickle, client_socket, \
+                            Requests
+
 
 # When a Fifo is open for reading, it will block
 # until another process opens it for writing,
@@ -30,12 +33,24 @@ class HookedFifo(object):
     def is_valid(self):
         return os.path.exists(self.path)
 
+class LogsFlowToServer(object):
+    def __init__(self, walt_server_host):
+        s = client_socket(walt_server_host, WALT_SERVER_TCP_PORT)
+        self.stream = s.makefile()
+    def start_new_incoming_logstream(self, stream_name):
+        Requests.send_id(self.stream, Requests.REQ_NEW_INCOMING_LOGS)
+        write_pickle(stream_name, self.stream)
+    def log(self, **kwargs):
+        write_pickle(kwargs, self.stream)
+    def close(self):
+        self.stream.close()
+
 class LogsFifoMonitor(object):
     server_ip = lookup_server_ip()
     def __init__(self, stream_name, path):
         self.f = HookedFifo(path)
         self.f.open_for_reading()
-        self.conn = LogsConnectionToServer(
+        self.conn = LogsFlowToServer(
                     LogsFifoMonitor.server_ip)
         self.conn.start_new_incoming_logstream(stream_name)
 
