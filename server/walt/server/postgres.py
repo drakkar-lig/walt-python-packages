@@ -8,19 +8,18 @@ from subprocess import Popen, PIPE
 from sys import stdout, stderr
 
 class ServerCursor(object):
-    def __init__(self, conn, query, query_args):
-        self.cursor_name = str(uuid.uuid4())
+    def __init__(self, conn):
+        cursor_name = str(uuid.uuid4())
         self.conn = conn
-        self.query = query
-        self.query_args = query_args
-    def __enter__(self):
         self.server_cursor = self.conn.cursor(
-                                name = self.cursor_name,
+                                name = cursor_name,
                                 cursor_factory = NamedTupleCursor)
-        self.server_cursor.execute(self.query, self.query_args)
-        return self.server_cursor
-    def __exit__(self, type, value, traceback):
+    def __del__(self):
         self.server_cursor.close()
+    def execute(self, *args):
+        return self.server_cursor.execute(*args)
+    def __iter__(self):
+        return self.server_cursor.__iter__()
 
 class PostgresDB():
 
@@ -60,8 +59,8 @@ class PostgresDB():
         return self.c
 
     # with server cursors, the resultset is not sent all at once to the client.
-    def prepare_server_cursor(self, query, query_args = None):
-        return ServerCursor(self.conn, query, query_args)
+    def get_server_cursor(self):
+        return ServerCursor(self.conn)
 
     # from a dictionary of the form <col_name> -> <value>
     # we want to filter-out keys that are not column names,

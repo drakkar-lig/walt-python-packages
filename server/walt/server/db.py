@@ -52,13 +52,16 @@ class ServerDB(PostgresDB):
         self.commit()
 
     def get_logs(self, **kwargs):
-        return self.query_logs('l.*', ordering='l.timestamp', **kwargs)
+        sql = self.format_logs_query('l.*', ordering='l.timestamp', **kwargs)
+        c = self.get_server_cursor()
+        c.execute(sql)
+        return c
 
     def count_logs(self, **kwargs):
-        with self.query_logs('count(*)', **kwargs) as c:
-            return c.fetchall()[0][0]
+        sql = self.format_logs_query('count(*)', **kwargs)
+        return self.execute(sql).fetchall()[0][0]
 
-    def query_logs(self, projections, ordering=None, \
+    def format_logs_query(self, projections, ordering=None, \
                     sender=None, history=(None,None), **kwargs):
         constraints = [ 's.sender_mac = d.mac', 'l.stream_id = s.id' ]
         if sender:
@@ -75,9 +78,8 @@ class ServerDB(PostgresDB):
             ordering = 'order by ' + ordering
         else:
             ordering = ''
-        sql = "SELECT %s FROM devices d, logstreams s, logs l %s %s;" % \
+        return "SELECT %s FROM devices d, logstreams s, logs l %s %s;" % \
                                 (projections, where_clause, ordering)
-        return self.prepare_server_cursor(sql)
 
     def forget_device(self, dev_name):
         self.execute("""

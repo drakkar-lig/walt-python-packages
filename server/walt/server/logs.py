@@ -120,10 +120,11 @@ class LogsToSocketHandler(object):
         history = self.params['history']
         realtime = self.params['realtime']
         if history:
-            with self.db.get_logs(**self.params) as server_cursor:
-                for record in server_cursor:
-                    d = record._asdict()
-                    self.log(**d)
+            server_cursor = self.db.get_logs(**self.params)
+            for record in server_cursor:
+                d = record._asdict()
+                self.log(**d)
+            del server_cursor
         if realtime:
             self.hub.addHandler(self)
         else:
