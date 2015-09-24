@@ -13,7 +13,8 @@ class ServerCursor(object):
         self.conn = conn
         self.server_cursor = self.conn.cursor(
                                 name = cursor_name,
-                                cursor_factory = NamedTupleCursor)
+                                cursor_factory = NamedTupleCursor,
+                                withhold = True)
     def __del__(self):
         self.server_cursor.close()
     def execute(self, *args):

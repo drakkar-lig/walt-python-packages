@@ -83,16 +83,59 @@ class LogsStreamListener(object):
     def close(self):
         self.sock_file.close()
 
+class RetrieveDBLogsTask(object):
+    def __init__(self, client_handler):
+        self.handler = client_handler
+        self.db = self.handler.db
+    def prepare(self):
+        # ensure all past logs are commited
+        self.db.commit()
+        # create a server cursor
+        self.c = self.db.get_server_cursor()
+    def perform(self):
+        # this is where things may take some time...
+        for record in self.db.get_logs(self.c, **self.handler.params):
+            d = record._asdict()
+            if self.handler.write_to_client(**d) == False:
+                break
+        del self.c
+    def handle_result(self, res):
+        self.handler.notify_history_processed()
+
 class LogsToSocketHandler(object):
-    def __init__(self, db, hub, sock, sock_file, **kwargs):
+    def __init__(self, db, hub, sock, sock_file, blocking, **kwargs):
         self.db = db
+        self.db_logs_task = RetrieveDBLogsTask(self)
         self.sock_file_r = sock_file
         self.sock_file_w = sock.makefile('w', 0)
         self.cache = {}
         self.params = None
         self.hub = hub
+        self.blocking = blocking
+        self.retrieving_from_db = None
+        self.realtime_buffer = []
         #sock.settimeout(1.0)
-    def log(self, stream_id, **record):
+    def log(self, **record):
+        # if we are processing the history part,
+        # do not send the realtime logs right now
+        if self.retrieving_from_db:
+            self.realtime_buffer.append(record)
+        else:   # ok, write to client
+            return self.write_to_client(**record)
+    def notify_history_processed(self):
+        if self.params['realtime']:
+            # done with the history part.
+            # we can flush the buffer of realtime logs
+            for record in self.realtime_buffer:
+                if self.write_to_client(**record) == False:
+                    break
+            # notify that next logs can be sent
+            # directly to the client
+            self.retrieving_from_db = False
+        else:
+            # no realtime mode, we can quit
+            self.close()
+    def write_to_client(self, stream_id, **record):
         try:
             if stream_id not in self.cache:
                 self.cache[stream_id] = self.db.execute(
@@ -120,20 +163,18 @@ class LogsToSocketHandler(object):
         history = self.params['history']
         realtime = self.params['realtime']
         if history:
-            server_cursor = self.db.get_logs(**self.params)
-            for record in server_cursor:
-                d = record._asdict()
-                self.log(**d)
-            del server_cursor
+            self.retrieving_from_db = True
+            self.db_logs_task.prepare()
+            self.blocking.do(self.db_logs_task)
+        else:
+            self.retrieving_from_db = False
         if realtime:
             self.hub.addHandler(self)
-        else:
-            return False    # we are done, we can quit the ev loop
     # this is what we do when the event loop detects an event for us
     def handle_event(self, ts):
         if self.params == None:
             self.params = read_pickle(self.sock_file_r)
-            return self.handle_params()
+            self.handle_params()
         else:
             return False    # no more communication is expected this way
     def close(self):
@@ -141,15 +182,17 @@ class LogsToSocketHandler(object):
         self.sock_file_w.close()
 
 class LogsManager(object):
-    def __init__(self, db, tcp_server):
+    def __init__(self, db, tcp_server, blocking):
         self.db = db
+        self.blocking = blocking
         self.hub = LogsHub()
         self.hub.addHandler(LogsToDBHandler(db))
         tcp_server.register_listener_class(
                     req_id = Requests.REQ_DUMP_LOGS,
                     cls = LogsToSocketHandler,
                     db = self.db,
-                    hub = self.hub)
+                    hub = self.hub,
+                    blocking = self.blocking)
         tcp_server.register_listener_class(
                     req_id = Requests.REQ_NEW_INCOMING_LOGS,
                     cls = LogsStreamListener,

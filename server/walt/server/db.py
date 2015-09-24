@@ -51,9 +51,8 @@ class ServerDB(PostgresDB):
         assert(ev_type == EV_AUTO_COMMIT)
         self.commit()
 
-    def get_logs(self, **kwargs):
+    def get_logs(self, c, **kwargs):
         sql = self.format_logs_query('l.*', ordering='l.timestamp', **kwargs)
-        c = self.get_server_cursor()
         c.execute(sql)
         return c
 
