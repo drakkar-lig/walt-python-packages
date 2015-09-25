@@ -4,6 +4,7 @@ WalT (wireless testbed) control tool.
 """
 import readline, time, sys, socket
 from plumbum import cli
+from walt.client import myhelp
 from walt.client.link import ClientToServerLink, ResponseQueue
 from walt.client.tools import confirm
 from walt.client.logs import WaltLogShowImpl
@@ -14,7 +15,8 @@ from walt.client.interactive import run_sql_prompt, \
 
 WALT_VERSION = "0.1"
 POE_REBOOT_DELAY            = 2  # seconds
-HELP_SHELL = """
+
+myhelp.register_topic('shells', """
                 | walt node shell    | walt image shell
 ------------------------------------------------------------
 persistence     | until the node     | yes
@@ -38,28 +40,20 @@ Also, keep in mind that in the virtual environment (docker container)
 no services are running (no init process, etc). Actually, the only
 process running in this virtual environment when you enter it is the
 shell process itself.
-"""
+""")
 
 class WalT(cli.Application):
     """WalT (wireless testbed) control tool."""
     VERSION = WALT_VERSION
-    help_messages = []
 
-    @cli.switch(["-z", "--help-shell"], \
+    @cli.switch(["-z", "--help-about"], str,
                 group = "Meta-switches")
-    def help_shell(self):
-        """Help about usage of 'node shell' and 'image shell'."""
-        self.help_messages.append(HELP_SHELL)
-
-    def main(self, *args):
-        if len(self.help_messages) > 0:
-            for msg in self.help_messages:
-                print msg
-            sys.exit()
-        # display the help if no subcommand specified
-        if not self.nested_command:
-            sys.argv.append('--help')
-            self.__class__.run()
+    def help_about(self, topic):
+        """Prints help details about a given topic.
+           Run 'walt --help-about help' to list them.
+        """
+        print myhelp.get(topic)
+        sys.exit()
 
 @WalT.subcommand("device")
 class WalTDevice(cli.Application):

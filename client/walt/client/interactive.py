@@ -13,11 +13,11 @@ Type \dt for a list of tables.
 """
 IMAGE_SHELL_MESSAGE = """\
 Notice: this is a limited virtual environment.
-Run 'walt --help-shell' for more info.
+Run 'walt --help-about shells' for more info.
 """
 NODE_SHELL_MESSAGE = """\
 Caution: changes will be lost on next node reboot.
-Run 'walt --help-shell' for more info.
+Run 'walt --help-about shells' for more info.
 """
 
 class TTYSettings(object):
