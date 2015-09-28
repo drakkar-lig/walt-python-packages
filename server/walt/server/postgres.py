@@ -160,8 +160,8 @@ class PostgresDB():
     def pretty_printed_table(self, table):
         return self.pretty_printed_select("select * from %s;" % table)
 
-    def pretty_printed_select(self, select_query):
-        self.execute(select_query)
+    def pretty_printed_select(self, *args):
+        self.execute(*args)
         col_names = [col_desc[0] for col_desc in self.c.description]
         return columnate(self.c.fetchall(), header=col_names)
 

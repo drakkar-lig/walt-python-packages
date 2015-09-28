@@ -1,4 +1,4 @@
-import socket
+import socket, cPickle as pickle
 from datetime import datetime
 from walt.common.tcp import read_pickle, write_pickle, \
                             Requests
@@ -163,6 +163,9 @@ class LogsToSocketHandler(object):
         history = self.params['history']
         realtime = self.params['realtime']
         if history:
+            # unpickle the elements of the history range
+            self.params['history'] = ( \
+                    pickle.loads(e) if e else None for e in history)
             self.retrieving_from_db = True
             self.db_logs_task.prepare()
             self.blocking.do(self.db_logs_task)
@@ -198,3 +201,45 @@ class LogsManager(object):
                     cls = LogsStreamListener,
                     db = self.db,
                     hub = self.hub)
+
+    def get_checkpoint(self, requester, cp_name, expected=True):
+        cp_info = self.db.select_unique(
+            'checkpoints', name=cp_name, username=requester.username)
+        if expected and cp_info == None:
+            requester.stderr.write("Failed: no checkpoint with this name '%s'.\n" % cp_name)
+        if not expected and cp_info != None:
+            requester.stderr.write('Failed: a checkpoint with this name already exists.\n')
+        return cp_info
+
+    def add_checkpoint(self, requester, cp_name):
+        if self.get_checkpoint(requester, cp_name, expected=False) != None:
+            return
+        d = datetime.now()
+        self.db.insert('checkpoints',
+                name=cp_name, username=requester.username, timestamp=d)
+        requester.stdout.write("New checkpoint %s recorded at server time: %s.\n" % (cp_name, d))
+
+    def remove_checkpoint(self, requester, cp_name):
+        if self.get_checkpoint(requester, cp_name, expected=True) == None:
+            return
+        self.db.delete('checkpoints', name=cp_name, username=requester.username)
+        requester.stdout.write("Done.\n")
+
+    def list_checkpoints(self, requester):
+        res = self.db.select('checkpoints', username=requester.username)
+        if len(res) == 0:
+            requester.stdout.write('You own no checkpoints.\n')
+        else:
+            # re-execute because we don't want the 'username' column.
+            requester.stdout.write(
+                self.db.pretty_printed_select("""
+                    SELECT timestamp, name FROM checkpoints
+                    WHERE username = %s;
+            """, (requester.username,)) + '\n')
+
+    def get_pickled_checkpoint_time(self, requester, cp_name):
+        cp_info = self.get_checkpoint(requester, cp_name, expected=True)
+        if cp_info == None:
+            return
+        return pickle.dumps(cp_info.timestamp)
+

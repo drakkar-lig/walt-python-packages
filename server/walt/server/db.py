@@ -35,6 +35,10 @@ class ServerDB(PostgresDB):
                     stream_id INTEGER REFERENCES logstreams(id),
                     timestamp TIMESTAMP,
                     line TEXT);""")
+        self.execute("""CREATE TABLE IF NOT EXISTS checkpoints (
+                    username TEXT,
+                    timestamp TIMESTAMP,
+                    name TEXT);""")
 
     # Some types of events are numerous and commiting the
     # database each time would be costly.
@@ -52,33 +56,34 @@ class ServerDB(PostgresDB):
         self.commit()
 
     def get_logs(self, c, **kwargs):
-        sql = self.format_logs_query('l.*', ordering='l.timestamp', **kwargs)
-        c.execute(sql)
+        sql, args = self.format_logs_query('l.*', ordering='l.timestamp', **kwargs)
+        c.execute(sql, args)
         return c
 
     def count_logs(self, **kwargs):
-        sql = self.format_logs_query('count(*)', **kwargs)
-        return self.execute(sql).fetchall()[0][0]
+        sql, args = self.format_logs_query('count(*)', **kwargs)
+        return self.execute(sql, args).fetchall()[0][0]
 
     def format_logs_query(self, projections, ordering=None, \
                     sender=None, history=(None,None), **kwargs):
+        args = []
         constraints = [ 's.sender_mac = d.mac', 'l.stream_id = s.id' ]
         if sender:
             constraints.append('''d.name = '%s' ''' % sender)
-        history = [ '''now() - interval '%d seconds' ''' % secs if secs else None \
-                        for secs in history ]
         start, end = history
         if start:
-            constraints.append('l.timestamp > %s' % start)
+            constraints.append('l.timestamp > %s')
+            args.append(start)
         if end:
-            constraints.append('l.timestamp < %s' % end)
+            constraints.append('l.timestamp < %s')
+            args.append(end)
         where_clause = self.get_where_clause_from_constraints(constraints)
         if ordering:
             ordering = 'order by ' + ordering
         else:
             ordering = ''
-        return "SELECT %s FROM devices d, logstreams s, logs l %s %s;" % \
-                                (projections, where_clause, ordering)
+        return ("SELECT %s FROM devices d, logstreams s, logs l %s %s;" % \
+                                (projections, where_clause, ordering), args)
 
     def forget_device(self, dev_name):
         self.execute("""

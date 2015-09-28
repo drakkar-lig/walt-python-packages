@@ -7,7 +7,7 @@ from plumbum import cli
 from walt.client import myhelp
 from walt.client.link import ClientToServerLink, ResponseQueue
 from walt.client.tools import confirm
-from walt.client.logs import WaltLogShowImpl
+from walt.client.logs import WaltLog
 from walt.client.interactive import run_sql_prompt, \
                                     run_image_shell_prompt, \
                                     run_node_shell, \
@@ -302,13 +302,7 @@ class WalTImageCopy(cli.Application):
         with ClientToServerLink() as server:
             server.copy_image(image_name, new_image_name)
 
-@WalT.subcommand("log")
-class WaltLog(cli.Application):
-    """management of logs"""
-
-@WaltLog.subcommand("show")
-class WaltLogShow(WaltLogShowImpl):
-    pass
+WalT.subcommand("log", WaltLog)
 
 @WalT.subcommand("advanced")
 class WalTAdvanced(cli.Application):

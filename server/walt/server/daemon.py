@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import rpyc, sys
+import rpyc, sys, datetime, cPickle as pickle
 import walt.server as server
 from walt.server.network import setup
 from walt.server.tools import AutoCleaner
@@ -64,6 +64,7 @@ class PlatformService(rpyc.Service):
         self.images = server.instance.images
         self.devices = server.instance.devices
         self.nodes = server.instance.nodes
+        self.logs = server.instance.logs
 
     def on_connect(self):
         self._client = self._conn.root
@@ -122,8 +123,9 @@ class PlatformService(rpyc.Service):
     def exposed_is_device_reachable(self, device_name):
         return self.devices.is_reachable(self._client, device_name)
 
-    def exposed_count_logs(self, **kwargs):
-        return self.server.db.count_logs(**kwargs)
+    def exposed_count_logs(self, history, **kwargs):
+        unpickled_history = (pickle.loads(e) if e else None for e in history)
+        return self.server.db.count_logs(history = unpickled_history, **kwargs)
 
     def exposed_forget(self, device_name):
         self.server.forget_device(device_name)
@@ -155,6 +157,22 @@ class PlatformService(rpyc.Service):
     def exposed_node_bootup_event(self):
         node_ip, node_port = self._conn._config['endpoints'][1]
         self.devices.node_bootup_event(node_ip)
+
+    def exposed_add_checkpoint(self, cp_name):
+        self.logs.add_checkpoint(self._client, cp_name)
+
+    def exposed_remove_checkpoint(self, cp_name):
+        self.logs.remove_checkpoint(self._client, cp_name)
+
+    def exposed_list_checkpoints(self):
+        self.logs.list_checkpoints(self._client)
+
+    def exposed_get_pickled_time(self):
+        return pickle.dumps(datetime.datetime.now())
+
+    def exposed_get_pickled_checkpoint_time(self, cp_name):
+        return self.logs.get_pickled_checkpoint_time(self._client, cp_name)
+
 
 class WalTServerDaemon(WalTDaemon):
     """WalT (wireless testbed) server daemon."""

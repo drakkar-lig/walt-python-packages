@@ -1,4 +1,4 @@
-import sys
+import sys, re, cPickle as pickle
 from plumbum import cli
 from walt.common.constants import WALT_SERVER_TCP_PORT
 from walt.common.tcp import read_pickle, write_pickle, client_socket, \
@@ -36,9 +36,10 @@ Omitting <start> means the range has no limit in the past.
 Omitting <end> means logs up to now should match.
 Thus the range ':' is equivalent to using the keyword 'full'.
  
-If specified, <start> and <end> boundaries must be a relative offset
-to the current time, in the form '-<num><unit>', such as '-40s', '-5m',
-'-1h', '-10d' (resp. seconds, minutes, hours and days).
+If specified, <start> and <end> boundaries must be either:
+- a relative offset to the current time, in the form '-<num><unit>',
+  such as '-40s', '-5m', '-1h', '-10d' (resp. seconds, minutes, hours and days).
+- the name of a checkpoint (see 'walt --help-about log-checkpoint')
 """)
 
 myhelp.register_topic('log-realtime', """
@@ -54,8 +55,22 @@ This will display the logs from 2 minutes in the past to now and then
 continue listening for new incoming logs.
 """)
 
+myhelp.register_topic('log-checkpoint', """
+A checkpoint is a kind of marker in time. It allows to easily
+reference the associated point in time by just giving its name.
+
+Here is a sample workflow:
+$ walt log add-checkpoint exp1-start
+[... run experience exp1 ...]
+$ walt log add-checkpoint exp1-end
+$ walt log show --history exp1-start:exp1-end > exp1.log
+""")
+
 SECONDS_PER_UNIT = {'s':1, 'm':60, 'h':3600, 'd':86400}
 NUM_LOGS_CONFIRM_TRESHOLD = 1000
+
+def validate_checkpoint_name(name):
+    return re.match('^[a-zA-Z0-9]+[a-zA-Z0-9\-]+$', name)
 
 class LogsFlowFromServer(object):
     def __init__(self, walt_server_host):
@@ -71,9 +86,13 @@ class LogsFlowFromServer(object):
         self.f_read.close()
         self.f_write.close()
 
-class WaltLogShowImpl(cli.Application):
-    """Dump logs on standard output"""
+class WaltLog(cli.Application):
+    """management of logs"""
+    pass
 
+@WaltLog.subcommand("show")
+class WaltLogShow(cli.Application):
+    """Dump logs on standard output"""
     format_string = cli.SwitchAttr(
                 "--format",
                 str,
@@ -91,7 +110,7 @@ class WaltLogShowImpl(cli.Application):
                 default = 'none',
                 help= """history range to be retrieved (see walt --help-about log-history)""")
 
-    def analyse_history_range(self):
+    def analyse_history_range(self, server, server_time):
         MALFORMED=(False,)
         try:
             self.history_range = self.history_range.lower()
@@ -102,22 +121,28 @@ class WaltLogShowImpl(cli.Application):
             parts = self.history_range.split(':')
             if len(parts) != 2:
                 return MALFORMED
-            delays = []
+            history = []
             for part in parts:
                 if part == '':
-                    delays.append(None)
+                    history.append(None)
                 elif part.startswith('-'):
-                    delays.append(int(part[1:-1]) * \
-                            SECONDS_PER_UNIT[part[-1]])
+                    delay = int(part[1:-1]) * \
+                            SECONDS_PER_UNIT[part[-1]]
+                    history.append(server_time - delay)
+                elif validate_checkpoint_name(part):
+                    cptime = server.get_pickled_checkpoint_time(part)
+                    if cptime == None:
+                        return MALFORMED
+                    history.append(cptime)
                 else:
                     return MALFORMED
-            if delays[0] and delays[1]:
-                if delays[0] < delays[1]:
+            if history[0] and history[1]:
+                if pickle.loads(history[0]) > pickle.loads(history[1]):
                     print 'Issue with the HISTORY_RANGE specified: ' + \
                             'the starting point is newer than the ending point.'
                     return MALFORMED
-            return True, tuple(delays)
-        except:
+            return True, tuple(history)
+        except Exception as e:
             return MALFORMED
 
     def main(self):
@@ -125,19 +150,20 @@ class WaltLogShowImpl(cli.Application):
             print 'You must specify at least 1 of the options --realtime and --history.'
             print "See 'walt --help-about log-realtime' and 'walt --help-about log-history' for more info."
             return
-        range_analysis = self.analyse_history_range()
-        if not range_analysis[0]:
-            print '''Invalid HISTORY_RANGE. See 'walt --help-about log-history' for more info.'''
-            return
-        history_range = range_analysis[1]
-        if history_range:
-            with ClientToServerLink() as server:
+        with ClientToServerLink() as server:
+            server_time = pickle.loads(server.get_pickled_time())
+            range_analysis = self.analyse_history_range(server, server_time)
+            if not range_analysis[0]:
+                print '''Invalid HISTORY_RANGE. See 'walt --help-about log-history' for more info.'''
+                return
+            history_range = range_analysis[1]
+            if history_range:
                 num_logs = server.count_logs(history = history_range)
-            if num_logs > NUM_LOGS_CONFIRM_TRESHOLD:
-                print 'This will display approximately %d log records from history.' % num_logs
-                if not confirm():
-                    print 'Aborted.'
-                    return
+                if num_logs > NUM_LOGS_CONFIRM_TRESHOLD:
+                    print 'This will display approximately %d log records from history.' % num_logs
+                    if not confirm():
+                        print 'Aborted.'
+                        return
         conn = LogsFlowFromServer(conf['server'])
         conn.request_log_dump(history = history_range, realtime = self.realtime)
         while True:
@@ -155,3 +181,30 @@ class WaltLogShowImpl(cli.Application):
                 print 'Verify your format string.'
                 break
 
+@WaltLog.subcommand("add-checkpoint")
+class WaltLogAddCheckpoint(cli.Application):
+    """Record a checkpoint (reference point in time)"""
+    def main(self, checkpoint_name):
+        if not validate_checkpoint_name(checkpoint_name):
+            sys.stderr.write("""\
+Invalid checkpoint name:
+* Only alnum and dash(-) characters are allowed.
+* dash(-) is not allowed as the 1st character.
+""")
+            return
+        with ClientToServerLink() as server:
+            server.add_checkpoint(checkpoint_name)
+
+@WaltLog.subcommand("remove-checkpoint")
+class WaltLogRemoveCheckpoint(cli.Application):
+    """Remove a checkpoint"""
+    def main(self, checkpoint_name):
+        with ClientToServerLink() as server:
+            server.remove_checkpoint(checkpoint_name)
+
+@WaltLog.subcommand("list-checkpoints")
+class WaltLogListCheckpoints(cli.Application):
+    """List checkpoints"""
+    def main(self):
+        with ClientToServerLink() as server:
+            server.list_checkpoints()
