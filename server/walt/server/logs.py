@@ -211,13 +211,14 @@ class LogsManager(object):
             requester.stderr.write('Failed: a checkpoint with this name already exists.\n')
         return cp_info
 
-    def add_checkpoint(self, requester, cp_name):
+    def add_checkpoint(self, requester, cp_name, date):
         if self.get_checkpoint(requester, cp_name, expected=False) != None:
             return
-        d = datetime.now()
+        if not date:
+            date = datetime.now()
         self.db.insert('checkpoints',
-                name=cp_name, username=requester.username, timestamp=d)
-        requester.stdout.write("New checkpoint %s recorded at server time: %s.\n" % (cp_name, d))
+                name=cp_name, username=requester.username, timestamp=date)
+        requester.stdout.write("New checkpoint %s recorded at server time: %s.\n" % (cp_name, date))
 
     def remove_checkpoint(self, requester, cp_name):
         if self.get_checkpoint(requester, cp_name, expected=True) == None:

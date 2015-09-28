@@ -158,8 +158,11 @@ class PlatformService(rpyc.Service):
         node_ip, node_port = self._conn._config['endpoints'][1]
         self.devices.node_bootup_event(node_ip)
 
-    def exposed_add_checkpoint(self, cp_name):
-        self.logs.add_checkpoint(self._client, cp_name)
+    def exposed_add_checkpoint(self, cp_name, pickled_date):
+        date = None
+        if pickled_date:
+            date = pickle.loads(pickled_date)
+        self.logs.add_checkpoint(self._client, cp_name, date)
 
     def exposed_remove_checkpoint(self, cp_name):
         self.logs.remove_checkpoint(self._client, cp_name)

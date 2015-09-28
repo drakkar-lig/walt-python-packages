@@ -1,4 +1,4 @@
-import sys, re, cPickle as pickle
+import sys, re, datetime, cPickle as pickle
 from plumbum import cli
 from walt.common.constants import WALT_SERVER_TCP_PORT
 from walt.common.tcp import read_pickle, write_pickle, client_socket, \
@@ -7,6 +7,10 @@ from walt.client.config import conf
 from walt.client.link import ClientToServerLink
 from walt.client.tools import confirm
 from walt.client import myhelp
+
+DATE_FORMAT_STRING= '%Y-%m-%d %H:%M:%S'
+DATE_FORMAT_STRING_HUMAN= '<YYYY>-<MM>-<DD> <hh>:<mm>:<ss>'
+DATE_FORMAT_STRING_EXAMPLE= '2015-09-28 15:16:39'
 
 DEFAULT_FORMAT_STRING= \
    '{timestamp:%H:%M:%S.%f} {sender}.{stream} -> {line}'
@@ -64,7 +68,11 @@ $ walt log add-checkpoint exp1-start
 [... run experience exp1 ...]
 $ walt log add-checkpoint exp1-end
 $ walt log show --history exp1-start:exp1-end > exp1.log
-""")
+
+By using 'walt log add-checkpoint' with option '--date',
+you can create a checkpoint referencing a given date. For example:
+$ walt log add-checkpoint --date '%s' my-checkpoint
+""" % DATE_FORMAT_STRING_EXAMPLE)
 
 SECONDS_PER_UNIT = {'s':1, 'm':60, 'h':3600, 'd':86400}
 NUM_LOGS_CONFIRM_TRESHOLD = 1000
@@ -184,7 +192,18 @@ class WaltLogShow(cli.Application):
 @WaltLog.subcommand("add-checkpoint")
 class WaltLogAddCheckpoint(cli.Application):
     """Record a checkpoint (reference point in time)"""
+    date = cli.SwitchAttr("--date", str, default=None)
+
     def main(self, checkpoint_name):
+        if self.date:
+            try:
+                self.date = pickle.dumps(datetime.datetime.strptime(\
+                                self.date, DATE_FORMAT_STRING))
+            except:
+                print 'Could not parse the date specified.'
+                print 'Expected format is: %s' % DATE_FORMAT_STRING_HUMAN
+                print 'Example: %s' % DATE_FORMAT_STRING_EXAMPLE
+                return
         if not validate_checkpoint_name(checkpoint_name):
             sys.stderr.write("""\
 Invalid checkpoint name:
@@ -193,7 +212,7 @@ Invalid checkpoint name:
 """)
             return
         with ClientToServerLink() as server:
-            server.add_checkpoint(checkpoint_name)
+            server.add_checkpoint(checkpoint_name, self.date)
 
 @WaltLog.subcommand("remove-checkpoint")
 class WaltLogRemoveCheckpoint(cli.Application):
