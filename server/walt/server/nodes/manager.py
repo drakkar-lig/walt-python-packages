@@ -40,7 +40,7 @@ Nodes with an image that you own:"""
 
 TITLE_NODE_SHOW_OTHER_NODES_PART = """\
 The following nodes are likely to be used by other users, since you do
-do own the image deployed on them."""
+not own the image deployed on them."""
 
 MSG_NO_NODES = """\
 No nodes detected!"""
