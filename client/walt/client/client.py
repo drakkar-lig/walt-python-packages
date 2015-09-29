@@ -42,6 +42,23 @@ process running in this virtual environment when you enter it is the
 shell process itself.
 """)
 
+myhelp.register_topic('node-owners', """
+In WalT terminology, if node <N> is deployed with an image created by user <U>,
+we consider that "<U> owns <N>".
+
+Thus, if you just started using WalT, "you do not own any node" until you deploy
+an image on one of them (use 'walt node deploy <node(s)> <image>' for this).
+
+Some commands accept a "set of nodes":
+- walt node deploy
+- walt node reboot
+
+In this case you can specify either:
+* the keyword 'my-nodes' (this will select the nodes that you own)
+* the keyword 'all-nodes'
+* a coma separated list of nodes (e.g "rpi1,rpi2" or just "rpi1")
+""")
+
 class WalT(cli.Application):
     """WalT (wireless testbed) control tool."""
     VERSION = WALT_VERSION
