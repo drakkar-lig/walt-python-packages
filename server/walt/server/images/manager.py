@@ -43,15 +43,17 @@ class NodeImageManager(object):
         self.store.cleanup()
     def has_image(self, requester, image_tag):
         return self.store.get_user_image_from_tag(requester, image_tag) != None
-    def set_image(self, requester, node_mac, image_tag):
+    def set_image(self, requester, node_macs, image_tag):
         image = self.store.get_user_image_from_tag(requester, image_tag)
         if image:
-            self.db.update('nodes', 'mac',
-                    mac=node_mac,
-                    image=image.fullname)
+            for node_mac in node_macs:
+                self.db.update('nodes', 'mac',
+                        mac=node_mac,
+                        image=image.fullname)
             self.store.update_image_mounts()
             self.db.commit()
             self.dhcpd.update()
+        return image != None
     def create_shell_session(self, requester, image_tag):
         return self.shells.create_session(requester, image_tag)
 

@@ -170,29 +170,35 @@ class WalTNodeBlink(cli.Application):
 
 @WalTNode.subcommand("reboot")
 class WalTNodeReboot(cli.Application):
-    """reboot a node"""
-    def main(self, node_name):
+    """reboot a (set of) node(s)"""
+    def main(self, node_set):
         with ClientToServerLink() as server:
-            if server.poweroff(node_name):
-                print node_name, 'was powered off.'
+            not_owned = server.includes_nodes_not_owned(node_set, warn=True)
+            if not_owned == None:
+                return
+            if not_owned == True:
+                if not confirm():
+                    return
+            if server.poweroff(node_set, warn_unreachable=True):
                 time.sleep(POE_REBOOT_DELAY)
-                server.poweron(node_name)
-                print node_name, 'was powered on.'
+                server.poweron(node_set, warn_unreachable=False)
 
 @WalTNode.subcommand("deploy")
 class WalTNodeDeploy(cli.Application):
-    """deploy an operating system image on a node"""
-    def main(self, node_name, image_name):
+    """deploy an operating system image on a (set of) node(s)"""
+    def main(self, node_set, image_name):
         with ClientToServerLink() as server:
             if server.has_image(image_name):
-                if server.poweroff(node_name):
-                    print node_name, 'was powered off.'
-                    server.set_image(node_name, image_name)
+                not_owned = server.includes_nodes_not_owned(node_set, warn=True)
+                if not_owned == None:
+                    return
+                if not_owned == True:
+                    if not confirm():
+                        return
+                if server.poweroff(node_set, warn_unreachable=True):
+                    server.set_image(node_set, image_name, warn_unreachable=False)
                     time.sleep(POE_REBOOT_DELAY)
-                    print '%s will now boot %s.' % \
-                                (node_name, image_name)
-                    server.poweron(node_name)
-                    print node_name, 'was powered on.'
+                    server.poweron(node_set, warn_unreachable=False)
 
 @WalTNode.subcommand("ping")
 class WalTNodePing(cli.Application):

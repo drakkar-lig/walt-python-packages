@@ -105,11 +105,14 @@ class PlatformService(rpyc.Service):
             node_service.blink(blink_status)
         return True
 
-    def exposed_poweroff(self, node_name):
-        return self.nodes.setpower(self._client, node_name, False)
+    def exposed_includes_nodes_not_owned(self, node_set, warn):
+        return self.nodes.includes_nodes_not_owned(self._client, node_set, warn)
 
-    def exposed_poweron(self, node_name):
-        return self.nodes.setpower(self._client, node_name, True)
+    def exposed_poweroff(self, node_set, warn_unreachable):
+        return self.nodes.setpower(self._client, node_set, False, warn_unreachable)
+
+    def exposed_poweron(self, node_set, warn_unreachable):
+        return self.nodes.setpower(self._client, node_set, True, warn_unreachable)
 
     def exposed_rename(self, old_name, new_name):
         self.server.rename_device(self._client, old_name, new_name)
@@ -117,8 +120,8 @@ class PlatformService(rpyc.Service):
     def exposed_has_image(self, image_tag):
         return self.images.has_image(self._client, image_tag)
 
-    def exposed_set_image(self, node_name, image_tag):
-        self.server.set_image(self._client, node_name, image_tag)
+    def exposed_set_image(self, node_set, image_tag, warn_unreachable):
+        self.server.set_image(self._client, node_set, image_tag, warn_unreachable)
 
     def exposed_is_device_reachable(self, device_name):
         return self.devices.is_reachable(self._client, device_name)

@@ -13,6 +13,7 @@ from walt.server.interactive import InteractionManager
 from walt.server.blocking import BlockingTasksManager
 from walt.server.nodes.manager import NodesManager
 from walt.server.mydocker import DockerClient
+from walt.server.tools import format_sentence_about_nodes
 
 class Server(object):
 
@@ -57,13 +58,17 @@ class Server(object):
         self.images.cleanup()
         self.blocking.cleanup()
 
-    def set_image(self, requester, node_name, image_tag):
-        node_info = self.nodes.get_node_info(
-                        requester, node_name)
-        if node_info == None:
+    def set_image(self, requester, node_set, image_tag, warn_unreachable):
+        nodes = self.nodes.parse_node_set(requester, node_set)
+        if nodes == None:
             return # error already reported
-        mac = node_info.mac
-        self.images.set_image(requester, mac, image_tag)
+        nodes_ok, nodes_ko = self.nodes.filter_on_connectivity( \
+                            requester, nodes, warn_unreachable)
+        macs = [ n.mac for n in nodes_ok ]
+        if self.images.set_image(requester, macs, image_tag):
+            requester.stdout.write(format_sentence_about_nodes(
+                '%s will now boot ' + image_tag + '.' ,
+                [n.name for n in nodes_ok]) + '\n')
 
     def rename_device(self, requester, old_name, new_name):
         self.devices.rename(requester, old_name, new_name)

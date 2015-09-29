@@ -1,6 +1,7 @@
 from walt.common.tcp import Requests
 from walt.server.nodes.register import NodeRegistrationHandler
-from walt.server.tools import format_paragraph
+from walt.server.tools import format_paragraph, format_sentence_about_nodes, \
+                                merge_named_tuples
 from walt.common.nodetypes import is_a_node_type_name
 
 # the split_part() expression below allows to show only
@@ -48,6 +49,25 @@ No nodes detected!"""
 MSG_NO_OTHER_NODES = """\
 No other nodes were detected (apart from the ones listed above)."""
 
+NODE_SET_QUERIES = {
+        'my-nodes': """
+            SELECT  d.name as name
+            FROM devices d, nodes n
+            WHERE   d.mac = n.mac
+            AND     split_part(n.image, '/', 1) = '%s'
+            ORDER BY name;""",
+        'all-nodes': """
+            SELECT  d.name as name
+            FROM devices d, nodes n
+            WHERE   d.mac = n.mac
+            ORDER BY name;"""
+}
+
+MSG_NODE_NEVER_REGISTERED = """\
+Node %s was eventually detected but never registered itself to the server.
+It seems it is not running a valid WalT boot image.
+"""
+
 class NodesManager(object):
     def __init__(self, db, tcp_server, devices, **kwargs):
         self.db = db
@@ -92,15 +112,19 @@ class NodesManager(object):
         return result_msg
 
     def get_node_info(self, requester, node_name):
-        node_info = self.devices.get_device_info(requester, node_name)
-        if node_info == None:
+        device_info = self.devices.get_device_info(requester, node_name)
+        if device_info == None:
             return None # error already reported
-        device_type = node_info.type
+        device_type = device_info.type
         if not is_a_node_type_name(device_type):
             requester.stderr.write('%s is not a node, it is a %s.\n' % \
                                     (node_name, device_type))
             return None
-        return node_info
+        node_info = self.db.select_unique("nodes", mac=device_info.mac)
+        if node_info == None:
+            requester.stderr.write(MSG_NODE_NEVER_REGISTERED % node_name)
+            return None
+        return merge_named_tuples(device_info, node_info)
 
     def get_reachable_node_info(self, requester, node_name, after_rescan = False):
         node_info = self.get_node_info(requester, node_name)
@@ -133,9 +157,68 @@ class NodesManager(object):
             return None # error already reported
         return node_info.ip
 
-    def setpower(self, requester, node_name, poweron):
-        node_info = self.get_node_info(requester, node_name)
-        if node_info == None:
+    def filter_on_connectivity(self, requester, nodes, warn):
+        nodes_ok = []
+        nodes_ko = []
+        for node in nodes:
+            sw_ip, sw_port = self.devices.topology.get_connectivity_info( \
+                                    node.mac)
+            if sw_ip:
+                nodes_ok.append(node)
+            else:
+                nodes_ko.append(node)
+        if len(nodes_ko) > 0 and warn:
+            requester.stderr.write(format_sentence_about_nodes(
+                '%s currently cannot be reached.',
+                [n.name for n in nodes_ko]) + '\n')
+        return nodes_ok, nodes_ko
+
+    def setpower(self, requester, node_set, poweron, warn_unreachable):
+        nodes = self.parse_node_set(requester, node_set)
+        if nodes == None:
             return None # error already reported
-        return self.devices.topology.setpower(node_info.mac, poweron)
+        # verify connectivity of all designated nodes
+        nodes_ok, nodes_ko = self.filter_on_connectivity( \
+                            requester, nodes, warn_unreachable)
+        if len(nodes_ok) == 0:
+            return False
+        # otherwise, at least one node can be reached, so do it.
+        for node in nodes_ok:
+            self.devices.topology.setpower(node.mac, poweron)
+        s_poweron = {True:'on',False:'off'}[poweron]
+        requester.stdout.write(format_sentence_about_nodes(
+            '%s was(were) powered ' + s_poweron + '.' ,
+            [n.name for n in nodes_ok]) + '\n')
+        return True
+
+    def parse_node_set(self, requester, node_set):
+        sql = None
+        if node_set == None or node_set == 'my-nodes':
+            sql = NODE_SET_QUERIES['my-nodes'] % requester.username
+        elif node_set == 'all-nodes':
+            sql = NODE_SET_QUERIES['all-nodes']
+        if sql:
+            nodes = [record[0] for record in self.db.execute(sql) ]
+        else:
+            # otherwise the list is explicit
+            nodes = node_set.split(',')
+        nodes = [self.get_node_info(requester, n) for n in nodes]
+        if None in nodes:
+            return None
+        return sorted(nodes)
+
+    def includes_nodes_not_owned(self, requester, node_set, warn):
+        nodes = self.parse_node_set(requester, node_set)
+        if nodes == None:
+            return None
+        not_owned = [ n for n in nodes \
+                if not n.image.startswith(requester.username + '/') ]
+        if len(not_owned) == 0:
+            return False
+        else:
+            if warn:
+                requester.stderr.write(format_sentence_about_nodes(
+                    'Warning: %s seems(seem) to be used by another(other) user(users).',
+                    [n.name for n in not_owned]) + '\n')
+            return True
 
