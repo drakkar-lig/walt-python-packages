@@ -205,6 +205,9 @@ class NodesManager(object):
         nodes = [self.get_node_info(requester, n) for n in nodes]
         if None in nodes:
             return None
+        if len(nodes) == 0:
+            requester.stderr.write('No matching nodes found!\n')
+            return None
         return sorted(nodes)
 
     def includes_nodes_not_owned(self, requester, node_set, warn):
