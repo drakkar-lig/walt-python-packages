@@ -117,6 +117,12 @@ class WaltLogShow(cli.Application):
                 argname = 'HISTORY_RANGE',
                 default = 'none',
                 help= """history range to be retrieved (see walt --help-about log-history)""")
+    set_of_nodes = cli.SwitchAttr(
+                "--nodes",
+                str,
+                argname = 'SET_OF_NODES',
+                default = 'my-nodes',
+                help= """targeted nodes (see walt --help-about node-terminology)""")
 
     def analyse_history_range(self, server, server_time):
         MALFORMED=(False,)
@@ -160,6 +166,10 @@ class WaltLogShow(cli.Application):
             print "See 'walt --help-about log-realtime' and 'walt --help-about log-history' for more info."
             return
         with ClientToServerLink() as server:
+            senders = server.parse_set_of_nodes(self.set_of_nodes)
+            if senders == None:
+                return
+            senders = set(senders) # weakref -> local object
             server_time = pickle.loads(server.get_pickled_time())
             range_analysis = self.analyse_history_range(server, server_time)
             if not range_analysis[0]:
@@ -167,14 +177,16 @@ class WaltLogShow(cli.Application):
                 return
             history_range = range_analysis[1]
             if history_range:
-                num_logs = server.count_logs(history = history_range)
+                num_logs = server.count_logs(history = history_range, senders = senders)
                 if num_logs > NUM_LOGS_CONFIRM_TRESHOLD:
                     print 'This will display approximately %d log records from history.' % num_logs
                     if not confirm():
                         print 'Aborted.'
                         return
         conn = LogsFlowFromServer(conf['server'])
-        conn.request_log_dump(history = history_range, realtime = self.realtime)
+        conn.request_log_dump(  history = history_range,
+                                realtime = self.realtime,
+                                senders = senders)
         while True:
             try:
                 record = conn.read_log_record()

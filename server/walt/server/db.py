@@ -65,11 +65,11 @@ class ServerDB(PostgresDB):
         return self.execute(sql, args).fetchall()[0][0]
 
     def format_logs_query(self, projections, ordering=None, \
-                    sender=None, history=(None,None), **kwargs):
+                    senders=None, history=(None,None), **kwargs):
         args = []
         constraints = [ 's.sender_mac = d.mac', 'l.stream_id = s.id' ]
-        if sender:
-            constraints.append('''d.name = '%s' ''' % sender)
+        if senders:
+            constraints.append('''d.name IN ('%s') ''' % "','".join(senders))
         start, end = history
         if start:
             constraints.append('l.timestamp > %s')

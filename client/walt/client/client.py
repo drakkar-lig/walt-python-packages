@@ -56,6 +56,7 @@ an image on one of them (use 'walt node deploy <node(s)> <image>' for this).
 Some commands accept a "set of nodes":
 - walt node deploy
 - walt node reboot
+- walt log show         (see option '--nodes')
 
 In this case you can specify either:
 * the keyword 'my-nodes' (this will select the nodes that you own)
@@ -140,7 +141,7 @@ class WalTDeviceForget(cli.Application):
                 print MSG_REACHABLE_CANNOT_FORGET % device_name
                 return
             if not self._force:
-                logs_cnt = server.count_logs(sender = device_name)
+                logs_cnt = server.count_logs(senders = set([device_name]))
                 if logs_cnt > 0:
                     print MSG_FORGET_DEVICE_WITH_LOGS % (
                         device_name, logs_cnt, device_name

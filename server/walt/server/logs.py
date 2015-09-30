@@ -96,7 +96,8 @@ class RetrieveDBLogsTask(object):
         # this is where things may take some time...
         for record in self.db.get_logs(self.c, **self.handler.params):
             d = record._asdict()
-            if self.handler.write_to_client(**d) == False:
+            if self.handler.write_to_client(
+                        already_filtered = True, **d) == False:
                 break
         del self.c
     def handle_result(self, res):
@@ -135,7 +136,7 @@ class LogsToSocketHandler(object):
         else:
             # no realtime mode, we can quit
             self.close()
-    def write_to_client(self, stream_id, **record):
+    def write_to_client(self, stream_id, already_filtered=False, **record):
         try:
             if stream_id not in self.cache:
                 self.cache[stream_id] = self.db.execute(
@@ -144,6 +145,9 @@ class LogsToSocketHandler(object):
                    WHERE s.id = %s
                      AND s.sender_mac = d.mac
                 """ % stream_id).fetchall()[0]._asdict()
+            if not already_filtered:
+                if self.cache[stream_id]['sender'] not in self.params['senders']:
+                    return  # filter out
             d = {}
             d.update(record)
             d.update(self.cache[stream_id])

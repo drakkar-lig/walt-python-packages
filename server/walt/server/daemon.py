@@ -105,6 +105,11 @@ class PlatformService(rpyc.Service):
             node_service.blink(blink_status)
         return True
 
+    def exposed_parse_set_of_nodes(self, node_set):
+        nodes = self.nodes.parse_node_set(self._client, node_set)
+        if nodes:
+            return [n.name for n in nodes]
+
     def exposed_includes_nodes_not_owned(self, node_set, warn):
         return self.nodes.includes_nodes_not_owned(self._client, node_set, warn)
 
