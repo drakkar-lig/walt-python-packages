@@ -1,4 +1,4 @@
-import socket, cPickle as pickle
+import socket, re, cPickle as pickle
 from datetime import datetime
 from walt.common.tcp import read_pickle, write_pickle, \
                             Requests
@@ -97,7 +97,7 @@ class RetrieveDBLogsTask(object):
         for record in self.db.get_logs(self.c, **self.handler.params):
             d = record._asdict()
             if self.handler.write_to_client(
-                        already_filtered = True, **d) == False:
+                        senders_filtered = True, **d) == False:
                 break
         del self.c
     def handle_result(self, res):
@@ -136,7 +136,7 @@ class LogsToSocketHandler(object):
         else:
             # no realtime mode, we can quit
             self.close()
-    def write_to_client(self, stream_id, already_filtered=False, **record):
+    def write_to_client(self, stream_id, senders_filtered=False, **record):
         try:
             if stream_id not in self.cache:
                 self.cache[stream_id] = self.db.execute(
@@ -145,12 +145,22 @@ class LogsToSocketHandler(object):
                    WHERE s.id = %s
                      AND s.sender_mac = d.mac
                 """ % stream_id).fetchall()[0]._asdict()
-            if not already_filtered:
-                if self.cache[stream_id]['sender'] not in self.params['senders']:
+            stream_info = self.cache[stream_id]
+            # when data comes from the db, senders are already filtered,
+            # while data coming from the hub has to be filtered.
+            if not senders_filtered:
+                if stream_info['sender'] not in self.params['senders']:
+                    return  # filter out
+            # matching the streams is always done here, otherwise there
+            # may be inconsistencies between the regexp format in the postgresql
+            # database and in python
+            if self.streams_regexp:
+                matches = self.streams_regexp.findall(stream_info['stream'])
+                if len(matches) == 0:
                     return  # filter out
             d = {}
             d.update(record)
-            d.update(self.cache[stream_id])
+            d.update(stream_info)
             if self.sock_file_w.closed:
                 raise IOError()
             write_pickle(d, self.sock_file_w)
@@ -163,13 +173,18 @@ class LogsToSocketHandler(object):
     def fileno(self):
         return self.sock_file_r.fileno()
     # this is what we will do depending on the client request params
-    def handle_params(self):
-        history = self.params['history']
-        realtime = self.params['realtime']
+    def handle_params(self, history, realtime, senders, streams):
         if history:
             # unpickle the elements of the history range
-            self.params['history'] = ( \
-                    pickle.loads(e) if e else None for e in history)
+            history = (pickle.loads(e) if e else None for e in history)
+        if streams:
+            self.streams_regexp = re.compile(streams)
+        else:
+            self.streams_regexp = None
+        self.params = dict( history = history,
+                            realtime = realtime,
+                            senders = senders)
+        if history:
             self.retrieving_from_db = True
             self.db_logs_task.prepare()
             self.blocking.do(self.db_logs_task)
@@ -180,8 +195,8 @@ class LogsToSocketHandler(object):
     # this is what we do when the event loop detects an event for us
     def handle_event(self, ts):
         if self.params == None:
-            self.params = read_pickle(self.sock_file_r)
-            self.handle_params()
+            params = read_pickle(self.sock_file_r)
+            self.handle_params(**params)
         else:
             return False    # no more communication is expected this way
     def close(self):

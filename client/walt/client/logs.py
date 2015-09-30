@@ -123,6 +123,12 @@ class WaltLogShow(cli.Application):
                 argname = 'SET_OF_NODES',
                 default = 'my-nodes',
                 help= """targeted nodes (see walt --help-about node-terminology)""")
+    streams = cli.SwitchAttr(
+                "--streams",
+                str,
+                argname = 'REGEXP',
+                default = None,
+                help= """selected log streams (as a regular expr.)""")
 
     def analyse_history_range(self, server, server_time):
         MALFORMED=(False,)
@@ -170,6 +176,13 @@ class WaltLogShow(cli.Application):
             if senders == None:
                 return
             senders = set(senders) # weakref -> local object
+            if self.streams != None:
+                # try to validate the regular expression.
+                try:
+                    re.compile(self.streams)
+                except:
+                    print 'Invalid regular expression: %s.' % self.streams
+                    return
             server_time = pickle.loads(server.get_pickled_time())
             range_analysis = self.analyse_history_range(server, server_time)
             if not range_analysis[0]:
@@ -186,7 +199,8 @@ class WaltLogShow(cli.Application):
         conn = LogsFlowFromServer(conf['server'])
         conn.request_log_dump(  history = history_range,
                                 realtime = self.realtime,
-                                senders = senders)
+                                senders = senders,
+                                streams = self.streams)
         while True:
             try:
                 record = conn.read_log_record()
