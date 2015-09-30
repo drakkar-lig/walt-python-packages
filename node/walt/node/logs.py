@@ -23,7 +23,7 @@ class HookedFifo(object):
         failsafe_mkfifo(self.path)
     def open_for_reading(self):
         self.f_read = os.fdopen(
-            os.open(self.path, os.O_RDWR | os.O_NONBLOCK))
+            os.open(self.path, os.O_RDWR | os.O_NONBLOCK), 'r', 0)
     def readline(self):
         return self.f_read.readline()
     def fileno(self):
