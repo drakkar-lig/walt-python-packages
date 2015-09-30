@@ -134,9 +134,10 @@ class WaltLogShow(cli.Application):
                 if part == '':
                     history.append(None)
                 elif part.startswith('-'):
-                    delay = int(part[1:-1]) * \
-                            SECONDS_PER_UNIT[part[-1]]
-                    history.append(server_time - delay)
+                    delay = datetime.timedelta(
+                                seconds = int(part[1:-1]) * \
+                                    SECONDS_PER_UNIT[part[-1]])
+                    history.append(pickle.dumps(server_time - delay))
                 elif validate_checkpoint_name(part):
                     cptime = server.get_pickled_checkpoint_time(part)
                     if cptime == None:
