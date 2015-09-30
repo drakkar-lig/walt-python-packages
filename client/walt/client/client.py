@@ -42,13 +42,17 @@ process running in this virtual environment when you enter it is the
 shell process itself.
 """)
 
-myhelp.register_topic('node-owners', """
+myhelp.register_topic('node-terminology', """
+* 'owning' a node
+* ---------------
 In WalT terminology, if node <N> is deployed with an image created by user <U>,
 we consider that "<U> owns <N>".
 
 Thus, if you just started using WalT, "you do not own any node" until you deploy
 an image on one of them (use 'walt node deploy <node(s)> <image>' for this).
 
+* specifying a set of nodes 
+* -------------------------
 Some commands accept a "set of nodes":
 - walt node deploy
 - walt node reboot

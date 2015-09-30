@@ -31,7 +31,7 @@ OTHER_NODES_QUERY = """
     ORDER BY image_owner, name;"""
 
 MSG_USING_NO_NODES = """\
-You are currently using no nodes. (tip: walt --help-about node-owners)"""
+You are currently using no nodes. (tip: walt --help-about node-terminology)"""
 
 MSG_RERUN_WITH_ALL = """\
 Re-run with --all to see all deployable nodes."""
@@ -206,7 +206,7 @@ class NodesManager(object):
         if None in nodes:
             return None
         if len(nodes) == 0:
-            requester.stderr.write('No matching nodes found! (tip: walt --help-about node-owners)\n')
+            requester.stderr.write('No matching nodes found! (tip: walt --help-about node-terminology)\n')
             return None
         return sorted(nodes)
 
