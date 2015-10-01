@@ -159,8 +159,8 @@ class PlatformService(rpyc.Service):
     def exposed_rename_image(self, image_tag, new_tag):
         self.images.rename(self._client, image_tag, new_tag)
 
-    def exposed_copy_image(self, image_tag, new_tag):
-        self.images.copy(self._client, image_tag, new_tag)
+    def exposed_duplicate_image(self, image_tag, new_tag):
+        self.images.duplicate(self._client, image_tag, new_tag)
 
     def exposed_node_bootup_event(self):
         node_ip, node_port = self._conn._config['endpoints'][1]
