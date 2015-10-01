@@ -86,7 +86,7 @@ class WalTImageRename(cli.Application):
             server.rename_image(image_name, new_image_name)
 
 @WalTImage.subcommand("duplicate")
-class WalTImageCopy(cli.Application):
+class WalTImageDuplicate(cli.Application):
     """duplicate an image of your working set"""
     def main(self, image_name, new_image_name):
         with ClientToServerLink() as server:
