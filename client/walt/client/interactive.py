@@ -7,6 +7,7 @@ from walt.common.constants import WALT_SERVER_TCP_PORT
 from walt.common.io import SmartBufferingFileReader, \
                             unbuffered, read_and_copy
 from walt.common.tcp import Requests, write_pickle, client_socket
+from walt.client import myhelp
 
 SQL_SHELL_MESSAGE = """\
 Type \dt for a list of tables.
@@ -19,6 +20,32 @@ NODE_SHELL_MESSAGE = """\
 Caution: changes will be lost on next node reboot.
 Run 'walt --help-about shells' for more info.
 """
+
+myhelp.register_topic('shells', """
+                | walt node shell    | walt image shell
+------------------------------------------------------------
+persistence     | until the node     | yes
+                | reboots (1)        |
+------------------------------------------------------------
+backend         | the real node      | virtual environment
+                |                    | ARM CPU emulation (2)
+------------------------------------------------------------
+target workflow | testing/debugging  | apply changes
+                |                    |
+------------------------------------------------------------
+
+(1): Changes are lost on reboot. This ensures that a node booting a
+given image will always act the same.
+
+(2): Avoid heavy processing, such as compiling of a large
+source code base. In this case, cross-compiling on another machine
+and importing the build artefacts in the virtual environment (through
+the emulated network) should be the prefered option.
+Also, keep in mind that in the virtual environment (docker container)
+no services are running (no init process, etc). Actually, the only
+process running in this virtual environment when you enter it is the
+shell process itself.
+""")
 
 class TTYSettings(object):
     def __init__(self):

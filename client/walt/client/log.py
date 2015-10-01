@@ -94,12 +94,12 @@ class LogsFlowFromServer(object):
         self.f_read.close()
         self.f_write.close()
 
-class WaltLog(cli.Application):
+class WalTLog(cli.Application):
     """management of logs"""
     pass
 
-@WaltLog.subcommand("show")
-class WaltLogShow(cli.Application):
+@WalTLog.subcommand("show")
+class WalTLogShow(cli.Application):
     """Dump logs on standard output"""
     format_string = cli.SwitchAttr(
                 "--format",
@@ -216,8 +216,8 @@ class WaltLogShow(cli.Application):
                 print 'Verify your format string.'
                 break
 
-@WaltLog.subcommand("add-checkpoint")
-class WaltLogAddCheckpoint(cli.Application):
+@WalTLog.subcommand("add-checkpoint")
+class WalTLogAddCheckpoint(cli.Application):
     """Record a checkpoint (reference point in time)"""
     date = cli.SwitchAttr("--date", str, default=None)
 
@@ -241,15 +241,15 @@ Invalid checkpoint name:
         with ClientToServerLink() as server:
             server.add_checkpoint(checkpoint_name, self.date)
 
-@WaltLog.subcommand("remove-checkpoint")
-class WaltLogRemoveCheckpoint(cli.Application):
+@WalTLog.subcommand("remove-checkpoint")
+class WalTLogRemoveCheckpoint(cli.Application):
     """Remove a checkpoint"""
     def main(self, checkpoint_name):
         with ClientToServerLink() as server:
             server.remove_checkpoint(checkpoint_name)
 
-@WaltLog.subcommand("list-checkpoints")
-class WaltLogListCheckpoints(cli.Application):
+@WalTLog.subcommand("list-checkpoints")
+class WalTLogListCheckpoints(cli.Application):
     """List checkpoints"""
     def main(self):
         with ClientToServerLink() as server:
