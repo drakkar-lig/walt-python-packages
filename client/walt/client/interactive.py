@@ -69,7 +69,7 @@ class TTYSettings(object):
         return buf
 
 class PromptClient(object):
-    def __init__(self, req_id, request_finalize_func = None):
+    def __init__(self, req_id, **params):
         self.tty_settings = TTYSettings()
         # connect
         server_host = conf['server']
@@ -81,10 +81,11 @@ class PromptClient(object):
         Requests.send_id(self.socket_w, req_id)
         # wait for the READY message from the server
         self.socket_r.readline()
-        # send terminal width and finalize request if needed
-        write_pickle(self.tty_settings.win_size, self.socket_w)
-        if request_finalize_func != None:
-            request_finalize_func(self.socket_w)
+        # send terminal width and provided parameters
+        params.update(
+            win_size = self.tty_settings.win_size
+        )
+        write_pickle(params, self.socket_w)
         # provide read_available() method
         self.stdin_reader = SmartBufferingFileReader(unbuffered(stdin, 'r'))
         self.socket_reader = SmartBufferingFileReader(self.socket_r)
@@ -129,25 +130,15 @@ def run_sql_prompt():
 
 def run_image_shell_prompt(session):
     print IMAGE_SHELL_MESSAGE
-    # caution with deadlocks.
-    # the server will not be able to initialize the prompt
-    # connection and respond to RPyC requests at the same
-    # time (and 'session' is a remote RPyC object).
-    # So calling get_parameters() in request_finalize()
-    # would not be a good idea.
-    parameters = session.get_parameters()
-    def request_finalize(socket_w):
-        write_pickle(parameters, socket_w)
-    PromptClient(Requests.REQ_DOCKER_PROMPT, request_finalize).run()
+    image_fullname, container_name = session.get_parameters()
+    PromptClient(Requests.REQ_DOCKER_PROMPT,
+                image_fullname = image_fullname,
+                container_name = container_name).run()
 
 def run_node_shell(node_ip):
     print NODE_SHELL_MESSAGE
-    def request_finalize(socket_w):
-        write_pickle(node_ip, socket_w)
-    PromptClient(Requests.REQ_NODE_SHELL, request_finalize).run()
+    PromptClient(Requests.REQ_NODE_SHELL, node_ip=node_ip).run()
 
 def run_device_ping(device_ip):
-    def request_finalize(socket_w):
-        write_pickle(device_ip, socket_w)
-    PromptClient(Requests.REQ_DEVICE_PING, request_finalize).run()
+    PromptClient(Requests.REQ_DEVICE_PING, device_ip=device_ip).run()
 
