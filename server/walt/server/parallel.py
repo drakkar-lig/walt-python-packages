@@ -73,7 +73,6 @@ class ParallelProcessSocketListener(object):
             if 'win_size' in self.params:
                 fcntl.ioctl(sys.stdout.fileno(), termios.TIOCSWINSZ,
                                 self.params['win_size'])
-            print cmd_args[0], cmd_args, env
             os.execvpe(cmd_args[0], cmd_args, env)
         # the parent should communicate.
         # use unbuffered communication with the slave process
