@@ -112,7 +112,6 @@ def to_named_tuple(d):
     global nt_index
     code = pickle.dumps(sorted(d.keys()))
     if code not in nt_classes:
-        print 'NamedTuple_%d' % nt_index
         nt_classes[code] = namedtuple('NamedTuple_%d' % nt_index, d.keys())
         nt_index += 1
     return nt_classes[code](**d)
