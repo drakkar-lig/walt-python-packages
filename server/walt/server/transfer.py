@@ -95,7 +95,9 @@ def validate_cp(image_or_node_label, caller,
         ))
         return
     src_fs, dst_fs = filesystems
-    src_path, dst_path = paths
+    src_path, dst_path = [
+            path if path.startswith('/') else './' + path
+            for path in paths ]
     info = analyse_file_types(  requester, image_tag_or_node,
                                 src_path, src_fs,
                                 dst_path, dst_fs)
