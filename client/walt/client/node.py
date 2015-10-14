@@ -5,6 +5,7 @@ from walt.client.link import ClientToServerLink
 from walt.client.tools import confirm
 from walt.client.interactive import run_node_shell, \
                                     run_device_ping
+from walt.client.transfer import run_transfer_with_node
 
 POE_REBOOT_DELAY            = 2  # seconds
 
@@ -117,4 +118,19 @@ class WalTNodeShell(cli.Application):
             node_ip = server.get_reachable_node_ip(node_name)
         if node_ip:
             run_node_shell(node_ip)
+
+@WalTNode.subcommand("cp")
+class WalTNodeCp(cli.Application):
+    """transfer files/dirs (client machine <-> node)"""
+    def main(self, src, dst):
+        with ClientToServerLink() as server:
+            info = server.validate_node_cp(src, dst)
+            if info == None:
+                return
+            info = { k:v for k,v in info }
+            try:
+                run_transfer_with_node(**info)
+            except (KeyboardInterrupt, EOFError):
+                print
+                print 'Aborted.'
 

@@ -119,6 +119,9 @@ class PlatformService(rpyc.Service):
     def exposed_poweron(self, node_set, warn_unreachable):
         return self.nodes.setpower(self._client, node_set, True, warn_unreachable)
 
+    def exposed_validate_node_cp(self, src, dst):
+        return self.nodes.validate_cp(self._client, src, dst)
+
     def exposed_rename(self, old_name, new_name):
         self.server.rename_device(self._client, old_name, new_name)
 

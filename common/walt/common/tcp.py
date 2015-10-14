@@ -10,6 +10,8 @@ class Requests(object):
     REQ_DEVICE_PING = 5
     REQ_TAR_FROM_IMAGE = 6
     REQ_TAR_TO_IMAGE = 7
+    REQ_TAR_FROM_NODE = 8
+    REQ_TAR_TO_NODE = 9
     # the request id message may be specified directly as
     # as a decimal string (e.g. '4') or by the corresponding
     # name (e.g. 'REQ_NODE_SHELL')

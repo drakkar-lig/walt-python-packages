@@ -1,7 +1,7 @@
 import os, re, time
 from plumbum.cmd import mount, umount, findmnt
 from walt.server.network.tools import get_server_ip
-from walt.server.images.filesystem import Filesystem
+from walt.server.filesystem import Filesystem
 from walt.common.tools import \
         failsafe_makedirs, succeeds
 
@@ -73,6 +73,8 @@ def validate_image_tag(requester, image_tag):
                 'Bad name: Only alnum and dash(-) characters are allowed.\n')
     return is_ok
 
+FS_CMD_PATTERN = 'docker run --rm --entrypoint %%(prog)s %(image)s %%(prog_args)s'
+
 class NodeImage(object):
     server_pubkey = get_server_pubkey()
     def __init__(self, docker, fullname):
@@ -83,7 +85,7 @@ class NodeImage(object):
         self.mount_path = None
         self.mounted = False
         self.server_ip = get_server_ip()
-        self.filesystem = Filesystem(self.docker, self.fullname)
+        self.filesystem = Filesystem(FS_CMD_PATTERN % dict(image = self.fullname))
     def rename(self, fullname):
         self.fullname, self.name, dummy, self.user, self.tag = \
             parse_image_fullname(fullname)

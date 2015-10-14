@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 from walt.common.tcp import Requests
 from walt.server.parallel import ParallelProcessSocketListener
+from walt.server.const import SSH_COMMAND
 
 class PromptSocketListener(ParallelProcessSocketListener):
     def update_params(self):
@@ -24,7 +25,7 @@ class DockerPromptSocketListener(PromptSocketListener):
 class NodeShellSocketListener(PromptSocketListener):
     REQ_ID = Requests.REQ_NODE_SHELL
     def get_command(self, **params):
-        return 'ssh -o StrictHostKeyChecking=no root@%s' % params['node_ip']
+        return SSH_COMMAND + ' root@%s' % params['node_ip']
 
 class DevicePingSocketListener(PromptSocketListener):
     REQ_ID = Requests.REQ_DEVICE_PING

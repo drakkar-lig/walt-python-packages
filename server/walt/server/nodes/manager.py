@@ -3,6 +3,9 @@ from walt.server.nodes.register import NodeRegistrationHandler
 from walt.server.tools import format_paragraph, format_sentence_about_nodes, \
                                 merge_named_tuples
 from walt.common.nodetypes import is_a_node_type_name
+from walt.server.transfer import validate_cp
+from walt.server.filesystem import Filesystem
+from walt.server.const import SSH_COMMAND
 
 # the split_part() expression below allows to show only
 # the image tag to the user (instead of the full docker name).
@@ -67,6 +70,8 @@ MSG_NODE_NEVER_REGISTERED = """\
 Node %s was eventually detected but never registered itself to the server.
 It seems it is not running a valid WalT boot image.
 """
+
+FS_CMD_PATTERN = SSH_COMMAND + ' root@%(node_ip)s %%(prog)s %%(prog_args)s'
 
 class NodesManager(object):
     def __init__(self, db, tcp_server, devices, **kwargs):
@@ -225,3 +230,15 @@ class NodesManager(object):
                     [n.name for n in not_owned]) + '\n')
             return True
 
+    def validate_cp(self, requester, src, dst):
+        return validate_cp("node", self, requester, src, dst)
+
+    def validate_cp_entity(self, requester, node_name):
+        return self.get_reachable_node_ip(requester, node_name) != None
+
+    def get_cp_entity_filesystem(self, requester, node_name):
+        node_ip = self.get_node_ip(requester, node_name)
+        return Filesystem(FS_CMD_PATTERN % dict(node_ip = node_ip))
+
+    def get_cp_entity_attrs(self, requester, node_name):
+        return dict(node_ip = self.get_node_ip(requester, node_name))
