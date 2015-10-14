@@ -6,6 +6,7 @@ from walt.server.images.show import show
 from walt.server.images.rename import rename
 from walt.server.images.remove import remove
 from walt.server.images.duplicate import duplicate
+from walt.server.images.cp import validate_cp
 from walt.server.images.fixowner import fix_owner
 from walt.server.images.store import NodeImageStore
 
@@ -34,6 +35,8 @@ class NodeImageManager(object):
         remove(self.store, self.docker, requester, image_tag)
     def duplicate(self, requester, image_tag, new_tag):
         duplicate(self.store, self.docker, requester, image_tag, new_tag)
+    def validate_cp(self, requester, src, dst):
+        return validate_cp(self.store, self.docker, requester, src, dst)
     def fix_owner(self, requester, other_user):
         fix_owner(self.store, self.docker, requester, other_user)
     def cleanup(self):

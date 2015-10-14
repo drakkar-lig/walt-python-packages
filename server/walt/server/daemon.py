@@ -162,6 +162,9 @@ class PlatformService(rpyc.Service):
     def exposed_duplicate_image(self, image_tag, new_tag):
         self.images.duplicate(self._client, image_tag, new_tag)
 
+    def exposed_validate_image_cp(self, src, dst):
+        return self.images.validate_cp(self._client, src, dst)
+
     def exposed_node_bootup_event(self):
         node_ip, node_port = self._conn._config['endpoints'][1]
         self.devices.node_bootup_event(node_ip)

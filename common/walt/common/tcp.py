@@ -8,6 +8,8 @@ class Requests(object):
     REQ_DOCKER_PROMPT = 3
     REQ_NODE_SHELL = 4
     REQ_DEVICE_PING = 5
+    REQ_TAR_FROM_IMAGE = 6
+    REQ_TAR_TO_IMAGE = 7
     # the request id message may be specified directly as
     # as a decimal string (e.g. '4') or by the corresponding
     # name (e.g. 'REQ_NODE_SHELL')

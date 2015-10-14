@@ -3,6 +3,7 @@ from plumbum import cli
 from walt.client.link import ClientToServerLink, ResponseQueue
 from walt.client.tools import confirm
 from walt.client.interactive import run_image_shell_prompt
+from walt.client.transfer import run_transfer_with_image
 
 class WalTImage(cli.Application):
     """management of WalT-nodes operating system images"""
@@ -91,4 +92,29 @@ class WalTImageDuplicate(cli.Application):
     def main(self, image_name, new_image_name):
         with ClientToServerLink() as server:
             server.duplicate_image(image_name, new_image_name)
+
+@WalTImage.subcommand("cp")
+class WalTImageCp(cli.Application):
+    """transfer files (client machine <-> image)"""
+    def main(self, src, dst):
+        with ClientToServerLink() as server:
+            info = server.validate_image_cp(src, dst)
+            if info == None:
+                return
+            info = { k:v for k,v in info }
+            session = server.create_image_shell_session(
+                            info['image_tag'])
+            if session == None:
+                return  # issue already reported
+            with session:
+                info.update(session = session)
+                try:
+                    run_transfer_with_image(**info)
+                    if info['client_operand_index'] == 0:
+                        # client was sending -> image has been modified
+                        # save the image under the same name
+                        session.select_new_name(session.get_default_new_name())
+                except (KeyboardInterrupt, EOFError):
+                    print
+                    print 'Aborted.'
 

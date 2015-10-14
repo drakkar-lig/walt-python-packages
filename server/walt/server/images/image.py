@@ -1,6 +1,7 @@
 import os, re, time
 from plumbum.cmd import mount, umount, findmnt
 from walt.server.network.tools import get_server_ip
+from walt.server.images.filesystem import Filesystem
 from walt.common.tools import \
         failsafe_makedirs, succeeds
 
@@ -82,6 +83,7 @@ class NodeImage(object):
         self.mount_path = None
         self.mounted = False
         self.server_ip = get_server_ip()
+        self.filesystem = Filesystem(self.docker, self.fullname)
     def rename(self, fullname):
         self.fullname, self.name, dummy, self.user, self.tag = \
             parse_image_fullname(fullname)

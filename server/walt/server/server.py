@@ -10,6 +10,7 @@ from walt.server.db import ServerDB
 from walt.server.logs import LogsManager
 from walt.server.network.dhcpd import DHCPServer
 from walt.server.interactive import InteractionManager
+from walt.server.transfer import TransferManager
 from walt.server.blocking import BlockingTasksManager
 from walt.server.nodes.manager import NodesManager
 from walt.server.mydocker import DockerClient
@@ -28,6 +29,8 @@ class Server(object):
         self.tcp_server = TCPServer(WALT_SERVER_TCP_PORT)
         self.logs = LogsManager(self.db, self.tcp_server, self.blocking)
         self.interaction = InteractionManager(\
+                        self.tcp_server, self.ev_loop)
+        self.transfer = TransferManager(\
                         self.tcp_server, self.ev_loop)
         self.nodes = NodesManager(  db = self.db,
                                     tcp_server = self.tcp_server,

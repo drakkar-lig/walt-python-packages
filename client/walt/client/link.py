@@ -2,6 +2,7 @@
 import rpyc, os, sys, signal, threading
 from walt.common.constants import WALT_SERVER_DAEMON_PORT
 from walt.client.config import conf
+from walt.client.filesystem import Filesystem
 from multiprocessing import Queue
 
 class ResponseQueue(object):
@@ -39,6 +40,7 @@ class WaltClientService(rpyc.Service):
         self.exposed_stdout = ExposedStream(sys.stdout)
         self.exposed_stderr = ExposedStream(sys.stderr)
         self.exposed_username = conf['username']
+        self.exposed_filesystem = Filesystem()
 
 # in some cases we need a background thread that will handle
 # RPyC events.
