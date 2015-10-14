@@ -36,12 +36,17 @@ class EventLoop(object):
         else:
             return (self.planned_events[0][0] - time())*1000
 
-    def register_listener(self, listener):
+    def update_listener(self, listener, events=POLL_OPS_READ):
+        fd = listener.fileno()
+        self.poller.unregister(fd)
+        self.poller.register(fd, events)
+
+    def register_listener(self, listener, events=POLL_OPS_READ):
         fd = listener.fileno()
         if fd == None:
             return  # registration aborted
         self.listeners[fd] = listener
-        self.poller.register(fd, POLL_OPS_READ)
+        self.poller.register(fd, events)
         #print 'new listener:', listener
 
     def remove_listener(self, in_listener):
