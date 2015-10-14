@@ -23,27 +23,29 @@ def unbuffered(f, mode):
 # The following class allows to read all
 # chars pending in a file object.
 class SmartBufferingFileReader(object):
+    BUFFER_SIZE = 1024 * 10
     def __init__(self, in_file):
         self.in_file = in_file
         # timeout=0, do not block
         self.select_args = [[in_file],[],[in_file],0]
+        self.chars = [ '' ] * SmartBufferingFileReader.BUFFER_SIZE
     def read_available(self):
         # continue reading until there
-        # is nothing more to read
-        s = ''
-        while True:
-            rlist, wlist, elist = select(*self.select_args)
-            # error or no input (timeout), leave the loop
-            if len(elist) > 0 or len(rlist) == 0:
-                break
-            try:
-                c = self.in_file.read(1)
-                if c == '':
+        # is nothing more to read or we reach BUFFER_SIZE
+        chars = self.chars
+        try:
+            for i in xrange(SmartBufferingFileReader.BUFFER_SIZE):
+                rlist, wlist, elist = select(*self.select_args)
+                # error or no input (timeout), leave the loop
+                if len(elist) > 0 or len(rlist) == 0:
+                    i -= 1
+                    break
+                chars[i] = self.in_file.read(1)
+                if chars[i] == '':
                     break   # empty read
-                s += c
-            except:
-                break
-        return s
+        except:
+            chars[i] = ''
+        return ''.join(chars[:i+1])
     def readline(self):
         return self.in_file.readline()
 
