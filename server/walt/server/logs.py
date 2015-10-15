@@ -39,7 +39,7 @@ class LogsStreamListener(object):
         self.sock_file = sock_file
         self.stream_id = None
 
-    def register_new_stream(self):
+    def register_stream(self):
         name = str(read_pickle(self.sock_file))
         sender_ip, sender_port = self.sock.getpeername()
         sender_info = self.db.select_unique('devices', ip = sender_ip)
@@ -47,7 +47,14 @@ class LogsStreamListener(object):
             sender_mac = None
         else:
             sender_mac = sender_info.mac
-        stream_id = self.db.insert('logstreams', returning='id',
+        stream_info = self.db.select_unique('logstreams',
+                            sender_mac = sender_mac, name = name)
+        if stream_info:
+            # found existing stream
+            stream_id = stream_info.id
+        else:
+            # register new stream
+            stream_id = self.db.insert('logstreams', returning='id',
                             sender_mac = sender_mac, name = name)
         # these are not needed anymore
         self.db = None
@@ -61,8 +68,8 @@ class LogsStreamListener(object):
     # know a log line should be read. 
     def handle_event(self, ts):
         if self.stream_id == None:
-            self.stream_id = self.register_new_stream()
-            # register_new_stream() involves a read on the stream
+            self.stream_id = self.register_stream()
+            # register_stream() involves a read on the stream
             # to get its name.
             # supposedly that's why we have been woken up.
             # let the event loop call us again if there is more.
