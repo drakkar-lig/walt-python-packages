@@ -14,16 +14,13 @@ class Filesystem(object):
     def ping(self):
         return self.run_cmd('echo ok').strip() == 'ok'
     def get_file_type(self, path):
-        # the output of stat may depend on locale settings.
-        # we compare with what is obtained using a regular file ('/etc/hostname')
-        # and a directory ('/').
-        stat_cmd = 'stat -tc %%F /etc/hostname / %s' % path
-        lines = self.run_cmd(stat_cmd).splitlines()
-        if len(lines) < 3:
-            return None
-        if lines[0] == lines[2]:
-            return 'f'
-        elif lines[1] == lines[2]:
-            return 'd'
-        else:
-            return 'o'  # other
+        for ftype in [ 'f', 'd' ]:
+            check_cmd = 'find %(path)s -type %(ftype)s -printf %(ftype)s' % \
+                dict(
+                    path = path,
+                    ftype = ftype
+                )
+            result = self.run_cmd(check_cmd)
+            if len(result) > 0:
+                return result
+        return 'o'  # other
