@@ -43,8 +43,8 @@ def parse_clonable_link(requester, clonable_link):
 
 
 def retag_image_to_requester_ws(docker, image_store, requester, source_fullname):
-    source_image = image_store[source_fullname]
-    dest_fullname = '%s/walt-node:%s' % (requester.username, source_image.tag)
+    source_tag = source_fullname.split(':')[1]
+    dest_fullname = '%s/walt-node:%s' % (requester.username, source_tag)
     if dest_fullname in image_store:
         # an image with the target name exists...
         existing_dest_image = image_store[dest_fullname]
