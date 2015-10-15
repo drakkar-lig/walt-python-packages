@@ -28,7 +28,7 @@ then
 fi
 
 fifo_prefix="/tmp/$$_fifo."
-stream_prefix="$(basename "$1").$$.std"
+stream_prefix="$(basename "$1").$$."
 
 fifo_stdout="${fifo_prefix}out"
 fifo_stderr="${fifo_prefix}err"
@@ -45,8 +45,10 @@ trap on_exit EXIT
 
 # request walt-node-daemon to monitor these 2 FIFOs
 # and pass what's coming in as logs to the server
-echo MONITOR ${stream_prefix}out $fifo_stdout > /var/lib/walt/logs.fifo
-echo MONITOR ${stream_prefix}err $fifo_stderr > /var/lib/walt/logs.fifo
+echo """\
+MONITOR ${stream_prefix}stdout $fifo_stdout
+MONITOR ${stream_prefix}stderr $fifo_stderr
+LOG ${stream_prefix}lifecycle started""" > /var/lib/walt/logs.fifo
 
 if [ "$DEBUG" = "0" ]
 then
@@ -61,4 +63,6 @@ else
 	# before processing stderr.
 	{ { "$@" | tee $fifo_stdout 1>&6; } 2>&1 | tee $fifo_stderr 1>&2; } 6>&1
 fi
+
+echo LOG ${stream_prefix}lifecycle ended > /var/lib/walt/logs.fifo
 
