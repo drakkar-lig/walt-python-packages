@@ -14,8 +14,10 @@ class Filesystem(object):
     def ping(self):
         return self.run_cmd('echo ok').strip() == 'ok'
     def get_file_type(self, path):
+        if len(self.run_cmd('find %s' % path)) == 0:
+            return None
         for ftype in [ 'f', 'd' ]:
-            check_cmd = 'find %(path)s -type %(ftype)s -printf %(ftype)s' % \
+            check_cmd = 'find %(path)s -type %(ftype)s -maxdepth 0 -printf %(ftype)s' % \
                 dict(
                     path = path,
                     ftype = ftype

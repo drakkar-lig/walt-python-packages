@@ -32,7 +32,7 @@ def analyse_file_types(requester, image_tag_or_node, src_path, src_fs, dst_path,
             dst_dir = parent_path
     for ftype, path in [(src_type, src_path), (dst_type, dst_path)]:
         if ftype is None:
-            fail_when_path_type_none(requester, path)
+            requester.stderr.write('No such file or directory: %s\n' % path)
             return bad
     if dst_type == 'f':
         if src_type == 'd':
