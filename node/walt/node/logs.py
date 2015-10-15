@@ -125,6 +125,11 @@ class LogsFifoServer(object):
             stream_name, line = req[1], ' '.join(req[2:])
             self.conn_cache.get(stream_name).log(
                         line=line.strip(), timestamp=ts)
+        elif req[0] == 'TSLOG':
+            ts, stream_name, line = \
+                float(req[1]), req[2], ' '.join(req[3:])
+            self.conn_cache.get(stream_name).log(
+                        line=line.strip(), timestamp=ts)
 
     def close(self):
         self.fifo.close()

@@ -1,0 +1,33 @@
+#!/bin/sh
+
+if [ "$1" = "--timestamp" ]
+then
+    cmd="TSLOG $2"
+    shift 2
+else
+    cmd="LOG"
+fi
+
+if [ -z "$2" ]
+then
+    progname=$(basename $0)
+	echo """\
+Usage: $progname [--timestamp <timestamp>] <stream-name> <log-line>
+
+This will record the given <log-line> in the log stream given
+by <stream-name>.
+
+If you have means to record precise event timestamps (e.g.
+network timestamps), you can specify them by using option
+--timestamp. The <timestamp> value must be a UNIX timestamp,
+i.e. a floating point number of seconds since the 'EPOCH'
+(january 1, 1970).
+Without this option, the timestamp recorded will be the current
+time when $progname is run.
+"""
+	exit
+fi
+
+# let's do it
+echo "$cmd $*" > /var/lib/walt/logs.fifo
+

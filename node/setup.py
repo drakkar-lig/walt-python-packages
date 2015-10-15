@@ -20,6 +20,6 @@ setup(
             'walt-node-install = walt.node.install:run'
         ]
     },
-    scripts = [ 'sh/walt-monitor' ]
+    scripts = [ 'sh/walt-monitor', 'sh/walt-echo' ]
 )
 
