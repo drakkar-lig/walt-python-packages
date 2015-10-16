@@ -1,4 +1,4 @@
-import uuid
+import uuid, time
 from walt.server.images.image import parse_image_fullname, validate_image_tag
 
 # About terminology: See comment about it in image.py.
@@ -81,6 +81,16 @@ class ImageShellSession(object):
         if self.new_image_tag:
             image_fullname = '%s/walt-node:%s' % (
                     self.requester.username, self.new_image_tag)
+            # with the walt image cp command, the client sends a request to start a
+            # container for receiving, then immediately starts to send a tar archive,
+            # and then tries to commit the container through rpyc commands.
+            # if there is little data to transfer, the container might not be created yet,
+            # because the initial request was not yet handled by the server...
+            # so we have to ensure here that the container is created, and then wait for
+            # its completion.
+            while self.container_name not in self.docker.list_containers():
+                time.sleep(0.05)
+            self.docker.wait_container(self.container_name)
             self.docker.commit(self.container_name, image_fullname,
                     'Image modified using walt image shell')
             if self.image_tag == self.new_image_tag:

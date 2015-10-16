@@ -47,12 +47,18 @@ class DockerClient(object):
         for i in self.c.images():
             if image_fullname in i['RepoTags']:
                 return datetime.fromtimestamp(i['Created'])
+    def list_containers(self):
+        return [ name.lstrip('/') for name in
+                    sum([ cont['Names'] for cont in
+                            self.c.containers(all=True) ], []) ]
     def start_container(self, image_fullname, cmd):
         params = dict(image=image_fullname)
         params.update(docker_command_split(cmd))
         cid = self.c.create_container(**params).get('Id')
         self.c.start(container=cid)
         return cid
+    def wait_container(self, cid_or_cname):
+        self.c.wait(container=cid_or_cname)
     def stop_container(self, cid_or_cname):
         try:
             self.c.kill(container=cid_or_cname)
