@@ -117,7 +117,7 @@ def validate_cp(image_or_node_label, caller,
 def docker_wrap_cmd(cmd):
     cmd_args = cmd.split()
     return '''\
-        docker run --name %%(container_name)s --entrypoint %s \
+        docker run -i --name %%(container_name)s --entrypoint %s \
         %%(image_fullname)s %s ''' % (
             cmd_args[0],
             ' '.join(cmd_args[1:])
