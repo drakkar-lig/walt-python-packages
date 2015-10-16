@@ -148,7 +148,10 @@ class PlatformService(rpyc.Service):
         self.images.search(self._client, q, keyword)
 
     def exposed_clone_image(self, q, clonable_link, force=False):
-        self.images.clone(self._client, q, clonable_link, force)
+        self.images.clone(requester = self._client,
+                          q = q,
+                          clonable_link = clonable_link,
+                          force = force)
 
     def exposed_show_images(self):
         return self.images.show(self._client.username)

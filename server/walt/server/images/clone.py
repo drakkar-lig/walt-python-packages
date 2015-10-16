@@ -64,7 +64,7 @@ def retag_image_to_requester_ws(docker, image_store, requester, source_fullname)
     else:
         docker.tag(source_fullname, dest_fullname)
 
-def perform_clone(docker, requester, clonable_link, image_store, force):
+def perform_clone(requester, docker, clonable_link, image_store, force):
     remote_location, remote_user, remote_tag = parse_clonable_link(
                                                 requester, clonable_link)
     if remote_location == None:
@@ -145,15 +145,23 @@ def perform_clone(docker, requester, clonable_link, image_store, force):
     requester.stdout.write('Done.\n')
 
 class CloneTask(object):
-    def __init__(self, q, *args):
+    def __init__(self, q, requester, **kwargs):
         self.response_q = q
-        self.args = args
+        self.requester = requester
+        self.kwargs = kwargs
     def perform(self):
-        perform_clone(*self.args)
+        perform_clone(  requester = self.requester,
+                        **self.kwargs)
     def handle_result(self, res):
+        if isinstance(res, requests.exceptions.RequestException):
+            self.requester.stderr.write(
+                'Network connection to docker hub failed.\n')
+            res = None
+        elif isinstance(res, Exception):
+            raise res   # unexpected
         self.response_q.put(res)
 
 # this implements walt image clone
-def clone(q, blocking_manager, *args):
-    blocking_manager.do(CloneTask(q, *args))
+def clone(blocking, **kwargs):
+    blocking.do(CloneTask(**kwargs))
 

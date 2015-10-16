@@ -1,3 +1,4 @@
+import requests
 from walt.server.tools import columnate, \
                 display_transient_label, hide_transient_label
 
@@ -97,6 +98,10 @@ class SearchTask(object):
     def perform(self):
         return perform_search(self.docker, self.requester, self.keyword)
     def handle_result(self, res):
+        if isinstance(res, requests.exceptions.RequestException):
+            res = 'Network connection to docker hub failed.'
+        elif isinstance(res, Exception):
+            raise res   # unexpected
         self.response_q.put(res)
 
 # this implements walt image search

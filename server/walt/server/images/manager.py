@@ -25,8 +25,11 @@ class NodeImageManager(object):
         self.store.update_image_mounts()
     def search(self, requester, q, keyword):
         search(q, self.blocking, self.docker, requester, keyword)
-    def clone(self, requester, q, clonable_link, force):
-        clone(q, self.blocking, self.docker, requester, clonable_link, self.store, force)
+    def clone(self, **kwargs):
+        clone(blocking = self.blocking,
+              docker = self.docker,
+              image_store = self.store,
+              **kwargs)
     def show(self, username):
         return show(self.store, username)
     def rename(self, requester, image_tag, new_tag):
