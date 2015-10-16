@@ -16,8 +16,12 @@ class BlockingTasksThread(Thread):
             if msg == STOP:
                 break
             task_id = msg
-            res = self.tasks[task_id].perform()
-            self.pipe_out.send([task_id, res])
+            task = self.tasks[task_id]
+            try:
+                task.result = task.perform()
+            except Exception as e:
+                task.result = e
+            self.pipe_out.send(task_id)
         self.pipe_in.close()
         self.pipe_out.close()
 
@@ -26,9 +30,9 @@ class BlockingTasksManager(object):
         self.next_task_id = 0
         self.tasks = {}
         self.pipe_requests, pipe_requests_child = Pipe()
-        self.pipe_results, pipe_results_child = Pipe()
+        self.pipe_done, pipe_done_child = Pipe()
         self.thread = BlockingTasksThread(
-                    self.tasks, pipe_requests_child, pipe_results_child)
+                    self.tasks, pipe_requests_child, pipe_done_child)
         self.thread.start()
 
     def join_event_loop(self, ev_loop):
@@ -43,21 +47,22 @@ class BlockingTasksManager(object):
 
     # let the event loop know what we are reading on
     def fileno(self):
-        return self.pipe_results.fileno()
+        return self.pipe_done.fileno()
 
     # when the event loop detects an event for us, this
     # means the background process has completed a
     # task.
     def handle_event(self, ts):
-        task_id, result = self.pipe_results.recv()
-        self.tasks[task_id].handle_result(result)
+        task_id = self.pipe_done.recv()
+        task = self.tasks[task_id]
+        task.handle_result(task.result)
         del self.tasks[task_id]
 
     def close(self):
         self.pipe_requests.send(STOP)
         self.thread.join()
         self.pipe_requests.close()
-        self.pipe_results.close()
+        self.pipe_done.close()
 
     def cleanup(self):
         self.close()
