@@ -15,7 +15,7 @@ def docker_command_split(cmd):
 
 class DockerClient(object):
     def __init__(self):
-        self.c = Client(base_url='unix://var/run/docker.sock', version='auto')
+        self.c = Client(base_url='unix://var/run/docker.sock', version='auto', timeout=5)
     def pull(self, image_fullname, stdout = None):
         if stdout == None:
             stdout = sys.stdout
@@ -38,8 +38,7 @@ class DockerClient(object):
         return self.c.search(term=term)
     def lookup_remote_tags(self, image_name):
         url = const.DOCKER_HUB_GET_TAGS_URL % dict(image_name = image_name)
-        r = requests.get(url)
-        for elem in requests.get(url).json():
+        for elem in requests.get(url, timeout=3).json():
             tag = requests.utils.unquote(elem['name'])
             yield (image_name.split('/')[0], tag)
     def get_local_images(self):
