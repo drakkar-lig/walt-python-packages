@@ -1,6 +1,8 @@
 import subprocess, os
 from plumbum.cmd import cat
 
+DEVNULL = open(os.devnull, 'w')
+
 def eval_cmd(cmd):
     return cmd()
 
@@ -8,7 +10,7 @@ def get_mac_address(interface):
     return eval_cmd(cat["/sys/class/net/" + interface + "/address"]).strip()
 
 def do(cmd):
-    return subprocess.call(cmd, shell=True)
+    return subprocess.call(cmd, stdout=DEVNULL, shell=True)
 
 def succeeds(cmd):
     return do(cmd) == 0
