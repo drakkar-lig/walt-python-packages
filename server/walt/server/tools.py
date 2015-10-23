@@ -16,22 +16,21 @@ PARAGRAPH_FORMATING = """\
 
 # use the following like this:
 #
-# with AutoCleaner(<cls>) as <var>:
+# with AutoCleaner(<obj>) as <var>:
 #     ... work_with <var> ...
 #
-# the <cls> must provide a method cleanup() 
+# <obj> must provide a method cleanup()
 # that will be called automatically when leaving 
 # the with construct. 
 
 class AutoCleaner(object):
-    def __init__(self, cls):
-        self.cls = cls
+    def __init__(self, obj):
+        self.obj = obj
     def __enter__(self):
-        self.instance = self.cls()
-        return self.instance
+        return self.obj
     def __exit__(self, t, value, traceback):
-        self.instance.cleanup()
-        self.instance = None
+        self.obj.cleanup()
+        self.obj = None
 
 def as_string(item):
     if item == None:

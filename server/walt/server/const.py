@@ -7,3 +7,4 @@ DOCKER_HUB_GET_TAGS_URL     = 'https://registry.hub.docker.com/v1/repositories/%
 WALT_DBNAME                 = "walt"
 WALT_DBUSER                 = "root"
 SSH_COMMAND                 = "ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5"
+UI_FIFO_PATH                = '/var/lib/walt/ui.fifo'

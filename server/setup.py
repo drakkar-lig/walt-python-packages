@@ -18,7 +18,8 @@ setup(
     namespace_packages = ['walt'],
     entry_points = {
         'console_scripts': [
-            'walt-server-daemon = walt.server.daemon:run'
+            'walt-server-daemon = walt.server.daemon:run',
+            'walt-server-console = walt.server.ui.console:run'
         ]
     },
 )

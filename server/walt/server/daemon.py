@@ -4,6 +4,7 @@ import rpyc, sys, datetime, cPickle as pickle
 import walt.server as server
 from walt.server.network import setup
 from walt.server.tools import AutoCleaner
+from walt.server.ui.manager import UIManager
 from walt.common.daemon import WalTDaemon
 from walt.common.constants import           \
                  WALT_SERVER_DAEMON_PORT,   \
@@ -204,11 +205,16 @@ class WalTServerDaemon(WalTDaemon):
                 port = WALT_SERVER_DAEMON_PORT,
                 ev_loop = server.instance.ev_loop)
 
+    def init_end(self):
+        server.instance.ui.set_status('Ready.')
+
 def run():
-    if setup.setup_needed():
-        setup.setup()
-    with AutoCleaner(server.Server) as server.instance:
-        server.instance.update()
+    ui = UIManager()
+    if setup.setup_needed(ui):
+        setup.setup(ui)
+    myserver = server.Server(ui)
+    with AutoCleaner(myserver) as server.instance:
+        myserver.update()
         WalTServerDaemon.run()
 
 if __name__ == "__main__":

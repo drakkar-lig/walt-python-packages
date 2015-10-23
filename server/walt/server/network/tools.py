@@ -39,7 +39,7 @@ def del_ip_from_interface(ip, subnet, intf):
 def check_if_we_can_reach(remote_ip):
     return succeeds('ping -c 1 -w 1 %s' % remote_ip)
 
-def assign_temp_ip_to_reach_neighbor(neighbor_ip, callback):
+def assign_temp_ip_to_reach_neighbor(neighbor_ip, callback, *args):
     reached = False
     callback_result = None
     for increment in [ 1, -1 ]:
@@ -47,7 +47,7 @@ def assign_temp_ip_to_reach_neighbor(neighbor_ip, callback):
         subnet = smallest_subnet_for_these_ip_addresses(neighbor_ip, free_ip)
         add_ip_to_interface(free_ip, subnet, 'eth0')
         if check_if_we_can_reach(neighbor_ip):
-            callback_result = callback(free_ip, neighbor_ip)
+            callback_result = callback(free_ip, neighbor_ip, *args)
             reached = True
         del_ip_from_interface(free_ip, subnet, 'eth0')
         if reached:

@@ -18,7 +18,8 @@ from walt.server.tools import format_sentence_about_nodes
 
 class Server(object):
 
-    def __init__(self):
+    def __init__(self, ui):
+        self.ui = ui
         self.ev_loop = EventLoop()
         self.db = ServerDB()
         self.docker = DockerClient()
@@ -44,18 +45,24 @@ class Server(object):
         self.db.plan_auto_commit(self.ev_loop)
 
     def update(self):
+        self.ui.task_start('Scanning walt devices and images...')
+        self.ui.task_running()
         # ensure the dhcp server is running,
         # otherwise the switches may have ip addresses
         # outside the WalT network, and we will not be able
         # to communicate with them when trying to update
         # the topology.
         self.dhcpd.update(force=True)
+        self.ui.task_running()
         # topology exploration
         self.devices.rescan()
+        self.ui.task_running()
         # re-update dhcp with any new device discovered
         self.dhcpd.update()
+        self.ui.task_running()
         # mount images needed
         self.images.update()
+        self.ui.task_done()
 
     def cleanup(self):
         self.images.cleanup()
