@@ -2,7 +2,7 @@
 
 from walt.server.devices.topology import Topology
 from walt.server import snmp
-import time
+import re
 
 DEVICE_NAME_NOT_FOUND="""No device with name '%s' found.\n"""
 
