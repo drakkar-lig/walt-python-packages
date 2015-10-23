@@ -5,7 +5,7 @@ from walt.server.tools import columnate
 import psycopg2, os, shlex, uuid
 from psycopg2.extras import NamedTupleCursor
 from subprocess import Popen, PIPE
-from sys import stdout, stderr
+from sys import stderr
 
 class ServerCursor(object):
     def __init__(self, conn):
@@ -43,7 +43,7 @@ class PostgresDB():
     def create_db_and_user(self):
         # we must use the postgres admin user for this
         args = shlex.split('su -c psql -l postgres')
-        popen = Popen(args, stdin=PIPE, stdout=stdout, stderr=stderr)
+        popen = Popen(args, stdin=PIPE, stdout=None, stderr=stderr)
         popen.stdin.write('''
                 CREATE USER %(user)s;
                 ALTER ROLE %(user)s WITH CREATEDB;
