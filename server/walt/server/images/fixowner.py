@@ -51,9 +51,9 @@ def fix_owner(images, docker, requester, other_user):
         requester.stderr.write(MSG_NO_SUCH_USER % other_user)
         return
     # ok, let's do it
-    new_fullname = "%s/walt-node:%s" % (requester.username, image.tag)
     for image in candidates:
         # rename the docker image
+        new_fullname = "%s/walt-node:%s" % (requester.username, image.tag)
         docker.tag(image.fullname, new_fullname)
         docker.rmi(image.fullname)
         requester.stdout.write(MSG_CHANGED_OWNER % image.tag)
