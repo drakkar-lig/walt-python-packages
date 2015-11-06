@@ -7,7 +7,7 @@ def do_rename(images, docker, old_fullname, new_tag):
     docker.tag(old_fullname, new_fullname)
     docker.rmi(old_fullname)
     # update the store
-    images.refresh()
+    images.rename(old_fullname, new_fullname)
 
 def rename(images, docker, requester, image_tag, new_tag):
     if not validate_image_tag(requester, new_tag):

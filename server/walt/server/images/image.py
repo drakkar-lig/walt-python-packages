@@ -80,7 +80,8 @@ class NodeImage(object):
     def __init__(self, docker, fullname):
         self.docker = docker
         self.rename(fullname)
-        self.created_at = docker.get_creation_time(fullname)
+        self.created_at = None
+        self.ready = False
         self.cid = None
         self.mount_path = None
         self.mounted = False
@@ -89,6 +90,11 @@ class NodeImage(object):
     def rename(self, fullname):
         self.fullname, self.name, dummy, self.user, self.tag = \
             parse_image_fullname(fullname)
+    def set_ready(self, is_ready):
+        if is_ready and not self.ready:
+            # image just became ready, get the creation time from docker
+            self.created_at = self.docker.get_creation_time(self.fullname)
+        self.ready = is_ready
     def __del__(self):
         if self.mounted:
             self.unmount()

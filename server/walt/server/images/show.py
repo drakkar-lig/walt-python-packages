@@ -16,9 +16,10 @@ def show(images, username):
         tabular_data.append([
                     image.tag,
                     str(image.mounted),
-                    image.created_at])
+                    image.created_at if image.created_at else 'N/A',
+                    str(image.ready) ])
     if len(tabular_data) > 0:
-        header = [ 'Name', 'Mounted', 'Created' ]
+        header = [ 'Name', 'Mounted', 'Created', 'Ready' ]
         return columnate(tabular_data, header)
     else:
         return MSG_WS_IS_EMPTY

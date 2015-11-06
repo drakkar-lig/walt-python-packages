@@ -6,7 +6,7 @@ def do_duplicate(images, docker, old_fullname, new_tag):
     # add a tag to the docker image
     docker.tag(old_fullname, new_fullname)
     # update the store
-    images.refresh()
+    images.register_image(new_fullname, True)
 
 def duplicate(images, docker, requester, image_tag, new_tag):
     if not validate_image_tag(requester, new_tag):

@@ -108,7 +108,7 @@ class ImageShellSession(object):
             else:
                 # we are saving changes to a new image, leaving the initial one
                 # unchanged
-                self.images.refresh()
+                self.images.register_image(image_fullname, True)
                 self.requester.stdout.write('New image %s saved.\n' % self.new_image_tag)
         self.store.cleanup_session(self)
     def cleanup(self):

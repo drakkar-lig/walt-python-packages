@@ -21,9 +21,12 @@ class ServerDB(PostgresDB):
                     mac TEXT REFERENCES devices(mac),
                     switch_mac TEXT REFERENCES devices(mac),
                     switch_port INTEGER);""")
+        self.execute("""CREATE TABLE IF NOT EXISTS images (
+                    fullname TEXT PRIMARY KEY,
+                    ready BOOLEAN);""")
         self.execute("""CREATE TABLE IF NOT EXISTS nodes (
                     mac TEXT REFERENCES devices(mac),
-                    image TEXT);""")
+                    image TEXT REFERENCES images(fullname));""")
         self.execute("""CREATE TABLE IF NOT EXISTS config (
                     item TEXT PRIMARY KEY,
                     value TEXT);""")

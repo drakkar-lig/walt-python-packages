@@ -24,9 +24,10 @@ TOPOLOGY_QUERY = """
     WHERE   d1.mac = t.mac and t.switch_mac is null
     ORDER BY switch_name, switch_port;"""
 
-REPLACED_DEVICES_QUERY = """
+FLOATING_DEVICES_QUERY = """
     SELECT  d1.name as name, d1.type as type, d1.mac as mac,
-            d1.ip as ip
+            d1.ip as ip,
+            (case when d1.reachable = 1 then 'yes' else 'NO' end) as reachable
     FROM devices d1 LEFT JOIN topology t
     ON   d1.mac = t.mac
     WHERE t.mac is NULL;"""
@@ -50,11 +51,13 @@ tips:
 - use 'walt device rescan' to update
 - use 'walt device forget <device_name>' in case of a broken device"""
 
-TITLE_DEVICE_SHOW_REPLACED = """\
-The following devices seem to have been replaced:"""
+TITLE_DEVICE_SHOW_FLOATING = """\
+The network position of the following devices is unknown (at least for now):"""
 
-FOOTNOTE_DEVICE_SHOW_REPLACED = """\
-(tip: walt device forget <device_name>)"""
+FOOTNOTE_DEVICE_SHOW_FLOATING = """\
+tips:
+- use 'walt device rescan' in a few minutes to update
+- use 'walt device forget <device_name>' to make WalT forget about an obsolete device"""
 
 class Topology(object):
 
@@ -188,13 +191,13 @@ class Topology(object):
                 TITLE_DEVICE_SHOW_MAIN,
                 self.db.pretty_printed_select(TOPOLOGY_QUERY),
                 FOOTNOTE_DEVICE_SHOW_MAIN)
-        # ** message about replaced devices, if at least one
-        res = self.db.execute(REPLACED_DEVICES_QUERY).fetchall()
+        # ** message about floating devices, if at least one
+        res = self.db.execute(FLOATING_DEVICES_QUERY).fetchall()
         if len(res) > 0:
             msg += format_paragraph(
-                        TITLE_DEVICE_SHOW_REPLACED,
+                        TITLE_DEVICE_SHOW_FLOATING,
                         self.db.pretty_printed_resultset(res),
-                        FOOTNOTE_DEVICE_SHOW_REPLACED)
+                        FOOTNOTE_DEVICE_SHOW_FLOATING)
         return msg
 
     def setpower(self, device_mac, poweron):

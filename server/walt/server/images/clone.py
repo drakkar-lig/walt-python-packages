@@ -63,6 +63,7 @@ def retag_image_to_requester_ws(docker, image_store, requester, source_fullname)
             image_store.update_image_mounts()
     else:
         docker.tag(source_fullname, dest_fullname)
+        image_store.register_image(dest_fullname, True)
 
 def perform_clone(requester, docker, clonable_link, image_store, force):
     remote_location, remote_user, remote_tag = parse_clonable_link(
@@ -141,7 +142,6 @@ def perform_clone(requester, docker, clonable_link, image_store, force):
     else:
         # tag an image of the server
         retag_image_to_requester_ws(docker, image_store, requester, remote_fullname)
-    image_store.refresh()
     requester.stdout.write('Done.\n')
 
 class CloneTask(object):

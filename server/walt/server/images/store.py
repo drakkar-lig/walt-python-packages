@@ -22,15 +22,36 @@ class NodeImageStore(object):
         self.db = db
         self.images = {}
     def refresh(self):
-        local_images = self.docker.get_local_images()
+        db_images = { db_img.fullname: db_img.ready \
+                        for db_img in self.db.select('images') }
         # add missing images
-        for fullname in local_images:
-            if '/walt-node' in fullname and fullname not in self.images:
-                self.images[fullname] = NodeImage(self.docker, fullname)
+        for db_fullname in db_images:
+            if '/walt-node' in db_fullname and db_fullname not in self.images:
+                self.images[db_fullname] = NodeImage(self.docker, db_fullname)
+            # and update their 'ready' status
+            image = self.images[db_fullname]
+            image.set_ready(db_images[db_fullname])
         # remove deleted images
         for fullname in self.images.keys():
-            if fullname not in local_images:
+            if fullname not in db_images:
                 del self.images[fullname]
+    def register_image(self, image_fullname, is_ready):
+        self.db.insert('images', fullname=image_fullname, ready=is_ready)
+        self.db.commit()
+        self.refresh()
+    def rename(self, old_fullname, new_fullname):
+        self.db.execute('update images set fullname = %(new_fullname)s where fullname = %(old_fullname)s',
+                            dict(old_fullname = old_fullname, new_fullname = new_fullname))
+        self.db.commit()
+        self.refresh()
+    def remove(self, image_fullname):
+        self.db.delete('images', fullname=image_fullname)
+        self.db.commit()
+        self.refresh()
+    def set_image_ready(self, image_fullname):
+        self.db.update('images', 'fullname', fullname=image_fullname, ready=True)
+        self.db.commit()
+        self.refresh()
     def __getitem__(self, image_fullname):
         return self.images[image_fullname]
     def __iter__(self):
@@ -49,7 +70,7 @@ class NodeImageStore(object):
     # or if both options are ok (expected = None).
     # If expected is True or False and the result does not match expectation,
     # an error message will be printed.
-    def get_user_image_from_tag(self, requester, image_tag, expected = True):
+    def get_user_image_from_tag(self, requester, image_tag, expected = True, ready_only = True):
         found = None
         for image in self.images.values():
             if image.tag == image_tag and image.user == requester.username:
@@ -60,6 +81,11 @@ class NodeImageStore(object):
         if expected == False and found is not None:
             requester.stderr.write(
                 "Error: Image '%s' already exists.\n" % image_tag)
+        if expected == True and found is not None:
+            if ready_only and found.ready == False:
+                requester.stderr.write(
+                    "Error: Image '%s' is not ready.\n" % image_tag)
+                found = None
         return found
     def get_user_unmounted_image_from_tag(self, requester, image_tag):
         image = self.get_user_image_from_tag(requester, image_tag)
