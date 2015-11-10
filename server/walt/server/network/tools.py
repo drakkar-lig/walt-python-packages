@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import select, subprocess, shlex
 from ipaddress import ip_address, ip_network
 from walt.common.tools import do, succeeds
 from walt.server import const
@@ -24,8 +25,27 @@ def smallest_subnet_for_these_ip_addresses(ip1, ip2):
         if ip2 in net:
             return net
 
-def dhcp_start(interfaces):
-    do('dhclient -nw %s' % ' '.join(interfaces))
+def get_mac_address(intf):
+    with open('/sys/class/net/' + intf +'/address') as f:
+        return f.read().strip()
+
+def dhcp_wait_ip(intf, ui, msg, explain):
+    # dhclient will go to background when an IP is obtained,
+    # which should release the popen process.
+    ui.task_start(msg, explain=explain)
+    cmd = 'dhclient -1 %s' % intf
+    while True:
+        dh_client = subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE)
+        poller = select.poll()
+        poller.register(dh_client.stdout, select.POLLIN)
+        while len(poller.poll(500)) == 0:   # timeout unit is milliseconds
+            ui.task_running()
+        poller.unregister(dh_client.stdout)
+        # check the return code, if not 0 loop again
+        dh_client.wait()
+        if dh_client.returncode == 0:
+            break
+    ui.task_done()
 
 def dhcp_stop():
     do('dhclient -r')

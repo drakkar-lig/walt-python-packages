@@ -13,20 +13,32 @@ MSG_ERROR_RESET_THE_SWITCH_REBOOT = '''\
 Could not communicate with the main switch. Try to reset it to factory settings.
 The server will reboot and retry this bootup procedure in a few seconds.
 '''
+MSG_DHCP_REQUEST = "Requesting an IP for this WalT server..."
+
+NETWORK_DIAGRAM=u'''\
+┌───────────────┐
+│main switch    │   port 1: Externally managed VLAN with DHCP and internet access
+│1 2 3 4 5 6 7 8│   port 2: (this) walt server
+└┼─┼─┼─┼─┼─┼─┼─┼┘   ports 3 and more: managed walt network (walt nodes, cascaded switches)
+ │ │
+ │ └ walt server
+ └ to internet
+'''
 
 EXPLAIN_NETWORK=u'''\
 The following network setup is required:
 
-┌───────────────┐
-│main switch    │   port 1: internet access
-│1 2 3 4 5 6 7 8│   port 2: (this) walt server
-└┼─┼─┼─┼─┼─┼─┼─┼┘   ports 3 and more: walt network (walt nodes, cascaded switches)
- │ │
- │ └ walt server
- └ internet
-
+''' + NETWORK_DIAGRAM + u'''
 If this is not the case already, please connect the main switch as described in order to continue.
 Note that it may take a few minutes to detect the main switch even if it is connected.
+'''
+
+EXPLAIN_DHCP_REQUEST=u'''\
+The following network setup is required:
+
+''' + NETWORK_DIAGRAM + u'''
+The server (mac address %(mac)s) is now sending DHCP requests on the externally managed VLAN (switch port 1).
+The setup process will continue when a DHCP offer is obtained.
 '''
 
 def main_switch_conf_callback(local_ip, switch_ip, ui):
@@ -89,6 +101,9 @@ def setup(ui):
     # set up the server ip on eth0 (walt testbed network)
     # start the dhcp client on eth0.169 only (walt-out vlan)
     network.tools.set_server_ip()
-    network.tools.dhcp_start(['eth0.169'])
+    mac_addr = network.tools.get_mac_address('eth0.169')
+    msg = MSG_DHCP_REQUEST
+    explain = EXPLAIN_DHCP_REQUEST % dict(mac = mac_addr)
+    network.tools.dhcp_wait_ip('eth0.169', ui, msg, explain)
     return True     # ok
 
