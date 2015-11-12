@@ -16,6 +16,12 @@ def docker_command_split(cmd):
 class DockerClient(object):
     def __init__(self):
         self.c = Client(base_url='unix://var/run/docker.sock', version='auto', timeout=5)
+    def self_test(self):
+        try:
+            self.c.search(term='walt-node')
+        except:
+            return False
+        return True
     def pull(self, image_fullname, stdout = None):
         if stdout == None:
             stdout = sys.stdout

@@ -5,6 +5,7 @@ from walt.server import snmp, status, network
 from walt.server.network.tools import lldp_update
 from waltvlanconf import configure_main_switch_if_needed
 from walt.common.tools import do
+from walt.server.mydocker import DockerClient
 
 MSG_WAITING_COMPANION_SERVICES = 'Waiting for companion services to be ready...'
 MSG_DETECTING_MAIN_SWITCH = 'Detecting the main switch...'
@@ -14,7 +15,7 @@ Could not communicate with the main switch. Try to reset it to factory settings.
 The server will reboot and retry this bootup procedure in a few seconds.
 '''
 MSG_DHCP_REQUEST = "Requesting an IP for this WalT server..."
-
+MSG_CHECK_DOCKER = "Checking internet connection to the Docker Hub..."
 NETWORK_DIAGRAM=u'''\
 ┌───────────────┐
 │main switch    │   port 1: Externally managed VLAN with DHCP and internet access
@@ -39,6 +40,14 @@ The following network setup is required:
 ''' + NETWORK_DIAGRAM + u'''
 The server (mac address %(mac)s) is now sending DHCP requests on the externally managed VLAN (switch port 1).
 The setup process will continue when a DHCP offer is obtained.
+'''
+
+EXPLAIN_CHECK_DOCKER=u'''\
+The following network setup is required:
+
+''' + NETWORK_DIAGRAM + u'''
+The server failed to access hub.docker.com. Please verify that the server is allowed to reach internet.
+The setup process will retry this periodically until it succeeds.
 '''
 
 def main_switch_conf_callback(local_ip, switch_ip, ui):
@@ -67,6 +76,14 @@ def setup_needed(ui):
             break
     ui.task_done()
     return res
+
+def check_docker(ui):
+    ui.task_start(MSG_CHECK_DOCKER, explain=EXPLAIN_CHECK_DOCKER)
+    docker = DockerClient()
+    while not docker.self_test():
+        ui.task_running()
+        time.sleep(1)
+    ui.task_done()
 
 def setup(ui):
     ui.task_start(MSG_DETECTING_MAIN_SWITCH, explain=EXPLAIN_NETWORK)
@@ -105,5 +122,7 @@ def setup(ui):
     msg = MSG_DHCP_REQUEST
     explain = EXPLAIN_DHCP_REQUEST % dict(mac = mac_addr)
     network.tools.dhcp_wait_ip('eth0.169', ui, msg, explain)
+    # check connection to the docker hub
+    check_docker(ui)
     return True     # ok
 
