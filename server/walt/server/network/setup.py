@@ -98,9 +98,9 @@ def setup(ui):
         do('reboot')
         time.sleep(10)
         sys.exit()
-    # set up the server ip on eth0 (walt testbed network)
-    # start the dhcp client on eth0.169 only (walt-out vlan)
+    # set up the server static ip on eth0 (walt testbed network)
     network.tools.set_server_ip()
+    # get a server ip on eth0.169 (external VLAN) using DHCP
     mac_addr = network.tools.get_mac_address('eth0.169')
     msg = MSG_DHCP_REQUEST
     explain = EXPLAIN_DHCP_REQUEST % dict(mac = mac_addr)
