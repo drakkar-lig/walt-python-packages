@@ -17,6 +17,8 @@ The server will reboot and retry this bootup procedure in a few seconds.
 MSG_DHCP_REQUEST = "Requesting an IP for this WalT server..."
 MSG_CHECK_DOCKER = "Checking internet connection to the Docker Hub..."
 NETWORK_DIAGRAM=u'''\
+The following network setup is required:
+
 ┌───────────────┐
 │main switch    │   port 1: Externally managed VLAN with DHCP and internet access
 │1 2 3 4 5 6 7 8│   port 2: (this) walt server
@@ -26,26 +28,17 @@ NETWORK_DIAGRAM=u'''\
  └ to internet
 '''
 
-EXPLAIN_NETWORK=u'''\
-The following network setup is required:
-
-''' + NETWORK_DIAGRAM + u'''
+EXPLAIN_NETWORK = NETWORK_DIAGRAM + u'''
 If this is not the case already, please connect the main switch as described in order to continue.
 Note that it may take a few minutes to detect the main switch even if it is connected.
 '''
 
-EXPLAIN_DHCP_REQUEST=u'''\
-The following network setup is required:
-
-''' + NETWORK_DIAGRAM + u'''
+EXPLAIN_DHCP_REQUEST = NETWORK_DIAGRAM + u'''
 The server (mac address %(mac)s) is now sending DHCP requests on the externally managed VLAN (switch port 1).
 The setup process will continue when a DHCP offer is obtained.
 '''
 
-EXPLAIN_CHECK_DOCKER=u'''\
-The following network setup is required:
-
-''' + NETWORK_DIAGRAM + u'''
+EXPLAIN_CHECK_DOCKER = NETWORK_DIAGRAM + u'''
 The server failed to access hub.docker.com. Please verify that the server is allowed to reach internet.
 The setup process will retry this periodically until it succeeds.
 '''
