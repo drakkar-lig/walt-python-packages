@@ -55,7 +55,7 @@ class Server(object):
         self.dhcpd.update(force=True)
         self.ui.task_running()
         # topology exploration
-        self.devices.rescan()
+        self.devices.rescan(ui=self.ui)
         self.ui.task_running()
         # re-update dhcp with any new device discovered
         self.dhcpd.update()
@@ -85,7 +85,7 @@ class Server(object):
         self.dhcpd.update()
 
     def device_rescan(self, requester):
-        self.devices.rescan(requester)
+        self.devices.rescan(requester=requester)
         self.dhcpd.update()
 
     def forget_device(self, device_name):

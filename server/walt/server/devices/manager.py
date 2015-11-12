@@ -20,8 +20,8 @@ class DevicesManager(object):
         self.db = db
         self.topology = Topology(db)
 
-    def rescan(self, requester=None):
-        self.topology.rescan(requester)
+    def rescan(self, **kwargs):
+        self.topology.rescan(**kwargs)
 
     def rename(self, requester, old_name, new_name):
         device_info = self.get_device_info(requester, old_name)

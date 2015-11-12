@@ -74,7 +74,7 @@ class Topology(object):
         else:
             return 'switch'
 
-    def collect_connected_devices(self, host, host_is_a_switch,
+    def collect_connected_devices(self, ui, host, host_is_a_switch,
                             host_mac, processed_switches):
 
         print "collect devices connected on %s" % host
@@ -92,6 +92,10 @@ class Topology(object):
                 if mac in processed_switches:
                     continue
                 if not ip_in_walt_network(ip):
+                    # if someone is viewing the UI, let him know that we are still
+                    # alive, because this could cause a long delay.
+                    if ui:
+                        ui.task_running()
                     print 'Not ready, one neighbor has ip %s (not in WalT network yet)...' % ip
                     lldp_update()
                     time.sleep(1)
@@ -109,18 +113,18 @@ class Topology(object):
                                 ip=ip)
                 if device_type == 'switch':
                     # recursively discover devices connected to this switch
-                    self.collect_connected_devices(ip, True,
+                    self.collect_connected_devices(ui, ip, True,
                                             mac, processed_switches)
             if not issue:
                 break   # otherwise restart the loop
 
-    def rescan(self, requester=None):
+    def rescan(self, requester=None, ui=None):
         self.db.execute("""
             UPDATE devices
             SET reachable = 0;""")
 
         self.server_mac = get_mac_address(const.SERVER_TESTBED_INTERFACE)
-        self.collect_connected_devices("localhost", False, self.server_mac, set())
+        self.collect_connected_devices(ui, "localhost", False, self.server_mac, set())
         self.db.commit()
 
         if requester != None:
