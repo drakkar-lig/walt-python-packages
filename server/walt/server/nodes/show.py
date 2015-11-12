@@ -89,9 +89,9 @@ def show(db, requester, show_all):
     # get nodes whose image is currently being downloaded
     not_ready_nodes_query = NODES_IMAGE_NOT_READY_QUERY
     res_not_ready = db.execute(not_ready_nodes_query).fetchall()
-    if len(res_other) == 0 and len(res_user) and len(res_not_ready) == 0:
+    if len(res_other) + len(res_user) + len(res_not_ready) == 0:
         return MSG_NO_NODES + '\n'
-    if len(res_other) == 0 and len(res_not_ready) == 0:
+    if len(res_other) + len(res_not_ready) == 0:
         result_msg += MSG_NO_OTHER_NODES + '\n'
     else:
         if len(res_other) > 0:
