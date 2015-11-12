@@ -29,10 +29,10 @@ def get_mac_address(intf):
     with open('/sys/class/net/' + intf +'/address') as f:
         return f.read().strip()
 
-def dhcp_wait_ip(intf, ui, msg, explain):
+def dhcp_wait_ip(intf, ui, msg, explain, todo):
     # dhclient will go to background when an IP is obtained,
     # which should release the popen process.
-    ui.task_start(msg, explain=explain)
+    ui.task_start(msg, explain=explain, todo=todo)
     cmd = 'dhclient -1 %s' % intf
     while True:
         dh_client = subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE)

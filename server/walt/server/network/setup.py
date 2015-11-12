@@ -16,7 +16,8 @@ The server will reboot and retry this bootup procedure in a few seconds.
 '''
 MSG_DHCP_REQUEST = "Requesting an IP for this WalT server..."
 MSG_CHECK_DOCKER = "Checking internet connection to the Docker Hub..."
-NETWORK_DIAGRAM=u'''\
+
+EXPLAIN_NETWORK = u'''\
 The following network setup is required:
 
 ┌───────────────┐
@@ -28,17 +29,17 @@ The following network setup is required:
  └ to internet
 '''
 
-EXPLAIN_NETWORK = NETWORK_DIAGRAM + u'''
+TODO_DETECTING_MAIN_SWITCH = u'''
 If this is not the case already, please connect the main switch as described in order to continue.
 Note that it may take a few minutes to detect the main switch even if it is connected.
 '''
 
-EXPLAIN_DHCP_REQUEST = NETWORK_DIAGRAM + u'''
+TODO_DHCP_REQUEST = u'''
 The server (mac address %(mac)s) is now sending DHCP requests on the externally managed VLAN (switch port 1).
 The setup process will continue when a DHCP offer is obtained.
 '''
 
-EXPLAIN_CHECK_DOCKER = NETWORK_DIAGRAM + u'''
+TODO_CHECK_DOCKER = u'''
 The server failed to access hub.docker.com. Please verify that the server is allowed to reach internet.
 The setup process will retry this periodically until it succeeds.
 '''
@@ -71,7 +72,9 @@ def setup_needed(ui):
     return res
 
 def check_docker(ui):
-    ui.task_start(MSG_CHECK_DOCKER, explain=EXPLAIN_CHECK_DOCKER)
+    ui.task_start(  MSG_CHECK_DOCKER,
+                    explain=EXPLAIN_NETWORK,
+                    todo=TODO_CHECK_DOCKER)
     docker = DockerClient()
     while not docker.self_test():
         ui.task_running()
@@ -79,7 +82,9 @@ def check_docker(ui):
     ui.task_done()
 
 def setup(ui):
-    ui.task_start(MSG_DETECTING_MAIN_SWITCH, explain=EXPLAIN_NETWORK)
+    ui.task_start(  MSG_DETECTING_MAIN_SWITCH,
+                    explain=EXPLAIN_NETWORK,
+                    todo=TODO_DETECTING_MAIN_SWITCH)
     # retrieve info about the main switch by
     # using the local lldp & snmp daemons
     snmp_local = snmp.Proxy('localhost', lldp=True)
@@ -113,8 +118,9 @@ def setup(ui):
     # get a server ip on eth0.169 (external VLAN) using DHCP
     mac_addr = network.tools.get_mac_address('eth0.169')
     msg = MSG_DHCP_REQUEST
-    explain = EXPLAIN_DHCP_REQUEST % dict(mac = mac_addr)
-    network.tools.dhcp_wait_ip('eth0.169', ui, msg, explain)
+    explain = EXPLAIN_NETWORK
+    todo = TODO_DHCP_REQUEST % dict(mac = mac_addr)
+    network.tools.dhcp_wait_ip('eth0.169', ui, msg, explain, todo)
     # check connection to the docker hub
     check_docker(ui)
     return True     # ok

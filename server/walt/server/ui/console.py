@@ -30,8 +30,9 @@ class Console(object):
         curses.endwin()
         self.fifo.close()
         os.remove(UI_FIFO_PATH)
-    def set_win_text(self, win, text, flags):
-        win.erase()
+    def set_win_text(self, win, text, flags, erase):
+        if erase:
+            win.erase()
         for c in text:
             if c in self.BOX_DRAWING:
                 c = self.BOX_DRAWING[c]
@@ -47,10 +48,16 @@ class Console(object):
             win = self.status_win
             flags = curses.A_BOLD
             text = 'Status: ' + text.strip('\n')
+            erase = True
         elif req == 'EXPLAIN':
             win = self.explain_win
             flags = 0
-        self.set_win_text(win, text, flags)
+            erase = True
+        elif req == 'TODO':
+            win = self.explain_win
+            flags = curses.A_BOLD
+            erase = False
+        self.set_win_text(win, text, flags, erase)
     def run(self):
         ev_loop = EventLoop()
         ev_loop.register_listener(self)
