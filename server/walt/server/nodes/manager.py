@@ -164,7 +164,8 @@ class NodesManager(object):
         if nodes == None:
             return None
         not_owned = [ n for n in nodes \
-                if not n.image.startswith(requester.username + '/') ]
+                if not (n.image.startswith(requester.username + '/') or
+                        n.image.startswith('waltplatform/')) ]
         if len(not_owned) == 0:
             return False
         else:
