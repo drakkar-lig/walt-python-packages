@@ -31,6 +31,10 @@ Node %s was eventually detected but never registered itself to the server.
 It seems it is not running a valid WalT boot image.
 """
 
+MSG_CONNECTIVITY_UNKNOWN = """\
+%s: Unknown PoE switch port. Cannot proceed! Please retry in a few minutes.
+"""
+
 FS_CMD_PATTERN = SSH_COMMAND + ' root@%(node_ip)s %%(prog)s %%(prog_args)s'
 
 class NodesManager(object):
@@ -108,8 +112,7 @@ class NodesManager(object):
                 nodes_ko.append(node)
         if len(nodes_ko) > 0 and warn:
             requester.stderr.write(format_sentence_about_nodes(
-                '%s currently cannot be reached.',
-                [n.name for n in nodes_ko]) + '\n')
+                MSG_CONNECTIVITY_UNKNOWN, [n.name for n in nodes_ko]))
         return nodes_ok, nodes_ko
 
     def setpower(self, requester, node_set, poweron, warn_unreachable):
@@ -117,8 +120,15 @@ class NodesManager(object):
         if nodes == None:
             return None # error already reported
         # verify connectivity of all designated nodes
-        nodes_ok, nodes_ko = self.filter_on_connectivity( \
-                            requester, nodes, warn_unreachable)
+        for pass_count in range(2):
+            nodes_ok, nodes_ko = self.filter_on_connectivity( \
+                                requester, nodes,
+                                pass_count > 0 and warn_unreachable)
+            if len(nodes_ko) == 0:
+                break
+            elif pass_count == 0:
+                # rescan and retry
+                self.devices.topology.rescan()
         if len(nodes_ok) == 0:
             return False
         # otherwise, at least one node can be reached, so do it.
