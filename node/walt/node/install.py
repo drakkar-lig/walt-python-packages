@@ -30,6 +30,10 @@ SYSTEMD_SERVICE_CONF = """
 
 [Unit]
 Description=WalT node daemon
+# start the daemon after ssh is started.
+# this ensures that as soon as the node registers, as part of the
+# daemon startup process, we know we can reach it through ssh.
+After=ssh.service
 
 [Service]
 Type=simple
