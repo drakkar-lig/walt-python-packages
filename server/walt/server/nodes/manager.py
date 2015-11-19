@@ -117,7 +117,7 @@ class NodesManager(object):
                 MSG_CONNECTIVITY_UNKNOWN, [n.name for n in nodes_ko]))
         return nodes_ok, nodes_ko
 
-    def setpower(self, requester, node_set, poweron, warn_unreachable):
+    def setpower(self, requester, node_set, poweron, warn_unknown_topology):
         nodes = self.parse_node_set(requester, node_set)
         if nodes == None:
             return None # error already reported
@@ -125,7 +125,7 @@ class NodesManager(object):
         for pass_count in range(2):
             nodes_ok, nodes_ko = self.filter_on_connectivity( \
                                 requester, nodes,
-                                pass_count > 0 and warn_unreachable)
+                                pass_count > 0 and warn_unknown_topology)
             if len(nodes_ko) == 0:
                 break
             elif pass_count == 0:

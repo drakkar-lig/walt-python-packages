@@ -68,12 +68,12 @@ class Server(object):
         self.images.cleanup()
         self.blocking.cleanup()
 
-    def set_image(self, requester, node_set, image_tag, warn_unreachable):
+    def set_image(self, requester, node_set, image_tag, warn_unknown_topology):
         nodes = self.nodes.parse_node_set(requester, node_set)
         if nodes == None:
             return # error already reported
         nodes_ok, nodes_ko = self.nodes.filter_on_connectivity( \
-                            requester, nodes, warn_unreachable)
+                            requester, nodes, warn_unknown_topology)
         macs = [ n.mac for n in nodes_ok ]
         if self.images.set_image(requester, macs, image_tag):
             requester.stdout.write(format_sentence_about_nodes(

@@ -114,11 +114,11 @@ class PlatformService(rpyc.Service):
     def exposed_includes_nodes_not_owned(self, node_set, warn):
         return self.nodes.includes_nodes_not_owned(self._client, node_set, warn)
 
-    def exposed_poweroff(self, node_set, warn_unreachable):
-        return self.nodes.setpower(self._client, node_set, False, warn_unreachable)
+    def exposed_poweroff(self, node_set, warn_unknown_topology):
+        return self.nodes.setpower(self._client, node_set, False, warn_unknown_topology)
 
-    def exposed_poweron(self, node_set, warn_unreachable):
-        return self.nodes.setpower(self._client, node_set, True, warn_unreachable)
+    def exposed_poweron(self, node_set, warn_unknown_topology):
+        return self.nodes.setpower(self._client, node_set, True, warn_unknown_topology)
 
     def exposed_validate_node_cp(self, src, dst):
         return self.nodes.validate_cp(self._client, src, dst)
@@ -132,8 +132,8 @@ class PlatformService(rpyc.Service):
     def exposed_has_image(self, image_tag):
         return self.images.has_image(self._client, image_tag)
 
-    def exposed_set_image(self, node_set, image_tag, warn_unreachable):
-        self.server.set_image(self._client, node_set, image_tag, warn_unreachable)
+    def exposed_set_image(self, node_set, image_tag, warn_unknown_topology):
+        self.server.set_image(self._client, node_set, image_tag, warn_unknown_topology)
 
     def exposed_is_device_reachable(self, device_name):
         return self.devices.is_reachable(self._client, device_name)
