@@ -44,6 +44,10 @@ class DevicesManager(object):
             requester.stderr.write(err_message % device_name)
         return device_info
 
+    def get_name_from_ip(self, ip):
+        device_info = self.db.select_unique("devices", ip=ip)
+        return device_info.name
+
     def notify_unknown_ip(self, requester, device_name):
         requester.stderr.write('Sorry, IP address of %s in unknown.\n' \
                             % device_name)

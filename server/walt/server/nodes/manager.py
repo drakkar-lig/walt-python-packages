@@ -1,6 +1,7 @@
 from walt.common.tcp import Requests
 from walt.server.nodes.register import NodeRegistrationHandler
 from walt.server.nodes.show import show
+from walt.server.nodes.wait import WaitInfo
 from walt.server.tools import format_sentence_about_nodes, \
                                 merge_named_tuples
 from walt.common.nodetypes import is_a_node_type_name
@@ -43,6 +44,7 @@ class NodesManager(object):
         self.current_register_requests = set()
         self.devices = devices
         self.kwargs = kwargs
+        self.wait_info = WaitInfo()
         tcp_server.register_listener_class(
                     req_id = Requests.REQ_REGISTER_NODE,
                     cls = NodeRegistrationHandler,
@@ -158,6 +160,14 @@ class NodesManager(object):
             requester.stderr.write('No matching nodes found! (tip: walt --help-about node-terminology)\n')
             return None
         return sorted(nodes)
+
+    def wait(self, requester, q, node_set):
+        nodes = self.parse_node_set(requester, node_set)
+        self.wait_info.wait(requester, q, nodes)
+
+    def node_bootup_event(self, node_name):
+        node_info = self.get_node_info(None, node_name)
+        self.wait_info.node_bootup_event(node_info)
 
     def includes_nodes_not_owned(self, requester, node_set, warn):
         nodes = self.parse_node_set(requester, node_set)

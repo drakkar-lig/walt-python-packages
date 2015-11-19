@@ -1,7 +1,7 @@
 import time, sys
 from plumbum import cli
 from walt.client import myhelp
-from walt.client.link import ClientToServerLink
+from walt.client.link import ClientToServerLink, ResponseQueue
 from walt.client.tools import confirm
 from walt.client.interactive import run_node_shell, \
                                     run_device_ping
@@ -133,4 +133,16 @@ class WalTNodeCp(cli.Application):
             except (KeyboardInterrupt, EOFError):
                 print
                 print 'Aborted.'
+
+@WalTNode.subcommand("wait")
+class WalTNodeWait(cli.Application):
+    """wait for a node (or a set of nodes) to be ready"""
+    def main(self, node_set):
+        q = ResponseQueue()
+        try:
+            with ClientToServerLink(True) as server:
+                server.wait_for_nodes(q, node_set)
+                q.wait()
+        except KeyboardInterrupt:
+            print 'Aborted.'
 

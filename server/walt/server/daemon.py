@@ -123,6 +123,9 @@ class PlatformService(rpyc.Service):
     def exposed_validate_node_cp(self, src, dst):
         return self.nodes.validate_cp(self._client, src, dst)
 
+    def exposed_wait_for_nodes(self, q, node_set):
+        self.nodes.wait(self._client, q, node_set)
+
     def exposed_rename(self, old_name, new_name):
         self.server.rename_device(self._client, old_name, new_name)
 
@@ -175,6 +178,8 @@ class PlatformService(rpyc.Service):
     def exposed_node_bootup_event(self):
         node_ip, node_port = self._conn._config['endpoints'][1]
         self.devices.node_bootup_event(node_ip)
+        node_name = self.devices.get_name_from_ip(node_ip)
+        self.nodes.node_bootup_event(node_name)
 
     def exposed_add_checkpoint(self, cp_name, pickled_date):
         date = None
@@ -193,7 +198,6 @@ class PlatformService(rpyc.Service):
 
     def exposed_get_pickled_checkpoint_time(self, cp_name):
         return self.logs.get_pickled_checkpoint_time(self._client, cp_name)
-
 
 class WalTServerDaemon(WalTDaemon):
     """WalT (wireless testbed) server daemon."""
