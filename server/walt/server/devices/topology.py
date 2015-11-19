@@ -205,9 +205,15 @@ class Topology(object):
         return msg
 
     def setpower(self, device_mac, poweron):
+        # we have to know on which PoE switch port the node is
         switch_ip, switch_port = self.get_connectivity_info(device_mac)
         if not switch_ip:
             return False
+        # if powering off, the device will be unreachable
+        if not poweron:
+            self.db.update('devices', 'mac', mac=device_mac, reachable=0)
+            self.db.commit()
+        # let's request the switch to enable or disable the PoE
         proxy = snmp.Proxy(switch_ip, poe=True)
         proxy.poe.set_port(switch_port, poweron)
         return True
