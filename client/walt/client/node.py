@@ -3,8 +3,9 @@ from plumbum import cli
 from walt.client import myhelp
 from walt.client.link import ClientToServerLink, ResponseQueue
 from walt.client.tools import confirm
-from walt.client.interactive import run_node_shell, \
-                                    run_device_ping
+from walt.client.interactive import run_node_cmd, \
+                                    run_device_ping, \
+                                    NODE_SHELL_MESSAGE
 from walt.client.transfer import run_transfer_with_node
 
 POE_REBOOT_DELAY            = 2  # seconds
@@ -42,6 +43,25 @@ class WalTNode(cli.Application):
             if not confirm():
                 return False
         return True
+
+    @staticmethod
+    def run_cmd(node_set, several_nodes_allowed, cmdargs, startup_msg=None):
+        nodes_ip = None
+        with ClientToServerLink() as server:
+            if not WalTNode.confirm_nodes_not_owned(server, node_set):
+                return
+            nodes_ip = server.get_reachable_nodes_ip(node_set)
+            if len(nodes_ip) == 0:
+                return  # issue already reported
+            elif len(nodes_ip) > 1 and not several_nodes_allowed:
+                sys.stderr.write(
+                    'Error: this command must target 1 node only.\n')
+                return
+        if nodes_ip:
+            for ip in nodes_ip:
+                if startup_msg:
+                    print startup_msg
+                run_node_cmd(ip, cmdargs)
 
 @WalTNode.subcommand("show")
 class WalTNodeShow(cli.Application):
@@ -113,11 +133,14 @@ class WalTNodePing(cli.Application):
 class WalTNodeShell(cli.Application):
     """run an interactive shell connected to the node"""
     def main(self, node_name):
-        node_ip = None
-        with ClientToServerLink() as server:
-            node_ip = server.get_reachable_node_ip(node_name)
-        if node_ip:
-            run_node_shell(node_ip)
+        WalTNode.run_cmd(   node_name, False, ['bash'],
+                            startup_msg=NODE_SHELL_MESSAGE)
+
+@WalTNode.subcommand("run")
+class WalTNodeRun(cli.Application):
+    """run a command on a (set of) node(s)"""
+    def main(self, node_set, *cmdargs):
+        WalTNode.run_cmd(node_set, True, cmdargs)
 
 @WalTNode.subcommand("cp")
 class WalTNodeCp(cli.Application):

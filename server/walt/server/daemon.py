@@ -85,9 +85,9 @@ class PlatformService(rpyc.Service):
     def exposed_show_nodes(self, show_all):
         return self.nodes.show(self._client, show_all)
 
-    def exposed_get_reachable_node_ip(self, node_name):
-        return self.nodes.get_reachable_node_ip(
-                        self._client, node_name)
+    def exposed_get_reachable_nodes_ip(self, node_set):
+        return self.nodes.get_reachable_nodes_ip(
+                        self._client, node_set)
 
     def exposed_get_device_ip(self, device_name):
         return self.devices.get_device_ip(

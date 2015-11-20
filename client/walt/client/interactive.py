@@ -135,9 +135,10 @@ def run_image_shell_prompt(session):
                 image_fullname = image_fullname,
                 container_name = container_name).run()
 
-def run_node_shell(node_ip):
-    print NODE_SHELL_MESSAGE
-    PromptClient(Requests.REQ_NODE_SHELL, node_ip=node_ip).run()
+def run_node_cmd(node_ip, cmdargs):
+    PromptClient(Requests.REQ_NODE_CMD,
+                node_ip=node_ip,
+                cmdargs=tuple(cmdargs)).run()
 
 def run_device_ping(device_ip):
     PromptClient(Requests.REQ_DEVICE_PING, device_ip=device_ip).run()

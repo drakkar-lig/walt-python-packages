@@ -96,11 +96,16 @@ class NodesManager(object):
             self.notify_unknown_ip(requester, node_name)
         return node_info.ip
 
-    def get_reachable_node_ip(self, requester, node_name):
-        node_info = self.get_reachable_node_info(requester, node_name)
-        if node_info == None:
-            return None # error already reported
-        return node_info.ip
+    def get_reachable_nodes_ip(self, requester, node_set):
+        nodes = self.parse_node_set(requester, node_set)
+        result = []
+        for node in nodes:
+            node_info = self.get_reachable_node_info(requester, node.name)
+            if node_info == None:
+                return () # error already reported
+            else:
+                result.append(node_info.ip)
+        return tuple(result)
 
     def filter_on_connectivity(self, requester, nodes, warn):
         nodes_ok = []

@@ -3,6 +3,8 @@ from walt.common.tcp import Requests
 from walt.server.parallel import ParallelProcessSocketListener
 from walt.server.const import SSH_COMMAND
 
+INTERACTIVE_SSH_COMMAND = SSH_COMMAND + ' -tq'
+
 class PromptSocketListener(ParallelProcessSocketListener):
     def update_params(self):
         self.params.update(
@@ -22,10 +24,16 @@ class DockerPromptSocketListener(PromptSocketListener):
                        ('/bin/bash', 'image-shell',
                         params['container_name'], params['image_fullname'])
 
-class NodeShellSocketListener(PromptSocketListener):
-    REQ_ID = Requests.REQ_NODE_SHELL
-    def get_command(self, **params):
-        return SSH_COMMAND + ' root@%s' % params['node_ip']
+class NodeCmdSocketListener(PromptSocketListener):
+    REQ_ID = Requests.REQ_NODE_CMD
+    def get_command(self, node_ip, cmdargs, **kwargs):
+        cmd = ' '.join(cmdargs)
+        quoted_cmd = "'" + "'\"'\"'".join(cmd.split("'")) + "'"
+        return '%(ssh)s root@%(ip)s %(cmd)s' % dict(
+            ssh = INTERACTIVE_SSH_COMMAND,
+            ip = node_ip,
+            cmd = quoted_cmd
+        )
 
 class DevicePingSocketListener(PromptSocketListener):
     REQ_ID = Requests.REQ_DEVICE_PING
@@ -36,7 +44,7 @@ class InteractionManager(object):
     def __init__(self, tcp_server, ev_loop):
         for cls in [    SQLPromptSocketListener,
                         DockerPromptSocketListener,
-                        NodeShellSocketListener,
+                        NodeCmdSocketListener,
                         DevicePingSocketListener ]:
             tcp_server.register_listener_class(
                     req_id = cls.REQ_ID,
