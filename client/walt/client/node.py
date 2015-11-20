@@ -78,9 +78,9 @@ class WalTNodeReboot(cli.Application):
             if not_owned == True:
                 if not confirm():
                     return
-            if server.poweroff(node_set, warn_unreachable=True):
+            if server.poweroff(node_set, warn_unknown_topology=True):
                 time.sleep(POE_REBOOT_DELAY)
-                server.poweron(node_set, warn_unreachable=False)
+                server.poweron(node_set, warn_unknown_topology=False)
 
 @WalTNode.subcommand("deploy")
 class WalTNodeDeploy(cli.Application):
@@ -94,10 +94,10 @@ class WalTNodeDeploy(cli.Application):
                 if not_owned == True:
                     if not confirm():
                         return
-                if server.poweroff(node_set, warn_unreachable=True):
-                    server.set_image(node_set, image_name, warn_unreachable=False)
+                if server.poweroff(node_set, warn_unknown_topology=True):
+                    server.set_image(node_set, image_name, warn_unknown_topology=False)
                     time.sleep(POE_REBOOT_DELAY)
-                    server.poweron(node_set, warn_unreachable=False)
+                    server.poweron(node_set, warn_unknown_topology=False)
 
 @WalTNode.subcommand("ping")
 class WalTNodePing(cli.Application):
