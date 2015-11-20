@@ -33,7 +33,15 @@ In this case you can specify either:
 
 class WalTNode(cli.Application):
     """WalT node management sub-commands"""
-    pass
+    @staticmethod
+    def confirm_nodes_not_owned(server, node_set):
+        not_owned = server.includes_nodes_not_owned(node_set, warn=True)
+        if not_owned == None:
+            return False
+        if not_owned == True:
+            if not confirm():
+                return False
+        return True
 
 @WalTNode.subcommand("show")
 class WalTNodeShow(cli.Application):
@@ -72,12 +80,8 @@ class WalTNodeReboot(cli.Application):
     """reboot a (set of) node(s)"""
     def main(self, node_set):
         with ClientToServerLink() as server:
-            not_owned = server.includes_nodes_not_owned(node_set, warn=True)
-            if not_owned == None:
+            if not WalTNode.confirm_nodes_not_owned(server, node_set):
                 return
-            if not_owned == True:
-                if not confirm():
-                    return
             if server.poweroff(node_set, warn_unknown_topology=True):
                 time.sleep(POE_REBOOT_DELAY)
                 server.poweron(node_set, warn_unknown_topology=False)
@@ -88,12 +92,8 @@ class WalTNodeDeploy(cli.Application):
     def main(self, node_set, image_name):
         with ClientToServerLink() as server:
             if server.has_image(image_name):
-                not_owned = server.includes_nodes_not_owned(node_set, warn=True)
-                if not_owned == None:
+                if not WalTNode.confirm_nodes_not_owned(server, node_set):
                     return
-                if not_owned == True:
-                    if not confirm():
-                        return
                 if server.poweroff(node_set, warn_unknown_topology=True):
                     server.set_image(node_set, image_name, warn_unknown_topology=False)
                     time.sleep(POE_REBOOT_DELAY)
