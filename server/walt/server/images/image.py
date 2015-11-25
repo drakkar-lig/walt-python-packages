@@ -1,4 +1,4 @@
-import os, re, time
+import os, re, time, shutil
 from plumbum.cmd import mount, umount, chroot
 from walt.server.network.tools import get_server_ip
 from walt.server.filesystem import Filesystem
@@ -123,6 +123,7 @@ class NodeImage(object):
         print 'Un-mounting %s...' % self.fullname,
         while not succeeds('umount %s 2>/dev/null' % self.mount_path):
             time.sleep(0.1)
+        shutil.rmtree(self.diff_path)
         os.rmdir(self.mount_path)
         self.mounted = False
         print 'done'
