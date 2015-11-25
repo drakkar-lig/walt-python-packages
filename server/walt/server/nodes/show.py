@@ -54,22 +54,10 @@ def show(db, requester, show_all):
     result_msg = ''
     if len(res_user) + len(res_free) == 0 and not show_all:
         return MSG_USING_NO_NODES + '\n' + MSG_RERUN_WITH_ALL
-    if len(res_free) > 0:
-        # display free nodes
-        footnote = None
-        if not show_all and len(res_user) == 0:
-            footnote = MSG_RERUN_WITH_ALL
-        table = [ (record.name, record.type, record.ip, record.reachable) \
-                    for record in res_free ]
-        header = [ 'name', 'type', 'ip', 'reachable' ]
-        result_msg += format_paragraph(
-                        TITLE_NODE_SHOW_FREE_NODES_PART,
-                        columnate(table, header=header),
-                        footnote)
     if len(res_user) > 0:
         # display nodes of requester
         footnote = None
-        if not show_all:
+        if not show_all and len(res_free) == 0:
             footnote = MSG_RERUN_WITH_ALL
         table = [ (record.name, record.type,
                    record.image_tag, record.ip, record.reachable) \
@@ -77,6 +65,18 @@ def show(db, requester, show_all):
         header = [ 'name', 'type', 'image', 'ip', 'reachable' ]
         result_msg += format_paragraph(
                         TITLE_NODE_SHOW_USER_NODES_PART,
+                        columnate(table, header=header),
+                        footnote)
+    if len(res_free) > 0:
+        # display free nodes
+        footnote = None
+        if not show_all:
+            footnote = MSG_RERUN_WITH_ALL
+        table = [ (record.name, record.type, record.ip, record.reachable) \
+                    for record in res_free ]
+        header = [ 'name', 'type', 'ip', 'reachable' ]
+        result_msg += format_paragraph(
+                        TITLE_NODE_SHOW_FREE_NODES_PART,
                         columnate(table, header=header),
                         footnote)
     if not show_all:
