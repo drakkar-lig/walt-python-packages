@@ -4,7 +4,7 @@ from walt.server.tools import \
 from walt.server import const
 from docker import Client
 from datetime import datetime
-import sys, requests, shlex
+import sys, requests, shlex, json
 
 def docker_command_split(cmd):
     args = shlex.split(cmd)
@@ -85,4 +85,19 @@ class DockerClient(object):
                 repository=name,
                 tag=tag,
                 message=msg)
-
+    def get_image_id(self, image_fullname):
+        image_repo, image_tag = image_fullname.split(':')
+        with open('/var/lib/docker/repositories-aufs') as conf_file:
+            info = json.load(conf_file)
+        return info['Repositories'][image_repo][image_tag]
+    def get_image_layers(self, image_id):
+        br = []
+        while True:
+            br.append('/var/lib/docker/aufs/diff/%s' % image_id)
+            with open('/var/lib/docker/graph/%s/json' % image_id) as conf_file:
+                info = json.load(conf_file)
+            if 'parent' not in info:
+                break
+            else:
+                image_id = info['parent']
+        return br

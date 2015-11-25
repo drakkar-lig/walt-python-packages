@@ -7,7 +7,7 @@ IMAGE_EXPORT_PATTERN = """
 """
 
 def get_fsid(image):
-    return image.cid[:32]   # 32 first characters
+    return image.image_id[:32]   # 32 first characters
 
 def generate_exports_file(images):
     with open('/etc/exports', 'w') as f:

@@ -1,5 +1,5 @@
 import os, re, time
-from plumbum.cmd import mount, umount, findmnt
+from plumbum.cmd import mount, umount, chroot
 from walt.server.network.tools import get_server_ip
 from walt.server.filesystem import Filesystem
 from walt.common.tools import \
@@ -45,6 +45,7 @@ from walt.common.tools import \
 # [server|hub]:<user>/<image_tag>
 
 IMAGE_MOUNT_PATH='/var/lib/walt/images/%s/fs'
+IMAGE_DIFF_PATH='/var/lib/walt/images/%s/diff'
 SERVER_PUBKEY_PATH = '/root/.ssh/id_dsa.pub'
 HOSTS_FILE_CONTENT="""\
 127.0.0.1   localhost
@@ -54,8 +55,12 @@ ff02::2     ip6-allrouters
 """
 
 def get_mount_path(image_fullname):
-    return IMAGE_MOUNT_PATH % \
-            re.sub('[^a-zA-Z0-9/-]+', '_', re.sub(':', '/', image_fullname))
+    mount_path, dummy = get_mount_info(image_fullname)
+    return mount_path
+
+def get_mount_info(image_fullname):
+    sub_path = re.sub('[^a-zA-Z0-9/-]+', '_', re.sub(':', '/', image_fullname))
+    return IMAGE_MOUNT_PATH % sub_path, IMAGE_DIFF_PATH % sub_path
 
 def get_server_pubkey():
     with open(SERVER_PUBKEY_PATH, 'r') as f:
@@ -82,9 +87,9 @@ class NodeImage(object):
         self.rename(fullname)
         self.created_at = None
         self.ready = False
-        self.cid = None
         self.mount_path = None
         self.mounted = False
+        self.image_id = self.docker.get_image_id(fullname)
         self.server_ip = get_server_ip()
         self.filesystem = Filesystem(FS_CMD_PATTERN % dict(image = self.fullname))
     def rename(self, fullname):
@@ -98,16 +103,19 @@ class NodeImage(object):
     def __del__(self):
         if self.mounted:
             self.unmount()
-    def get_mount_path(self):
-        return get_mount_path(self.fullname)
+    def get_mount_info(self):
+        return get_mount_info(self.fullname)
     def mount(self):
         print 'Mounting %s...' % self.fullname,
-        self.mount_path = self.get_mount_path()
+        self.mount_path, self.diff_path = self.get_mount_info()
         failsafe_makedirs(self.mount_path)
-        cmd = 'walt-node-install %s "%s"' % \
-                    (self.server_ip, NodeImage.server_pubkey)
-        self.cid = self.docker.start_container(self.fullname, cmd)
-        self.bind_mount()
+        failsafe_makedirs(self.diff_path)
+        layers = self.docker.get_image_layers(self.image_id)
+        branches = [ layer + '=ro' for layer in layers ]
+        branches.insert(0, self.diff_path + '=rw')
+        branches_opt = 'br=' + ':'.join(branches)
+        mount('-t', 'aufs', '-o', branches_opt, 'none', self.mount_path)
+        chroot(self.mount_path, 'walt-node-install', self.server_ip, NodeImage.server_pubkey)
         self.create_hosts_file()
         self.mounted = True
         print 'done'
@@ -115,7 +123,6 @@ class NodeImage(object):
         print 'Un-mounting %s...' % self.fullname,
         while not succeeds('umount %s 2>/dev/null' % self.mount_path):
             time.sleep(0.1)
-        self.docker.stop_container(self.cid)
         os.rmdir(self.mount_path)
         self.mounted = False
         print 'done'
@@ -125,11 +132,4 @@ class NodeImage(object):
         # let's create it appropriately.
         with open(self.mount_path + '/etc/hosts', 'w') as f:
             f.write(HOSTS_FILE_CONTENT)
-    def list_mountpoints(self):
-        return findmnt('-nlo', 'TARGET').splitlines()
-    def get_mount_point(self):
-        return [ line for line in self.list_mountpoints() \
-                        if line.find(self.cid) != -1 ][0]
-    def bind_mount(self):
-        mount('-o', 'bind', self.get_mount_point(), self.mount_path)
 
