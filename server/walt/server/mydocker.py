@@ -85,7 +85,7 @@ class DockerClient(object):
                 repository=name,
                 tag=tag,
                 message=msg)
-    def get_image_id(self, image_fullname):
+    def get_top_layer_id(self, image_fullname):
         image_repo, image_tag = image_fullname.split(':')
         with open('/var/lib/docker/repositories-aufs') as conf_file:
             info = json.load(conf_file)

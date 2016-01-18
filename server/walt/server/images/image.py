@@ -89,7 +89,7 @@ class NodeImage(object):
         self.ready = False
         self.mount_path = None
         self.mounted = False
-        self.image_id = None
+        self.top_layer_id = None
         self.server_ip = get_server_ip()
         self.filesystem = Filesystem(FS_CMD_PATTERN % dict(image = self.fullname))
     def rename(self, fullname):
@@ -99,8 +99,10 @@ class NodeImage(object):
         if is_ready and not self.ready:
             # image just became ready, get the creation time and image id from docker
             self.created_at = self.docker.get_creation_time(self.fullname)
-            self.image_id = self.docker.get_image_id(self.fullname)
+            self.update_top_layer_id()
         self.ready = is_ready
+    def update_top_layer_id(self):
+        self.top_layer_id = self.docker.get_top_layer_id(self.fullname)
     def __del__(self):
         if self.mounted:
             self.unmount()
@@ -111,7 +113,7 @@ class NodeImage(object):
         self.mount_path, self.diff_path = self.get_mount_info()
         failsafe_makedirs(self.mount_path)
         failsafe_makedirs(self.diff_path)
-        layers = self.docker.get_image_layers(self.image_id)
+        layers = self.docker.get_image_layers(self.top_layer_id)
         branches = [ layer + '=ro' for layer in layers ]
         branches.insert(0, self.diff_path + '=rw')
         branches_opt = 'br=' + ':'.join(branches)
