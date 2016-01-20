@@ -72,16 +72,16 @@ class VlanProxy(object):
                 if old_name != new_vlan_name:
                     print '-> setting vlan name to', new_vlan_name, '(was %s)' % old_name
                     self.snmp.dot1qVlanStaticName[vlan_id] = new_vlan_name
-                print '-> retrieving current config egress / untagged ports'
-                egress_ports = PortsBitField(self.snmp.dot1qVlanStaticEgressPorts[vlan_id])
-                untagged_ports = PortsBitField(self.snmp.dot1qVlanStaticUntaggedPorts[vlan_id])
-                print '-> applying changes'
-                for port_config in config.port_configs:
-                    egress = 1 if vlan_id in port_config.egress_vlans else 0
-                    untag = 1 if vlan_id in port_config.untagged_vlans else 0
-                    egress_ports[port_config.port] = egress
-                    untagged_ports[port_config.port] = untag
-                print '-> saving egress / untagged ports config on device'
-                self.snmp.dot1qVlanStaticEgressPorts[vlan_id] = egress_ports.toOctetString()
-                self.snmp.dot1qVlanStaticUntaggedPorts[vlan_id] = untagged_ports.toOctetString()
+            print '-> retrieving current config egress / untagged ports'
+            egress_ports = PortsBitField(self.snmp.dot1qVlanStaticEgressPorts[vlan_id])
+            untagged_ports = PortsBitField(self.snmp.dot1qVlanStaticUntaggedPorts[vlan_id])
+            print '-> applying changes'
+            for port_config in config.port_configs:
+                egress = 1 if vlan_id in port_config.egress_vlans else 0
+                untag = 1 if vlan_id in port_config.untagged_vlans else 0
+                egress_ports[port_config.port] = egress
+                untagged_ports[port_config.port] = untag
+            print '-> saving egress / untagged ports config on device'
+            self.snmp.dot1qVlanStaticEgressPorts[vlan_id] = egress_ports.toOctetString()
+            self.snmp.dot1qVlanStaticUntaggedPorts[vlan_id] = untagged_ports.toOctetString()
 
