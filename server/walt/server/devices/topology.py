@@ -2,7 +2,8 @@
 
 from walt.common.tools import get_mac_address
 from walt.common.nodetypes import get_node_type_from_mac_address
-from walt.server.network.tools import ip_in_walt_network, lldp_update
+from walt.server.network.tools import ip_in_walt_network, lldp_update, \
+                                        restart_dhcp_client_on_switch
 from walt.server.tools import format_paragraph, columnate
 from walt.server.tree import Tree
 from walt.server import snmp, const
@@ -78,6 +79,7 @@ class Topology(object):
                             host_mac, processed_switches):
 
         print "collect devices connected on %s" % host
+        switches_with_dhcp_restarted = set()
         # avoid to loop forever...
         if host_is_a_switch:
             processed_switches.add(host_mac)
@@ -89,6 +91,7 @@ class Topology(object):
             # record neighbors in db and recurse
             for port, neighbor_info in snmp_proxy.lldp.get_neighbors().items():
                 ip, mac = neighbor_info['ip'], neighbor_info['mac']
+                device_type = self.get_type(mac)
                 if mac in processed_switches:
                     continue
                 if not ip_in_walt_network(ip):
@@ -97,11 +100,14 @@ class Topology(object):
                     if ui:
                         ui.task_running()
                     print 'Not ready, one neighbor has ip %s (not in WalT network yet)...' % ip
+                    if device_type == 'switch' and mac not in switches_with_dhcp_restarted:
+                        print 'trying to restart the dhcp client on switch %s (%s)' % (ip, mac)
+                        switches_with_dhcp_restarted.add(mac)
+                        restart_dhcp_client_on_switch(ip)
                     lldp_update()
                     time.sleep(1)
                     issue = True
                     break
-                device_type = self.get_type(mac)
                 if host_is_a_switch:
                     switch_mac, switch_port = host_mac, port
                 else:
@@ -123,7 +129,7 @@ class Topology(object):
             UPDATE devices
             SET reachable = 0;""")
 
-        self.server_mac = get_mac_address(const.SERVER_TESTBED_INTERFACE)
+        self.server_mac = get_mac_address(const.WALT_INTF)
         self.collect_connected_devices(ui, "localhost", False, self.server_mac, set())
         self.db.commit()
 

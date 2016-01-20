@@ -3,6 +3,7 @@ import select, subprocess, shlex
 from ipaddress import ip_address, ip_network
 from walt.common.tools import do, succeeds
 from walt.server import const
+from walt.server.snmp.proxy import Proxy
 
 def ip(ip_as_str):
     return ip_address(unicode(ip_as_str))
@@ -59,20 +60,36 @@ def del_ip_from_interface(ip, subnet, intf):
 def check_if_we_can_reach(remote_ip):
     return succeeds('ping -c 1 -w 1 %s' % remote_ip)
 
-def assign_temp_ip_to_reach_neighbor(neighbor_ip, callback, *args):
+def is_walt_address(ip):
+    return ip in net(const.WALT_SUBNET)
+
+def assign_temp_ip_to_reach_neighbor(neighbor_ip, callback, intf, *args):
     reached = False
     callback_result = None
     for increment in [ 1, -1 ]:
-        free_ip = find_free_ip_near(neighbor_ip, 'eth0', increment)
+        free_ip = find_free_ip_near(neighbor_ip, intf, increment)
         subnet = smallest_subnet_for_these_ip_addresses(neighbor_ip, free_ip)
-        add_ip_to_interface(free_ip, subnet, 'eth0')
+        print free_ip, subnet
+        add_ip_to_interface(free_ip, subnet, intf)
         if check_if_we_can_reach(neighbor_ip):
-            callback_result = callback(free_ip, neighbor_ip, *args)
+            callback_result = callback(free_ip, neighbor_ip, intf, *args)
             reached = True
-        del_ip_from_interface(free_ip, subnet, 'eth0')
+        del_ip_from_interface(free_ip, subnet, intf)
         if reached:
             break
     return (reached, callback_result)
+
+def restart_dhcp_client_on_switch_cb(local_ip, switch_ip, intf):
+    p = Proxy(str(switch_ip), dhcp=True)
+    p.dhcp.restart()
+
+def restart_dhcp_client_on_switch(switch_ip):
+    reached, res = assign_temp_ip_to_reach_neighbor(
+                                ip(switch_ip),
+                                restart_dhcp_client_on_switch_cb,
+                                const.WALT_INTF)
+    if not reached:
+        print 'Warning: Could not reach %s and restart its DHCP client.'
 
 def lldp_update():
     do('lldpcli update')
@@ -85,7 +102,7 @@ def set_server_ip():
     add_ip_to_interface(
             get_server_ip(),
             net(const.WALT_SUBNET),
-            'eth0')
+            const.WALT_INTF)
     # let neighbors know we have updated things
     lldp_update()
 

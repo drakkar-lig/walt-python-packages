@@ -1,5 +1,7 @@
 
-SERVER_TESTBED_INTERFACE    = "eth0"
+SETUP_INTF                  = "eth0"
+WALT_INTF                   = "eth0.1"
+EXTERN_INTF                 = "eth0.169"
 WALT_SUBNET                 = "192.168.152.0/24"
 DEFAULT_IMAGE               = 'default'
 SNMP_TIMEOUT                = 20

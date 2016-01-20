@@ -11,7 +11,8 @@ def configure_main_switch_if_needed(snmp_proxy):
         config.register_vlan(1, 'walt')
         config.register_vlan(169, 'walt-out')
         config.add_port_config(PortConfig(1).access(169))
-        config.add_port_config(PortConfig(2).trunk([169], native_vlan_id = 1))
+        config.add_port_config(PortConfig(2).trunk([1,169]))
+        # other ports keep their default config (access mode, vlan 1)
         snmp_proxy.vlan.apply_config_to_device(config)
         return True
 

@@ -6,6 +6,7 @@ from walt.server.network.tools import lldp_update
 from waltvlanconf import configure_main_switch_if_needed
 from walt.common.tools import do
 from walt.server.mydocker import DockerClient
+from walt.server.const import WALT_INTF, SETUP_INTF
 
 MSG_WAITING_COMPANION_SERVICES = 'Waiting for companion services to be ready...'
 MSG_DETECTING_MAIN_SWITCH = 'Detecting the main switch...'
@@ -44,11 +45,17 @@ The server failed to access hub.docker.com. Please verify that the server is all
 The setup process will retry this periodically until it succeeds.
 '''
 
-def main_switch_conf_callback(local_ip, switch_ip, ui):
+def main_switch_conf_callback(local_ip, switch_ip, intf, ui):
     ui.task_running()
-    configured = configure_main_switch_if_needed(
-                        snmp.Proxy(str(switch_ip), vlan=True))
-    return configured
+    if intf == WALT_INTF:
+        # we could communicate with the switch and it is already
+        # tagging packets of VLAN1 (since we communicated on eth0.1).
+        # This implies it is already configured.
+        return True
+    else:
+        configured = configure_main_switch_if_needed(
+                            snmp.Proxy(str(switch_ip), vlan=True))
+        return configured
 
 def setup_needed(ui):
     # check if an ip was already assigned, which 
@@ -95,32 +102,40 @@ def setup(ui):
     ui.task_done()
     main_switch_info = snmp_local.lldp.get_neighbors().values()[0]
     print 'main switch:', main_switch_info
-    # assign a temporary ip in order to communicate
-    # with the main switch, and, if not done yet, set up
-    # its vlan configuration
-    ui.task_start(MSG_AUTO_CONFIGURING_MAIN_SWITCH)
-    ui.task_running()
     switch_ip = network.tools.ip(main_switch_info['ip'])
-    reached, configured = network.tools.assign_temp_ip_to_reach_neighbor(
-                                switch_ip,
-                                main_switch_conf_callback,
-                                ui)
-    if reached:
-        ui.task_done()
-    else:
-        ui.task_failed(MSG_ERROR_RESET_THE_SWITCH_REBOOT)
-        time.sleep(10)
-        do('reboot')
-        time.sleep(10)
-        sys.exit()
-    # set up the server static ip on eth0 (walt testbed network)
+    # if the switch ip is in walt network, this implies
+    # it was configured already
+    if not network.tools.is_walt_address(switch_ip):
+        ui.task_start(MSG_AUTO_CONFIGURING_MAIN_SWITCH)
+        do('ip link set %s up' % WALT_INTF);
+        reached = False
+        for intf in [ WALT_INTF, SETUP_INTF ]:
+            # assign a temporary ip in order to communicate
+            # with the main switch, and, if not done yet, set up
+            # its vlan configuration
+            ui.task_running()
+            reached, configured = network.tools.assign_temp_ip_to_reach_neighbor(
+                                        switch_ip,
+                                        main_switch_conf_callback,
+                                        intf,
+                                        ui)
+            if reached:
+                ui.task_done()
+                break
+        if not reached:
+            ui.task_failed(MSG_ERROR_RESET_THE_SWITCH_REBOOT)
+            time.sleep(10)
+            do('reboot')
+            time.sleep(10)
+            sys.exit()
+    # set up the server static ip on eth0.1 (walt testbed network)
     network.tools.set_server_ip()
     # get a server ip on eth0.169 (external VLAN) using DHCP
-    mac_addr = network.tools.get_mac_address('eth0.169')
+    mac_addr = network.tools.get_mac_address(EXTERN_INTF)
     msg = MSG_DHCP_REQUEST
     explain = EXPLAIN_NETWORK
     todo = TODO_DHCP_REQUEST % dict(mac = mac_addr)
-    network.tools.dhcp_wait_ip('eth0.169', ui, msg, explain, todo)
+    network.tools.dhcp_wait_ip(EXTERN_INTF, ui, msg, explain, todo)
     # check connection to the docker hub
     check_docker(ui)
     return True     # ok
