@@ -98,11 +98,11 @@ class PlatformService(rpyc.Service):
                         self._client, node_name)
 
     def exposed_blink(self, node_name, blink_status):
-        node_ip = self.nodes.get_reachable_node_ip(
+        nodes_ip = self.nodes.get_reachable_nodes_ip(
                         self._client, node_name)
-        if node_ip == None:
+        if len(nodes_ip) == 0:
             return False # error was already reported
-        with ServerToNodeLink(node_ip, self._client) as node_service:
+        with ServerToNodeLink(nodes_ip[0], self._client) as node_service:
             node_service.blink(blink_status)
         return True
 
