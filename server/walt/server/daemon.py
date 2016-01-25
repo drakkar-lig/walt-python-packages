@@ -3,6 +3,7 @@
 import rpyc, sys, datetime, cPickle as pickle
 import walt.server as server
 from walt.server.network import setup
+from walt.server.network.tools import set_server_ip
 from walt.server.tools import AutoCleaner
 from walt.server.ui.manager import UIManager
 from walt.common.daemon import WalTDaemon
@@ -214,9 +215,11 @@ class WalTServerDaemon(WalTDaemon):
 
 def run():
     ui = UIManager()
-    if setup.setup_needed(ui):
-        setup.setup(ui)
     myserver = server.Server(ui)
+    # set ip on WalT network (eth0.1)
+    set_server_ip()
+    myserver.dhcpd.update(force=True)
+    setup.setup(ui)
     with AutoCleaner(myserver) as server.instance:
         myserver.update()
         WalTServerDaemon.run()

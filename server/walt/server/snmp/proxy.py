@@ -4,7 +4,7 @@ from snimpy.manager import Manager
 from poe import PoEProxy
 from lldp import LLDPProxy
 from vlan import VlanProxy
-from dhcp import DHCPProxy
+from ipsetup import IPSetupProxy
 from walt.server import const
 
 SNMP_OPTS = {
@@ -15,7 +15,7 @@ SNMP_OPTS = {
 }
 
 class Proxy(object):
-        def __init__(self, host, poe=False, lldp=False, vlan=False, dhcp=False):
+        def __init__(self, host, poe=False, lldp=False, vlan=False, ipsetup=False):
             opts = SNMP_OPTS.copy()
             opts['host'] = host
             self.host = host
@@ -26,6 +26,6 @@ class Proxy(object):
                 self.lldp = LLDPProxy(self.snmp)
             if vlan:
                 self.vlan = VlanProxy(self.snmp)
-            if dhcp:
-                self.dhcp = DHCPProxy(self.snmp)
+            if ipsetup:
+                self.ipsetup = IPSetupProxy(self.snmp)
 
