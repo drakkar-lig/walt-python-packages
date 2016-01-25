@@ -3,7 +3,8 @@
 from walt.common.tools import get_mac_address
 from walt.common.nodetypes import get_node_type_from_mac_address
 from walt.server.network.tools import ip_in_walt_network, lldp_update, \
-                                        restart_dhcp_client_on_switch
+                                        restart_dhcp_setup_on_switch, \
+                                        set_static_ip_on_switch
 from walt.server.tools import format_paragraph, columnate
 from walt.server.tree import Tree
 from walt.server import snmp, const
@@ -103,7 +104,7 @@ class Topology(object):
                     if device_type == 'switch' and mac not in switches_with_dhcp_restarted:
                         print 'trying to restart the dhcp client on switch %s (%s)' % (ip, mac)
                         switches_with_dhcp_restarted.add(mac)
-                        restart_dhcp_client_on_switch(ip)
+                        restart_dhcp_setup_on_switch(ip)
                     lldp_update()
                     time.sleep(1)
                     issue = True
@@ -112,12 +113,16 @@ class Topology(object):
                     switch_mac, switch_port = host_mac, port
                 else:
                     switch_mac, switch_port = None, None
-                self.add_device(type=device_type,
+                device_is_new = self.add_device(type=device_type,
                                 mac=mac,
                                 switch_mac=switch_mac,
                                 switch_port=switch_port,
                                 ip=ip)
                 if device_type == 'switch':
+                    if device_is_new:
+                        print 'Affecting static IP configuration on switch %s (%s)...' % \
+                            (ip, mac)
+                        set_static_ip_on_switch(ip)
                     # recursively discover devices connected to this switch
                     self.collect_connected_devices(ui, ip, True,
                                             mac, processed_switches)
@@ -167,6 +172,7 @@ class Topology(object):
             self.db.delete('topology', switch_mac = switch_mac,
                                        switch_port = switch_port)
             self.db.insert("topology", **kwargs)
+        return num_rows == 0 # return True if new device
 
     def tree(self):
         t = Tree()

@@ -12,9 +12,15 @@ class LLDPProxy(object):
         mac_per_port = {}
         ip_per_port = {}
 
+        # perform SNMP requests
+        try:
+            chassis_types = dict(self.snmp.lldpRemChassisIdSubtype)
+            chassis_values = dict(self.snmp.lldpRemChassisId)
+            ip_info = set(self.snmp.lldpRemManAddrIfSubtype)
+        except Exception:
+            return {}
+
         # retrieve mac addresses of neighbors
-        chassis_types = dict(self.snmp.lldpRemChassisIdSubtype)
-        chassis_values = dict(self.snmp.lldpRemChassisId)
         for neighbor_key in chassis_types:
             if enum_label(chassis_types[neighbor_key]) == 'macAddress':
                 timeMark, port, index = neighbor_key
@@ -22,7 +28,6 @@ class LLDPProxy(object):
                                 chassis_values[neighbor_key])
 
         # retrieve ip addresses of neighbors
-        ip_info = set(self.snmp.lldpRemManAddrIfSubtype)
         for neighbor_ip_info in ip_info:
             timeMark, port, index, subtype, encoded_ip = neighbor_ip_info
             if enum_label(subtype).lower() == 'ipv4':
