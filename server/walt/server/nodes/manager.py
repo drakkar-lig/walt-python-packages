@@ -194,7 +194,7 @@ class NodesManager(object):
         return validate_cp("node", self, requester, src, dst)
 
     def validate_cp_entity(self, requester, node_name):
-        return self.get_reachable_node_ip(requester, node_name) != None
+        return self.get_reachable_node_info(requester, node_name) != None
 
     def get_cp_entity_filesystem(self, requester, node_name):
         node_ip = self.get_node_ip(requester, node_name)
