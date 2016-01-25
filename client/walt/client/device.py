@@ -66,7 +66,9 @@ class WalTDeviceForget(cli.Application):
                 print MSG_REACHABLE_CANNOT_FORGET % device_name
                 return
             if not self._force:
-                logs_cnt = server.count_logs(senders = set([device_name]))
+                logs_cnt = server.count_logs(
+                        history = (None, None),
+                        senders = set([device_name]))
                 if logs_cnt > 0:
                     print MSG_FORGET_DEVICE_WITH_LOGS % (
                         device_name, logs_cnt, device_name
