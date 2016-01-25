@@ -1,13 +1,33 @@
-import os, sys, cPickle as pickle
-from walt.server.const import UI_FIFO_PATH
+import os, sys, select, cPickle as pickle
+from walt.server.const import UI_FIFO_PATH, UI_RESPONSE_FIFO_PATH
+from walt.common.tools import failsafe_mkfifo
 
 class UIManager(object):
     def ui_running(self):
         return os.path.exists(UI_FIFO_PATH)
+    def send_request_to_ui(self, *args):
+        with open(UI_FIFO_PATH, 'w') as fifo:
+            pickle.dump(args, fifo)
+    def wait_user_keypress(self):
+        if self.ui_running():
+            failsafe_mkfifo(UI_RESPONSE_FIFO_PATH)
+            response_fifo = os.fdopen(
+                os.open(UI_RESPONSE_FIFO_PATH, os.O_RDWR | os.O_NONBLOCK), 'r', 0)
+            self.send_request_to_ui('WAIT_ENTER', UI_RESPONSE_FIFO_PATH)
+            # block until we get the response message back
+            poller = select.poll()
+            poller.register(response_fifo, select.POLLIN)
+            poller.poll()
+            poller.unregister(response_fifo)
+            pickle.load(response_fifo)
+            response_fifo.close()
+            os.remove(UI_RESPONSE_FIFO_PATH)
+        else:
+            print "Press <enter> to continue...",
+            raw_input()
     def request_ui_update(self, *args):
         if self.ui_running():
-            with open(UI_FIFO_PATH, 'w') as fifo:
-                pickle.dump(args, fifo)
+            self.send_request_to_ui(*args)
             return True
         else:
             return False
@@ -18,17 +38,20 @@ class UIManager(object):
         self.task_todo = todo
         self.task_explained_ui = False
         self.set_status(msg)
-    def task_running(self):
+    def task_running(self, activity_sign=True):
         if self.task_explain and not self.task_explained_ui:
             self.task_explained_ui = self.set_explain(
                 self.task_explain,
                 self.task_todo,
                 ui_only = True
             )
-        status_text = "%s %s" % \
+        if activity_sign:
+            status_text = "%s %s" % \
                 (self.task_msg, '|/-\\'[self.task_idx])
+            self.task_idx = (self.task_idx + 1)%4
+        else:
+            status_text = self.task_msg
         self.set_status(status_text, ui_only=True)
-        self.task_idx = (self.task_idx + 1)%4
     def task_done(self):
         status_text = "%s %s" % (self.task_msg, 'done')
         self.set_status(status_text)
