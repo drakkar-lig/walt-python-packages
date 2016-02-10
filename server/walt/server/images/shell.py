@@ -109,7 +109,7 @@ class ImageShellSession(object):
                     # re-mount
                     self.images.update_image_mounts()
                 # done.
-                self.requester.stdout.write('Image %s updated.\n' % self.new_image_tag)
+                self.requester.stdout.write('Image %s updated (nodes using it are rebooting).\n' % self.new_image_tag)
             else:
                 # we are saving changes to a new image, leaving the initial one
                 # unchanged
