@@ -53,10 +53,10 @@ class DockerClient(object):
         for i in self.c.images():
             if image_fullname in i['RepoTags']:
                 return datetime.fromtimestamp(i['Created'])
-    def list_containers(self):
+    def list_running_containers(self):
         return [ name.lstrip('/') for name in
                     sum([ cont['Names'] for cont in
-                            self.c.containers(all=True) ], []) ]
+                            self.c.containers() ], []) ]
     def start_container(self, image_fullname, cmd):
         params = dict(image=image_fullname)
         params.update(docker_command_split(cmd))

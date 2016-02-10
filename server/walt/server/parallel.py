@@ -78,7 +78,7 @@ class ParallelProcessSocketListener(object):
         # For efficiency, we let the popen object read directly from the socket.
         # Thus the ev_loop should not longer detect input data on this socket,
         # it should only detect errors, that is why we call update_listener() below.
-        popen = Popen(cmd_args, env=env, bufsize=1024*1024,
+        self.popen = Popen(cmd_args, env=env, bufsize=1024*1024,
                         stdin=self.sock_file, stdout=self.sock_file, stderr=STDOUT)
         self.ev_loop.update_listener(self, 0)
     # let the event loop know what we are reading on

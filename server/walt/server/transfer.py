@@ -115,13 +115,10 @@ def validate_cp(image_or_node_label, caller,
     return tuple(info.items())
 
 def docker_wrap_cmd(cmd):
-    cmd_args = cmd.split()
     return '''\
-        docker run -i --name %%(container_name)s --entrypoint %s \
-        %%(image_fullname)s %s ''' % (
-            cmd_args[0],
-            ' '.join(cmd_args[1:])
-        )
+        docker run -i --name %%(container_name)s --entrypoint /bin/sh \
+        %%(image_fullname)s -c "%s; sync; sync"
+    ''' % cmd
 
 def ssh_wrap_cmd(cmd):
     return SSH_COMMAND + ' root@%(node_ip)s "' + cmd + '"'

@@ -88,11 +88,14 @@ class ImageShellSession(object):
             # because the initial request was not yet handled by the server...
             # so we have to ensure here that the container is created, and then wait for
             # its completion.
-            while self.container_name not in self.docker.list_containers():
+            while self.container_name not in self.docker.list_running_containers():
+                print 'waiting for %s to run...' % self.container_name
                 time.sleep(0.05)
+            print 'waiting for %s to complete...' % self.container_name
             self.docker.wait_container(self.container_name)
+            print 'committing %s...' % self.container_name
             self.docker.commit(self.container_name, image_fullname,
-                    'Image modified using walt image shell')
+                    'Image modified using walt image [cp|shell]')
             if self.image_tag == self.new_image_tag:
                 # same name, we are modifying the image
                 image = self.images.get_user_image_from_tag(self.requester, self.new_image_tag)
