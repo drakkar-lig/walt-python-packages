@@ -101,3 +101,7 @@ class DockerClient(object):
             else:
                 image_id = info['parent']
         return br
+    def get_container_name(self, cid):
+        return self.c.inspect_container(cid)['Name'].lstrip('/')
+    def events(self):
+        return self.c.events(decode=True)

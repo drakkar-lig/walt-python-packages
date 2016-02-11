@@ -38,6 +38,7 @@ class ImageShellSession(object):
             parse_image_fullname(image_fullname)
         self.new_image_tag = None
         self.container_name = str(uuid.uuid4())
+        self.docker_events = self.docker.events()
         # expose methods to the RPyC client
         self.exposed___enter__ = self.__enter__
         self.exposed___exit__ = self.__exit__
@@ -84,15 +85,12 @@ class ImageShellSession(object):
             # with the walt image cp command, the client sends a request to start a
             # container for receiving, then immediately starts to send a tar archive,
             # and then tries to commit the container through rpyc commands.
-            # if there is little data to transfer, the container might not be created yet,
-            # because the initial request was not yet handled by the server...
-            # so we have to ensure here that the container is created, and then wait for
-            # its completion.
-            while self.container_name not in self.docker.list_running_containers():
-                print 'waiting for %s to run...' % self.container_name
-                time.sleep(0.05)
-            print 'waiting for %s to complete...' % self.container_name
-            self.docker.wait_container(self.container_name)
+            # we have to ensure here that the container was run and completed its job.
+            while True:
+                event = self.docker_events.next()
+                if event['status'] == 'die' and \
+                        self.docker.get_container_name(event['id']) == self.container_name:
+                    break
             print 'committing %s...' % self.container_name
             self.docker.commit(self.container_name, image_fullname,
                     'Image modified using walt image [cp|shell]')
