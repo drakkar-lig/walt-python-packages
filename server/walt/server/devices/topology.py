@@ -179,16 +179,17 @@ class Topology(object):
         unreachable_found = False
         for device in self.db.execute(TOPOLOGY_QUERY).fetchall():
             name = device.name
+            decorated_name = name
             if device.reachable == 'NO':
                 unreachable_found = True
-                name = '(%s)' % name
+                decorated_name = '(%s)' % name
             swport = device.switch_port
             if swport == None:
-                label = name
+                label = decorated_name
                 # align to 2nd letter of the name
                 subtree_offset = 1
             else:
-                label = '%d: %s' % (swport, name)
+                label = '%d: %s' % (swport, decorated_name)
                 # align to 2nd letter of the name
                 subtree_offset = label.find(' ') + 2
             parent_key = device.switch_name
