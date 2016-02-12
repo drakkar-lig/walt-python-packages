@@ -48,8 +48,12 @@ def dhcp_wait_ip(intf, ui, msg, explain=None, todo=None):
             break
     ui.task_done()
 
-def dhcp_stop():
-    do('dhclient -r')
+def dhcp_stop(preserve_setup=True):
+    if preserve_setup:
+        # do not unconfigure the network interfaces
+        do('dhclient -x -sf /dev/null')
+    else:
+        do('dhclient -r')
 
 def add_ip_to_interface(ip, subnet, intf):
     do('ip addr add %s/%d dev %s' % (ip, subnet.prefixlen, intf))

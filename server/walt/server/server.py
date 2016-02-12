@@ -15,6 +15,7 @@ from walt.server.blocking import BlockingTasksManager
 from walt.server.nodes.manager import NodesManager
 from walt.server.mydocker import DockerClient
 from walt.server.tools import format_sentence_about_nodes
+from walt.server.network.tools import dhcp_stop
 
 class Server(object):
 
@@ -67,6 +68,7 @@ class Server(object):
     def cleanup(self):
         self.images.cleanup()
         self.blocking.cleanup()
+        dhcp_stop()
 
     def set_image(self, requester, node_set, image_tag, warn_unknown_topology):
         nodes = self.nodes.parse_node_set(requester, node_set)
