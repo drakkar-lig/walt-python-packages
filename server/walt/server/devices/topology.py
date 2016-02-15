@@ -15,15 +15,9 @@ TOPOLOGY_QUERY = """
             d1.ip as ip,
             (case when d1.reachable = 1 then 'yes' else 'NO' end) as reachable,
             d2.name as switch_name, t.switch_port as switch_port
-    FROM devices d1, devices d2, topology t
-    WHERE   d1.mac = t.mac and d2.mac = t.switch_mac
-    UNION ALL
-    SELECT  d1.name as name, d1.type as type, d1.mac as mac,
-            d1.ip as ip,
-            (case when d1.reachable = 1 then 'yes' else 'NO' end) as reachable,
-            NULL as switch_name, NULL as switch_port
-    FROM devices d1, topology t
-    WHERE   d1.mac = t.mac and t.switch_mac is null
+    FROM devices d1
+    LEFT JOIN topology t ON d1.mac = t.mac
+    LEFT JOIN devices d2 ON t.switch_mac = d2.mac
     ORDER BY switch_name, switch_port;"""
 
 FLOATING_DEVICES_QUERY = """
@@ -177,6 +171,7 @@ class Topology(object):
     def tree(self):
         t = Tree()
         unreachable_found = False
+        main_switch_name = None
         for device in self.db.execute(TOPOLOGY_QUERY).fetchall():
             name = device.name
             decorated_name = name
@@ -197,10 +192,12 @@ class Topology(object):
                         label,
                         subtree_offset=subtree_offset,
                         parent_key = parent_key)
+            if device.type == 'server':
+                main_switch_name = device.switch_name
         note = MSG_DEVICE_TREE_MORE_DETAILS
         if unreachable_found:
             note += MSG_DEVICE_TREE_EXPLAIN_UNREACHABLE
-        return "\n%s%s" % (t.printed(), note)
+        return "\n%s%s" % (t.printed(root=main_switch_name), note)
 
     def show(self):
         # ** message about connected devices

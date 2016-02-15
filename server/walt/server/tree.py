@@ -14,15 +14,12 @@ class Tree(object):
     def __init__(self):
         self.nodes = OrderedDict()
         self.up_to_date = False
-        self.root = None
     def add_node(self, key, label, subtree_offset=0, parent_key = None):
         self.nodes[key] = dict(
             key=key,
             label=label,
             subtree_offset=subtree_offset,
             parent_key=parent_key)
-        if parent_key == None:
-            self.root = self.nodes[key]
         self.up_to_date = False
     def compute_children(self):
         for node in self.nodes.values():
@@ -33,15 +30,16 @@ class Tree(object):
                 node_key = node['key']
                 parent = self.nodes[parent_key]
                 parent['children'].append(node_key)
-    def printed(self):
+    def printed(self, root):
+        self.root_node = self.nodes[root]
         if self.up_to_date == False:
             self.compute_children()
             self.up_to_date = True
-        return self.print_elem(**self.root)
-    def print_elem(self, label, subtree_offset, parent_key, \
+        return self.print_elem(**self.root_node)
+    def print_elem(self, key, label, subtree_offset, parent_key, \
                         children, prefix = '', \
                         last_child = False, **kwargs):
-        if parent_key == None:  # root element
+        if self.root_node['key'] == key:  # root element
             output = "%s\n" % label
             prefix += (SPACE * subtree_offset)
         else:
