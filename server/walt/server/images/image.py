@@ -1,5 +1,5 @@
 import os, re, time, shutil
-from plumbum.cmd import mount, umount, chroot
+from plumbum.cmd import chroot
 from walt.server.network.tools import get_server_ip
 from walt.server.filesystem import Filesystem
 from walt.common.tools import \
@@ -113,11 +113,7 @@ class NodeImage(object):
         self.mount_path, self.diff_path = self.get_mount_info()
         failsafe_makedirs(self.mount_path)
         failsafe_makedirs(self.diff_path)
-        layers = self.docker.get_image_layers(self.top_layer_id)
-        branches = [ layer + '=ro' for layer in layers ]
-        branches.insert(0, self.diff_path + '=rw')
-        branches_opt = 'br=' + ':'.join(branches)
-        mount('-t', 'aufs', '-o', branches_opt, 'none', self.mount_path)
+        self.docker.image_mount(self.top_layer_id, self.diff_path, self.mount_path)
         chroot(self.mount_path, 'walt-node-install', self.server_ip, NodeImage.server_pubkey)
         self.create_hosts_file()
         self.mounted = True

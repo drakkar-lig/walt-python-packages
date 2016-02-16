@@ -4,7 +4,11 @@ from walt.server.tools import \
 from walt.server import const
 from docker import Client
 from datetime import datetime
+from plumbum.cmd import mount
 import sys, requests, shlex, json
+
+AUFS_BR_LIMIT=127
+AUFS_BR_MOUNT_LIMIT=42
 
 def docker_command_split(cmd):
     args = shlex.split(cmd)
@@ -105,3 +109,16 @@ class DockerClient(object):
         return self.c.inspect_container(cid)['Name'].lstrip('/')
     def events(self):
         return self.c.events(decode=True)
+    def image_mount(self, top_layer_id, diff_path, mount_path):
+        layers = self.get_image_layers(top_layer_id)
+        branches = [ layer + '=ro' for layer in layers ]
+        branches.insert(0, diff_path + '=rw')
+        if len(branches) > AUFS_BR_LIMIT:
+            raise Exception('Cannot mount image: too many filesystem layers.')
+        else:
+            # we can mount up to AUFS_BR_MOUNT_LIMIT branches at once
+            branches_opt = 'br=' + ':'.join(branches[:AUFS_BR_MOUNT_LIMIT])
+            mount('-t', 'aufs', '-o', branches_opt, 'none', mount_path)
+            # append others one by one
+            for branch in branches[AUFS_BR_MOUNT_LIMIT:]:
+                mount('-o', 'remount,append=' + branch, mount_path)
