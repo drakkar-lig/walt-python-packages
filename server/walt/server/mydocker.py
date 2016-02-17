@@ -111,7 +111,7 @@ class DockerClient(object):
         return self.c.events(decode=True)
     def image_mount(self, top_layer_id, diff_path, mount_path):
         layers = self.get_image_layers(top_layer_id)
-        branches = [ layer + '=ro' for layer in layers ]
+        branches = [ layer + '=ro+wh' for layer in layers ]
         branches.insert(0, diff_path + '=rw')
         if len(branches) > AUFS_BR_LIMIT:
             raise Exception('Cannot mount image: too many filesystem layers.')
