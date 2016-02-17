@@ -45,6 +45,10 @@ def parse_clonable_link(requester, clonable_link):
 def retag_image_to_requester_ws(docker, image_store, requester, source_fullname):
     source_tag = source_fullname.split(':')[1]
     dest_fullname = '%s/walt-node:%s' % (requester.username, source_tag)
+    # check that we really have something to retag
+    # (if the user clones one of his images on the docker hub,
+    # source_fullname and dest_fullname are the same)
+    really_retag = source_fullname != dest_fullname
     if dest_fullname in image_store:
         # an image with the target name exists...
         existing_dest_image = image_store[dest_fullname]
@@ -54,16 +58,17 @@ def retag_image_to_requester_ws(docker, image_store, requester, source_fullname)
         if need_mount_umount:
             # umount
             image_store.umount_used_image(existing_dest_image)
-        # remove existing image
-        docker.rmi(dest_fullname)
-        # re-tag the source image
-        docker.tag(source_fullname, dest_fullname)
+        if really_retag:
+            # remove existing image
+            docker.rmi(dest_fullname)
+            # re-tag the source image
+            docker.tag(source_fullname, dest_fullname)
         if need_mount_umount:
             # re-mount
             image_store.update_image_mounts()
     else:
-        docker.tag(source_fullname, dest_fullname)
-        image_store.register_image(dest_fullname, True)
+        if really_retag:
+            docker.tag(source_fullname, dest_fullname)
 
 def perform_clone(requester, docker, clonable_link, image_store, force):
     remote_location, remote_user, remote_tag = parse_clonable_link(
@@ -101,8 +106,8 @@ def perform_clone(requester, docker, clonable_link, image_store, force):
         if requester.username in users and \
                 LOCATION_WALT_SERVER in users[requester.username]:
             would_overwrite_ws_image = True
+    ws_image_fullname = "%s/walt-node:%s" % (requester.username, remote_tag)
     if would_overwrite_ws_image and not force:
-        ws_image_fullname = "%s/walt-node:%s" % (requester.username, remote_tag)
         image_store.warn_overwrite_image(requester, ws_image_fullname)
         requester.stderr.write(MSG_USE_FORCE)
         return
@@ -138,10 +143,14 @@ def perform_clone(requester, docker, clonable_link, image_store, force):
             docker.pull(remote_fullname, requester.stdout)
             # re-tag the image with the requester username (make it appear in its WS)
             retag_image_to_requester_ws(docker, image_store, requester, remote_fullname)
-            docker.untag(remote_fullname) # remove the old tag
+            if remote_user != requester.username:
+                docker.untag(remote_fullname) # remove the old tag
     else:
         # tag an image of the server
         retag_image_to_requester_ws(docker, image_store, requester, remote_fullname)
+    # if needed, let walt know there is a new image
+    if ws_image_fullname not in image_store:
+        image_store.register_image(ws_image_fullname, True)
     requester.stdout.write('Done.\n')
 
 class CloneTask(object):
@@ -154,6 +163,7 @@ class CloneTask(object):
                         **self.kwargs)
     def handle_result(self, res):
         if isinstance(res, requests.exceptions.RequestException):
+            print repr(res)
             self.requester.stderr.write(
                 'Network connection to docker hub failed.\n')
             res = None
