@@ -1,6 +1,7 @@
 import json, re
 from os.path import expanduser
 from collections import OrderedDict
+from walt.common.tools import read_json
 
 SINGLE_ITEM=1
 ONE_OR_MORE_ITEMS=2
@@ -57,21 +58,10 @@ def ask_config(key):
 def get_config_file():
     return expanduser('~/walt.conf')
 
-# Note: json comments are not allowed in the standard
-# and thus not handled in the json python module.
-# We handle them manually.
 def get_config(config_file):
-    conf = None
     modified = False
-    try:
-        with open(config_file) as f:
-            # filter out comments
-            filtered = re.sub('#.*', '', f.read())
-            # read valid json
-            conf = json.loads(filtered, object_pairs_hook=OrderedDict)
-    except:
-        pass
-    if not isinstance(conf, OrderedDict):
+    conf = read_json(config_file)
+    if conf == None:
         conf = OrderedDict()
         modified = True
     for key in CONF_ITEMS:

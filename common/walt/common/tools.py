@@ -1,5 +1,6 @@
-import subprocess, os
+import subprocess, os, json, re
 from plumbum.cmd import cat
+from collections import OrderedDict
 
 DEVNULL = open(os.devnull, 'w')
 
@@ -38,4 +39,17 @@ def failsafe_mkfifo(path):
     # create the fifo
     os.mkfifo(path)
 
-
+# Note: json comments are not allowed in the standard
+# and thus not handled in the json python module.
+# We handle them manually.
+def read_json(file_path):
+    content = None
+    try:
+        with open(file_path) as f:
+            # filter out comments
+            filtered = re.sub('#.*', '', f.read())
+            # read valid json
+            content = json.loads(filtered, object_pairs_hook=OrderedDict)
+    except:
+        pass
+    return content
