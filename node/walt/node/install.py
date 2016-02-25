@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import os
 from sys import stdout, stderr, argv, exit
+from walt.node.spec import enable_matching_features
 
 NTP_CONF_PATH = "/etc/ntp.conf"
 NTP_CONF = """
@@ -94,6 +95,7 @@ def run():
         os.makedirs(os.path.dirname(AUTHORIZED_KEYS_PATH))
     with open(AUTHORIZED_KEYS_PATH, 'w') as f:
         f.write(server_pubkey)
+    enable_matching_features()
 
 if __name__ == "__main__":
     run()

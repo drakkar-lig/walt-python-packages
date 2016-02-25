@@ -53,6 +53,7 @@ HOSTS_FILE_CONTENT="""\
 ff02::1     ip6-allnodes
 ff02::2     ip6-allrouters
 """
+SERVER_SPEC_PATH='/etc/walt/server.spec'
 
 def get_mount_path(image_fullname):
     mount_path, dummy = get_mount_info(image_fullname)
@@ -109,15 +110,22 @@ class NodeImage(object):
     def get_mount_info(self):
         return get_mount_info(self.fullname)
     def mount(self):
-        print 'Mounting %s...' % self.fullname,
+        print 'Mounting %s...' % self.fullname
         self.mount_path, self.diff_path = self.get_mount_info()
         failsafe_makedirs(self.mount_path)
         failsafe_makedirs(self.diff_path)
         self.docker.image_mount(self.top_layer_id, self.diff_path, self.mount_path)
-        chroot(self.mount_path, 'walt-node-install', self.server_ip, NodeImage.server_pubkey)
+        if os.path.exists(SERVER_SPEC_PATH):
+            target_path = self.mount_path + SERVER_SPEC_PATH
+            failsafe_makedirs(os.path.dirname(target_path))
+            shutil.copy(SERVER_SPEC_PATH, target_path)
+        install_text = chroot(self.mount_path,
+                'walt-node-install', self.server_ip, NodeImage.server_pubkey).strip()
+        if len(install_text) > 0:
+            print install_text
         self.create_hosts_file()
         self.mounted = True
-        print 'done'
+        print 'Mounting %s... done' % self.fullname
     def unmount(self):
         print 'Un-mounting %s...' % self.fullname,
         while not succeeds('umount %s 2>/dev/null' % self.mount_path):
