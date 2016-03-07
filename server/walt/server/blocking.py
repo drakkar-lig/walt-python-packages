@@ -1,4 +1,4 @@
-
+import sys, traceback
 from multiprocessing import Pipe
 from threading import Thread
 STOP = -1
@@ -20,6 +20,7 @@ class BlockingTasksThread(Thread):
             try:
                 task.result = task.perform()
             except Exception as e:
+                e.info = sys.exc_info()
                 task.result = e
             self.pipe_out.send(task_id)
         self.pipe_in.close()
@@ -55,6 +56,12 @@ class BlockingTasksManager(object):
     def handle_event(self, ts):
         task_id = self.pipe_done.recv()
         task = self.tasks[task_id]
+        if isinstance(task.result, Exception):
+            print "Exception occured in the blocking tasks thread. Backtrace:"
+            # print back trace
+            traceback.print_tb(task.result.info[2])
+            # print exception message
+            print task.result.info[1]
         task.handle_result(task.result)
         del self.tasks[task_id]
 
