@@ -101,13 +101,16 @@ class ImageShellSession(object):
                 image.update_top_layer_id()
                 # if image is mounted, umount/mount it in order to make
                 # the nodes reboot with the new version
+                node_reboot_msg = ''
                 if image.mounted:
+                    node_reboot_msg = ' (nodes using it are rebooting)'
                     # umount
                     self.images.umount_used_image(image)
                     # re-mount
                     self.images.update_image_mounts()
                 # done.
-                self.requester.stdout.write('Image %s updated (nodes using it are rebooting).\n' % self.new_image_tag)
+                self.requester.stdout.write('Image %s updated%s.\n' % \
+                                (self.new_image_tag, node_reboot_msg))
             else:
                 # we are saving changes to a new image, leaving the initial one
                 # unchanged
