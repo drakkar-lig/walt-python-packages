@@ -6,13 +6,29 @@ from walt.server.images.search import \
 
 # About terminology: See comment about it in image.py.
 
+# Implementation notes:
+# walt image clone relies on a complex process.
+# depending on what we are cloning, who we are,
+# what are the existing docker images and whether
+# we want to overwrite these existing images or not,
+# we have many cases to think about.
+# that's why we have organised this process as follows:
+# 1- we search for existing images
+# 2- we perform basic validation of the request
+# 3- we compute a workflow (a list of function calls)
+# 4- we execute this workflow.
+#
+# (also note that since docker downloads may take a long time,
+# we also have to implement this in an asynchronous task.)
+
 MSG_IMAGE_NOT_REMOTE_BELONGS_TO_WS = """\
 Invalid clonable image link.
 Images of the form 'server:%s/<image_name>' already belong to
 your working set and thus are not clonable.
 """
 MSG_USE_FORCE = """\
-If this is what you want, rerun with --force.
+If this is what you want, rerun with --force:
+$ walt image clone --force %s
 """
 MSG_INVALID_CLONABLE_LINK = """\
 Invalid clonable image link. Format must be:
@@ -20,6 +36,8 @@ Invalid clonable image link. Format must be:
 (tip: walt image search [<keyword>])
 """
 
+# Subroutines
+# -----------
 def parse_clonable_link(requester, clonable_link):
     bad = False
     parts = clonable_link.split(':')
@@ -41,35 +59,85 @@ def parse_clonable_link(requester, clonable_link):
         requester.stderr.write(MSG_INVALID_CLONABLE_LINK)
         return None, None, None
 
+def get_temp_image_fullname():
+    return 'walt/clone-temp:' + str(uuid.uuid4()).split('-')[0]
 
-def retag_image_to_requester_ws(docker, image_store, requester, source_fullname):
-    source_tag = source_fullname.split(':')[1]
-    dest_fullname = '%s/walt-node:%s' % (requester.username, source_tag)
-    # check that we really have something to retag
-    # (if the user clones one of his images on the docker hub,
-    # source_fullname and dest_fullname are the same)
-    really_retag = source_fullname != dest_fullname
-    if dest_fullname in image_store:
-        # an image with the target name exists...
-        existing_dest_image = image_store[dest_fullname]
+# we delay the removal of images because:
+# * in some case we want to retain the filesystem layers otherwise we
+#   would need to download them again (case of the overwrite of a server
+#   image with its updated hub version)
+# * walt may have it mounted
+# They will be really removed when the cleanup() function is called.
+def hide_image(image_fullname, docker, images_to_be_removed, **args):
+    image_temp_copy = get_temp_image_fullname()
+    docker.tag(image_fullname, image_temp_copy)
+    docker.untag(image_fullname)
+    images_to_be_removed.add(image_temp_copy)
+
+# workflow functions
+# ------------------
+def error_image_belongs_to_ws(requester, **args):
+    requester.stderr.write(
+        MSG_IMAGE_NOT_REMOTE_BELONGS_TO_WS % requester.username)
+    return False
+
+def verify_overwrite(image_store, requester, clonable_link,
+                    ws_image_fullname, force, **args):
+    if not force:
+        image_store.warn_overwrite_image(requester, ws_image_fullname)
+        requester.stderr.write(MSG_USE_FORCE % clonable_link)
+        return False
+
+def remove_ws_image(ws_image_fullname, **args):
+    hide_image(ws_image_fullname, **args)
+
+def remove_server_image(remote_image_fullname, **args):
+    hide_image(remote_image_fullname, **args)
+
+def save_server_image(docker, remote_image_fullname, saved_server_image, **args):
+    server_image_copy = get_temp_image_fullname()
+    docker.tag(remote_image_fullname, server_image_copy)
+    saved_server_image.add(server_image_copy)
+
+def restore_saved_server_image(docker, remote_image_fullname,
+                                saved_server_image, **args):
+    server_image_copy = saved_server_image.pop()
+    docker.tag(server_image_copy, remote_image_fullname)
+    docker.untag(server_image_copy)
+
+def tag_server_image_to_requester(docker,
+                ws_image_fullname, remote_image_fullname, **args):
+    docker.tag(remote_image_fullname, ws_image_fullname)
+
+def pull_hub_image(docker, requester, remote_image_fullname, **args):
+    docker.pull(remote_image_fullname, requester.stdout)
+
+def update_walt_image(image_store, ws_image_fullname, **args):
+    if ws_image_fullname in image_store:
+        # an image with the target name exists
+        existing_dest_image = image_store[ws_image_fullname]
         # if image is mounted, umount/mount it in order to make
         # the nodes reboot with the new version
         need_mount_umount = existing_dest_image.mounted
         if need_mount_umount:
             # umount
             image_store.umount_used_image(existing_dest_image)
-        if really_retag:
-            # remove existing image
-            docker.rmi(dest_fullname)
-            # re-tag the source image
-            docker.tag(source_fullname, dest_fullname)
+        # image has changed, update the top filesystem layer it
+        # points to.
+        existing_dest_image.update_top_layer_id()
         if need_mount_umount:
             # re-mount
             image_store.update_image_mounts()
     else:
-        if really_retag:
-            docker.tag(source_fullname, dest_fullname)
+        # add this new image in the store
+        image_store.register_image(ws_image_fullname, True)
 
+def cleanup(docker, images_to_be_removed, **args):
+    while len(images_to_be_removed) > 0:
+        docker.untag(images_to_be_removed.pop())
+
+# walt image clone implementation
+# -------------------------------
 def perform_clone(requester, docker, clonable_link, image_store, force):
     remote_location, remote_user, remote_tag = parse_clonable_link(
                                                 requester, clonable_link)
@@ -84,73 +152,62 @@ def perform_clone(requester, docker, clonable_link, image_store, force):
     # search
     result = Search(docker, requester, 'Validating...').search(validate)
     # check that the requested image is in the resultset
-    if      len(result) == 0 or \
-            remote_user not in result[remote_tag] or \
-            remote_location not in result[remote_tag][remote_user]:
+    if remote_location not in result[remote_tag][remote_user]:
         requester.stderr.write(
             'No such remote image. Use walt image search <keyword>.\n')
         return
-    # filter out error cases
-    users = result[remote_tag]
-    locations = users[remote_user]
-    would_overwrite_ws_image = False
-    if requester.username == remote_user:
-        if remote_location == LOCATION_WALT_SERVER:
-            requester.stderr.write(
-                MSG_IMAGE_NOT_REMOTE_BELONGS_TO_WS % requester.username)
-            return
-        else:
-            if len(locations) == 2:
-                would_overwrite_ws_image = True
-    else:
-        if requester.username in users and \
-                LOCATION_WALT_SERVER in users[requester.username]:
-            would_overwrite_ws_image = True
-    ws_image_fullname = "%s/walt-node:%s" % (requester.username, remote_tag)
-    if would_overwrite_ws_image and not force:
-        image_store.warn_overwrite_image(requester, ws_image_fullname)
-        requester.stderr.write(MSG_USE_FORCE)
-        return
+
+    # compute the workflow
+    # --------------------
+    existing_server_image = (LOCATION_WALT_SERVER in result[remote_tag][remote_user])
+    existing_ws_image = (LOCATION_WALT_SERVER in result[remote_tag][requester.username])
+    same_user = (requester.username == remote_user)
+    # obvious facts:
+    # * if remote_location is LOCATION_WALT_SERVER, existing_server_image is True
+    # * if same_user is True, existing_server_image == existing_ws_image
+    # that's why not all workflow entries are possible.
+    workflow_selector = {
+        # remote_location, existing_server_image, existing_ws_image, same_user
+        (LOCATION_WALT_SERVER, True, False, False): [ tag_server_image_to_requester ],
+        (LOCATION_WALT_SERVER, True, True, False):  [ verify_overwrite, remove_ws_image, tag_server_image_to_requester ],
+        (LOCATION_WALT_SERVER, True, True, True):   [ error_image_belongs_to_ws ],
+
+        (LOCATION_DOCKER_HUB, False, False, False): [ pull_hub_image, tag_server_image_to_requester, remove_server_image ],
+        (LOCATION_DOCKER_HUB, False, True, False):  [ verify_overwrite, remove_ws_image, pull_hub_image, \
+                                                        tag_server_image_to_requester, remove_server_image ],
+        (LOCATION_DOCKER_HUB, True, False, False):  [ save_server_image, remove_server_image, pull_hub_image, \
+                                                        tag_server_image_to_requester, remove_server_image, \
+                                                        restore_saved_server_image ],
+        (LOCATION_DOCKER_HUB, True, True, False):   [ verify_overwrite, remove_ws_image, \
+                                                        save_server_image, remove_server_image, pull_hub_image, \
+                                                        tag_server_image_to_requester, remove_server_image, \
+                                                        restore_saved_server_image ],
+        (LOCATION_DOCKER_HUB, False, False, True):  [ pull_hub_image ],
+        (LOCATION_DOCKER_HUB, True, True, True):    [ verify_overwrite, remove_ws_image, pull_hub_image ]
+    }
+    workflow = workflow_selector[(remote_location, existing_server_image, existing_ws_image, same_user)]
+    workflow += [ update_walt_image, cleanup ]      # these 2 are always called
+    print 'clone workflow is:', ', '.join([ f.__name__ for f in workflow ])
+
     # proceed
-    remote_fullname = "%s/walt-node:%s" % (remote_user, remote_tag)
-    if remote_location == LOCATION_DOCKER_HUB:
-        # need to pull the image
-        if LOCATION_WALT_SERVER in locations:
-            # ---------------------
-            # caution:
-            # <u1> wants to pull hub:<u2>/<image> (and then store it as
-            # server:<u1>/<image>) but server:<u2>/<image> also exists and its
-            # tag would be overwritten by the docker pull operation.
-            # In order to avoid that, we tag server:<u2>/<image> again
-            # temporarily.
-            # ---------------------
-            # generate a temporary docker image name
-            temp_repo = 'walt-temp-' + str(uuid.uuid4()).split('-')[0]
-            temp_fullname = "%s/%s:%s" % (requester.username, temp_repo, remote_tag)
-            # save server:<u2>/<image> by tagging it with the temp name
-            docker.tag(remote_fullname, temp_fullname)
-            # pull hub:<u2>/<image> (we get an updated version of server:<u2>/<image>)
-            docker.pull(remote_fullname, requester.stdout)
-            # tag the updated version of server:<u2>/<image> to server:<u1>/<image>
-            # (this will make the image appear in <u1>'s working set)
-            retag_image_to_requester_ws(docker, image_store, requester, remote_fullname)
-            # restore the tag on server:<u2>/<image>
-            docker.tag(temp_fullname, remote_fullname)
-            # remove the temporary tag
-            docker.untag(temp_fullname)
-        else:
-            # pull the image
-            docker.pull(remote_fullname, requester.stdout)
-            # re-tag the image with the requester username (make it appear in its WS)
-            retag_image_to_requester_ws(docker, image_store, requester, remote_fullname)
-            if remote_user != requester.username:
-                docker.untag(remote_fullname) # remove the old tag
-    else:
-        # tag an image of the server
-        retag_image_to_requester_ws(docker, image_store, requester, remote_fullname)
-    # if needed, let walt know there is a new image
-    if ws_image_fullname not in image_store:
-        image_store.register_image(ws_image_fullname, True)
+    # -------
+    context = dict(
+        ws_image_fullname = "%s/walt-node:%s" % (requester.username, remote_tag),
+        remote_image_fullname = "%s/walt-node:%s" % (remote_user, remote_tag),
+        image_store = image_store,
+        docker = docker,
+        requester = requester,
+        force = force,
+        saved_server_image = set(), # need a mutable object
+        images_to_be_removed = set(),
+        clonable_link = clonable_link
+    )
+
+    for f in workflow:
+        res = f(**context)
+        if res == False:
+            return  # issue, stop here
+
     requester.stdout.write('Done.\n')
 
 class CloneTask(object):
@@ -168,6 +225,9 @@ class CloneTask(object):
                 'Network connection to docker hub failed.\n')
             res = None
         elif isinstance(res, Exception):
+            import pdb
+            pdb.set_trace()
+            print res
             raise res   # unexpected
         self.response_q.put(res)
 

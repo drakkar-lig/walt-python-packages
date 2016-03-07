@@ -1,4 +1,5 @@
 import requests
+from collections import defaultdict
 from walt.server.tools import columnate, \
                 display_transient_label, hide_transient_label
 
@@ -21,7 +22,7 @@ class Search(object):
     def __init__(self, docker, requester, transient_label='Searching...'):
         self.docker = docker
         self.requester = requester
-        self.result = {}
+        self.result = defaultdict(lambda : defaultdict(set))
         self.transient_label = transient_label
     # search returns a dictionary with the following format:
     # { <tag> -> { <user> -> <location> } }
@@ -48,10 +49,6 @@ class Search(object):
         hide_transient_label(self.requester.stdout, self.transient_label)
         return self.result
     def insert_result(self, tag, user, location):
-        if tag not in self.result:
-            self.result[tag] = {}
-        if user not in self.result[tag]:
-            self.result[tag][user] = set([])
         self.result[tag][user].add(location)
 
 # this implements walt image search
