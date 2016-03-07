@@ -89,13 +89,15 @@ class Topology(object):
                 device_type = self.get_type(mac)
                 if mac in processed_switches:
                     continue
-                if not ip_in_walt_network(ip):
+                valid_ip = str(ip) != 'None'
+                if not valid_ip or not ip_in_walt_network(ip):
                     # if someone is viewing the UI, let him know that we are still
                     # alive, because this could cause a long delay.
                     if ui:
                         ui.task_running()
                     print 'Not ready, one neighbor has ip %s (not in WalT network yet)...' % ip
-                    if device_type == 'switch' and mac not in switches_with_dhcp_restarted:
+                    if valid_ip and device_type == 'switch' and \
+                            mac not in switches_with_dhcp_restarted:
                         print 'trying to restart the dhcp client on switch %s (%s)' % (ip, mac)
                         switches_with_dhcp_restarted.add(mac)
                         restart_dhcp_setup_on_switch(ip)
