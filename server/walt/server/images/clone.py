@@ -225,9 +225,6 @@ class CloneTask(object):
                 'Network connection to docker hub failed.\n')
             res = None
         elif isinstance(res, Exception):
-            import pdb
-            pdb.set_trace()
-            print res
             raise res   # unexpected
         self.response_q.put(res)
 
