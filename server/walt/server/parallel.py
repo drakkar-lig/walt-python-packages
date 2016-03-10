@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import os, pty, shlex, uuid, fcntl, termios, sys
+import os, pty, shlex, uuid, fcntl, termios, sys, threading
 from subprocess import Popen, PIPE, STDOUT
 from walt.common.io import SmartBufferingFileReader, \
                             unbuffered, read_and_copy
@@ -50,7 +50,8 @@ class ParallelProcessSocketListener(object):
         env = os.environ.copy()
         if 'env' in self.params:
             env.update(self.params['env'])
-        if 'pty' in self.params and self.params['pty']:
+        if 'want_tty' in self.params and self.params['want_tty'] \
+                and 'client_tty' in self.params and self.params['client_tty']:
             self.start_pty(cmd_args, env)
         else:
             self.start_popen(cmd_args, env)
@@ -81,6 +82,18 @@ class ParallelProcessSocketListener(object):
         self.popen = Popen(cmd_args, env=env, bufsize=1024*1024,
                         stdin=self.sock_file, stdout=self.sock_file, stderr=STDOUT)
         self.ev_loop.update_listener(self, 0)
+        self.popen_set_finalize_callback()
+    # when the popen object exits, close its output in order
+    # to notify the end of transmission to the client.
+    def popen_set_finalize_callback(self):
+        def monitor_popen(popen, sock_file):
+            popen.wait()
+            sock_file.close()
+            return
+        self.popen.monitor_thread = threading.Thread(
+                                target=monitor_popen,
+                                args=(self.popen,self.sock_file))
+        self.popen.monitor_thread.start()
     # let the event loop know what we are reading on
     def fileno(self):
         if self.sock_file.closed:

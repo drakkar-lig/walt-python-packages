@@ -9,7 +9,7 @@ class PromptSocketListener(ParallelProcessSocketListener):
     def update_params(self):
         self.params.update(
             env={'TERM':'xterm'},
-            pty=True    # start subprocess in a virtual terminal
+            want_tty=True    # preferably start subprocess in a virtual terminal
         )
 
 class SQLPromptSocketListener(PromptSocketListener):

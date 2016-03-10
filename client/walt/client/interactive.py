@@ -70,7 +70,17 @@ class TTYSettings(object):
 
 class PromptClient(object):
     def __init__(self, req_id, **params):
-        self.tty_settings = TTYSettings()
+        if sys.stdout.isatty() and sys.stdin.isatty():
+            self.client_tty = True
+            self.tty_settings = TTYSettings()
+            # send terminal width and provided parameters
+            params.update(
+                win_size = self.tty_settings.win_size
+            )
+        else:
+            self.client_tty = False
+        # tell server whether we are on a tty
+        params.update(client_tty = self.client_tty)
         # connect
         server_host = conf['server']
         s = client_socket(server_host, WALT_SERVER_TCP_PORT)
@@ -81,10 +91,6 @@ class PromptClient(object):
         Requests.send_id(self.socket_w, req_id)
         # wait for the READY message from the server
         self.socket_r.readline()
-        # send terminal width and provided parameters
-        params.update(
-            win_size = self.tty_settings.win_size
-        )
         write_pickle(params, self.socket_w)
         # provide read_available() method
         self.stdin_reader = SmartBufferingFileReader(unbuffered(stdin, 'r'))
@@ -108,7 +114,8 @@ class PromptClient(object):
         # server (command outputs, prompts) will not be perfect
         # because of network latency. Thus we let the server terminal
         # handle the echo.
-        self.tty_settings.set_raw_no_echo()
+        if self.client_tty:
+            self.tty_settings.set_raw_no_echo()
         try:
             while True:
                 rlist, wlist, elist = select(*select_args)
@@ -122,7 +129,8 @@ class PromptClient(object):
                     if read_and_copy(self.stdin_reader, self.socket_w) == False:
                         break
         finally:
-            self.tty_settings.restore()
+            if self.client_tty:
+                self.tty_settings.restore()
 
 def run_sql_prompt():
     print SQL_SHELL_MESSAGE
