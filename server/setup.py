@@ -5,7 +5,7 @@ setup(
     packages = find_packages(),
     install_requires = ['rpyc>=3.3','plumbum>=1.4.2','walt-common',
                     'ipaddress>=1.0.7','requests>=2.3.0',
-                    'docker-py>=1.2.2'],
+                    'docker-py>=1.2.2','sdnotify>=0.3.0'],
 
     # metadata for upload to PyPI
     author = "Etienne Duble",

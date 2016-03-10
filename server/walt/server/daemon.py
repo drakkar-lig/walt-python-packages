@@ -213,6 +213,13 @@ class WalTServerDaemon(WalTDaemon):
     def init_end(self):
         server.instance.ui.set_status('Ready.')
 
+def notify_systemd():
+    try:
+        import sdnotify
+        sdnotify.SystemdNotifier().notify("READY=1")
+    except:
+        pass
+
 def run():
     ui = UIManager()
     myserver = server.Server(ui)
@@ -220,6 +227,7 @@ def run():
     set_server_ip()
     myserver.dhcpd.update(force=True)
     setup.setup(ui)
+    notify_systemd()
     with AutoCleaner(myserver) as server.instance:
         myserver.update()
         WalTServerDaemon.run()
