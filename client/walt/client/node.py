@@ -19,6 +19,11 @@ we consider that "<U> owns <N>".
 Thus, if you just started using WalT, "you do not own any node" until you deploy
 an image on one of them (use 'walt node deploy <node(s)> <image>' for this).
 
+A good practice is, once you are done with your experiment, to deploy the default
+image on them (use 'walt node deploy my-nodes default' for this), in order to
+release your 'ownership' on these nodes.
+After you run this, these nodes will appear as 'free' to other WalT users.
+
 * specifying a set of nodes 
 * -------------------------
 Some commands accept a "set of nodes":
@@ -109,13 +114,13 @@ class WalTNodeReboot(cli.Application):
 @WalTNode.subcommand("deploy")
 class WalTNodeDeploy(cli.Application):
     """deploy an operating system image on a (set of) node(s)"""
-    def main(self, node_set, image_name):
+    def main(self, node_set, image_name_or_default):
         with ClientToServerLink() as server:
-            if server.has_image(image_name):
+            if server.has_image(image_name_or_default):
                 if not WalTNode.confirm_nodes_not_owned(server, node_set):
                     return
                 if server.poweroff(node_set, warn_unknown_topology=True):
-                    server.set_image(node_set, image_name, warn_unknown_topology=False)
+                    server.set_image(node_set, image_name_or_default, warn_unknown_topology=False)
                     time.sleep(POE_REBOOT_DELAY)
                     server.poweron(node_set, warn_unknown_topology=False)
 

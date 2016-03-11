@@ -78,9 +78,12 @@ class Server(object):
                             requester, nodes, warn_unknown_topology)
         macs = [ n.mac for n in nodes_ok ]
         if self.images.set_image(requester, macs, image_tag):
+            if image_tag == 'default':
+                sentence = '%s will now boot its(their) default image (other users will see it(they) is(are) \'free\').'
+            else:
+                sentence = '%s will now boot ' + image_tag + '.'
             requester.stdout.write(format_sentence_about_nodes(
-                '%s will now boot ' + image_tag + '.' ,
-                [n.name for n in nodes_ok]) + '\n')
+                sentence, [n.name for n in nodes_ok]) + '\n')
 
     def rename_device(self, requester, old_name, new_name):
         self.devices.rename(requester, old_name, new_name)

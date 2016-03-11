@@ -54,18 +54,32 @@ class NodeImageManager(object):
         # un-mount images
         self.store.cleanup()
     def has_image(self, requester, image_tag):
-        return self.store.get_user_image_from_tag(requester, image_tag) != None
+        if image_tag == 'default':
+            return True
+        else:
+            return self.store.get_user_image_from_tag(requester, image_tag) != None
     def set_image(self, requester, node_macs, image_tag):
-        image = self.store.get_user_image_from_tag(requester, image_tag)
-        if image:
-            for node_mac in node_macs:
-                self.db.update('nodes', 'mac',
-                        mac=node_mac,
-                        image=image.fullname)
-            self.store.update_image_mounts()
-            self.db.commit()
-            self.dhcpd.update()
-        return image != None
+        # if image tag is specified, let's get its fullname
+        if image_tag != 'default':
+            image = self.store.get_user_image_from_tag(requester, image_tag)
+            if image == None:
+                return False
+            image_fullname = image.fullname
+        for node_mac in node_macs:
+            # if the 'default' keyword was specified, we might have to deploy
+            # different images depending of the type of each WalT node.
+            # we compute the appropriate image fullname here.
+            if image_tag == 'default':
+                node_type = self.db.select_unique('devices', mac=node_mac).type
+                image_fullname = self.store.get_default_image(node_type)
+            # let's update the database about which node is mounting what
+            self.db.update('nodes', 'mac',
+                    mac=node_mac,
+                    image=image_fullname)
+        self.store.update_image_mounts()
+        self.db.commit()
+        self.dhcpd.update()
+        return True
     def create_shell_session(self, requester, image_tag):
         return self.shells.create_session(requester, image_tag)
 

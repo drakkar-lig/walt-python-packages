@@ -19,7 +19,7 @@ MSG_RERUN_WITH_ALL = """\
 Re-run with --all to see all deployable nodes."""
 
 TITLE_NODE_SHOW_FREE_NODES_PART = """\
-The following nodes are free (they have never been used):"""
+The following nodes are free (a default image is deployed on them):"""
 
 TITLE_NODE_SHOW_USER_NODES_PART = """\
 The following nodes are running one of your images:"""
