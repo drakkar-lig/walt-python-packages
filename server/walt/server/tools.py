@@ -65,6 +65,15 @@ def hide_transient_label(stdout, label):
     stdout.write('\r%s\r' % (' '*len(label)))
     stdout.flush()
 
+def indicate_progress(stdout, label, stream):
+    full_label = ''
+    for idx, line in enumerate(stream):
+        progress = "\\|/-"[idx % 4]
+        full_label = '%s... %s' % (label, progress)
+        display_transient_label(stdout, full_label)
+    hide_transient_label(stdout, full_label)
+    stdout.write('%s... done.\n' % label)
+
 def format_paragraph(title, content, footnote=None):
     if footnote:
         footnote += '\n\n'

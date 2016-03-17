@@ -1,6 +1,7 @@
 from walt.server.images.image import parse_image_fullname
 from walt.server.tools import \
-        display_transient_label, hide_transient_label
+        display_transient_label, hide_transient_label, \
+        indicate_progress
 from walt.server import const
 from docker import Client
 from datetime import datetime
@@ -30,13 +31,9 @@ class DockerClient(object):
         if stdout == None:
             stdout = sys.stdout
         fullname, name, repo, user, tag = parse_image_fullname(image_fullname)
-        for idx, line in enumerate(
-                self.c.pull(name, tag=requests.utils.quote(tag), stream=True)):
-            progress = "\\|/-"[idx % 4]
-            label = 'Downloading %s/%s... %s' % (user, tag, progress)
-            display_transient_label(stdout, label)
-        hide_transient_label(stdout, label)
-        stdout.write('Downloading %s/%s... done.\n' % (user, tag))
+        label = 'Downloading %s/%s' % (user, tag)
+        stream = self.c.pull(name, tag=requests.utils.quote(tag), stream=True)
+        indicate_progress(stdout, label, stream)
     def tag(self, old_fullname, new_fullname):
         dummy1, new_name, dummy2, dummy3, new_tag = parse_image_fullname(new_fullname)
         self.c.tag(image=old_fullname, repository=new_name, tag=new_tag)
