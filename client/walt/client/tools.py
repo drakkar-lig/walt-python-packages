@@ -2,9 +2,9 @@ import sys
 from multiprocessing import Process, Queue
 from Queue import Empty
 
-def confirm():
+def confirm(msg = 'Are you sure?'):
     while True:
-        print 'Are you sure? (y/n):',
+        print '%s (y/n):' % msg,
         res = raw_input()
         if res == 'y':
             return True
