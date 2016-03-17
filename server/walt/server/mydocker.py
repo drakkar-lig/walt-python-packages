@@ -1,3 +1,4 @@
+from walt.common.crypto.blowfish import BlowFish
 from walt.server.images.image import parse_image_fullname
 from walt.server.tools import \
         display_transient_label, hide_transient_label, \
@@ -34,6 +35,29 @@ class DockerClient(object):
         label = 'Downloading %s/%s' % (user, tag)
         stream = self.c.pull(name, tag=requests.utils.quote(tag), stream=True)
         indicate_progress(stdout, label, stream)
+    def login(self, auth_conf, stdout):
+        label = 'Authenticating to the docker hub...'
+        display_transient_label(stdout, label)
+        try:
+            symmetric_key = auth_conf['dh_peer'].symmetric_key
+            cypher = BlowFish(symmetric_key)
+            password = cypher.decrypt(auth_conf['encrypted_password'])
+            # Note: the docker hub API requires the email argument
+            # to be provided because it may be used to register a new user.
+            # Here, the user already exists, so the email will not be used.
+            self.c.login(   username = auth_conf['username'],
+                            password = password,
+                            email    = 'email@fake.fr',
+                            registry = REGISTRY,
+                            reauth   = True)
+        except Exception as e:
+            print e
+            hide_transient_label(stdout, label)
+            stdout.write('%s FAILED.\n' % label)
+            return False
+        hide_transient_label(stdout, label)
+        stdout.write('%s done.\n' % label)
+        return True
     def tag(self, old_fullname, new_fullname):
         dummy1, new_name, dummy2, dummy3, new_tag = parse_image_fullname(new_fullname)
         self.c.tag(image=old_fullname, repository=new_name, tag=new_tag)

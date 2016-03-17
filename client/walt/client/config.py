@@ -1,102 +1,139 @@
-import json, re
+import json, re, binascii, os
 from os.path import expanduser
 from collections import OrderedDict
 from walt.common.tools import read_json
+from getpass import getpass
 
-SINGLE_ITEM=1
-ONE_OR_MORE_ITEMS=2
+CONFIG_FILE_TOP_COMMENT="""\
+WalT configuration file
+***********************
+This file was automatically generated.
+You are allowed to edit the configuration values if needed.
+However, instead of changing a value, you should consider removing the
+related line instead. This would cause the walt client to prompt for this value
+again, your new entry would pass an appropriate validity check, and this file
+would be generated again accordingly.
+"""
 
-CONF_ITEMS = OrderedDict([
-    ('server', dict(
-        desc='ip or hostname of walt server',
-        itemtype=str,
-        default='localhost',
-        user_input=True
-    )),
-    ('username', dict(
-        desc='walt username',
-        explain='''\
-This name is used to indicate the author of the walt images you create.
-If you have an account on the docker hub, you should input the same username,
-because walt looks for any walt image stored there.
-Otherwise you are free to choose the one you want.''',
-        itemtype=str,
-        default=None,
-        user_input=True
-    ))
-])
+# This is not secure at all, we will just make passwords unreadable for someone spying
+# your screen. The security is actually based on the access rights of the conf file
+# (it is readable by the owner only).
+# The docker framework relies on the same policy regarding password storage in
+# .docker/conf.json or .dockercfg.
+KEY="RAND0M STRING T0 HIDE A PASSW0RD"
+def xor(password):
+    key = (len(password) / len(KEY) +1)*KEY     # repeat if KEY is too short
+    return "".join(chr(ord(a)^ord(b)) for a,b in zip(key,password))
 
-def ask_config(key):
-    infos = CONF_ITEMS[key]
-    desc = infos['desc']
-    default = infos['default']
-    itemtype = infos['itemtype']
-    print
-    print 'Missing configuration item:', desc
-    if 'explain' in infos:
-        print infos['explain']
-    if default:
-        msg = 'please enter it now [%s]: ' % str(default)
-    else:
-        msg = 'please enter it now: '
+def ask_config_item(key, coded=False):
+    msg = '%s: ' % key
     while True:
-        value = raw_input(msg)
+        if coded:
+            value = getpass(msg)
+        else:
+            value = raw_input(msg)
         if value.strip() == '':
-            if default:
-                value = default
-                print 'Selected value:', str(value)
-                break
-            else:
-                continue
-        try:
-            value = itemtype(value)
-            break
-        except:
-            print "Bad input: expected type is '%s'" % str(itemtype)
+            continue
+        break
     return value
+
+def encode(value):
+    return binascii.hexlify(xor(value))
+
+def decode(coded_value):
+    return xor(binascii.unhexlify(coded_value))
 
 def get_config_file():
     return expanduser('~/walt.conf')
 
-def get_config(config_file):
+def get_config_from_file(coded_items):
+    config_file = get_config_file()
     modified = False
     conf = read_json(config_file)
     if conf == None:
+        if os.path.exists(config_file):
+            print "Warning: %s file exists, but it could not be parsed properly." \
+                            % config_file
         conf = OrderedDict()
-        modified = True
-    for key in CONF_ITEMS:
-        if key not in conf:
-            if CONF_ITEMS[key]['user_input']:
-                conf[key] = ask_config(key)
-            else:
-                conf[key] = CONF_ITEMS[key]['default']
-            modified = True
-    if modified:
-        save_config(conf, config_file)
-        print '\nConfiguration was stored in %s.\n' % config_file
+    for key in conf:
+        if key in coded_items:
+            conf[key] = decode(conf[key])
     return conf
 
-def save_config(conf, config_file):
-    lines=[ ]
-    for k in conf:
-        # if not the 1st item add ',' before continuing
-        if len(lines) > 0:
-            lines = lines[0:-1] + [ lines[-1] + ',' ]
-        # add item label and description as 'json comments'
-        infos = CONF_ITEMS[k]
-        lines.append('')
-        lines.append('    # %s' % infos['desc'])
-        lines.append('    # %s' % re.sub('.', '-', infos['desc']))
-        if 'explain' in infos:
-            lines.extend([ '    # ' + line for line in infos['explain'].splitlines() ])
-        # get json output for this item only
-        # (by creating a temporary dictionary with just this item)
-        item_and_value = json.dumps({k:conf[k]}, indent=4).splitlines()[1:-1]
-        lines.extend(item_and_value)
-    # concatenate all and write the file
-    with open(config_file, 'w') as f:
-        f.write('{' + '\n'.join(lines) + '\n}\n')
+class ConfigFileSaver(object):
+    def __init__(self):
+        self.item_groups = []
+    def __enter__(self):
+        return self
+    def __exit__(self, type, value, tb):
+        # concatenate all and write the file
+        config_file = get_config_file()
+        with open(config_file, 'w') as f:
+            f.write(self.printed())
+        os.chmod(config_file, 0o600)
+        print '\nConfiguration was stored in %s.\n' % config_file
+    def add_item_group(self, desc, explain=None):
+        self.item_groups.append(dict(
+            desc    = desc,
+            explain = explain,
+            items   = []
+        ))
+    def add_item(self, key, value, coded=False):
+        comment = None
+        if coded:
+            comment = '(%s value is encoded.)' % key
+            value   = encode(value)
+        self.item_groups[-1]['items'].append(dict(
+            key     = key,
+            value   = value,
+            comment = comment
+        ))
+    def comment_section(self, lines, section, indent=0):
+        return lines.extend([ (' ' * indent) + '# ' + line \
+                            for line in section.splitlines() ])
+    def printed(self):
+        lines = [ '' ]
+        self.comment_section(lines, CONFIG_FILE_TOP_COMMENT)
+        lines.extend(['', '{'])
+        last_item_line = None
+        for item_group in self.item_groups:
+            desc = item_group['desc']
+            explain = item_group['explain']
+            # add group-level 'json comments'
+            lines.append('')
+            self.comment_section(
+                    lines,
+                    '%s\n%s' % (desc, re.sub('.', '-', desc)),
+                    indent = 4)
+            if explain:
+                self.comment_section(
+                    lines, explain, indent = 4)
+            # add items
+            for item in item_group['items']:
+                key     = item['key']
+                value   = item['value']
+                comment = item['comment']
+                if comment:
+                    self.comment_section(lines, comment, indent = 4)
+                # get json output for this item only
+                # (by creating a temporary dictionary with just this item)
+                item_and_value = json.dumps({key:value}, indent=4).splitlines()[1:-1]
+                item_and_value[-1] += ','
+                lines.extend(item_and_value)
+                last_item_line = len(lines) -1
+        # remove the comma after the last item
+        lines[last_item_line] = lines[last_item_line][:-1]
+        lines.append('}')
+        return '\n'.join(lines) + '\n'
 
-conf_path = get_config_file()
-conf = get_config(conf_path)
+def set_conf(in_conf):
+    global conf_dict
+    conf_dict = in_conf
+
+class Conf(object):
+    def __getitem__(self, key):
+        return conf_dict[key]
+
+conf_dict = None
+conf = Conf()
 

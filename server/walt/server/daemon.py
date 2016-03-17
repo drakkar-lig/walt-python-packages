@@ -6,6 +6,7 @@ from walt.server.network import setup
 from walt.server.network.tools import set_server_ip
 from walt.server.tools import AutoCleaner
 from walt.server.ui.manager import UIManager
+from walt.common.crypto.dh import DHPeer
 from walt.common.daemon import WalTDaemon
 from walt.common.constants import           \
                  WALT_SERVER_DAEMON_PORT,   \
@@ -157,6 +158,12 @@ class PlatformService(rpyc.Service):
                           q = q,
                           clonable_link = clonable_link,
                           force = force)
+
+    def exposed_get_dh_peer(self):
+        return DHPeer()
+
+    def exposed_docker_login(self, auth_conf):
+        return self.server.docker.login(auth_conf, self._client.stdout)
 
     def exposed_show_images(self):
         return self.images.show(self._client.username)
