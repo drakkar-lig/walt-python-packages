@@ -2,6 +2,7 @@ from docker import Client
 from walt.server.images.shell import ImageShellSessionStore
 from walt.server.images.search import search
 from walt.server.images.clone import clone
+from walt.server.images.publish import publish
 from walt.server.images.show import show
 from walt.server.images.rename import rename
 from walt.server.images.remove import remove
@@ -27,6 +28,11 @@ class NodeImageManager(object):
         search(q, self.blocking, self.docker, requester, keyword)
     def clone(self, **kwargs):
         clone(blocking = self.blocking,
+              docker = self.docker,
+              image_store = self.store,
+              **kwargs)
+    def publish(self, **kwargs):
+        publish(blocking = self.blocking,
               docker = self.docker,
               image_store = self.store,
               **kwargs)

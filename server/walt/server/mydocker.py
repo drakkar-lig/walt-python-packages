@@ -11,6 +11,7 @@ import sys, requests, shlex, json
 
 AUFS_BR_LIMIT=127
 AUFS_BR_MOUNT_LIMIT=42
+REGISTRY='https://index.docker.io/v1/'
 
 def docker_command_split(cmd):
     args = shlex.split(cmd)
@@ -57,6 +58,16 @@ class DockerClient(object):
             return False
         hide_transient_label(stdout, label)
         stdout.write('%s done.\n' % label)
+        return True
+    def push(self, image_fullname, auth_conf, stdout = None):
+        if stdout == None:
+            stdout = sys.stdout
+        fullname, name, repo, user, tag = parse_image_fullname(image_fullname)
+        if not self.login(auth_conf, stdout):
+            return False
+        label = 'Pushing %s' % tag
+        stream = self.c.push(name, tag=requests.utils.quote(tag), stream=True)
+        indicate_progress(stdout, label, stream)
         return True
     def tag(self, old_fullname, new_fullname):
         dummy1, new_name, dummy2, dummy3, new_tag = parse_image_fullname(new_fullname)

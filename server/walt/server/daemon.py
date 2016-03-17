@@ -162,6 +162,12 @@ class PlatformService(rpyc.Service):
     def exposed_get_dh_peer(self):
         return DHPeer()
 
+    def exposed_publish_image(self, q, auth_conf, image_tag):
+        self.images.publish(requester = self._client,
+                          q = q,
+                          auth_conf = auth_conf,
+                          image_tag = image_tag)
+
     def exposed_docker_login(self, auth_conf):
         return self.server.docker.login(auth_conf, self._client.stdout)
 

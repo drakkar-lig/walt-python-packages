@@ -4,6 +4,7 @@ from walt.client.link import ClientToServerLink, ResponseQueue
 from walt.client.tools import confirm
 from walt.client.interactive import run_image_shell_prompt
 from walt.client.transfer import run_transfer_with_image
+from walt.client.auth import get_auth_conf
 
 class WalTImage(cli.Application):
     """management of WalT-nodes operating system images"""
@@ -30,6 +31,16 @@ class WalTImageClone(cli.Application):
     @cli.autoswitch(help='do it, even if it overwrites an existing image.')
     def force(self):
         self._force = True
+
+@WalTImage.subcommand("publish")
+class WalTImagePublish(cli.Application):
+    """publish a WalT image on the docker hub"""
+    def main(self, image_name):
+        q = ResponseQueue()
+        with ClientToServerLink(True) as server:
+            auth_conf = get_auth_conf(server)
+            server.publish_image(q, auth_conf, image_name)
+            q.wait()
 
 @WalTImage.subcommand("show")
 class WalTImageShow(cli.Application):
