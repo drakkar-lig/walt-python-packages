@@ -82,8 +82,10 @@ def validate_image_tag(requester, image_tag):
 FS_CMD_PATTERN = 'docker run --rm --entrypoint %%(prog)s %(image)s %%(prog_args)s'
 
 class NodeImage(object):
-    server_pubkey = get_server_pubkey()
+    server_pubkey = None
     def __init__(self, docker, fullname):
+        if NodeImage.server_pubkey == None:
+            NodeImage.server_pubkey = get_server_pubkey()
         self.docker = docker
         self.rename(fullname)
         self.created_at = None

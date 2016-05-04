@@ -11,6 +11,7 @@ from walt.common.daemon import WalTDaemon
 from walt.common.constants import           \
                  WALT_SERVER_DAEMON_PORT,   \
                  WALT_NODE_DAEMON_PORT
+from walt.common.api import api, api_expose
 
 WALT_SERVER_DAEMON_VERSION = 0.1
 
@@ -58,6 +59,7 @@ class ServerToNodeLink:
     def __exit__(self, type, value, traceback):
         self.conn.close()
 
+@api
 class PlatformService(rpyc.Service):
     ALIASES=("WalT_Platform",)
 
@@ -75,16 +77,20 @@ class PlatformService(rpyc.Service):
     def on_disconnect(self):
         self._client = None
 
-    def exposed_device_rescan(self):
+    @api_expose
+    def device_rescan(self):
         self.server.device_rescan(self._client)
 
-    def exposed_device_tree(self):
+    @api_expose
+    def device_tree(self):
         return self.devices.topology.tree()
 
-    def exposed_device_show(self):
+    @api_expose
+    def device_show(self):
         return self.devices.topology.show()
 
-    def exposed_show_nodes(self, show_all):
+    @api_expose
+    def show_nodes(self, show_all):
         return self.nodes.show(self._client, show_all)
 
     def exposed_get_reachable_nodes_ip(self, node_set):

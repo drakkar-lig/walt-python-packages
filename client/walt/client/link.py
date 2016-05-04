@@ -4,29 +4,38 @@ from walt.common.constants import WALT_SERVER_DAEMON_PORT
 from walt.client.config import conf
 from walt.client.filesystem import Filesystem
 from multiprocessing import Queue
+from walt.common.api import api, api_expose
 
+@api
 class ResponseQueue(object):
     def __init__(self):
         self.q = Queue()
-    def exposed_put(self, *args, **kwargs):
+    @api_expose
+    def put(self, *args, **kwargs):
         self.q.put(*args, **kwargs)
-    def exposed_done(self):
+    @api_expose
+    def done(self):
         self.q.put(None)
     def get(self):
         return self.q.get()
     def wait(self):
         self.q.get()
 
+@api
 class ExposedStream(object):
     def __init__(self, stream):
         self.stream = stream
-    def exposed_fileno(self):
+    @api_expose
+    def fileno(self):
         return self.stream.fileno()
-    def exposed_readline(self, size=-1):
+    @api_expose
+    def readline(self, size=-1):
         return self.stream.readline(size)
-    def exposed_write(self, s):
+    @api_expose
+    def write(self, s):
         self.stream.write(s)
-    def exposed_flush(self):
+    @api_expose
+    def flush(self):
         self.stream.flush()
 
 # most of the functionality is provided at the server,
