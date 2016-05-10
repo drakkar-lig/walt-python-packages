@@ -8,12 +8,14 @@ from walt.server.tools import AutoCleaner
 from walt.server.ui.manager import UIManager
 from walt.common.crypto.dh import DHPeer
 from walt.common.daemon import WalTDaemon
+from walt.common.tools import get_package_version
+from walt.common.versions import API_VERSIONING
 from walt.common.constants import           \
                  WALT_SERVER_DAEMON_PORT,   \
                  WALT_NODE_DAEMON_PORT
 from walt.common.api import api, api_expose
 
-WALT_SERVER_DAEMON_VERSION = 0.1
+WALT_SERVER_DAEMON_VERSION = get_package_version('walt-server')
 
 class ClientMirroringService(rpyc.Service):
     services_per_node = {}
@@ -77,8 +79,13 @@ class PlatformService(rpyc.Service):
     def on_disconnect(self):
         self._client = None
 
-    @api_expose
-    def device_rescan(self):
+    def exposed_get_version(self):
+        return WALT_SERVER_DAEMON_VERSION
+
+    def exposed_get_API(self):
+        return(API_VERSIONING['SERVER'][0], API_VERSIONING['CLIENT'][0])
+
+    def exposed_device_rescan(self):
         self.server.device_rescan(self._client)
 
     @api_expose

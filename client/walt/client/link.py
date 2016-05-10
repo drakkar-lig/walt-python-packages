@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import rpyc, os, sys, signal, threading
 from walt.common.constants import WALT_SERVER_DAEMON_PORT
+from walt.common.versions import API_VERSIONING
 from walt.client.config import conf
 from walt.client.filesystem import Filesystem
 from multiprocessing import Queue
@@ -94,3 +95,13 @@ class ClientToServerLink:
             self.bg_thread.stop()
         self.conn.close()
 
+def check_server_compatibility():
+    with ClientToServerLink() as server:
+        server_API_ser, server_API_cli = server.get_API()
+        client_API_ser, client_API_cli = API_VERSIONING['SERVER'][0], API_VERSIONING['CLIENT'][0]
+        if (server_API_ser, server_API_cli) != (client_API_ser, client_API_cli):
+            print('Please change your client version using:')
+            print('sudo pip install --upgrade "walt-client-selector==%d.%d.*"' % \
+                            (server_API_ser, server_API_cli))
+            return False
+    return True

@@ -4,6 +4,7 @@ from walt.server.network.tools import get_server_ip
 from walt.server.filesystem import Filesystem
 from walt.common.tools import \
         failsafe_makedirs, succeeds
+from walt.common.versions import API_VERSIONING, UPLOAD
 
 # IMPORTANT TERMINOLOGY NOTES:
 #
@@ -111,7 +112,7 @@ class NodeImage(object):
             self.unmount()
     def get_mount_info(self):
         return get_mount_info(self.fullname)
-    def mount(self):
+    def mount(self, requester = None):
         print 'Mounting %s...' % self.fullname
         self.mount_path, self.diff_path = self.get_mount_info()
         failsafe_makedirs(self.mount_path)
@@ -122,12 +123,24 @@ class NodeImage(object):
             failsafe_makedirs(os.path.dirname(target_path))
             shutil.copy(SERVER_SPEC_PATH, target_path)
         install_text = chroot(self.mount_path,
-                'walt-node-install', self.server_ip, NodeImage.server_pubkey).strip()
+            'walt-node-install', self.server_ip, NodeImage.server_pubkey).strip()
+        if requester is not None:
+            srvr_srvr_api = API_VERSIONING['SERVER'][0]
+            srvr_node_api = API_VERSIONING['NODE'][0]
+            version_check_result = chroot(self.mount_path,
+                'walt-node-check-version', srvr_srvr_api, srvr_node_api, UPLOAD )
+            succeeded, stdout_msg, stderr_msg = eval(version_check_result)
+            if suceeded == True:
+                if len(stdout_msg) > 0:
+                    requester.stdout.write(stdout_msg)
+            elif suceed == False:
+                requester.stderr.write(stderr_mesg)
         if len(install_text) > 0:
             print install_text
         self.create_hosts_file()
         self.mounted = True
         print 'Mounting %s... done' % self.fullname
+
     def unmount(self):
         print 'Un-mounting %s...' % self.fullname,
         while not succeeds('umount %s 2>/dev/null' % self.mount_path):

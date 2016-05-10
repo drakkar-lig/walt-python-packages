@@ -23,7 +23,7 @@ class NodeImageManager(object):
         self.shells = ImageShellSessionStore(self.docker, self.store)
     def update(self):
         self.store.refresh()
-        self.store.update_image_mounts()
+        self.store.update_image_mounts(None)
     def search(self, requester, q, keyword):
         search(q, self.blocking, self.docker, requester, keyword)
     def clone(self, **kwargs):
@@ -82,7 +82,7 @@ class NodeImageManager(object):
             self.db.update('nodes', 'mac',
                     mac=node_mac,
                     image=image_fullname)
-        self.store.update_image_mounts()
+        self.store.update_image_mounts(requester)
         self.db.commit()
         self.dhcpd.update()
         return True
