@@ -5,7 +5,6 @@ PACKAGE_GENERIC_INFO = dict(
     license = "LGPL",
     keywords = "WalT wireless testbed",
     url = "http://walt.forge.imag.fr/",
-    namespace_packages = ['walt']
 )
 
 PACKAGE_SPECIFIC_INFO = {
@@ -15,6 +14,7 @@ PACKAGE_SPECIFIC_INFO = {
         version_str = '%(upload)s',
         setup = dict(
             description = "WalT (Wireless Testbed) control tool.",
+            namespace_packages = ['walt'],
             entry_points = {
                 'console_scripts': [
                     'walt = walt.client.client:run'
@@ -28,6 +28,7 @@ PACKAGE_SPECIFIC_INFO = {
         version_str = '%(upload)s',
         setup = dict(
             description = "WalT (Wireless Testbed) software embedded in images.",
+            namespace_packages = ['walt'],
             entry_points = {
                 'console_scripts': [
                     'walt-node-daemon = walt.node.daemon:run',
@@ -47,6 +48,7 @@ PACKAGE_SPECIFIC_INFO = {
         version_str = '%(upload)s',
         setup = dict(
             description = "WalT (Wireless Testbed) server daemon.",
+            namespace_packages = ['walt'],
             entry_points = {
                 'console_scripts': [
                     'walt-server-daemon = walt.server.daemon:run',
@@ -60,7 +62,8 @@ PACKAGE_SPECIFIC_INFO = {
         requires = ['rpyc>=3.3','plumbum>=1.4.2'],
         version_str = '%(upload)s',
         setup = dict(
-            description = "WalT (Wireless Testbed) common python modules."
+            description = "WalT (Wireless Testbed) common python modules.",
+            namespace_packages = ['walt']
         )
     ),
     "walt-client-selector": dict(
