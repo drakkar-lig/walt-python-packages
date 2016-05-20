@@ -12,8 +12,8 @@ from walt.common.evloop import EventLoop
 from walt.node.tools import lookup_server_ip
 from walt.node.logs import LogsFifoServer
 from walt.common.api import api, api_expose
+from walt.common.versions import UPLOAD
 
-WALT_NODE_DAEMON_VERSION = 0.1
 WALT_NODE_NETWORK_INTERFACE = "eth0"
 
 @api
@@ -44,7 +44,7 @@ class NodeToServerLink:
 
 class WalTNodeDaemon(WalTDaemon):
     """WalT (wireless testbed) node daemon."""
-    VERSION = WALT_NODE_DAEMON_VERSION
+    VERSION = 'node v' + str(UPLOAD)
     fake = cli.Flag("--fake", default = False,
             help = "Fake mode, for simulation")
 

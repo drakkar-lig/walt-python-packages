@@ -11,12 +11,11 @@ from walt.client.node import WalTNode
 from walt.client.device import WalTDevice
 from walt.client.image import WalTImage
 from walt.client.startup import init_config
-
-WALT_VERSION = "0.1"
+from walt.common.versions import UPLOAD
 
 class WalT(cli.Application):
     """WalT (wireless testbed) control tool."""
-    VERSION = WALT_VERSION
+    VERSION = 'client v' + str(UPLOAD)
 
     @cli.switch(["-z", "--help-about"], str,
                 group = "Meta-switches")

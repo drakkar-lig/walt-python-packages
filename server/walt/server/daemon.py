@@ -8,14 +8,13 @@ from walt.server.tools import AutoCleaner
 from walt.server.ui.manager import UIManager
 from walt.common.crypto.dh import DHPeer
 from walt.common.daemon import WalTDaemon
-from walt.common.tools import get_package_version
-from walt.common.versions import API_VERSIONING
+from walt.common.versions import API_VERSIONING, UPLOAD
 from walt.common.constants import           \
                  WALT_SERVER_DAEMON_PORT,   \
                  WALT_NODE_DAEMON_PORT
 from walt.common.api import api, api_expose
 
-WALT_SERVER_DAEMON_VERSION = get_package_version('walt-server')
+WALT_SERVER_DAEMON_VERSION = 'server v' + str(UPLOAD)
 
 class ClientMirroringService(rpyc.Service):
     services_per_node = {}
