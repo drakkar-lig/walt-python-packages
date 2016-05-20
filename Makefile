@@ -1,14 +1,21 @@
 .PHONY: all node client server common
 
 # common must be 1st (needed by others)
-all: common server node client
+all: common.install server.install node.install client.install
 
-common server client node:
-	cd $(@); pwd; sudo pip install . >/dev/null
+%.install: %/info.py
+	$(MAKE) $*.uninstall
+	cd $*; pwd; sudo pip install . >/dev/null 2>&1 || sudo pip install .
+
+%/info.py: dev/metadata.py dev/version/update-info.py
+	dev/version/update-info.py
 
 clean:
 	find . -name \*.pyc -delete
 
-install-clean:
-	rm -rf /usr/local/lib/python*/*packages/walt*
+%.uninstall:
+	pip show walt-$* >/dev/null && sudo pip uninstall -y walt-$* || true
+	echo uninstall done
 
+upload:
+	./dev/upload.sh
