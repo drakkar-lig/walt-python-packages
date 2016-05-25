@@ -11,7 +11,7 @@ from walt.common.devices.fake import Fake
 from walt.common.evloop import EventLoop
 from walt.node.tools import lookup_server_ip
 from walt.node.logs import LogsFifoServer
-from walt.common.api import api, api_expose
+from walt.common.api import api, api_expose_method
 from walt.common.versions import UPLOAD
 
 WALT_NODE_NETWORK_INTERFACE = "eth0"
@@ -25,7 +25,7 @@ class WalTNodeService(rpyc.Service):
     def on_disconnect(self):
         self._client = None
 
-    @api_expose
+    @api_expose_method
     def blink(self, blink_status):
         WalTNodeService.NodeClass.blink(blink_status)
 

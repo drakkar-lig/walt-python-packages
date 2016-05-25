@@ -1,5 +1,6 @@
 import uuid, time
 from walt.server.images.image import parse_image_fullname, validate_image_tag
+from walt.common.api import api, api_expose_method, api_expose_class_attrs
 
 # About terminology: See comment about it in image.py.
 class ImageShellSessionStore(object):
@@ -22,13 +23,14 @@ class ImageShellSessionStore(object):
             session.cleanup()
         self.sessions = {}
 
+@api
+@api_expose_class_attrs('NAME_OK', 'NAME_NOT_OK', 'NAME_NEEDS_CONFIRM')
 class ImageShellSession(object):
+
     NAME_OK             = 0
     NAME_NOT_OK         = 1
     NAME_NEEDS_CONFIRM  = 2
-    exposed_NAME_OK             = NAME_OK
-    exposed_NAME_NOT_OK         = NAME_NOT_OK
-    exposed_NAME_NEEDS_CONFIRM  = NAME_NEEDS_CONFIRM
+
     def __init__(self, store, images, requester, image_fullname):
         self.store = store
         self.docker = store.docker
@@ -39,28 +41,27 @@ class ImageShellSession(object):
         self.new_image_tag = None
         self.container_name = str(uuid.uuid4())
         self.docker_events = self.docker.events()
-        # expose methods to the RPyC client
-        self.exposed___enter__ = self.__enter__
-        self.exposed___exit__ = self.__exit__
-        self.exposed_get_parameters = self.get_parameters
-        self.exposed_get_default_new_name = self.get_default_new_name
-        self.exposed_validate_new_name = self.validate_new_image_tag
-        self.exposed_select_new_name = self.select_new_name
+    @api_expose_method
     def __enter__(self):
         return self
+    @api_expose_method
     def __exit__(self, type, value, traceback):
         self.finalize()
+    @api_expose_method
     def get_parameters(self):
         # return an immutable object (a tuple, not a dict)
         # otherwise we will cause other RPyC calls
         return self.image_fullname, self.container_name
+    @api_expose_method
     def get_default_new_name(self):
         # default is to propose the same name
         # (and override the image if user confirms)
         return self.image_tag
+    @api_expose_method
     def select_new_name(self, new_image_tag):
         self.new_image_tag = new_image_tag
-    def validate_new_image_tag(self, new_image_tag):
+    @api_expose_method
+    def validate_new_name(self, new_image_tag):
         existing_image = self.images.get_user_image_from_tag(
                                         self.requester,
                                         new_image_tag,

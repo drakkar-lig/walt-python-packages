@@ -18,6 +18,7 @@ from walt.server.tools import format_sentence_about_nodes
 from walt.server.network.tools import dhcp_stop
 
 class Server(object):
+    instance = None
 
     def __init__(self, ui):
         self.ui = ui

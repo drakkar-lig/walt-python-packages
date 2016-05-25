@@ -1,8 +1,9 @@
 import os
+from walt.common.api import api, api_expose_method
 
+@api
 class Filesystem:
-    def __init__(self):
-        self.exposed_get_file_type = self.get_file_type
+    @api_expose_method
     def get_file_type(self, path):
         if not os.path.exists(path):
             return None

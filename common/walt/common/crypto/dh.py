@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import random
+from walt.common.api import api, api_expose_method
 
 class DiffieHellman(object):
     BITSIZE = 2048
@@ -45,16 +46,16 @@ class DiffieHellman(object):
     def generate_symmetric_key(remote_pub_key, priv_key):
         return pow(remote_pub_key, priv_key, DiffieHellman.p)
 
+@api
 class DHPeer(object):
     def __init__(self):
         self.priv_key = DiffieHellman.generate_priv_key()
         self.pub_key = DiffieHellman.generate_pub_key(self.priv_key)
         self.symmetric_key = None
-        # the following methods must be accessible remotely
-        self.exposed_get_pub_key = self.get_pub_key
-        self.exposed_establish_session = self.establish_session
+    @api_expose_method
     def get_pub_key(self):
         return self.pub_key
+    @api_expose_method
     def establish_session(self, remote_dhpeer):
         remote_pub_key = remote_dhpeer.get_pub_key()
         self.symmetric_key = DiffieHellman.generate_symmetric_key(

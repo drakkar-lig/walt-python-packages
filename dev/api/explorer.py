@@ -43,6 +43,9 @@ class APIExplorer(object):
         self.api_source += cls.__name__ + '.'
         self.explore_func(func)
 
+    def add_attr(self, cls, attr):
+        self.api_source += cls.__name__ + '.' + attr + '\n'
+
 # enable api exploration
 api_explorer = APIExplorer()
 register_api_explorer(api_explorer)

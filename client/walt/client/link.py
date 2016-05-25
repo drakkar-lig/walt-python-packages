@@ -5,16 +5,16 @@ from walt.common.versions import API_VERSIONING
 from walt.client.config import conf
 from walt.client.filesystem import Filesystem
 from multiprocessing import Queue
-from walt.common.api import api, api_expose
+from walt.common.api import api, api_expose_method, api_expose_attrs
 
 @api
 class ResponseQueue(object):
     def __init__(self):
         self.q = Queue()
-    @api_expose
+    @api_expose_method
     def put(self, *args, **kwargs):
         self.q.put(*args, **kwargs)
-    @api_expose
+    @api_expose_method
     def done(self):
         self.q.put(None)
     def get(self):
@@ -26,16 +26,16 @@ class ResponseQueue(object):
 class ExposedStream(object):
     def __init__(self, stream):
         self.stream = stream
-    @api_expose
+    @api_expose_method
     def fileno(self):
         return self.stream.fileno()
-    @api_expose
+    @api_expose_method
     def readline(self, size=-1):
         return self.stream.readline(size)
-    @api_expose
+    @api_expose_method
     def write(self, s):
         self.stream.write(s)
-    @api_expose
+    @api_expose_method
     def flush(self):
         self.stream.flush()
 
@@ -43,14 +43,16 @@ class ExposedStream(object):
 # of course. 
 # but the client also exposes a few objects / features
 # in the following class.
+@api
 class WaltClientService(rpyc.Service):
+    @api_expose_attrs('stdin','stdout','stderr','username','filesystem')
     def __init__(self, *args, **kwargs):
         rpyc.Service.__init__(self, *args, **kwargs)
-        self.exposed_stdin = ExposedStream(sys.stdin)
-        self.exposed_stdout = ExposedStream(sys.stdout)
-        self.exposed_stderr = ExposedStream(sys.stderr)
-        self.exposed_username = conf['username']
-        self.exposed_filesystem = Filesystem()
+        self.stdin = ExposedStream(sys.stdin)
+        self.stdout = ExposedStream(sys.stdout)
+        self.stderr = ExposedStream(sys.stderr)
+        self.username = conf['username']
+        self.filesystem = Filesystem()
 
 # in some cases we need a background thread that will handle
 # RPyC events.
