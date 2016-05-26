@@ -5,6 +5,7 @@ PACKAGE_GENERIC_INFO = dict(
     license = "LGPL",
     keywords = "WalT wireless testbed",
     url = "http://walt.forge.imag.fr/",
+    py_modules = ['info']
 )
 
 PACKAGE_SPECIFIC_INFO = {
