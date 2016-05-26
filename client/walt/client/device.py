@@ -47,7 +47,7 @@ class WalTDevicePing(cli.Application):
 MSG_FORGET_DEVICE_WITH_LOGS = """\
 This would delete any information about %s, including %s log \
 lines.
-If this is what you want, run 'walt node forget --force %s'."""
+If this is what you want, run 'walt device forget --force %s'."""
 
 MSG_REACHABLE_CANNOT_FORGET = """\
 Failed: %s is reachable on the WalT network (thus supposedly in use).
