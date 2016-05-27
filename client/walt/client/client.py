@@ -12,6 +12,8 @@ from walt.client.device import WalTDevice
 from walt.client.image import WalTImage
 from walt.client.startup import init_config
 from walt.common.versions import UPLOAD
+from walt.client.link import client_update
+from walt.client.tools import restart
 
 class WalT(cli.Application):
     """WalT (wireless testbed) control tool."""
@@ -35,6 +37,8 @@ WalT.subcommand("node", WalTNode)
 def run():
     init_config()
     try:
+        if client_update():
+            restart()   # this will never return, no need to exit
         WalT.run()
     except socket.error:
         print 'Network connection to WalT server failed.'

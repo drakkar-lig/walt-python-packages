@@ -1,4 +1,4 @@
-import sys
+import sys, os
 from multiprocessing import Process, Queue
 from Queue import Empty
 
@@ -40,4 +40,7 @@ class ProgressMessageThread(Process):
                 break
         except KeyboardInterrupt:
             self.queue.put(0)
+
+def restart():
+    os.execvp(sys.argv[0], sys.argv)
 

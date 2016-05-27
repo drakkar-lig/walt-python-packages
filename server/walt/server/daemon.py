@@ -83,7 +83,7 @@ class PlatformService(rpyc.Service):
         return WALT_SERVER_DAEMON_VERSION
 
     @api_expose_method
-    def get_API(self):
+    def get_API_versions(self):
         return(API_VERSIONING['SERVER'][0], API_VERSIONING['CLIENT'][0])
 
     @api_expose_method
