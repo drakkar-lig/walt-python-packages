@@ -72,14 +72,14 @@ if [ "$remote" = "" ]; then
     exit
 fi
 
-stat_porcelain=$(git status --porcelain -u no | wc -l)
+stat_porcelain=$(git status --porcelain | grep -v '??' | wc -l)
 
-if [ ! -n "$stat_porcelain" ]; then
+if [ "$stat_porcelain" -gt 0 ]; then
     >&2 echo "Your repository is not clean, please commit your changes using git commit"
     exit
 fi
     
-stat_ahead=$(git status --porcelain -b | grep -c ahead)
+stat_ahead=$(git status --porcelain -b | grep ahead | wc -l)
 
 if [ $stat_ahead = 1 ]; then
     >&2 echo "You need to push your changes using git push before publishing in Pypi"
