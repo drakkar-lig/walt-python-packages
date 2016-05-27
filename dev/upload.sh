@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 URL=https://github.com/drakkar-lig/walt-python-packages.git
-SUBPACKAGES="common server node client client-selector node-selector"
+SUBPACKAGES="$*"
 
 prompt_pypi_credentials()
 {
