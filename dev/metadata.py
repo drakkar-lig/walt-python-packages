@@ -33,7 +33,8 @@ PACKAGE_SPECIFIC_INFO = {
             entry_points = {
                 'console_scripts': [
                     'walt-node-daemon = walt.node.daemon:run',
-                    'walt-node-install = walt.node.install:run'
+                    'walt-node-install = walt.node.install:run',
+                    'walt-serial-autolog = walt.node.serial.autolog:run'
                 ]
             },
             scripts = [ 'sh/walt-monitor', 'sh/walt-echo' ]
