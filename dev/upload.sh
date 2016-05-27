@@ -125,5 +125,5 @@ do_subpackages sdist upload
 restore_pypirc $pypirc_backup
 
 newTag="upload_$new_upload"
-git tag -a $newTag
+git tag -m "$newTag (automated by $0)" -a $newTag
 git push --tag
