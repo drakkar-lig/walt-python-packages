@@ -19,7 +19,7 @@ def update_images_and_finalize(images, image_fullname, dhcpd, **kwargs):
     images.set_image_ready(image_fullname)
     # mount needed images
     # refresh the dhcpd conf
-    images.update_image_mounts()
+    images.update_image_mounts(auto_update = True)
     dhcpd.update()
     # we are all done
     finalize_registration(**kwargs)

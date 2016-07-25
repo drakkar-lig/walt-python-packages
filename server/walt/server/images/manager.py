@@ -23,7 +23,7 @@ class NodeImageManager(object):
         self.shells = ImageShellSessionStore(self.docker, self.store)
     def update(self):
         self.store.refresh()
-        self.store.update_image_mounts(None)
+        self.store.update_image_mounts(auto_update = True)
     def search(self, requester, q, keyword):
         search(q, self.blocking, self.docker, requester, keyword)
     def clone(self, **kwargs):
@@ -66,23 +66,31 @@ class NodeImageManager(object):
             return self.store.get_user_image_from_tag(requester, image_tag) != None
     def set_image(self, requester, node_macs, image_tag):
         # if image tag is specified, let's get its fullname
+        auto_update = False
         if image_tag != 'default':
             image = self.store.get_user_image_from_tag(requester, image_tag)
             if image == None:
                 return False
-            image_fullname = image.fullname
-        for node_mac in node_macs:
-            # if the 'default' keyword was specified, we might have to deploy
-            # different images depending of the type of each WalT node.
+            # ensure the image is compatible with the server
+            compatibility = image.check_server_compatibility(requester,
+                auto_update = False)
+            if compatibility != 0:
+                return False
+            image_fullnames = [image.fullname] * len(node_macs)
+        else:
+            auto_update = True
+            image_fullnames = []
+            # since the 'default' keyword was specified, we might have to deploy
+            # different images depending on the type of each WalT node.
             # we compute the appropriate image fullname here.
-            if image_tag == 'default':
+            for node_mac in node_macs:
                 node_type = self.db.select_unique('devices', mac=node_mac).type
-                image_fullname = self.store.get_default_image(node_type)
+                image_fullnames.append(self.store.get_default_image(node_type))
             # let's update the database about which node is mounting what
             self.db.update('nodes', 'mac',
                     mac=node_mac,
                     image=image_fullname)
-        self.store.update_image_mounts(requester)
+        self.store.update_image_mounts(requester = requester, auto_update = auto_update)
         self.db.commit()
         self.dhcpd.update()
         return True

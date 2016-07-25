@@ -187,11 +187,12 @@ class PlatformService(rpyc.Service):
         self.images.search(self._client, q, keyword)
 
     @api_expose_method
-    def clone_image(self, q, clonable_link, force=False):
+    def clone_image(self, q, clonable_link, force=False, auto_update=False):
         self.images.clone(requester = self._client,
                           q = q,
                           clonable_link = clonable_link,
-                          force = force)
+                          force = force,
+                          auto_update = auto_update)
 
     @api_expose_method
     def get_dh_peer(self):
