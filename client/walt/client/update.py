@@ -2,7 +2,8 @@ from walt.client import myhelp
 from walt.common.versions import API_VERSIONING
 
 myhelp.register_topic('compatibility', """
-The WalT servers, clients and images may be installed at different points in time.
+The WalT servers, clients and images may be installed at different points in time, and
+thus may not be compatible.
 WalT knows which versions are compatible and which versions are not, and provides
 means to overcome incompatibilities.
 
@@ -25,10 +26,10 @@ $ walt server update --ref <image>
 
 Most of the time, one will use the image update option.
 Note: in rare cases, when downgrading an image to match an older server, issues might arise:
-the experiment scripts embedded in the image might rely on new WalT features, and these features
+the user scripts embedded in the image might rely on new WalT features, and these features
 will not be available anymore after the downgrade. In this case, the scripts should be adapted.
 
-The server update option is used when one wants to test thoroughly the reproducibility of a past
+The server update option is useful when one wants to test thoroughly the reproducibility of a past
 experiment. It allows to rewind the WalT platform software stack to the point in time when this
 experiment was first run.
 
@@ -39,7 +40,7 @@ Notes
 the tool will have to auto-downgrade itself to match the version of the older WalT server.
 Users may also want to use two (or more...) WalT platforms, e.g. one for debugging and one for
 large scale experiments, and these two platforms may have different versions. In this case, the
-tool will upgrade / downgrade itself each time the user switches to another platform.
+tool will upgrade / downgrade itself each time the user switches from one platform to the other.
 
 (2) There is a thin software layer in all WalT images. It provides means to manage WalT logs
 (walt-monitor, walt-echo tools and related software) and provides a lightweight API (e.g.
