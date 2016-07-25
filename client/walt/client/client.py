@@ -12,7 +12,7 @@ from walt.client.device import WalTDevice
 from walt.client.image import WalTImage
 from walt.client.startup import init_config
 from walt.common.versions import UPLOAD
-from walt.client.link import client_update
+from walt.client.update import client_update
 from walt.client.tools import restart
 
 class WalT(cli.Application):
