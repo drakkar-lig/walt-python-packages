@@ -1,4 +1,4 @@
-import os, re, time, shutil
+import os, re, time, shutil, shlex
 from plumbum.cmd import chroot
 from walt.server.network.tools import get_server_ip
 from walt.server.filesystem import Filesystem
@@ -118,22 +118,35 @@ class NodeImage(object):
             self.unmount()
     def get_mount_info(self):
         return get_mount_info(self.fullname)
+    def ensure_temporary_mount(self):
+        class TemporaryMount:
+            def __init__(self, image):
+                self.image = image
+                self.mount_required = not image.mounted
+            def __enter__(self):
+                if self.mount_required:
+                    self.image.os_mount()
+            def __exit__(self, type, value, traceback):
+                if self.mount_required:
+                    self.image.os_unmount()
+        return TemporaryMount(self)
+    def chroot(self, cmd):
+        with self.ensure_temporary_mount():
+            args = shlex.split(cmd)
+            return chroot(self.mount_path, *args).strip()
     def get_versioning_numbers(self):
-        version_check_available = chroot(
-            self.mount_path, 'which', 'walt-node-versioning-getnumbers')
-        if len(version_check_available) == 0:
-            # image was built before the version management code
-            return (0, 0, 0)
-        else:
-            version_check_result = chroot(
-                self.mount_path, 'walt-node-versioning-getnumbers')
-            return eval(version_check_result)
-    def auto_update(self):
-        raise NotImplementedError
+        with self.ensure_temporary_mount():
+            version_check_available = self.chroot('which walt-node-versioning-getnumbers')
+            if len(version_check_available) == 0:
+                # image was built before the version management code
+                return (0, 0, 0)
+            else:
+                version_check_result = self.chroot('walt-node-versioning-getnumbers')
+                return eval(version_check_result)
+    def update_walt_software(self):
+        self.chroot('pip install --upgrade "walt-node-selector==%d.%d.*"' % \
+                        (API_VERSIONING['SERVER'][0], API_VERSIONING['NODE'][0]))
     def check_server_compatibility(self, requester, auto_update):
-        mount_required = not self.mounted
-        if mount_required:
-            self.os_mount()
         srv_srv_api, srv_node_api, srv_upload = (\
                 API_VERSIONING['SERVER'][0], API_VERSIONING['NODE'][0], UPLOAD)
         node_srv_api, node_node_api, node_upload = self.get_versioning_numbers()
@@ -152,8 +165,6 @@ class NodeImage(object):
                     image_status = image_status
                 })
             print 'Incompatibility server <-> image detected.'
-        if mount_required:
-            self.os_unmount()
         return compatibility
     def os_mount(self)
         self.mount_path, self.diff_path = self.get_mount_info()
@@ -167,7 +178,7 @@ class NodeImage(object):
         compatibility = self.check_server_compatibility(requester, auto_update)
         if compatibility != 0:
             if auto_update:
-                self.auto_update()
+                self.update_walt_software()
             else:
                 if requester == None and auto_update == False:
                     raise RuntimeError("Programming error: Image mounting with auto_update disabled " + \
@@ -179,8 +190,9 @@ class NodeImage(object):
             target_path = self.mount_path + SERVER_SPEC_PATH
             failsafe_makedirs(os.path.dirname(target_path))
             shutil.copy(SERVER_SPEC_PATH, target_path)
-        install_text = chroot(self.mount_path,
-            'walt-node-install', self.server_ip, NodeImage.server_pubkey).strip()
+        install_text = self.chroot('walt-node-install %(server_ip)s %(server_pubkey)s' % \
+                            dict(server_ip = self.server_ip, 
+                                 server_pubkey = NodeImage.server_pubkey))
         if len(install_text) > 0:
             print install_text
         self.create_hosts_file()
