@@ -230,6 +230,10 @@ class PlatformService(rpyc.Service):
         self.images.duplicate(self._client, image_tag, new_tag)
 
     @api_expose_method
+    def update_image(self, image_tag):
+        self.images.update_walt_software(self._client, image_tag)
+
+    @api_expose_method
     def validate_image_cp(self, src, dst):
         return self.images.validate_cp(self._client, src, dst)
 
