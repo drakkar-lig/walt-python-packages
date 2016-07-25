@@ -56,6 +56,12 @@ ff02::2     ip6-allrouters
 """
 SERVER_SPEC_PATH='/etc/walt/server.spec'
 
+MSG_IMAGE_NOT_COMPATIBLE="""\
+The WalT software embedded in %(tag)s is too %(image_status)s. It is not compatible with the WalT server.
+Type "walt --help-about compatibility" for information about upgrade & downgrade options.
+Aborted.
+"""
+
 def get_mount_path(image_fullname):
     mount_path, dummy = get_mount_info(image_fullname)
     return mount_path
@@ -112,42 +118,82 @@ class NodeImage(object):
             self.unmount()
     def get_mount_info(self):
         return get_mount_info(self.fullname)
-    def mount(self, requester = None):
-        print 'Mounting %s...' % self.fullname
+    def get_versioning_numbers(self):
+        version_check_available = chroot(
+            self.mount_path, 'which', 'walt-node-versioning-getnumbers')
+        if len(version_check_available) == 0:
+            # image was built before the version management code
+            return (0, 0, 0)
+        else:
+            version_check_result = chroot(
+                self.mount_path, 'walt-node-versioning-getnumbers')
+            return eval(version_check_result)
+    def auto_update(self):
+        raise NotImplementedError
+    def check_server_compatibility(self, requester, auto_update):
+        mount_required = not self.mounted
+        if mount_required:
+            self.os_mount()
+        srv_srv_api, srv_node_api, srv_upload = (\
+                API_VERSIONING['SERVER'][0], API_VERSIONING['NODE'][0], UPLOAD)
+        node_srv_api, node_node_api, node_upload = self.get_versioning_numbers()
+        if (srv_srv_api, srv_node_api) == (node_srv_api, node_node_api):
+            compatibility = 0
+        else:
+            if node_upload < srv_upload:
+                compatibility = -1
+                image_status = 'old'
+            else:
+                compatibility = 1
+                image_status = 'recent'
+            if requester and not auto_update:
+                requester.stderr.write(MSG_IMAGE_NOT_COMPATIBLE % {
+                    tag = self.tag,
+                    image_status = image_status
+                })
+            print 'Incompatibility server <-> image detected.'
+        if mount_required:
+            self.os_unmount()
+        return compatibility
+    def os_mount(self)
         self.mount_path, self.diff_path = self.get_mount_info()
         failsafe_makedirs(self.mount_path)
         failsafe_makedirs(self.diff_path)
         self.docker.image_mount(self.top_layer_id, self.diff_path, self.mount_path)
+        self.mounted = True
+    def mount(self, requester = None, auto_update = False):
+        print 'Mounting %s...' % self.fullname
+        self.os_mount()
+        compatibility = self.check_server_compatibility(requester, auto_update)
+        if compatibility != 0:
+            if auto_update:
+                self.auto_update()
+            else:
+                if requester == None and auto_update == False:
+                    raise RuntimeError("Programming error: Image mounting with auto_update disabled " + \
+                                        "and no requester to warn about the incompatibility issue.")
+                # cannot go any further
+                self.os_unmount()
+                return
         if os.path.exists(SERVER_SPEC_PATH):
             target_path = self.mount_path + SERVER_SPEC_PATH
             failsafe_makedirs(os.path.dirname(target_path))
             shutil.copy(SERVER_SPEC_PATH, target_path)
         install_text = chroot(self.mount_path,
             'walt-node-install', self.server_ip, NodeImage.server_pubkey).strip()
-        if requester is not None:
-            srvr_srvr_api = API_VERSIONING['SERVER'][0]
-            srvr_node_api = API_VERSIONING['NODE'][0]
-            version_check_result = chroot(self.mount_path,
-                'walt-node-check-version', srvr_srvr_api, srvr_node_api, UPLOAD )
-            succeeded, stdout_msg, stderr_msg = eval(version_check_result)
-            if suceeded == True:
-                if len(stdout_msg) > 0:
-                    requester.stdout.write(stdout_msg)
-            elif suceed == False:
-                requester.stderr.write(stderr_mesg)
         if len(install_text) > 0:
             print install_text
         self.create_hosts_file()
-        self.mounted = True
         print 'Mounting %s... done' % self.fullname
-
-    def unmount(self):
-        print 'Un-mounting %s...' % self.fullname,
+    def os_unmount(self):
         while not succeeds('umount %s 2>/dev/null' % self.mount_path):
             time.sleep(0.1)
         shutil.rmtree(self.diff_path)
         os.rmdir(self.mount_path)
         self.mounted = False
+    def unmount(self):
+        print 'Un-mounting %s...' % self.fullname,
+        self.os_unmount()
         print 'done'
     def create_hosts_file(self):
         # since file /etc/hosts is managed by docker,

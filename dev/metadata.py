@@ -34,6 +34,7 @@ PACKAGE_SPECIFIC_INFO = {
                 'console_scripts': [
                     'walt-node-daemon = walt.node.daemon:run',
                     'walt-node-install = walt.node.install:run',
+                    'walt-node-versioning-getnumbers = walt.node.versioning:getnumbers',
                     'walt-serial-autolog = walt.node.serial.autolog:run'
                 ]
             },
