@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import rpyc, time
+import rpyc
 from plumbum import cli
 from walt.common.daemon import WalTDaemon
 from walt.common.nodetypes import get_node_type_from_mac_address
@@ -19,11 +19,6 @@ WALT_NODE_NETWORK_INTERFACE = "eth0"
 @api
 class WalTNodeService(rpyc.Service):
     ALIASES=("WalT_Node_Service",)
-    def on_connect(self):
-        self._client = self._conn.root
-
-    def on_disconnect(self):
-        self._client = None
 
     @api_expose_method
     def blink(self, blink_status):
@@ -37,7 +32,7 @@ class NodeToServerLink:
         self.conn = rpyc.connect(
                 NodeToServerLink.server_ip,
                 WALT_SERVER_DAEMON_PORT)
-        return self.conn.root
+        return self.conn.root.ns
 
     def __exit__(self, type, value, traceback):
         self.conn.close()

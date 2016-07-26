@@ -1,90 +1,34 @@
-#!/usr/bin/env python
+import datetime, cPickle as pickle
 
-import rpyc, sys, datetime, cPickle as pickle
-
-from walt.server.server import Server
-from walt.server.network import setup
-from walt.server.network.tools import set_server_ip
-from walt.server.tools import AutoCleaner
-from walt.server.ui.manager import UIManager
 from walt.common.crypto.dh import DHPeer
-from walt.common.daemon import WalTDaemon
-from walt.common.versions import API_VERSIONING, UPLOAD
-from walt.common.constants import           \
-                 WALT_SERVER_DAEMON_PORT,   \
-                 WALT_NODE_DAEMON_PORT
+from walt.common.versions import API_VERSIONING
 from walt.common.api import api, api_expose_method
 
-WALT_SERVER_DAEMON_VERSION = 'server v' + str(UPLOAD)
-
-class ClientMirroringService(rpyc.Service):
-    services_per_node = {}
-
-    def on_connect(self):
-        node_id = id(self._conn.root)
-        self._node_id = node_id
-        ClientMirroringService.services_per_node[node_id] = self
-
-    def on_disconnect(self):
-        del ClientMirroringService.services_per_node[self._node_id]
-
-    def __del__(self):
-        self._client = None
-
-    def register_client(self, client):
-        self._client = client
-
-    @staticmethod
-    def link_node_to_client(node, client):
-        service = ClientMirroringService.services_per_node[id(node)]
-        service.register_client(client)
-
-    # forward all other method accesses to self._client
-    def __getattr__(self, attr_name):
-        return getattr(self._client, attr_name)
-
-class ServerToNodeLink:
-    def __init__(self, ip_address, client = None):
-        self.node_ip = ip_address
-        self.client = client
-
-    def __enter__(self):
-        if self.client:
-            self.conn = rpyc.connect(self.node_ip, WALT_NODE_DAEMON_PORT,
-                            service = ClientMirroringService)
-            node_service = self.conn.root
-            ClientMirroringService.link_node_to_client(node_service, self.client)
-        else:
-            self.conn = rpyc.connect(self.node_ip, WALT_NODE_DAEMON_PORT)
-        return self.conn.root
-
-    def __exit__(self, type, value, traceback):
-        self.conn.close()
-
 @api
-class PlatformService(rpyc.Service):
-    ALIASES=("WalT_Platform",)
+class CSAPI(object):
 
-    def __init__(self, *args, **kwargs):
-        rpyc.Service.__init__(self, *args, **kwargs)
-        self.server = Server.instance
-        self.images = Server.instance.images
-        self.devices = Server.instance.devices
-        self.nodes = Server.instance.nodes
-        self.logs = Server.instance.logs
+    def __init__(self, version, server, images, devices, nodes, logs):
+        self.version = version
+        self.server = server
+        self.images = images
+        self.devices = devices
+        self.nodes = nodes
+        self.logs = logs
+        self._client = None
 
-    def on_connect(self):
-        self._client = self._conn.root
+    def on_connect(self, conn):
+        self._client = conn.root
 
     def on_disconnect(self):
         self._client = None
+
     @api_expose_method
     def get_version(self):
-        return WALT_SERVER_DAEMON_VERSION
+        return self.version
 
     @api_expose_method
-    def get_API_versions(self):
-        return(API_VERSIONING['SERVER'][0], API_VERSIONING['CLIENT'][0])
+    def get_CS_API_version(self):
+        return API_VERSIONING['CS'][0]
 
     @api_expose_method
     def device_rescan(self):
@@ -119,13 +63,7 @@ class PlatformService(rpyc.Service):
 
     @api_expose_method
     def blink(self, node_name, blink_status):
-        nodes_ip = self.nodes.get_reachable_nodes_ip(
-                        self._client, node_name)
-        if len(nodes_ip) == 0:
-            return False # error was already reported
-        with ServerToNodeLink(nodes_ip[0], self._client) as node_service:
-            node_service.blink(blink_status)
-        return True
+        return self.nodes.blink(self._client, node_name, blink_status)
 
     @api_expose_method
     def parse_set_of_nodes(self, node_set):
@@ -238,13 +176,6 @@ class PlatformService(rpyc.Service):
         return self.images.validate_cp(self._client, src, dst)
 
     @api_expose_method
-    def node_bootup_event(self):
-        node_ip, node_port = self._conn._config['endpoints'][1]
-        self.devices.node_bootup_event(node_ip)
-        node_name = self.devices.get_name_from_ip(node_ip)
-        self.nodes.node_bootup_event(node_name)
-
-    @api_expose_method
     def add_checkpoint(self, cp_name, pickled_date):
         date = None
         if pickled_date:
@@ -266,39 +197,4 @@ class PlatformService(rpyc.Service):
     @api_expose_method
     def get_pickled_checkpoint_time(self, cp_name):
         return self.logs.get_pickled_checkpoint_time(self._client, cp_name)
-
-class WalTServerDaemon(WalTDaemon):
-    """WalT (wireless testbed) server daemon."""
-    VERSION = WALT_SERVER_DAEMON_VERSION
-
-    def getParameters(self):
-        return dict(
-                service_cl = PlatformService,
-                port = WALT_SERVER_DAEMON_PORT,
-                ev_loop = Server.instance.ev_loop)
-
-    def init_end(self):
-        Server.instance.ui.set_status('Ready.')
-
-def notify_systemd():
-    try:
-        import sdnotify
-        sdnotify.SystemdNotifier().notify("READY=1")
-    except:
-        pass
-
-def run():
-    ui = UIManager()
-    myserver = Server(ui)
-    # set ip on WalT network (eth0.1)
-    set_server_ip()
-    myserver.dhcpd.update(force=True)
-    setup.setup(ui)
-    notify_systemd()
-    with AutoCleaner(myserver) as Server.instance:
-        myserver.update()
-        WalTServerDaemon.run()
-
-if __name__ == "__main__":
-    run()
 

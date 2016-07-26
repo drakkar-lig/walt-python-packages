@@ -90,7 +90,7 @@ class ClientToServerLink:
                 service = WaltClientService)
         if self.bg_thread_enabled:
             self.bg_thread = BgRPyCThread(self.conn)
-        return self.conn.root
+        return self.conn.root.cs
 
     def __exit__(self, type, value, traceback):
         if self.bg_thread_enabled:

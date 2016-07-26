@@ -21,9 +21,8 @@ from walt.common.versions import API_VERSIONING, UPLOAD
 # generate info.py in each pypi package directory
 versions_info = dict(
     upload = UPLOAD,
-    server_api = API_VERSIONING['SERVER'][0],
-    client_api = API_VERSIONING['CLIENT'][0],
-    node_api = API_VERSIONING['NODE'][0]
+    cs_api = API_VERSIONING['CS'][0],
+    ns_api = API_VERSIONING['NS'][0]
 )
 
 for package_name, package_specific in PACKAGE_SPECIFIC_INFO.items():
