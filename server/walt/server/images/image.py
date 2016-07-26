@@ -133,7 +133,7 @@ class NodeImage(object):
     def chroot(self, cmd):
         with self.ensure_temporary_mount():
             args = shlex.split(cmd)
-            return chroot(self.mount_path, *args).strip()
+            return chroot(self.mount_path, *args, retcode = None).strip()
     def get_versioning_numbers(self):
         with self.ensure_temporary_mount():
             version_check_available = self.chroot('which walt-node-versioning-getnumbers')
