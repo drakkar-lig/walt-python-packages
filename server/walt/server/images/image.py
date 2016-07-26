@@ -160,13 +160,13 @@ class NodeImage(object):
                 compatibility = 1
                 image_status = 'recent'
             if requester and not auto_update:
-                requester.stderr.write(MSG_IMAGE_NOT_COMPATIBLE % {
+                requester.stderr.write(MSG_IMAGE_NOT_COMPATIBLE % dict(
                     tag = self.tag,
                     image_status = image_status
-                })
+                ))
             print 'Incompatibility server <-> image detected.'
         return compatibility
-    def os_mount(self)
+    def os_mount(self):
         self.mount_path, self.diff_path = self.get_mount_info()
         failsafe_makedirs(self.mount_path)
         failsafe_makedirs(self.diff_path)
