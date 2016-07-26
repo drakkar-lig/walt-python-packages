@@ -1,5 +1,6 @@
 from walt.client import myhelp
 from walt.common.versions import API_VERSIONING
+from walt.client.link import ClientToServerLink
 
 myhelp.register_topic('compatibility', """
 The WalT servers, clients and images may be installed at different points in time, and
