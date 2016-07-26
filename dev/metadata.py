@@ -54,7 +54,7 @@ PACKAGE_SPECIFIC_INFO = {
             namespace_packages = ['walt'],
             entry_points = {
                 'console_scripts': [
-                    'walt-server-daemon = walt.server.daemon:run',
+                    'walt-server-daemon = walt.server.daemon.daemon:run',
                     'walt-server-console = walt.server.ui.console:run'
                 ]
             }
@@ -72,7 +72,7 @@ PACKAGE_SPECIFIC_INFO = {
     "walt-client-selector": dict(
         subdir = 'client-selector',
         requires = [ 'walt-client==%(upload)s' ],
-        version_str = '%(server_api)s.%(client_api)s.%(upload)s',
+        version_str = '%(cs_api)s.%(upload)s',
         setup = dict(
             description = "WalT (Wireless Testbed) virtual package for walt-client update."
         )
@@ -80,7 +80,7 @@ PACKAGE_SPECIFIC_INFO = {
     "walt-node-selector": dict(
         subdir = 'node-selector',
         requires = [ 'walt-node==%(upload)s' ],
-        version_str = '%(server_api)s.%(node_api)s.%(upload)s',
+        version_str = '%(ns_api)s.%(upload)s',
         setup = dict(
             description = "WalT (Wireless Testbed) virtual package for walt-node update."
         )

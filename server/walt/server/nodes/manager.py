@@ -1,3 +1,4 @@
+import rpyc
 from walt.common.tcp import Requests
 from walt.server.nodes.register import NodeRegistrationHandler
 from walt.server.nodes.show import show
@@ -8,6 +9,7 @@ from walt.common.nodetypes import is_a_node_type_name
 from walt.server.transfer import validate_cp
 from walt.server.filesystem import Filesystem
 from walt.server.const import SSH_COMMAND
+from walt.common.constants import WALT_NODE_DAEMON_PORT
 
 NODE_SET_QUERIES = {
         'my-nodes': """
@@ -38,6 +40,17 @@ MSG_CONNECTIVITY_UNKNOWN = """\
 
 FS_CMD_PATTERN = SSH_COMMAND + ' root@%(node_ip)s %%(prog)s %%(prog_args)s'
 
+class ServerToNodeLink:
+    def __init__(self, ip_address):
+        self.node_ip = ip_address
+
+    def __enter__(self):
+        self.conn = rpyc.connect(self.node_ip, WALT_NODE_DAEMON_PORT)
+        return self.conn.root
+
+    def __exit__(self, type, value, traceback):
+        self.conn.close()
+
 class NodesManager(object):
     def __init__(self, db, tcp_server, devices, **kwargs):
         self.db = db
@@ -52,6 +65,21 @@ class NodesManager(object):
                     db = self.db,
                     devices = self.devices,
                     **self.kwargs)
+
+    def connect(self, requester, node_name):
+        nodes_ip = self.get_reachable_nodes_ip(
+                        requester, node_name)
+        if len(nodes_ip) == 0:
+            return None # error was already reported
+        return ServerToNodeLink(nodes_ip[0])
+
+    def blink(self, requester, node_name, blink_status):
+        link = self.connect(requester, node_name)
+        if link == None:
+            return False # error was already reported
+        with link as node_service:
+            node_service.blink(blink_status)
+        return True
 
     def show(self, requester, show_all):
         return show(self.db, requester, show_all)
