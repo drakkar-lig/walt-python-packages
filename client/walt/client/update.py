@@ -64,7 +64,7 @@ def client_update():
                 repo_option = '-i https://testpypi.python.org/simple'
             else:
                 repo_option = ''
-            do('sudo pip install %s --upgrade "walt-client-selector==%d.*"' % \
+            do('sudo pip install %s --upgrade "walt-clientselector==%d.*"' % \
                             (repo_option, server_cs_api))
             updated = True
     return updated

@@ -1,5 +1,5 @@
 from setuptools import setup, find_packages
-from info import SETUP_INFO
+from walt.client.info import SETUP_INFO
 import sys
 
 if not sys.version_info[0] == 2:

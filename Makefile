@@ -22,9 +22,10 @@
 # $ make client.pull		# pull the client only (and common, its dependency)
 
 
-ALL_PACKAGES=common server node client client-selector node-selector
+ALL_PACKAGES=common server node client clientselector nodeselector
 # common must be installed 1st (needed by others)
 INSTALLABLE_PACKAGES_ON_SERVER=common server client
+GNUMAKEFLAGS=--no-print-directory
 
 # ------
 all: $(patsubst %,%.install,$(INSTALLABLE_PACKAGES_ON_SERVER))
@@ -35,9 +36,12 @@ client.%: common.%
 server.%: common.%
 node.%: common.%
 
-%.install: %/info.py
+%.install: %.info
 	@$(MAKE) $*.uninstall
 	@cd $*; pwd; sudo pip install . >/dev/null 2>&1 || sudo pip install .
+
+%.info:
+	@$(MAKE) $*/walt/$*/info.py
 
 %/info.py: common/walt/common/versions.py dev/metadata.py dev/version/info-updater.py
 	@echo updating info.py files
@@ -53,7 +57,7 @@ ifeq ($(DEBUG_WITH_TESTPYPI),1)
 # test setup: we upload/download the packages on/from testpypi.python.org.
 upload: $(patsubst %,%.upload,$(ALL_PACKAGES))
 
-%.upload: %/info.py
+%.upload: %.info
 	@cd $*; pwd; python setup.py register -r pypitest >/dev/null; \
 	 python setup.py sdist upload -r pypitest >/dev/null
 

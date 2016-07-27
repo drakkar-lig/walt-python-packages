@@ -5,7 +5,7 @@ PACKAGE_GENERIC_INFO = dict(
     license = "LGPL",
     keywords = "WalT wireless testbed",
     url = "http://walt.forge.imag.fr/",
-    py_modules = ['info']
+    namespace_packages = ['walt']
 )
 
 PACKAGE_SPECIFIC_INFO = {
@@ -15,7 +15,6 @@ PACKAGE_SPECIFIC_INFO = {
         version_str = '%(upload)s',
         setup = dict(
             description = "WalT (Wireless Testbed) control tool.",
-            namespace_packages = ['walt'],
             entry_points = {
                 'console_scripts': [
                     'walt = walt.client.client:run'
@@ -29,7 +28,6 @@ PACKAGE_SPECIFIC_INFO = {
         version_str = '%(upload)s',
         setup = dict(
             description = "WalT (Wireless Testbed) software embedded in images.",
-            namespace_packages = ['walt'],
             entry_points = {
                 'console_scripts': [
                     'walt-node-daemon = walt.node.daemon:run',
@@ -51,7 +49,6 @@ PACKAGE_SPECIFIC_INFO = {
         version_str = '%(upload)s',
         setup = dict(
             description = "WalT (Wireless Testbed) server daemon.",
-            namespace_packages = ['walt'],
             entry_points = {
                 'console_scripts': [
                     'walt-server-daemon = walt.server.daemon.daemon:run',
@@ -65,20 +62,19 @@ PACKAGE_SPECIFIC_INFO = {
         requires = ['rpyc>=3.3','plumbum>=1.4.2'],
         version_str = '%(upload)s',
         setup = dict(
-            description = "WalT (Wireless Testbed) common python modules.",
-            namespace_packages = ['walt']
+            description = "WalT (Wireless Testbed) common python modules."
         )
     ),
-    "walt-client-selector": dict(
-        subdir = 'client-selector',
+    "walt-clientselector": dict(
+        subdir = 'clientselector',
         requires = [ 'walt-client==%(upload)s' ],
         version_str = '%(cs_api)s.%(upload)s',
         setup = dict(
             description = "WalT (Wireless Testbed) virtual package for walt-client update."
         )
     ),
-    "walt-node-selector": dict(
-        subdir = 'node-selector',
+    "walt-nodeselector": dict(
+        subdir = 'nodeselector',
         requires = [ 'walt-node==%(upload)s' ],
         version_str = '%(ns_api)s.%(upload)s',
         setup = dict(
