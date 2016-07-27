@@ -118,10 +118,8 @@ create_pypirc "$branch" "$pypi_username" "$pypi_password"
 trap restore_pypirc EXIT    # on exit, restore
 
 # check that packages are fine
-do_subpackages sdist
-
 # check that credentials are fine
-do_subpackages register -r $repo
+do_subpackages sdist register -r $repo
 
 # everything seems fine, let's start the real work
 
@@ -141,15 +139,12 @@ echo "info.py files updated"
 git add common/walt/common/versions.py
 git commit -m "Upload $new_upload"
 
-# rebuild source packages
-do_subpackages sdist
-
-# submit metadata to index server
-do_subpackages register -r $repo
-
-# upload packages
-do_subpackages upload -r $repo
-
-newTag="$tagprefix$new_upload"
+newTag="$tag_prefix$new_upload"
 git tag -m "$newTag (automated by $0)" -a $newTag
-git push --tag
+git push --tag $remote $branch
+
+# sdist: rebuild source packages
+# register: submit metadata to index server
+# upload: upload packages
+do_subpackages sdist register -r $repo upload -r $repo
+
