@@ -78,8 +78,8 @@ do_subpackages()
 
 branch=$(git branch | grep '*' | awk '{print $2}')
 case "$branch" in
-    master) pipy_server=https://pypi.python.org/pypi;;
-    test)   pipy_server=https://testpypi.python.org/pypi;;
+    master) tag_prefix='upload_';;
+    test)   tag_prefix='testupload_';;
     *)      >&2 echo "Only branches 'master' and 'test' are allowed. You are on branch '$branch'."
             exit;;
 esac
@@ -120,7 +120,7 @@ do_subpackages sdist
 do_subpackages register
 
 git fetch $remote 'refs/tags/*:refs/tags/*'
-last_upload_in_git=$(git tag | grep upload_ | tr '_' ' ' | awk '{print $2}' | sort -n | tail -n 1)
+last_upload_in_git=$(git tag | grep "^$tag_prefix" | tr '_' ' ' | awk '{print $2}' | sort -n | tail -n 1)
 new_upload=$((last_upload_in_git+1))
 
 # update file walt/common/versions.py (increment UPLOAD and update API numbers if needed)
@@ -138,6 +138,6 @@ do_subpackages sdist upload
 # restore .pypirc
 restore_pypirc $pypirc_backup
 
-newTag="upload_$new_upload"
+newTag="$tagprefix$new_upload"
 git tag -m "$newTag (automated by $0)" -a $newTag
 git push --tag
