@@ -34,6 +34,12 @@ API_VERSIONING = %(api_versioning)s
 UPLOAD = %(upload)s
 """
 
+if len(sys.argv) != 2:
+    print 'Usage: %(prog)s <upload_num>' % dict(prog = sys.argv[0])
+    sys.exit()
+
+new_upload = int(sys.argv[1])
+
 # instanciate our source import system and activate it.
 importer = SourceImporter({ 'walt.common': './common/walt/common' })
 importer.activate()
@@ -49,7 +55,9 @@ API_LOCATIONS = {
 }
 
 new_api_versioning = CUR_API_VERSIONING.copy() # for now
-new_upload = CUR_UPLOAD + 1     # we increment at each upload
+if new_upload != CUR_UPLOAD + 1:
+    sys.stderr.write('Warning: the current UPLOAD number should have been %d, it was %d. Overwriting anyway.\n' % \
+                        (new_upload - 1, CUR_UPLOAD))
 
 for component, module_paths in API_LOCATIONS.items():
     new_api_proto = ''
