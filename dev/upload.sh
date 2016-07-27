@@ -123,6 +123,8 @@ git fetch $remote 'refs/tags/*:refs/tags/*'
 last_upload_in_git=$(git tag | grep "^$tag_prefix" | tr '_' ' ' | awk '{print $2}' | sort -n | tail -n 1)
 new_upload=$((last_upload_in_git+1))
 
+# restore versions.py as it was on last upload
+git checkout $tag_prefix$last_upload_in_git -- common/walt/common/versions.py
 # update file walt/common/versions.py (increment UPLOAD and update API numbers if needed)
 dev/version/versions-updater.py $new_upload
 echo "versions.py updated"
