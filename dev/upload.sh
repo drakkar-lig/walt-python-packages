@@ -41,15 +41,26 @@ restore_pypirc()
 
 create_pypirc()
 {
-    pypi_username="$1"   
-    pypi_password="$2"   
+    branch="$1"
+    pypi_username="$2"   
+    pypi_password="$3"   
+
+    case "$branch" in
+        master)
+            repo=pypi
+            repo_url=https://pypi.python.org/pypi;;
+        test)
+            repo=pypitest
+            repo_url=https://testpypi.python.org/pypi;;
+    esac
 
     cat > ~/.pypirc << EOF
 [distutils]
 index-servers=
-    pypi
+    $repo
 
-[pypi]
+[$repo]
+repository: $repo_url
 username:$pypi_username
 password:$pypi_password
 EOF
@@ -64,6 +75,14 @@ do_subpackages()
         cd ..
     done
 }
+
+branch=$(git branch | grep '*' | awk '{print $2}')
+case "$branch" in
+    master) pipy_server=https://pypi.python.org/pypi;;
+    test)   pipy_server=https://testpypi.python.org/pypi;;
+    *)      >&2 echo "Only branches 'master' and 'test' are allowed. You are on branch '$branch'."
+            exit;;
+esac
 
 remote=$(git remote -v | grep fetch | grep $URL | awk '{print $1}')
 
@@ -102,19 +121,14 @@ do_subpackages register
 
 git fetch $remote 'refs/tags/*:refs/tags/*'
 last_upload_in_git=$(git tag | grep upload_ | tr '_' ' ' | awk '{print $2}' | sort -n | tail -n 1)
-last_upload_in_versions=$(cat common/walt/common/versions.py | grep UPLOAD | grep -o '[0-9]*')
-if [ "$last_upload_in_git" != "$last_upload_in_versions" ]; then
-    echo "Please check your upload number in versions.py"
-    exit
-fi
+new_upload=$((last_upload_in_git+1))
 
 # update file walt/common/versions.py (increment UPLOAD and update API numbers if needed)
-dev/version/versions-updater.py
+dev/version/versions-updater.py $new_upload
 echo "versions.py updated"
 dev/version/info-updater.py
 echo "info.py files updated"
 
-new_upload=$((last_upload_in_git+1))
 git add common/walt/common/versions.py
 git commit -m "Upload $new_upload"
 

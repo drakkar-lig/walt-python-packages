@@ -69,7 +69,7 @@ else
 # production code, we will perform various checks related to the
 # git repository before allowing the upload on PyPI.
 upload:
-	./dev/upload.sh $(ALL_PACKAGES)
+	@./dev/upload.sh $(ALL_PACKAGES)
 
 %.pull:
 	@$(MAKE) $*.uninstall
