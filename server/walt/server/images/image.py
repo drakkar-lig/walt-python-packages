@@ -144,7 +144,7 @@ class NodeImage(object):
                 version_check_result = self.chroot('walt-node-versioning-getnumbers')
                 return eval(version_check_result)
     def update_walt_software(self):
-        self.chroot('pip install --upgrade "walt-node-selector==%d.*"' % \
+        self.chroot('pip install --upgrade "walt-nodeselector==%d.*"' % \
                         API_VERSIONING['NS'][0])
     def check_server_compatibility(self, requester, auto_update):
         srv_ns_api, srv_upload = (API_VERSIONING['NS'][0], UPLOAD)

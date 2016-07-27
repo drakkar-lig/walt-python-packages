@@ -2,4 +2,4 @@
 *.pyc
 build
 dist
-*/info.py
+info.py

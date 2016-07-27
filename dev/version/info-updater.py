@@ -38,5 +38,5 @@ for package_name, package_specific in PACKAGE_SPECIFIC_INFO.items():
     new_info_file = info_file_template % dict(
         setup_info = pprint_dict(setup_info)
     )
-    with open("%s/info.py" % package_specific['subdir'], 'w') as f:
+    with open("%(subdir)s/walt/%(subdir)s/info.py" % package_specific, 'w') as f:
         f.write(new_info_file)
