@@ -94,14 +94,17 @@ fi
 stat_porcelain=$(git status --porcelain | grep -v '??' | wc -l)
 
 if [ "$stat_porcelain" -gt 0 ]; then
-    >&2 echo "Your repository is not clean, please commit your changes using git commit"
+    >&2 echo "Your git repository is not clean."
+    >&2 echo "Commit your changes using 'git commit', or make sure uncommited changes are not needed and run:"
+    >&2 echo "git stash; make upload; git stash pop"
+    >&2 echo "Aborted."
     exit
 fi
     
 stat_ahead=$(git status --porcelain -b | grep ahead | wc -l)
 
 if [ $stat_ahead = 1 ]; then
-    >&2 echo "You need to push your changes using git push before publishing in Pypi"
+    >&2 echo "You need to push your changes using git push before publishing in Pypi."
     exit
 fi
 
