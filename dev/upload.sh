@@ -24,18 +24,18 @@ backup_pypirc()
     if [ -f '~/.pypirc' ]
     then
         cp ~/.pypirc ~/.pypirc.backup
-        echo ~/.pypirc.backup
-    else
-        echo none
     fi
 }
 
 restore_pypirc()
 {
-    backup="$1"
-    if [ "$1" != "none" ]
+    if [ -f ~/.pypirc.backup ]
     then
         mv ~/.pypirc.backup ~/.pypirc
+    else
+        # if we have no backup, this means
+        # we had no file at startup
+        rm ~/.pypirc
     fi
 }
 
@@ -61,8 +61,8 @@ index-servers=
 
 [$repo]
 repository: $repo_url
-username:$pypi_username
-password:$pypi_password
+username: $pypi_username
+password: $pypi_password
 EOF
 }
 
@@ -113,15 +113,19 @@ pypi_username="$(echo "$pypi_credentials" | head -n 1)"
 pypi_password="$(echo "$pypi_credentials" | tail -n 1)"
 
 # create .pypirc
-pypirc_backup=$(backup_pypirc)
-create_pypirc "$pypi_username" "$pypi_password"
+backup_pypirc
+create_pypirc "$branch" "$pypi_username" "$pypi_password"
+trap restore_pypirc EXIT    # on exit, restore
 
-# create archives
+# check that packages are fine
 do_subpackages sdist
 
-# get the right to modify each project on PyPI
-do_subpackages register
+# check that credentials are fine
+do_subpackages register -r $repo
 
+# everything seems fine, let's start the real work
+
+# increment the last upload
 git fetch $remote 'refs/tags/*:refs/tags/*'
 last_upload_in_git=$(git tag | grep "^$tag_prefix" | tr '_' ' ' | awk '{print $2}' | sort -n | tail -n 1)
 new_upload=$((last_upload_in_git+1))
@@ -137,11 +141,14 @@ echo "info.py files updated"
 git add common/walt/common/versions.py
 git commit -m "Upload $new_upload"
 
-# upload packages
-do_subpackages sdist upload
+# rebuild source packages
+do_subpackages sdist
 
-# restore .pypirc
-restore_pypirc $pypirc_backup
+# submit metadata to index server
+do_subpackages register -r $repo
+
+# upload packages
+do_subpackages upload -r $repo
 
 newTag="$tagprefix$new_upload"
 git tag -m "$newTag (automated by $0)" -a $newTag
