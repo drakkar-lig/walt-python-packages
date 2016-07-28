@@ -172,8 +172,8 @@ class CSAPI(object):
         self.images.duplicate(self._client, image_tag, new_tag)
 
     @api_expose_method
-    def update_image(self, image_tag):
-        self.images.update_walt_software(self._client, image_tag)
+    def update_image(self, image_tag, force):
+        self.images.update_walt_software(self._client, image_tag, force)
 
     @api_expose_method
     def validate_image_cp(self, src, dst):

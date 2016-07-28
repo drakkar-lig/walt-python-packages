@@ -32,7 +32,7 @@ class WalTImageClone(cli.Application):
     @cli.autoswitch(help='do it, even if it overwrites an existing image.')
     def force(self):
         self._force = True
-    @cli.autoswitch(help='update walt embedded software.')
+    @cli.autoswitch(help='update walt embedded software if needed.')
     def update(self):
         self._auto_update = True
 
@@ -111,9 +111,13 @@ class WalTImageDuplicate(cli.Application):
 @WalTImage.subcommand("update")
 class WalTImageUpdate(cli.Application):
     """update walt internal software in an image"""
+    _force = False # default
     def main(self, image_name):
-        with ClientToServerLink() as server:
-            server.update_image(image_name)
+        with ClientToServerLink(True) as server:
+            server.update_image(image_name, self._force)
+    @cli.autoswitch(help='do it, restart nodes if needed.')
+    def force(self):
+        self._force = True
 
 @WalTImage.subcommand("cp")
 class WalTImageCp(cli.Application):
