@@ -130,3 +130,9 @@ def merge_named_tuples(nt1, nt2):
     d.update(nt2._asdict())
     return to_named_tuple(d)
 
+def failsafe_response_q_put(response_q, res):
+    try:
+        response_q.put(res)
+    except ReferenceError:
+        pass    # client not longer exists
+

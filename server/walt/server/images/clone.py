@@ -1,4 +1,5 @@
 import requests, uuid
+from walt.server.tools import failsafe_response_q_put
 from walt.server.images.search import \
         Search, \
         LOCATION_WALT_SERVER, LOCATION_DOCKER_HUB, \
@@ -303,7 +304,7 @@ class CloneTask(object):
             res = None
         elif isinstance(res, Exception):
             raise res   # unexpected
-        self.response_q.put(res)
+        failsafe_response_q_put(self.response_q, res)
 
 # this implements walt image clone
 def clone(blocking, **kwargs):

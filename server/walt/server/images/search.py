@@ -1,5 +1,6 @@
 import requests
 from collections import defaultdict
+from walt.server.tools import failsafe_response_q_put
 from walt.server.tools import columnate, \
                 display_transient_label, hide_transient_label
 
@@ -99,7 +100,7 @@ class SearchTask(object):
             res = 'Network connection to docker hub failed.'
         elif isinstance(res, Exception):
             raise res   # unexpected
-        self.response_q.put(res)
+        failsafe_response_q_put(self.response_q, res)
 
 # this implements walt image search
 def search(q, blocking_manager, docker, requester, keyword):

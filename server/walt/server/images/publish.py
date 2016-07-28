@@ -1,4 +1,5 @@
 import requests
+from walt.server.tools import failsafe_response_q_put
 
 def perform_publish(requester, auth_conf, docker, image_fullname, **kwargs):
     return docker.push(image_fullname, auth_conf, requester.stdout)
@@ -18,7 +19,7 @@ class PublishTask(object):
             res = None
         elif isinstance(res, Exception):
             raise res   # unexpected
-        self.response_q.put(res)
+        failsafe_response_q_put(self.response_q, res)
 
 # this implements walt image publish
 def publish(image_store, requester, q, image_tag, blocking, **kwargs):
