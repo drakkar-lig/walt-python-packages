@@ -70,14 +70,15 @@ class Topology(object):
         else:
             return 'switch'
 
-    def collect_connected_devices(self, ui, host, host_is_a_switch,
+    def collect_connected_devices(self, ui, host, host_depth,
                             host_mac, processed_switches):
 
         print "collect devices connected on %s" % host
         switches_with_dhcp_restarted = set()
         # avoid to loop forever...
-        if host_is_a_switch:
+        if host_depth > 0:
             processed_switches.add(host_mac)
+        neighbors_depth = host_depth + 1
         while True:
             issue = False
             # get a SNMP proxy with LLDP feature
@@ -85,6 +86,10 @@ class Topology(object):
 
             # record neighbors in db and recurse
             for port, neighbor_info in snmp_proxy.lldp.get_neighbors().items():
+                # ignore neighbors on port 1 and 2 of the main switch
+                # (port 1 is associated to VLAN walt-out, port 2 to the server)
+                if neighbors_depth == 2 and port < 3:
+                    continue
                 ip, mac = neighbor_info['ip'], neighbor_info['mac']
                 device_type = self.get_type(mac)
                 if mac in processed_switches:
@@ -105,10 +110,11 @@ class Topology(object):
                     time.sleep(1)
                     issue = True
                     break
-                if host_is_a_switch:
-                    switch_mac, switch_port = host_mac, port
-                else:
+                if neighbors_depth == 1:
+                    # main switch is the root of the topology tree
                     switch_mac, switch_port = None, None
+                else:
+                    switch_mac, switch_port = host_mac, port
                 device_is_new = self.add_device(type=device_type,
                                 mac=mac,
                                 switch_mac=switch_mac,
@@ -120,7 +126,7 @@ class Topology(object):
                             (ip, mac)
                         set_static_ip_on_switch(ip)
                     # recursively discover devices connected to this switch
-                    self.collect_connected_devices(ui, ip, True,
+                    self.collect_connected_devices(ui, ip, neighbors_depth,
                                             mac, processed_switches)
             if not issue:
                 break   # otherwise restart the loop
@@ -131,7 +137,7 @@ class Topology(object):
             SET reachable = 0;""")
 
         self.server_mac = get_mac_address(const.WALT_INTF)
-        self.collect_connected_devices(ui, "localhost", False, self.server_mac, set())
+        self.collect_connected_devices(ui, "localhost", 0, self.server_mac, set())
         self.db.commit()
 
         if requester != None:
