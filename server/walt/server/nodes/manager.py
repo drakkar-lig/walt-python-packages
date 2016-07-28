@@ -202,6 +202,12 @@ class NodesManager(object):
         node_info = self.get_node_info(None, node_name)
         self.wait_info.node_bootup_event(node_info)
 
+    def develop_node_set(self, requester, node_set):
+        nodes = self.parse_node_set(requester, node_set)
+        if nodes == None:
+            return None
+        return ','.join(nodes)
+
     def includes_nodes_not_owned(self, requester, node_set, warn):
         nodes = self.parse_node_set(requester, node_set)
         if nodes == None:

@@ -100,6 +100,19 @@ class WalTNodeBlink(cli.Application):
                     finally:
                         server.blink(node_name, False)
 
+class PoETemporarilyOff:
+    def __init__(self, server, node_set):
+        self.server = server
+        self.node_set = node_set
+        self.really_off = False
+    def __enter__(self):
+        self.really_off = self.server.poweroff(
+                self.node_set, warn_unknown_topology=True)
+    def __exit__(self, type, value, traceback):
+        if self.really_off:
+            self.server.poweron(
+                self.node_set, warn_unknown_topology=False)
+
 @WalTNode.subcommand("reboot")
 class WalTNodeReboot(cli.Application):
     """reboot a (set of) node(s)"""
@@ -107,9 +120,8 @@ class WalTNodeReboot(cli.Application):
         with ClientToServerLink() as server:
             if not WalTNode.confirm_nodes_not_owned(server, node_set):
                 return
-            if server.poweroff(node_set, warn_unknown_topology=True):
+            with PoETemporarilyOff(server, node_set):
                 time.sleep(POE_REBOOT_DELAY)
-                server.poweron(node_set, warn_unknown_topology=False)
 
 @WalTNode.subcommand("deploy")
 class WalTNodeDeploy(cli.Application):
@@ -117,12 +129,20 @@ class WalTNodeDeploy(cli.Application):
     def main(self, node_set, image_name_or_default):
         with ClientToServerLink() as server:
             if server.has_image(image_name_or_default):
+                # the list of nodes the keyword "my-nodes" refers to
+                # may be altered by the server.set_image() call, thus
+                # server.poweron() may not be applied on the same nodes
+                # as server.poweroff().
+                # thus we have to get a real list of nodes before starting
+                # anything.
+                node_set = server.develop_node_set(node_set)
+                if node_set is None:
+                    return
                 if not WalTNode.confirm_nodes_not_owned(server, node_set):
                     return
-                if server.poweroff(node_set, warn_unknown_topology=True):
+                with PoETemporarilyOff(server, node_set):
                     server.set_image(node_set, image_name_or_default, warn_unknown_topology=False)
                     time.sleep(POE_REBOOT_DELAY)
-                    server.poweron(node_set, warn_unknown_topology=False)
 
 @WalTNode.subcommand("ping")
 class WalTNodePing(cli.Application):

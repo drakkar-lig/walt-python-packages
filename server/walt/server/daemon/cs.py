@@ -76,6 +76,10 @@ class CSAPI(object):
         return self.nodes.includes_nodes_not_owned(self._client, node_set, warn)
 
     @api_expose_method
+    def develop_node_set(self, node_set):
+        return self.nodes.develop_node_set(self._client, node_set)
+
+    @api_expose_method
     def poweroff(self, node_set, warn_unknown_topology):
         return self.nodes.setpower(self._client, node_set, False, warn_unknown_topology)
 
