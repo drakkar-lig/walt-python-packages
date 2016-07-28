@@ -14,10 +14,10 @@ class WalTImage(cli.Application):
 class WalTImageSearch(cli.Application):
     """search for remote WalT node OS images"""
     def main(self, keyword=None):
-        with ClientToServerLink(True) as server:
+        with ClientToServerLink() as server_link:
             q = ResponseQueue()
-            server.search_images(q, keyword)
-            print q.get()
+            server_link.search_images(q, keyword)
+            print server_link.wait_queue(q)
 
 @WalTImage.subcommand("clone")
 class WalTImageClone(cli.Application):
@@ -26,9 +26,9 @@ class WalTImageClone(cli.Application):
     _auto_update = False # default
     def main(self, clonable_image_link):
         q = ResponseQueue()
-        with ClientToServerLink(True) as server:
-            server.clone_image(q, clonable_image_link, self._force, self._auto_update)
-            q.wait()
+        with ClientToServerLink() as server_link:
+            server_link.clone_image(q, clonable_image_link, self._force, self._auto_update)
+            server_link.wait_queue(q)
     @cli.autoswitch(help='do it, even if it overwrites an existing image.')
     def force(self):
         self._force = True
@@ -41,10 +41,10 @@ class WalTImagePublish(cli.Application):
     """publish a WalT image on the docker hub"""
     def main(self, image_name):
         q = ResponseQueue()
-        with ClientToServerLink(True) as server:
-            auth_conf = get_auth_conf(server)
-            server.publish_image(q, auth_conf, image_name)
-            q.wait()
+        with ClientToServerLink() as server_link:
+            auth_conf = get_auth_conf(server_link)
+            server_link.publish_image(q, auth_conf, image_name)
+            server_link.wait_queue(q)
 
 @WalTImage.subcommand("show")
 class WalTImageShow(cli.Application):

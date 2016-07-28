@@ -44,5 +44,9 @@ def run():
         print 'Network connection to WalT server failed.'
 
 if __name__ == "__main__":
-    run()
+    try:
+        run()
+    except KeyboardInterrupt:
+        print
+        print 'Aborted.'
 

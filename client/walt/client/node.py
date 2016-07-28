@@ -188,9 +188,9 @@ class WalTNodeWait(cli.Application):
     def main(self, node_set):
         q = ResponseQueue()
         try:
-            with ClientToServerLink(True) as server:
-                server.wait_for_nodes(q, node_set)
-                q.wait()
+            with ClientToServerLink() as server_link:
+                server_link.wait_for_nodes(q, node_set)
+                server_link.wait_queue(q)
         except KeyboardInterrupt:
             print 'Aborted.'
 
