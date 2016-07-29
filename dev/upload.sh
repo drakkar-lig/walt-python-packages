@@ -64,10 +64,10 @@ echo "versions.py updated"
 dev/version/info-updater.py
 echo "info.py files updated"
 
-git add common/walt/common/versions.py
-git commit -m "Upload $new_upload"
-
 newTag="$tag_prefix$new_upload"
+git add common/walt/common/versions.py
+git commit -m "$newTag (automated by $0)"
+
 git tag -m "$newTag (automated by $0)" -a $newTag
 git push --tag $remote $branch
 
