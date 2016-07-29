@@ -32,7 +32,7 @@ INSTALLABLE_PACKAGES_ON_SERVER=common server client
 GNUMAKEFLAGS=--no-print-directory
 
 # ------
-all: $(patsubst %,%.install,$(INSTALLABLE_PACKAGES_ON_SERVER))
+install: $(patsubst %,%.install,$(INSTALLABLE_PACKAGES_ON_SERVER))
 
 pull: $(patsubst %,%.pull,$(INSTALLABLE_PACKAGES_ON_SERVER))
 
