@@ -2,7 +2,7 @@
 
 from walt.server.const import WALT_DBNAME, WALT_DBUSER
 from walt.server.tools import columnate
-import psycopg2, os, shlex, uuid
+import psycopg2, shlex, uuid
 from psycopg2.extras import NamedTupleCursor
 from subprocess import Popen, PIPE
 from sys import stderr
