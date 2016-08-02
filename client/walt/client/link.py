@@ -1,12 +1,12 @@
 #!/usr/bin/env python
-import rpyc, os, sys, signal, threading
+import rpyc, time, os, sys, signal, threading
 from datetime import datetime, timedelta
 from walt.common.constants import WALT_SERVER_DAEMON_PORT
 from walt.common.tools import do
 from walt.client.config import conf
 from walt.client.filesystem import Filesystem
 from multiprocessing import Queue
-from Queue import Queue as QueueException
+import Queue as QueueException
 from walt.common.api import api, api_expose_method, api_expose_attrs
 
 @api
@@ -19,12 +19,15 @@ class ResponseQueue(object):
     @api_expose_method
     def done(self):
         self.q.put(None)
+    def empty(self):
+        return self.q.empty()
     def get(self):
         # loop to avoid blocking in case of ctrl-C
         res = None
-        while res == None:
+        while True:
             try:
-                res = self.q.get(0.1)
+                res = self.q.get(timeout = 0.1)
+                break
             except QueueException.Empty:
                 pass
         return res
@@ -68,14 +71,25 @@ class WaltClientService(rpyc.Service):
 # send rpyc requests to update the client stdout or stderr.
 # This object provide methods to wait() and still be able to accept
 # rpyc requests.
+MAX_BLOCKING_TIME = 0.1
+
 class ServerConnection(object):
     def __init__(self, rpyc_conn):
         self.rpyc_conn = rpyc_conn
     def __getattr__(self, attr):
         return getattr(self.rpyc_conn.root.cs, attr)
-    def wait_cond(self, condition_func, timeout_func = lambda : None):
+    def wait_cond(self, condition_func, timeout_func = None):
         while condition_func():
-            self.rpyc_conn.serve(timeout = timeout_func())
+            self.update_progress_indicator()
+            timeout = MAX_BLOCKING_TIME
+            if timeout_func:
+                timeout = min(timeout_func(), timeout)
+            self.rpyc_conn.serve(timeout = timeout)
+    def update_progress_indicator(self):
+        idx = int(time.time()*2) % 4
+        progress = "\\|/-"[idx]
+        sys.stdout.write('\r' + progress + '\r')
+        sys.stdout.flush()
     def wait(self, max_secs):
         time_max = datetime.now() + timedelta(seconds=max_secs)
         def condition_func():
@@ -85,7 +99,7 @@ class ServerConnection(object):
         self.wait_cond(condition_func, timeout_func)
     def wait_queue(self, q):
         def condition_func():
-            return q.size() == 0
+            return q.empty()
         self.wait_cond(condition_func)
         return q.get()
     def close(self):
