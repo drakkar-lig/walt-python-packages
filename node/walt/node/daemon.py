@@ -9,6 +9,7 @@ from walt.common.constants import WALT_NODE_DAEMON_PORT
 from walt.common.constants import WALT_SERVER_DAEMON_PORT
 from walt.common.devices.fake import Fake
 from walt.common.evloop import EventLoop
+from walt.common.service import RPyCService
 from walt.node.tools import lookup_server_ip
 from walt.node.logs import LogsFifoServer
 from walt.common.api import api, api_expose_method
@@ -16,24 +17,27 @@ from walt.common.versions import UPLOAD
 
 WALT_NODE_NETWORK_INTERFACE = "eth0"
 
+@RPyCService
 @api
-class WalTNodeService(rpyc.Service):
+class WalTNodeService(object):
     ALIASES=("WalT_Node_Service",)
+    def __init__(self, node_cls):
+        self.node_cls = node_cls
 
     @api_expose_method
     def blink(self, blink_status):
-        WalTNodeService.NodeClass.blink(blink_status)
+        self.node_cls.blink(blink_status)
 
-class NodeToServerLink:
-    server_ip = None
+class NodeToServerLink(object):
+    def __init__(self, server_ip = None):
+        self.server_ip = server_ip
     def __enter__(self):
-        if NodeToServerLink.server_ip == None:
-            NodeToServerLink.server_ip = lookup_server_ip()
+        if self.server_ip == None:
+            self.server_ip = lookup_server_ip()
         self.conn = rpyc.connect(
-                NodeToServerLink.server_ip,
+                self.server_ip,
                 WALT_SERVER_DAEMON_PORT)
         return self.conn.root.ns
-
     def __exit__(self, type, value, traceback):
         self.conn.close()
 
@@ -44,22 +48,22 @@ class WalTNodeDaemon(WalTDaemon):
             help = "Fake mode, for simulation")
 
     def getParameters(self):
-        return dict(service_cl = WalTNodeService,
+        return dict(service_cl = WalTNodeService(self.node_cls),
                     port = WALT_NODE_DAEMON_PORT,
                     ev_loop = WalTNodeDaemon.ev_loop)
 
     def init(self):
+        server_ip = None
         if self.fake:
-            node_type = Fake
-            NodeToServerLink.server_ip = '127.0.0.1'
+            self.node_cls = Fake
+            server_ip = '127.0.0.1'
         else:
             mac = get_mac_address(WALT_NODE_NETWORK_INTERFACE)
-            node_type = get_node_type_from_mac_address(mac)
-            if node_type == None:
+            self.node_cls = get_node_type_from_mac_address(mac)
+            if self.node_cls == None:
                 raise RuntimeError(
                     'Mac address does not match any known WalT node hardware.')
-        WalTNodeService.NodeClass = node_type
-        with NodeToServerLink() as server:
+        with NodeToServerLink(server_ip) as server:
             server.node_bootup_event()
 
 def run():
