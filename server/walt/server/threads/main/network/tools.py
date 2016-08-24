@@ -3,7 +3,7 @@ import select, subprocess, shlex
 from ipaddress import ip_address, ip_network
 from walt.common.tools import do, succeeds
 from walt.server import const
-from walt.server.thread.main.snmp import Proxy
+from walt.server.threads.main.snmp import Proxy
 
 def ip(ip_as_str):
     return ip_address(unicode(ip_as_str))

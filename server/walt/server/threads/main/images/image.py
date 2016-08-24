@@ -1,7 +1,7 @@
 import os, re, time, shutil, shlex
 from plumbum.cmd import chroot
-from walt.server.thread.main.network.tools import get_server_ip
-from walt.server.thread.main.filesystem import Filesystem
+from walt.server.threads.main.network.tools import get_server_ip
+from walt.server.threads.main.filesystem import Filesystem
 from walt.common.tools import \
         failsafe_makedirs, succeeds
 from walt.common.versions import API_VERSIONING, UPLOAD

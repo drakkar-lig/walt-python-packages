@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from walt.server.thread.main.devices.topology import Topology
+from walt.server.threads.main.devices.topology import Topology
 import re
 
 DEVICE_NAME_NOT_FOUND="""No device with name '%s' found.\n"""

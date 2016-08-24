@@ -1,6 +1,6 @@
 import requests, uuid
 from walt.server.tools import failsafe_response_q_put
-from walt.server.thread.main.images.search import \
+from walt.server.threads.main.images.search import \
         Search, \
         LOCATION_WALT_SERVER, LOCATION_DOCKER_HUB, \
         LOCATION_LABEL, LOCATION_PER_LABEL

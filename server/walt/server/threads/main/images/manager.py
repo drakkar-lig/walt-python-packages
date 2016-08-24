@@ -1,15 +1,15 @@
-from walt.server.thread.main.images.shell import ImageShellSessionStore
-from walt.server.thread.main.images.search import search
-from walt.server.thread.main.images.clone import clone
-from walt.server.thread.main.images.publish import publish
-from walt.server.thread.main.images.show import show
-from walt.server.thread.main.images.rename import rename
-from walt.server.thread.main.images.remove import remove
-from walt.server.thread.main.images.duplicate import duplicate
-from walt.server.thread.main.images.update import update_walt_software
-from walt.server.thread.main.transfer import validate_cp
-from walt.server.thread.main.images.fixowner import fix_owner
-from walt.server.thread.main.images.store import NodeImageStore
+from walt.server.threads.main.images.shell import ImageShellSessionStore
+from walt.server.threads.main.images.search import search
+from walt.server.threads.main.images.clone import clone
+from walt.server.threads.main.images.publish import publish
+from walt.server.threads.main.images.show import show
+from walt.server.threads.main.images.rename import rename
+from walt.server.threads.main.images.remove import remove
+from walt.server.threads.main.images.duplicate import duplicate
+from walt.server.threads.main.images.update import update_walt_software
+from walt.server.threads.main.transfer import validate_cp
+from walt.server.threads.main.images.fixowner import fix_owner
+from walt.server.threads.main.images.store import NodeImageStore
 
 # About terminology: See comment about it in image.py.
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from walt.server.thread.main.snmp.base import load_mib, decode_ipv4_address, \
+from walt.server.threads.main.snmp.base import load_mib, decode_ipv4_address, \
                     decode_mac_address, enum_label
 
 class LLDPProxy(object):

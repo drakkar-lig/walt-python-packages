@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 from snimpy.manager import Manager
-from walt.server.thread.main.snmp.poe import PoEProxy
-from walt.server.thread.main.snmp.lldp import LLDPProxy
-from walt.server.thread.main.snmp.vlan import VlanProxy
-from walt.server.thread.main.snmp.ipsetup import IPSetupProxy
+from walt.server.threads.main.snmp.poe import PoEProxy
+from walt.server.threads.main.snmp.lldp import LLDPProxy
+from walt.server.threads.main.snmp.vlan import VlanProxy
+from walt.server.threads.main.snmp.ipsetup import IPSetupProxy
 from walt.server import const
 
 SNMP_OPTS = {

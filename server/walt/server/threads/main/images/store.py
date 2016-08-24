@@ -1,7 +1,7 @@
 import sys
 
-from walt.server.thread.main.images.image import NodeImage
-from walt.server.thread.main.network import nfs
+from walt.server.threads.main.images.image import NodeImage
+from walt.server.threads.main.network import nfs
 
 
 # About terminology: See comment about it in image.py.

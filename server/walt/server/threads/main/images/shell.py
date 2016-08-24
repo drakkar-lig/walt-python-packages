@@ -1,5 +1,5 @@
 import uuid
-from walt.server.thread.main.images.image import parse_image_fullname, validate_image_tag
+from walt.server.threads.main.images.image import parse_image_fullname, validate_image_tag
 from walt.common.api import api, api_expose_method, api_expose_class_attrs
 
 # About terminology: See comment about it in image.py.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from walt.server.thread.main.snmp.base import load_mib
+from walt.server.threads.main.snmp.base import load_mib
 
 class IPSetupProxy(object):
     def __init__(self, snmp_proxy):

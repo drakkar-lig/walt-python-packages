@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 from walt.server import const
-from walt.server.thread.main.network.tools import ip, net
+from walt.server.threads.main.network.tools import ip, net
 from walt.common.nodetypes import is_a_node_type_name
 from operator import itemgetter
 from itertools import groupby
-from walt.server.thread.main.images.image import get_mount_path
+from walt.server.threads.main.images.image import get_mount_path
 from walt.common.tools import do
 
 DHCPD_CONF_FILE = '/etc/dhcp/dhcpd.conf'

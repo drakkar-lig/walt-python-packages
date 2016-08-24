@@ -1,4 +1,4 @@
-from walt.server.thread.main.images.image import validate_image_tag
+from walt.server.threads.main.images.image import validate_image_tag
 
 def do_rename(images, docker, old_fullname, new_tag):
     name = old_fullname.split(':')[0]

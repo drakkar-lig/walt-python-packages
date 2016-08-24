@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from walt.common.thread import EvThreadsManager
-from walt.server.thread.main.thread import ServerMainThread
+from walt.server.threads.main.thread import ServerMainThread
 
 def run():
     tman = EvThreadsManager()

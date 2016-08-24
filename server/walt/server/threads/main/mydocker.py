@@ -1,5 +1,5 @@
 from walt.common.crypto.blowfish import BlowFish
-from walt.server.thread.main.images.image import parse_image_fullname
+from walt.server.threads.main.images.image import parse_image_fullname
 from walt.server.tools import \
         display_transient_label, hide_transient_label, \
         indicate_progress

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 from walt.common.tcp import Requests
-from walt.server.thread.main.parallel import ParallelProcessSocketListener
+from walt.server.threads.main.parallel import ParallelProcessSocketListener
 from walt.server.const import SSH_COMMAND
 
 INTERACTIVE_SSH_COMMAND = SSH_COMMAND + ' -tq'

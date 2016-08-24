@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from walt.server.thread.main.snmp.vlan import PortConfig, SwitchConfig
+from walt.server.threads.main.snmp.vlan import PortConfig, SwitchConfig
 
 def configure_main_switch_if_needed(snmp_proxy):
     if snmp_proxy.vlan.vlan_exists('walt-out'):

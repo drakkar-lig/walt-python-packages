@@ -5,11 +5,11 @@ import time
 from walt.common.nodetypes import get_node_type_from_mac_address
 from walt.common.tools import get_mac_address
 from walt.server import const
-from walt.server.thread.main import snmp
-from walt.server.thread.main.network.tools import ip_in_walt_network, lldp_update, \
+from walt.server.threads.main import snmp
+from walt.server.threads.main.network.tools import ip_in_walt_network, lldp_update, \
                                         restart_dhcp_setup_on_switch, \
                                         set_static_ip_on_switch
-from walt.server.thread.main.tree import Tree
+from walt.server.threads.main.tree import Tree
 from walt.server.tools import format_paragraph
 
 

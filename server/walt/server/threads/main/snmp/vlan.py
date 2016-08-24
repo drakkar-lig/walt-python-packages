@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from walt.server.thread.main.snmp.base import load_mib, PortsBitField
+from walt.server.threads.main.snmp.base import load_mib, PortsBitField
 
 Q_BRIDGE_MIB_CreateAndGo = 4
 

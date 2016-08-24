@@ -4,10 +4,10 @@ import time, snimpy, sys, os
 
 from walt.common.tools import do
 from walt.server.const import SETUP_INTF, EXTERN_INTF
-from walt.server.thread.main.mydocker import DockerClient
-from walt.server.thread.main import snmp, network
-from walt.server.thread.main.network.tools import lldp_update
-from walt.server.thread.main.network.waltvlanconf import configure_main_switch_if_needed
+from walt.server.threads.main.mydocker import DockerClient
+from walt.server.threads.main import snmp, network
+from walt.server.threads.main.network.tools import lldp_update
+from walt.server.threads.main.network.waltvlanconf import configure_main_switch_if_needed
 
 
 PLATFORM_READY_FILE = '/var/lib/walt/platform_ready'

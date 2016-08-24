@@ -1,14 +1,14 @@
 from walt.common.constants import WALT_SERVER_DAEMON_PORT
 from walt.common.daemon import RPyCServer
 from walt.common.service import RPyCService
-from walt.common.thread import EvThread, EvThreadsManager
+from walt.common.thread import EvThread
 from walt.common.versions import UPLOAD
-from walt.server.thread.main.api.cs import CSAPI
-from walt.server.thread.main.api.ns import NSAPI
-from walt.server.thread.main.network.setup import setup
-from walt.server.thread.main.network.tools import set_server_ip
-from walt.server.thread.main.server import Server
-from walt.server.thread.main.ui.manager import UIManager
+from walt.server.threads.main.api.cs import CSAPI
+from walt.server.threads.main.api.ns import NSAPI
+from walt.server.threads.main.network.setup import setup
+from walt.server.threads.main.network.tools import set_server_ip
+from walt.server.threads.main.server import Server
+from walt.server.threads.main.ui.manager import UIManager
 
 
 WALT_SERVER_DAEMON_VERSION = 'server v' + str(UPLOAD)

@@ -4,11 +4,11 @@ from walt.common.constants import WALT_NODE_DAEMON_PORT
 from walt.common.nodetypes import is_a_node_type_name
 from walt.common.tcp import Requests
 from walt.server.const import SSH_COMMAND
-from walt.server.thread.main.filesystem import Filesystem
-from walt.server.thread.main.nodes.register import NodeRegistrationHandler
-from walt.server.thread.main.nodes.show import show
-from walt.server.thread.main.nodes.wait import WaitInfo
-from walt.server.thread.main.transfer import validate_cp
+from walt.server.threads.main.filesystem import Filesystem
+from walt.server.threads.main.nodes.register import NodeRegistrationHandler
+from walt.server.threads.main.nodes.show import show
+from walt.server.threads.main.nodes.wait import WaitInfo
+from walt.server.threads.main.transfer import validate_cp
 from walt.server.tools import format_sentence_about_nodes, \
                                 merge_named_tuples
 
