@@ -53,3 +53,21 @@ def read_json(file_path):
     except:
         pass
     return content
+
+# use the following like this:
+#
+# with AutoCleaner(<obj>) as <var>:
+#     ... work_with <var> ...
+#
+# <obj> must provide a method cleanup()
+# that will be called automatically when leaving
+# the with construct.
+
+class AutoCleaner(object):
+    def __init__(self, obj):
+        self.obj = obj
+    def __enter__(self):
+        return self.obj
+    def __exit__(self, t, value, traceback):
+        self.obj.cleanup()
+        self.obj = None
