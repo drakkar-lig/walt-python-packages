@@ -2,24 +2,24 @@ import sys, signal
 from multiprocessing import Pipe
 from threading import Thread
 from walt.common.evloop import EventLoop
+from walt.common.tools import AutoCleaner
 
 class EvThread(Thread):
     def __init__(self, manager):
         Thread.__init__(self)
-        self.evloop = EventLoop()
+        self.ev_loop = EventLoop()
         self.pipe_in, self.pipe_out = Pipe() 
-        self.evloop.register_listener(self)
+        self.ev_loop.register_listener(self)
         manager.register_thread(self)
 
-    def register_listener(self, listener, *args, **kwargs):
-        listener.thread = self
-        self.evloop.register_listener(listener, *args, **kwargs)
+    # mimic an event loop
+    def __getattr__(self, attr):
+        return getattr(self.ev_loop, attr)
 
     def run(self):
-        for l in self.evloop.listeners.values():
-            if hasattr(l, 'prepare'):
-                l.prepare(self.evloop)
-        self.evloop.loop()
+        with AutoCleaner(self):
+            self.prepare()
+            self.ev_loop.loop()
         
     def fileno(self):
         return self.pipe_in.fileno()
@@ -31,7 +31,14 @@ class EvThread(Thread):
         e = self.pipe_in.recv()
         print 'Got exception', e
         sys.stdout.flush()
+        self.cleanup()
         raise e
+
+    def prepare(self):
+        pass    # optionally override in subclass
+
+    def cleanup(self):
+        pass    # optionally override in subclass
 
 class EvThreadsManager(object):
     def __init__(self):

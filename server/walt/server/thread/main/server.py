@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 from walt.common.constants import WALT_SERVER_TCP_PORT
-from walt.common.evloop import EventLoop
 from walt.common.tcp import TCPServer
 from walt.server.thread.blocking.blocking import BlockingTasksManager
 from walt.server.thread.main.db import ServerDB
@@ -19,9 +18,9 @@ from walt.server.thread.main.transfer import TransferManager
 
 class Server(object):
 
-    def __init__(self, ui):
+    def __init__(self, ev_loop, ui):
+        self.ev_loop = ev_loop
         self.ui = ui
-        self.ev_loop = EventLoop()
         self.db = ServerDB()
         self.docker = DockerClient()
         self.blocking = BlockingTasksManager()

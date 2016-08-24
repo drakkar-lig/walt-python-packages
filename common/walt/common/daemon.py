@@ -36,9 +36,6 @@ class RPyCClientManager(object):
 # processing when answering a client. 
 class RPyCServer(Server):
     """Mono-thread RPyC Server."""
-    # we will use this instead of the start() method
-    # in order to be able to manage the loop and catch
-    # exceptions in the calling code.
     def prepare(self, ev_loop):
         self.ev_loop = ev_loop
         self.listener.listen(self.backlog)
@@ -101,10 +98,10 @@ class WalTDaemon(cli.Application):
         self.init()
         rpyc_server = RPyCServer(
                         service_cl, port = port)
+        rpyc_server.prepare(ev_loop)
         ev_loop.register_listener(rpyc_server)
         self.init_end()
         try:
-            rpyc_server.prepare(ev_loop)
             ev_loop.loop()
         except KeyboardInterrupt:
             sys.stderr.write('Interrupted.\n')
