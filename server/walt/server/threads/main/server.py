@@ -2,7 +2,7 @@
 
 from walt.common.constants import WALT_SERVER_TCP_PORT
 from walt.common.tcp import TCPServer
-from walt.server.threads.blocking.blocking import BlockingTasksManager
+from walt.server.threads.main.blocking import BlockingTasksManager
 from walt.server.threads.main.db import ServerDB
 from walt.server.threads.main.images.manager import NodeImageManager
 from walt.server.threads.main.interactive import InteractionManager
@@ -18,12 +18,12 @@ from walt.server.threads.main.transfer import TransferManager
 
 class Server(object):
 
-    def __init__(self, ev_loop, ui):
+    def __init__(self, ev_loop, ui, shared):
         self.ev_loop = ev_loop
         self.ui = ui
         self.db = ServerDB()
         self.docker = DockerClient()
-        self.blocking = BlockingTasksManager()
+        self.blocking = BlockingTasksManager(shared.tasks)
         self.devices = DevicesManager(self.db)
         self.dhcpd = DHCPServer(self.db)
         self.images = NodeImageManager(self.db, self.blocking, self.dhcpd, self.docker)
@@ -40,6 +40,8 @@ class Server(object):
                                     dhcpd = self.dhcpd,
                                     docker = self.docker,
                                     devices = self.devices)
+
+    def prepare(self):
         self.tcp_server.join_event_loop(self.ev_loop)
         self.blocking.join_event_loop(self.ev_loop)
         self.db.plan_auto_commit(self.ev_loop)

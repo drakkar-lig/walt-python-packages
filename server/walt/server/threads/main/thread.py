@@ -36,13 +36,18 @@ class PlatformService(object):
 
 
 class ServerMainThread(EvThread):
+    def __init__(self, tman, shared):
+        EvThread.__init__(self, tman)
+        self.ui = UIManager()
+        self.server = Server(self, self.ui, shared)
+        self.blocking = self.server.blocking
+
     def prepare(self):
-        ui = UIManager()
-        self.server = Server(self, ui)
+        self.server.prepare()
         # set ip on WalT network (eth0.1)
         set_server_ip()
         self.server.dhcpd.update(force=True)
-        setup(ui)
+        setup(self.ui)
         self.notify_systemd()
         rpyc_server = RPyCServer(
                         PlatformService(self.server),

@@ -1,5 +1,6 @@
-import sys, signal
+import sys, signal, rpyc
 from multiprocessing import Pipe
+from rpyc.core.stream import PipeStream
 from threading import Thread
 from walt.common.evloop import EventLoop
 from walt.common.tools import AutoCleaner
@@ -55,4 +56,16 @@ class EvThreadsManager(object):
             sys.stdout.flush()
             for t in self.threads:
                 t.forward_exception(e)
+
+class ThreadConnector(object):
+    def __init__(self, rpyc_service = rpyc.VoidService):
+        self.rpyc_service = rpyc_service
+    def connect(self, remote):
+        self.pipe, remote.pipe = Pipe()
+        rpyc0, rpyc1 = PipeStream.create_pair()
+        self.rpyc = rpyc.connect_stream(rpyc0, self.rpyc_service)
+        remote.rpyc = rpyc.connect_stream(rpyc1, remote.rpyc_service)
+    def close(self):
+        self.pipe.close()
+        self.rpyc.close()
 
