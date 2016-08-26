@@ -51,7 +51,7 @@ PACKAGE_SPECIFIC_INFO = {
             description = "WalT (Wireless Testbed) server daemon.",
             entry_points = {
                 'console_scripts': [
-                    'walt-server-daemon = walt.server.daemon.daemon:run',
+                    'walt-server-daemon = walt.server.daemon:run',
                     'walt-server-console = walt.server.ui.console:run'
                 ]
             }
