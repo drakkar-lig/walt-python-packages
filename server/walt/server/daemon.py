@@ -3,6 +3,7 @@
 from walt.common.thread import EvThreadsManager
 from walt.server.threads.main.thread import ServerMainThread
 from walt.server.threads.blocking.thread import ServerBlockingThread
+from walt.server.threads.hub.thread import ServerHubThread
 
 class Shared(object):
     pass
@@ -17,8 +18,11 @@ def run():
     main_thread = ServerMainThread(tman, shared)
     # create blocking thread
     blocking_thread = ServerBlockingThread(tman, shared)
+    # create hub thread
+    hub_thread = ServerHubThread(tman, shared)
     # connect them
     main_thread.blocking.connect(blocking_thread.main)
+    main_thread.hub.connect(hub_thread.main)
     # start!
     tman.start()
 

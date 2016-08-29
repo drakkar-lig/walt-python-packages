@@ -1,39 +1,9 @@
-from walt.common.constants import WALT_SERVER_DAEMON_PORT
-from walt.common.daemon import RPyCServer
-from walt.common.service import RPyCService
 from walt.common.thread import EvThread
-from walt.common.versions import UPLOAD
-from walt.server.threads.main.api.cs import CSAPI
-from walt.server.threads.main.api.ns import NSAPI
 from walt.server.threads.main.network.setup import setup
 from walt.server.threads.main.network.tools import set_server_ip
 from walt.server.threads.main.server import Server
 from walt.server.threads.main.ui.manager import UIManager
-
-
-WALT_SERVER_DAEMON_VERSION = 'server v' + str(UPLOAD)
-
-@RPyCService
-class PlatformService(object):
-    ALIASES=("WalT_Platform",)
-
-    def __init__(self, server):
-        images, devices, nodes, logs = \
-            server.images, server.devices, server.nodes, server.logs
-        self.cs = CSAPI(WALT_SERVER_DAEMON_VERSION,
-                server, images, devices, nodes, logs)
-        self.ns = NSAPI(devices, nodes)
-        self.exposed_cs = self.cs
-        self.exposed_ns = self.ns
-
-    def on_connect(self):
-        self.cs.on_connect(self._conn)
-        self.ns.on_connect(self._conn)
-
-    def on_disconnect(self):
-        self.cs.on_disconnect()
-        self.ns.on_disconnect()
-
+from walt.server.threads.main.hub import HubThreadConnector
 
 class ServerMainThread(EvThread):
     def __init__(self, tman, shared):
@@ -41,19 +11,16 @@ class ServerMainThread(EvThread):
         self.ui = UIManager()
         self.server = Server(self, self.ui, shared)
         self.blocking = self.server.blocking
+        self.hub = HubThreadConnector(self.server)
 
     def prepare(self):
         self.server.prepare()
+        self.register_listener(self.hub)
         # set ip on WalT network (eth0.1)
         set_server_ip()
         self.server.dhcpd.update(force=True)
         setup(self.ui)
         self.notify_systemd()
-        rpyc_server = RPyCServer(
-                        PlatformService(self.server),
-                        port = WALT_SERVER_DAEMON_PORT)
-        rpyc_server.prepare(self.ev_loop)
-        self.register_listener(rpyc_server)
         self.server.ui.set_status('Ready.')
         self.server.update()
     

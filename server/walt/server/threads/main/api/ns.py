@@ -8,13 +8,6 @@ class NSAPI(object):
         self.nodes = nodes
         self.remote_ip = None
 
-    def on_connect(self, conn):
-        # update remote_ip
-        self.remote_ip = conn._config['endpoints'][1][0]
-
-    def on_disconnect(self):
-        pass
-
     @api_expose_method
     def node_bootup_event(self):
         self.devices.node_bootup_event(self.remote_ip)

@@ -57,7 +57,8 @@ class ExposedStream(object):
 # in the following class.
 @api
 class WaltClientService(rpyc.Service):
-    @api_expose_attrs('stdin','stdout','stderr','username','filesystem')
+    queue = None
+    @api_expose_attrs('stdin','stdout','stderr','username','filesystem','queue')
     def __init__(self, *args, **kwargs):
         rpyc.Service.__init__(self, *args, **kwargs)
         self.stdin = ExposedStream(sys.stdin)
@@ -65,6 +66,9 @@ class WaltClientService(rpyc.Service):
         self.stderr = ExposedStream(sys.stderr)
         self.username = conf['username']
         self.filesystem = Filesystem()
+        self.queue = WaltClientService.queue
+
+WaltClientService.queue = ResponseQueue()
 
 # Sometimes we start a long running process on the server and wait for
 # its completion. In this case, while we are waiting, the server may
@@ -77,7 +81,14 @@ class ServerConnection(object):
     def __init__(self, rpyc_conn):
         self.rpyc_conn = rpyc_conn
     def __getattr__(self, attr):
-        return getattr(self.rpyc_conn.root.cs, attr)
+        def remote_func_caller(*args, **kwargs):
+            # lookup remote api function
+            remote_func = getattr(self.rpyc_conn.root, attr)
+            # let the hub thread plan execution
+            remote_func(*args, **kwargs)
+            # walt for the result and return it
+            return self.wait_queue(WaltClientService.queue)
+        return remote_func_caller
     def wait_cond(self, condition_func, timeout_func = None):
         while condition_func():
             self.update_progress_indicator()
