@@ -61,6 +61,8 @@ class NodeImageStore(object):
         return self.images.keys()
     def iteritems(self):
         return self.images.iteritems()
+    def itervalues(self):
+        return self.images.itervalues()
     def values(self):
         return self.images.values()
     # look for an image belonging to the requester.
