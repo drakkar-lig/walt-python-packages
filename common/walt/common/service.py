@@ -1,4 +1,4 @@
-import rpyc
+import rpyc, inspect
 
 # This decorator allows to define RPyC service classes
 # with a customized __init__ function.
@@ -27,22 +27,24 @@ class RPyCProxy(object):
     def __getattr__(self, attr):
         if not attr.startswith('exposed_'):
             return None
-        else:
-            # discard the 'exposed_' prefix,
-            # recursively return a proxy for this attr
-            return RPyCProxy(   self.remote_obj,
-                                self.path + (attr[8:],),
-                                self.ignore_spec)
+        # discard the 'exposed_' prefix
+        attr = attr[8:]
+        try:
+            if not hasattr(self.remote_obj, attr):
+                return None
+            obj = getattr(self.remote_obj, attr)
+            if inspect.ismethod(obj):
+                # recursively return a proxy for this method
+                return RPyCProxy(obj, self.ignore_spec)
+            else:
+                return obj
+        except self.ignore_spec:
+            return None
     def __call__(self, *args, **kwargs):
         # if we are here, the remote object should also be callable...
-        # call it and return a proxy for the result.
+        # call it and return the result.
         try:
-            path = self.path
-            remote_obj = self.remote_obj
-            while len(path) > 0:
-                remote_obj = getattr(remote_obj, path[0])
-                path = path[1:]
-            return RPyCProxy(remote_obj(*args, **kwargs), (), self.ignore_spec)
+            return self.remote_obj(*args, **kwargs)
         except self.ignore_spec:
-            pass
+            return None
 
