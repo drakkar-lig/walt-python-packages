@@ -129,19 +129,22 @@ class WalTImageCp(cli.Application):
             if info == None:
                 return
             info = { k:v for k,v in info }
-            session = server.create_image_shell_session(
+            session_info = server.create_image_shell_session(
                             info['image_tag'])
-            if session == None:
+            if session_info == None:
                 return  # issue already reported
-            with session:
-                info.update(session = session)
-                try:
-                    run_transfer_with_image(**info)
-                    if info['client_operand_index'] == 0:
-                        # client was sending -> image has been modified
-                        # save the image under the same name
-                        session.select_new_name(session.get_default_new_name())
-                except (KeyboardInterrupt, EOFError):
-                    print
-                    print 'Aborted.'
+            session_id, image_fullname, container_name, default_new_name = \
+                            session_info
+            info.update(image_fullname = image_fullname,
+                        container_name = container_name)
+            try:
+                run_transfer_with_image(**info)
+                if info['client_operand_index'] == 0:
+                    # client was sending -> image has been modified
+                    # save the image under the same name
+                    server.image_shell_session_save(
+                            session_id, default_new_name, True)
+            except (KeyboardInterrupt, EOFError):
+                print
+                print 'Aborted.'
 

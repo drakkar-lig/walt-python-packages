@@ -6,9 +6,9 @@ from walt.common.constants import WALT_SERVER_TCP_PORT
 import os, tarfile
 
 
-def run_transfer_with_image(session, dst_dir, dst_name, src_dir, src_name,
+def run_transfer_with_image(image_fullname, container_name,
+                            dst_dir, dst_name, src_dir, src_name,
                             client_operand_index, **kwargs):
-    image_fullname, container_name = session.get_parameters()
     if client_operand_index == 0:
         req_id = Requests.REQ_TAR_TO_IMAGE
     else:
