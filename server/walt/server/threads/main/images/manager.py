@@ -1,4 +1,4 @@
-from walt.server.threads.main.images.shell import ImageShellSessionStore
+from walt.server.threads.main.images.shell import ImageShellSession
 from walt.server.threads.main.images.search import search
 from walt.server.threads.main.images.clone import clone
 from walt.server.threads.main.images.publish import publish
@@ -20,7 +20,6 @@ class NodeImageManager(object):
         self.dhcpd = dhcpd
         self.docker = docker
         self.store = NodeImageStore(self.docker, self.db)
-        self.shells = ImageShellSessionStore(self.docker, self.store)
     def update(self):
         self.store.refresh()
         self.store.update_image_mounts(auto_update = True)
@@ -57,8 +56,6 @@ class NodeImageManager(object):
     def fix_owner(self, requester, other_user):
         fix_owner(self.store, self.docker, requester, other_user)
     def cleanup(self):
-        # give up image shell sessions
-        self.shells.cleanup()
         # un-mount images
         self.store.cleanup()
     def has_image(self, requester, image_tag):
@@ -98,5 +95,9 @@ class NodeImageManager(object):
         self.dhcpd.update()
         return True
     def create_shell_session(self, requester, image_tag):
-        return self.shells.create_session(requester, image_tag)
+        image = self.store.get_user_image_from_tag(requester, image_tag)
+        if image:
+            session = ImageShellSession(self.store, requester, image.fullname)
+            return session
+        return None
 

@@ -136,9 +136,8 @@ def run_sql_prompt():
     print SQL_SHELL_MESSAGE
     PromptClient(Requests.REQ_SQL_PROMPT).run()
 
-def run_image_shell_prompt(session):
+def run_image_shell_prompt(image_fullname, container_name):
     print IMAGE_SHELL_MESSAGE
-    image_fullname, container_name = session.get_parameters()
     PromptClient(Requests.REQ_DOCKER_PROMPT,
                 image_fullname = image_fullname,
                 container_name = container_name).run()

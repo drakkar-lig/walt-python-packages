@@ -147,7 +147,17 @@ class CSAPI(APISession):
 
     @api_expose_method
     def create_image_shell_session(self, image_tag):
-        return self.images.create_shell_session(self.requester, image_tag)
+        session = self.images.create_shell_session(self.requester, image_tag)
+        if session == None:
+            return None
+        session_id = self.register_session_object(session)
+        fullname, container_name, default_new_name = session.get_parameters()
+        return session_id, fullname, container_name, default_new_name
+
+    @api_expose_method
+    def image_shell_session_save(self, session_id, new_name, name_confirmed):
+        session = self.get_session_object(session_id)
+        return session.save(new_name, name_confirmed)
 
     @api_expose_method
     def remove_image(self, image_tag):

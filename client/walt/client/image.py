@@ -58,34 +58,35 @@ class WalTImageShell(cli.Application):
     """modify an image through an interactive shell"""
     def main(self, image_name):
         with ClientToServerLink() as server:
-            session = server.create_image_shell_session(
+            session_info = server.create_image_shell_session(
                             image_name)
-            if session == None:
+            if session_info == None:
                 return  # issue already reported
-            with session:
-                run_image_shell_prompt(session)
-                default_new_name = session.get_default_new_name()
-                try:
-                    while True:
-                        new_name = raw_input(\
-                            'New image name [%s]: ' % default_new_name)
-                        if new_name == '':
-                            new_name = default_new_name
-                            print 'Selected: %s' % new_name
-                        res = session.validate_new_name(new_name)
-                        if res == session.NAME_NEEDS_CONFIRM:
-                            if confirm():
-                                res = session.NAME_OK
-                            else:
-                                res = session.NAME_NOT_OK
-                        if res == session.NAME_OK:
-                            break
-                        if res == session.NAME_NOT_OK:
+            session_id, image_fullname, container_name, default_new_name = \
+                            session_info
+            run_image_shell_prompt(image_fullname, container_name)
+            try:
+                while True:
+                    new_name = raw_input(\
+                        'New image name [%s]: ' % default_new_name)
+                    if new_name == '':
+                        new_name = default_new_name
+                        print 'Selected: %s' % new_name
+                    res = server.image_shell_session_save(
+                                    session_id, new_name, name_confirmed = False)
+                    if res == 'NAME_NOT_OK':
+                        continue
+                    if res == 'NAME_NEEDS_CONFIRM':
+                        if confirm():
+                            server.image_shell_session_save(
+                                    session_id, new_name, name_confirmed = True)
+                        else:
                             continue
-                    # we left the loop, this means we have a valid name
-                    session.select_new_name(new_name)
-                except (KeyboardInterrupt, EOFError):
-                    print 'Aborted.'
+                    break
+            except (KeyboardInterrupt, EOFError):
+                print 'Aborted.'
+            # leaving the API session scoped by the with construct
+            # will cause the server to cleanup session data on server side.
 
 @WalTImage.subcommand("remove")
 class WalTImageRemove(cli.Application):
