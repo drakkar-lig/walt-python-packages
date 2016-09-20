@@ -22,7 +22,7 @@ class APISession(object):
             session.cleanup()
 
     def __init__(self, first_task, server):
-        self.session_objects = set()
+        self.session_objects = []
         self.server, self.images, self.devices, self.nodes, self.logs = \
             server, server.images, server.devices, server.nodes, server.logs
         linfo = first_task.link_info
@@ -43,7 +43,12 @@ class APISession(object):
         t.return_result(res)
 
     def register_session_object(self, obj):
-        self.session_objects.add(obj)
+        obj_id = len(self.session_objects)
+        self.session_objects.append(obj)
+        return obj_id
+
+    def get_session_object(self, obj_id):
+        return self.session_objects[obj_id]
 
     def on_connect(self):
         print 'session %d: %s just connected' % (self.link_id, self.requester.username)
