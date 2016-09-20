@@ -1,12 +1,8 @@
 from walt.common.api import api, api_expose_method
+from walt.server.threads.main.apisession import APISession
 
 @api
-class NSAPI(object):
-
-    def __init__(self, devices, nodes):
-        self.devices = devices
-        self.nodes = nodes
-        self.remote_ip = None
+class NSAPI(APISession):
 
     @api_expose_method
     def node_bootup_event(self):

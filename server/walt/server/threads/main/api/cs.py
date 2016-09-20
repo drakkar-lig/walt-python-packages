@@ -5,18 +5,12 @@ from walt.common.versions import API_VERSIONING
 from walt.common.api import api, api_expose_method
 from walt.common.versions import UPLOAD
 
+from walt.server.threads.main.apisession import APISession
+
 WALT_SERVER_DAEMON_VERSION = 'server v' + str(UPLOAD)
 
 @api
-class CSAPI(object):
-
-    def __init__(self, server, images, devices, nodes, logs):
-        self.server = server
-        self.images = images
-        self.devices = devices
-        self.nodes = nodes
-        self.logs = logs
-        self.requester = None
+class CSAPI(APISession):
 
     @api_expose_method
     def get_version(self):

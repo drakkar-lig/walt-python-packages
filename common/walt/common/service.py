@@ -6,13 +6,16 @@ import rpyc, inspect
 # class rpyc.Service.__init__(), because the rpyc core
 # instanciates such a service itself.)
 def RPyCService(cls):
-    class Wrapper(rpyc.Service, cls):
-        def __init__(self, *args, **kwargs):
-            cls.__init__(self, *args, **kwargs)
-        def __call__(self, *args, **kwargs):
+    # caution: cls must be the first base class in order to be
+    # first in the method resolution order (e.g. regarding on_connect()).
+    class Mixed(cls, rpyc.Service):
+        def __init__(self, args, kwargs, cls_args, cls_kwargs):
             rpyc.Service.__init__(self, *args, **kwargs)
-            return self
-    return Wrapper
+            cls.__init__(self, *self.cls_args, **self.cls_kwargs)
+    def factory_generator(*cls_args, **cls_kwargs):
+        def factory(*args, **kwargs):
+            return Mixed(args, kwargs, cls_args, cls_kwargs)
+    return factory_generator
 
 # This class allows to build RPyC proxies for the following scenario:
 # process1 <--rpyc-link--> process2 <--rpyc-link--> process3

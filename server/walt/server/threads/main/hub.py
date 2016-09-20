@@ -1,14 +1,13 @@
+from walt.server.threads.main.apisession import APISession
+from walt.common.thread import ThreadConnector
 from walt.server.threads.main.api.cs import CSAPI
 from walt.server.threads.main.api.ns import NSAPI
-from walt.common.thread import ThreadConnector
 
 class HubThreadConnector(ThreadConnector):
     def __init__(self, server, *args, **kwargs):
         ThreadConnector.__init__(self, *args, **kwargs)
-        images, devices, nodes, logs = \
-            server.images, server.devices, server.nodes, server.logs
-        self.cs = CSAPI(server, images, devices, nodes, logs)
-        self.ns = NSAPI(devices, nodes)
+        self.server = server
+        self.rpyc_sessions = {}
 
     # let the event loop know what we are reading on
     def fileno(self):
@@ -20,19 +19,14 @@ class HubThreadConnector(ThreadConnector):
         self.pipe.recv()
         # pop next task saved by hub thread
         t = self.rpyc.root.pop_task()
-        # get task info
-        cs_or_ns, attr, args, kwargs = t.desc()
-        # lookup task
-        api = getattr(self, cs_or_ns)
-        m = getattr(api, attr)
-        # update requester info
-        api.requester = t.requester
-        api.remote_ip = t.remote_ip
+        # retrieve or create associated session
+        session = APISession.get(self.server, t)
         # run task
-        res = m(*list(args), **dict(kwargs))
-        # return result
-        t.return_result(res)
+        session.run(t)
 
     def cleanup(self):
         self.close()
+
+APISession.register_target_api('NSAPI', NSAPI)
+APISession.register_target_api('CSAPI', CSAPI)
 
