@@ -7,7 +7,7 @@ class Task(object):
     IGNORED = (ReferenceError, EOFError, AttributeError)
 
     def __init__(self, target_api, attr, args, kwargs, link_info):
-        self.desc = attr, args, kwargs
+        self.desc = attr, tuple(args), tuple(kwargs.items())
         self.link_info = link_info
         self.exposed_target_api = target_api
         self.exposed_link_info = link_info

@@ -26,11 +26,14 @@ class APISession(object):
 
     def run(self, t):
         # get task info
-        attr, args, kwargs = t.desc()
+        attr, args, kwargs_items = t.desc()
+        # rebuild kwargs
+        # (t did not returned a dict, this is would involve rpyc calls again)
+        kwargs = { k:v for k, v in kwargs_items }
         # lookup task
         m = getattr(self, attr)
         # run task
-        res = m(*list(args), **dict(kwargs))
+        res = m(*args, **kwargs)
         # return result
         t.return_result(res)
 
