@@ -16,6 +16,11 @@ class APISession(object):
             APISession.SESSIONS[link_id] = cls(task, server)
         return APISession.SESSIONS[link_id]
 
+    @staticmethod
+    def cleanup_all():
+        for session in APISession.SESSIONS.values():
+            session.cleanup()
+
     def __init__(self, first_task, server):
         self.session_objects = set()
         self.server, self.images, self.devices, self.nodes, self.logs = \
@@ -45,7 +50,10 @@ class APISession(object):
 
     def on_disconnect(self):
         print 'session %d: disconnected' % self.link_id
+        self.cleanup()
+        del APISession.SESSIONS[self.link_id]
+
+    def cleanup(self):
         for obj in self.session_objects:
             obj.cleanup()
-        del APISession.SESSIONS[self.link_id]
 

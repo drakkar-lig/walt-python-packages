@@ -14,6 +14,7 @@ from walt.server.threads.main.nodes.manager import NodesManager
 from walt.server.threads.main.devices.manager import DevicesManager
 from walt.server.tools import format_sentence_about_nodes
 from walt.server.threads.main.transfer import TransferManager
+from walt.server.threads.main.apisession import APISession
 
 
 class Server(object):
@@ -67,6 +68,7 @@ class Server(object):
         self.ui.task_done()
 
     def cleanup(self):
+        APISession.cleanup_all()
         self.images.cleanup()
         self.blocking.cleanup()
         dhcp_stop()
