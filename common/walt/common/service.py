@@ -8,14 +8,13 @@ import rpyc, inspect
 def RPyCService(cls):
     # caution: cls must be the first base class in order to be
     # first in the method resolution order (e.g. regarding on_connect()).
-    class Mixed(cls, rpyc.Service):
-        def __init__(self, args, kwargs, cls_args, cls_kwargs):
-            rpyc.Service.__init__(self, *args, **kwargs)
-            cls.__init__(self, *self.cls_args, **self.cls_kwargs)
-    def factory_generator(*cls_args, **cls_kwargs):
-        def factory(*args, **kwargs):
-            return Mixed(args, kwargs, cls_args, cls_kwargs)
-    return factory_generator
+    def mixed_cls_generator(*cls_args, **cls_kwargs):
+        class Mixed(cls, rpyc.Service):
+            def __init__(self, *args, **kwargs):
+                rpyc.Service.__init__(self, *args, **kwargs)
+                cls.__init__(self, *cls_args, **cls_kwargs)
+        return Mixed
+    return mixed_cls_generator
 
 # This class allows to build RPyC proxies for the following scenario:
 # process1 <--rpyc-link--> process2 <--rpyc-link--> process3
