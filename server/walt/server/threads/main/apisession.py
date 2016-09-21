@@ -60,5 +60,6 @@ class APISession(object):
 
     def cleanup(self):
         for obj in self.session_objects:
-            obj.cleanup()
+            if hasattr(obj, 'cleanup'):
+                obj.cleanup()
 
