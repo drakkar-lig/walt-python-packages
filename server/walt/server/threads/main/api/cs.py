@@ -127,19 +127,29 @@ class CSAPI(APISession):
                           auto_update = auto_update)
 
     @api_expose_method
-    def get_dh_peer(self):
-        return DHPeer()
+    def create_dh_peer(self):
+        dh_peer = DHPeer()
+        dh_peer_id = self.register_session_object(dh_peer)
+        return dh_peer_id, dh_peer.pub_key
+
+    @api_expose_method
+    def establish_dh_session(self, dh_peer_id, client_pub_key):
+        dh_peer = self.get_session_object(dh_peer_id)
+        dh_peer.establish_session(client_pub_key)
 
     @api_expose_method
     def publish_image(self, q, auth_conf, image_tag):
+        dh_peer = self.get_session_object(auth_conf['dh_peer_id'])
         self.images.publish(requester = self.requester,
                           q = q,
+                          dh_peer = dh_peer,
                           auth_conf = auth_conf,
                           image_tag = image_tag)
 
     @api_expose_method
     def docker_login(self, auth_conf):
-        return self.server.docker.login(auth_conf, self.requester.stdout)
+        dh_peer = self.get_session_object(auth_conf['dh_peer_id'])
+        return self.server.docker.login(dh_peer, auth_conf, self.requester.stdout)
 
     @api_expose_method
     def show_images(self):

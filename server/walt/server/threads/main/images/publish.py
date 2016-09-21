@@ -1,8 +1,8 @@
 import requests
 from walt.server.tools import failsafe_response_q_put
 
-def perform_publish(requester, auth_conf, docker, image_fullname, **kwargs):
-    return docker.push(image_fullname, auth_conf, requester.stdout)
+def perform_publish(requester, dh_peer, auth_conf, docker, image_fullname, **kwargs):
+    return docker.push(image_fullname, dh_peer, auth_conf, requester.stdout)
 
 class PublishTask(object):
     def __init__(self, q, requester, **kwargs):

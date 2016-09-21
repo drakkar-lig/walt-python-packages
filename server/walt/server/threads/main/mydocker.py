@@ -36,11 +36,11 @@ class DockerClient(object):
         label = 'Downloading %s/%s' % (user, tag)
         stream = self.c.pull(name, tag=requests.utils.quote(tag), stream=True)
         indicate_progress(stdout, label, stream)
-    def login(self, auth_conf, stdout):
+    def login(self, dh_peer, auth_conf, stdout):
         label = 'Authenticating to the docker hub...'
         display_transient_label(stdout, label)
         try:
-            symmetric_key = auth_conf['dh_peer'].symmetric_key
+            symmetric_key = dh_peer.symmetric_key
             cypher = BlowFish(symmetric_key)
             password = cypher.decrypt(auth_conf['encrypted_password'])
             # Note: the docker hub API requires the email argument
@@ -59,11 +59,11 @@ class DockerClient(object):
         hide_transient_label(stdout, label)
         stdout.write('%s done.\n' % label)
         return True
-    def push(self, image_fullname, auth_conf, stdout = None):
+    def push(self, image_fullname, dh_peer, auth_conf, stdout = None):
         if stdout == None:
             stdout = sys.stdout
         fullname, name, repo, user, tag = parse_image_fullname(image_fullname)
-        if not self.login(auth_conf, stdout):
+        if not self.login(dh_peer, auth_conf, stdout):
             return False
         label = 'Pushing %s' % tag
         stream = self.c.push(name, tag=requests.utils.quote(tag), stream=True)
