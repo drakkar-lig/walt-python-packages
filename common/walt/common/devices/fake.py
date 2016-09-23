@@ -1,7 +1,7 @@
 
 class Fake(object):
     MAC_PREFIX = "xx:xx:xx"
-    SHORT_NAME = "fake_node"
+    SHORT_NAME = "fake"
 
     @staticmethod
     def blink(bool):
