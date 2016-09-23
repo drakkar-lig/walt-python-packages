@@ -21,12 +21,13 @@ class RPyCClientService(object):
         self.main = connection_to_main
         self.tasks = tasks
         self.link_info = None
+        self.target_api = None
     def __getattr__(self, attr):
         def func(*args, **kwargs):
-            self.record_task('CSAPI', attr, args, kwargs)
+            self.record_task(attr, args, kwargs)
         return func
-    def record_task(self, target_api, attr, args, kwargs, cls=ClientTask):
-        t = cls(target_api, attr, args, kwargs, self.link_info)
+    def record_task(self, attr, args, kwargs, cls=ClientTask):
+        t = cls(self.target_api, attr, args, kwargs, self.link_info)
         self.tasks.insert(0, t)
         # notify the server that we have a new task
         self.main.pipe.send(0)
@@ -34,9 +35,15 @@ class RPyCClientService(object):
         requester = self._conn.root
         remote_ip = self._conn._config['endpoints'][1][0]
         self.link_info = LinkInfo(requester, remote_ip)
-        self.record_task('CSAPI', 'on_connect', [], {}, cls=HubTask)
+        # for now we do not know what is the target API, so we
+        # cannot pass it the 'on_connect' event.
+        # we will do it just below when the peer has selected
+        # the API.
+    def exposed_select_api(self, target_api):
+        self.target_api = target_api
+        self.record_task('on_connect', [], {})
     def on_disconnect(self):
-        self.record_task('CSAPI', 'on_disconnect', [], {}, cls=HubTask)
+        self.record_task('on_disconnect', [], {}, cls=HubTask)
 
 class RPyCClientServer(RPyCServer):
     def __init__(self, tasks, connection_to_main):

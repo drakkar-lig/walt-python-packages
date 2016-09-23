@@ -137,9 +137,10 @@ class ServerAPIConnection(object):
 # This class provides a 'with' environment to connect to
 # the server API.
 class ServerAPILink(object):
-    def __init__(self, server_ip, local_service):
+    def __init__(self, server_ip, target_api, local_service):
         self.server_ip = server_ip
         self.local_service = local_service
+        self.target_api = target_api
     def __enter__(self):
         self.conn = ServerAPIConnection(
             rpyc.connect(
@@ -147,6 +148,7 @@ class ServerAPILink(object):
                 WALT_SERVER_DAEMON_PORT,
                 service = self.local_service),
             self.local_service.queue)
+        self.conn.select_api(self.target_api)
         return self.conn
     def __exit__(self, type, value, traceback):
         self.conn.close()

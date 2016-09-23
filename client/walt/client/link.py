@@ -40,4 +40,4 @@ class WaltClientService(object):
 class ClientToServerLink(ServerAPILink):
     def __init__(self):
         service = WaltClientService()
-        ServerAPILink.__init__(self, conf['server'], service)
+        ServerAPILink.__init__(self, conf['server'], 'CSAPI', service)
