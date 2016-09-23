@@ -208,7 +208,7 @@ class NodesManager(object):
         nodes = self.parse_node_set(requester, node_set)
         if nodes == None:
             return None
-        return ','.join(nodes)
+        return ','.join(n.name for n in nodes)
 
     def includes_nodes_not_owned(self, requester, node_set, warn):
         nodes = self.parse_node_set(requester, node_set)
