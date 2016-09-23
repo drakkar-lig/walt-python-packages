@@ -24,7 +24,12 @@ def failsafe_makedirs(path):
 def failsafe_symlink(src, dst):
     # remove existing symlink if any
     if os.path.lexists(dst):
-        os.remove(dst)
+        if os.readlink(dst) == src:
+            # nothing to do
+            return
+        else:
+            # symlink target (src) has changed
+            os.remove(dst)
     # ensure parent dir of dst exists
     failsafe_makedirs(os.path.dirname(dst))
     # create the symlink
