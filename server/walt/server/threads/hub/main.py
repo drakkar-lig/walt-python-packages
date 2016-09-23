@@ -1,7 +1,7 @@
 from walt.common.thread import ThreadConnector
-from walt.common.service import RPyCService
+from walt.common.apilink import APIService
 
-@RPyCService
+@APIService
 class RPyCMainService(object):
     last_task = None
     def __init__(self, thread):

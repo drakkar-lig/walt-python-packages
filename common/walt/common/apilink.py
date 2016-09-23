@@ -33,12 +33,12 @@ class ResponseQueue(object):
         self.get()
 
 
-# This decorator allows to define RPyC service classes
+# This decorator allows to define RPyC-based API service classes
 # with a customized __init__ function.
 # (without it, one has to conform to the prototype of the base
 # class rpyc.Service.__init__(), because the rpyc core
 # instanciates such a service itself.)
-def RPyCService(cls):
+def APIService(cls):
     # caution: cls must be the first base class in order to be
     # first in the method resolution order (e.g. regarding on_connect()).
     def mixed_cls_generator(*cls_args, **cls_kwargs):

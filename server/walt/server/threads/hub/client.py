@@ -1,5 +1,5 @@
 from walt.common.constants import WALT_SERVER_DAEMON_PORT
-from walt.common.service import RPyCService, RPyCProxy
+from walt.common.apilink import APIService, RPyCProxy
 from walt.server.threads.hub.task import Task, ClientTask, HubTask
 from walt.common.daemon import RPyCServer
 
@@ -15,7 +15,7 @@ class LinkInfo(object):
         self.exposed_link_id = LinkInfo.INDEX
         LinkInfo.INDEX += 1
 
-@RPyCService
+@APIService
 class RPyCClientService(object):
     def __init__(self, tasks, connection_to_main):
         self.main = connection_to_main

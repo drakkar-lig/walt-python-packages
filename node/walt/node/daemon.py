@@ -9,7 +9,7 @@ from walt.common.constants import WALT_NODE_DAEMON_PORT
 from walt.common.constants import WALT_SERVER_DAEMON_PORT
 from walt.common.devices.fake import Fake
 from walt.common.evloop import EventLoop
-from walt.common.service import RPyCService
+from walt.common.apilink import APIService
 from walt.node.tools import lookup_server_ip
 from walt.node.logs import LogsFifoServer
 from walt.common.api import api, api_expose_method
@@ -17,7 +17,7 @@ from walt.common.versions import UPLOAD
 
 WALT_NODE_NETWORK_INTERFACE = "eth0"
 
-@RPyCService
+@APIService
 @api
 class WalTNodeService(object):
     ALIASES=("WalT_Node_Service",)

@@ -3,7 +3,7 @@ import sys
 from walt.client.config import conf
 from walt.client.filesystem import Filesystem
 from walt.common.api import api, api_expose_method, api_expose_attrs
-from walt.common.apilink import ServerAPILink, RPyCService
+from walt.common.apilink import ServerAPILink, APIService
 
 @api
 class ExposedStream(object):
@@ -26,7 +26,7 @@ class ExposedStream(object):
 # of course.
 # but the client also exposes a few objects / features
 # in the following class.
-@RPyCService
+@APIService
 @api
 class WaltClientService(object):
     @api_expose_attrs('stdin','stdout','stderr','username','filesystem')
