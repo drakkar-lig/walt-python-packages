@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 from plumbum import cli
-from walt.client.link import ClientToServerLink, ResponseQueue
+from walt.common.apilink import ResponseQueue
+from walt.client.link import ClientToServerLink
 from walt.client.tools import confirm
 from walt.client.interactive import run_image_shell_prompt
 from walt.client.transfer import run_transfer_with_image

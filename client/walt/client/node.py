@@ -1,7 +1,8 @@
 import time, sys
 from plumbum import cli
+from walt.common.apilink import ResponseQueue
 from walt.client import myhelp
-from walt.client.link import ClientToServerLink, ResponseQueue
+from walt.client.link import ClientToServerLink
 from walt.client.tools import confirm
 from walt.client.interactive import run_node_cmd, \
                                     run_device_ping, \
