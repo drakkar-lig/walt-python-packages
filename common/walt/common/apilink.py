@@ -5,6 +5,7 @@ from multiprocessing import Queue
 import Queue as QueueException
 from walt.common.constants import WALT_SERVER_DAEMON_PORT
 from walt.common.api import api, api_expose_method
+from walt.common.reusable import reusable
 
 # Shared Queue allowing to wait for the remote API result
 @api
@@ -94,19 +95,25 @@ class RPyCProxy(object):
 # rpyc requests.
 MAX_BLOCKING_TIME = 0.1
 
+@reusable
 class ServerAPIConnection(object):
-    def __init__(self, rpyc_conn, queue):
-        self.rpyc_conn = rpyc_conn
-        self.queue = queue
+    def __init__(self, server_ip, local_service, target_api):
+        self.queue = local_service.queue
+        self.target_api = target_api
+        self.rpyc_conn = rpyc.connect(
+                server_ip,
+                WALT_SERVER_DAEMON_PORT,
+                service = local_service)
     def __getattr__(self, attr):
         def remote_func_caller(*args, **kwargs):
-            # lookup remote api function
-            remote_func = getattr(self.rpyc_conn.root, attr)
-            # let the hub thread plan execution
-            remote_func(*args, **kwargs)
+            # start api call
+            self.rpyc_conn.root.api_call(\
+                    self.target_api, attr, *args, **kwargs)
             # walt for the result and return it
             return self.wait_queue()
         return remote_func_caller
+    def get_remote_api_version(self):
+        return self.rpyc_conn.root.get_api_version(self.target_api)
     def wait_cond(self, condition_func, timeout_func = None):
         while condition_func():
             self.update_progress_indicator()
@@ -131,25 +138,27 @@ class ServerAPIConnection(object):
             return self.queue.empty()
         self.wait_cond(condition_func)
         return self.queue.get()
-    def close(self):
-        return self.rpyc_conn.close()
+    def __del__(self):
+        self.rpyc_conn.close()
+
+@APIService
+class VoidAPIService(object):
+    pass
 
 # This class provides a 'with' environment to connect to
 # the server API.
 class ServerAPILink(object):
-    def __init__(self, server_ip, target_api, local_service):
-        self.server_ip = server_ip
-        self.local_service = local_service
-        self.target_api = target_api
-    def __enter__(self):
+    def __init__(self, server_ip, target_api, local_service = None):
+        if local_service == None:
+            local_service = VoidAPIService()
         self.conn = ServerAPIConnection(
-            rpyc.connect(
-                self.server_ip,
-                WALT_SERVER_DAEMON_PORT,
-                service = self.local_service),
-            self.local_service.queue)
-        self.conn.select_api(self.target_api)
+            server_ip,
+            local_service,
+            target_api)
+    def __enter__(self):
         return self.conn
     def __exit__(self, type, value, traceback):
-        self.conn.close()
+        # do not close the connection right now, it might be reused
+        # thanks to the @reusable decorator of ServerAPIConnection
+        pass
 

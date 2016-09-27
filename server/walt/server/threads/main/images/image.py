@@ -146,9 +146,9 @@ class NodeImage(object):
     def update_walt_software(self):
         assert (not self.mounted), 'update_walt_software() called when the image is mounted!'
         self.chroot('pip install --upgrade "walt-nodeselector==%d.*"' % \
-                        API_VERSIONING['NS'][0])
+                        API_VERSIONING['NSAPI'][0])
     def check_server_compatibility(self, requester, auto_update):
-        srv_ns_api, srv_upload = (API_VERSIONING['NS'][0], UPLOAD)
+        srv_ns_api, srv_upload = (API_VERSIONING['NSAPI'][0], UPLOAD)
         node_ns_api, node_upload = self.get_versioning_numbers()
         if srv_ns_api == node_ns_api:
             compatibility = 0

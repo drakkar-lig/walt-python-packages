@@ -56,8 +56,8 @@ make a LED blink on node, etc.)
 def client_update():
     updated = False
     with ClientToServerLink() as server:
-        server_cs_api = server.get_CS_API_version()
-        client_cs_api = API_VERSIONING['CS'][0]
+        server_cs_api = server.get_remote_api_version()
+        client_cs_api = API_VERSIONING['CSAPI'][0]
         if server_cs_api != client_cs_api:
             print('Auto-updating the client to match server API...')
             if os.getenv('DEBUG_WITH_TESTPYPI'):

@@ -38,6 +38,7 @@ class WaltClientService(object):
         self.filesystem = Filesystem()
 
 class ClientToServerLink(ServerAPILink):
+    service = WaltClientService()
     def __init__(self):
-        service = WaltClientService()
-        ServerAPILink.__init__(self, conf['server'], 'CSAPI', service)
+        ServerAPILink.__init__(self, conf['server'], 'CSAPI',
+                                ClientToServerLink.service)

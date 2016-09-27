@@ -50,8 +50,8 @@ from walt.common.versions import API_VERSIONING as CUR_API_VERSIONING, \
 # with what we had before and increment the api version
 # if it changed.
 API_LOCATIONS = {
-    'CS': [ 'walt.server.threads.main.api.cs', 'walt.client.client' ],
-    'NS': [ 'walt.server.threads.main.api.ns', 'walt.node.daemon' ]
+    'CSAPI': [ 'walt.server.threads.main.api.cs', 'walt.client.client' ],
+    'NSAPI': [ 'walt.server.threads.main.api.ns', 'walt.node.daemon' ]
 }
 
 new_api_versioning = CUR_API_VERSIONING.copy() # for now

@@ -1,24 +1,15 @@
 import datetime, cPickle as pickle
 
 from walt.common.crypto.dh import DHPeer
-from walt.common.versions import API_VERSIONING
 from walt.common.api import api, api_expose_method
-from walt.common.versions import UPLOAD
 
 from walt.server.threads.main.apisession import APISession
 
-WALT_SERVER_DAEMON_VERSION = 'server v' + str(UPLOAD)
+# Client -> Server API (thus the name CSAPI)
+# Provides remote calls performed from a client to the server.
 
 @api
 class CSAPI(APISession):
-
-    @api_expose_method
-    def get_version(self):
-        return WALT_SERVER_DAEMON_VERSION
-
-    @api_expose_method
-    def get_CS_API_version(self):
-        return API_VERSIONING['CS'][0]
 
     @api_expose_method
     def device_rescan(self):

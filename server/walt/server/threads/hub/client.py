@@ -1,4 +1,5 @@
 from walt.common.constants import WALT_SERVER_DAEMON_PORT
+from walt.common.versions import API_VERSIONING
 from walt.common.apilink import APIService, RPyCProxy
 from walt.server.threads.hub.task import Task, ClientTask, HubTask
 from walt.common.daemon import RPyCServer
@@ -22,10 +23,13 @@ class RPyCClientService(object):
         self.tasks = tasks
         self.link_info = None
         self.target_api = None
-    def __getattr__(self, attr):
-        def func(*args, **kwargs):
-            self.record_task(attr, args, kwargs)
-        return func
+    def exposed_api_call(self, api, attr, *args, **kwargs):
+        if self.target_api == None:
+            self.target_api = api
+            self.record_task('on_connect', [], {}, cls=HubTask)
+        self.record_task(attr, args, kwargs)
+    def exposed_get_api_version(self, api):
+        return API_VERSIONING[api][0]
     def record_task(self, attr, args, kwargs, cls=ClientTask):
         t = cls(self.target_api, attr, args, kwargs, self.link_info)
         self.tasks.insert(0, t)
@@ -37,13 +41,10 @@ class RPyCClientService(object):
         self.link_info = LinkInfo(requester, remote_ip)
         # for now we do not know what is the target API, so we
         # cannot pass it the 'on_connect' event.
-        # we will do it just below when the peer has selected
-        # the API.
-    def exposed_select_api(self, target_api):
-        self.target_api = target_api
-        self.record_task('on_connect', [], {})
+        # we do it above when the peer performs its 1st api call.
     def on_disconnect(self):
-        self.record_task('on_disconnect', [], {}, cls=HubTask)
+        if self.target_api != None:
+            self.record_task('on_disconnect', [], {}, cls=HubTask)
 
 class RPyCClientServer(RPyCServer):
     def __init__(self, tasks, connection_to_main):
