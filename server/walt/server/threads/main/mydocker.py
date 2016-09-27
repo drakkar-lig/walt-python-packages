@@ -9,6 +9,7 @@ from datetime import datetime
 from plumbum.cmd import mount
 import sys, requests, shlex, json
 
+DOCKER_TIMEOUT=15
 AUFS_BR_LIMIT=127
 AUFS_BR_MOUNT_LIMIT=42
 REGISTRY='https://index.docker.io/v1/'
@@ -22,7 +23,8 @@ def docker_command_split(cmd):
 
 class DockerClient(object):
     def __init__(self):
-        self.c = Client(base_url='unix://var/run/docker.sock', version='auto', timeout=5)
+        self.c = Client(base_url='unix://var/run/docker.sock', version='auto',
+                timeout=DOCKER_TIMEOUT)
     def self_test(self):
         try:
             self.c.search(term='walt-node')
@@ -80,7 +82,7 @@ class DockerClient(object):
         return self.c.search(term=term)
     def lookup_remote_tags(self, image_name):
         url = const.DOCKER_HUB_GET_TAGS_URL % dict(image_name = image_name)
-        for elem in requests.get(url, timeout=3).json():
+        for elem in requests.get(url, timeout=DOCKER_TIMEOUT).json():
             tag = requests.utils.unquote(elem['name'])
             yield (image_name.split('/')[0], tag)
     def get_local_images(self):
