@@ -2,6 +2,7 @@ from walt.server.threads.main.apisession import APISession
 from walt.common.thread import ThreadConnector
 from walt.server.threads.main.api.cs import CSAPI
 from walt.server.threads.main.api.ns import NSAPI
+from walt.server.threads.main.api.ss import SSAPI
 
 class HubThreadConnector(ThreadConnector):
     def __init__(self, server, *args, **kwargs):
@@ -29,4 +30,5 @@ class HubThreadConnector(ThreadConnector):
 
 APISession.register_target_api('NSAPI', NSAPI)
 APISession.register_target_api('CSAPI', CSAPI)
+APISession.register_target_api('SSAPI', SSAPI)
 

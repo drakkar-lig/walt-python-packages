@@ -21,19 +21,26 @@ def failsafe_makedirs(path):
     if not os.path.exists(path):
         os.makedirs(path)
 
-def failsafe_symlink(src, dst):
+def failsafe_symlink(src_target, dst_path, force_relative = False):
+    # if force_relative, turn src_target into a relative path
+    if force_relative:
+        targetwords = src_target.rstrip('/').split('/')
+        pathwords = os.path.dirname(dst_path).split('/')
+        num_common = len([x for x, y in zip(targetwords, pathwords) if x == y])
+        relativewords = [ '..' ] * (len(pathwords) - num_common) + targetwords[num_common:]
+        src_target = '/'.join(relativewords)
     # remove existing symlink if any
-    if os.path.lexists(dst):
-        if os.readlink(dst) == src:
+    if os.path.lexists(dst_path):
+        if os.readlink(dst_path) == src_target:
             # nothing to do
             return
         else:
-            # symlink target (src) has changed
-            os.remove(dst)
-    # ensure parent dir of dst exists
-    failsafe_makedirs(os.path.dirname(dst))
+            # symlink target (src_target) has changed
+            os.remove(dst_path)
+    # ensure parent dir of dst_path exists
+    failsafe_makedirs(os.path.dirname(dst_path))
     # create the symlink
-    os.symlink(src, dst)
+    os.symlink(src_target, dst_path)
 
 def failsafe_mkfifo(path):
     # check if it does not exist already

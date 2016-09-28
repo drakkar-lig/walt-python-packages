@@ -1,7 +1,6 @@
 import socket, cPickle as pickle
 
 class Requests(object):
-    REQ_REGISTER_NODE = -1
     REQ_NEW_INCOMING_LOGS = 0
     REQ_DUMP_LOGS = 1
     REQ_SQL_PROMPT = 2

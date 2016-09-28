@@ -17,20 +17,9 @@ CONF_PATTERN = """
 # and updated when needed.
 #
 
-# allow sending DHCP NAKs
-authoritative;
-
-# custom parameters declaration
-option nfs-server code 138 = string;
-option nfs-fs-path code 140 = string;
-if exists dhcp-parameter-request-list {
-    option dhcp-parameter-request-list=concat(
-           option dhcp-parameter-request-list,8A,8C);
-}
-
 # global parameters
-authoritative;
-option nfs-server "%(walt_server_ip)s";
+authoritative; # allow sending DHCP NAKs
+next-server %(walt_server_ip)s;
 option broadcast-address %(subnet_broadcast)s;
 
 # walt unregistered devices
@@ -44,6 +33,24 @@ subnet %(subnet_ip)s netmask %(subnet_netmask)s {
     # recheck often if you are now registered
     max-lease-time 30;
     default-lease-time 30;
+
+    # when we assign a new IP address, let walt register
+    # this new device
+    on commit {
+        set ip_string = binary-to-ascii(10, 8, ".", leased-address);
+        # note: we ensure all 6 bytes of the mac address are left padded with 0 if needed
+        # (binary-to-ascii would not output '0e' but just 'e').
+        set mac_address_string = concat (
+            suffix (concat ("0", binary-to-ascii (16, 8, "", substring(hardware,1,1))),2), ":",
+            suffix (concat ("0", binary-to-ascii (16, 8, "", substring(hardware,2,1))),2), ":",
+            suffix (concat ("0", binary-to-ascii (16, 8, "", substring(hardware,3,1))),2), ":",
+            suffix (concat ("0", binary-to-ascii (16, 8, "", substring(hardware,4,1))),2), ":",
+            suffix (concat ("0", binary-to-ascii (16, 8, "", substring(hardware,5,1))),2), ":",
+            suffix (concat ("0", binary-to-ascii (16, 8, "", substring(hardware,6,1))),2)
+        );
+        execute("/usr/local/bin/walt-dhcp-event", "commit", option vendor-class-identifier,
+                        ip_string, mac_address_string);
+    }
 }
 
 # walt registered devices
@@ -57,12 +64,7 @@ host %(hostname)s {
     hardware ethernet %(mac)s;
     fixed-address %(ip)s;
     option host-name "%(hostname)s";
-    %(image_path_option)s
 }
-"""
-
-NODE_IMAGE_PATH_OPTION_PATTERN = """\
-    option nfs-fs-path "%(fs_path)s";
 """
 
 SWITCH_CONF_PATTERN = """\
@@ -90,13 +92,6 @@ def generate_dhcpd_conf(devices):
             conf_pattern = SWITCH_CONF_PATTERN
         else:
             conf_pattern = NODE_CONF_PATTERN
-            fs_path = device_info['fs_path']
-            if fs_path:
-                option = NODE_IMAGE_PATH_OPTION_PATTERN % \
-                            dict(fs_path=fs_path)
-            else:
-                option = ''
-            device_info['image_path_option'] = option
         devices_confs.append(conf_pattern % device_info)
         free_ips.remove(ip(device_info['ip']))
     range_confs = []
@@ -130,20 +125,12 @@ class DHCPServer(object):
                 self.db.execute(QUERY_DEVICES_WITH_IP).fetchall():
             device_type = item.type
             device_mac = item.mac
-            fs_path = None  # default
-            if is_a_node_type_name(device_type):
-                node_info = self.db.select_unique(
-                            'nodes', mac=device_mac)
-                # node_info is None if this node is not yet registered
-                if node_info is not None:
-                    fs_path = get_mount_path(node_info.image)
             if device_type != 'server':
                 devices.append(dict(
                     type=item.type,
                     hostname=item.name,
                     ip=item.ip,
-                    mac=device_mac,
-                    fs_path=fs_path))
+                    mac=device_mac))
         conf = generate_dhcpd_conf(devices)
         with open(DHCPD_CONF_FILE, 'r') as conf_file:
             old_conf = conf_file.read()

@@ -5,7 +5,7 @@ from walt.common.nodetypes import is_a_node_type_name
 from walt.common.tcp import Requests
 from walt.server.const import SSH_COMMAND
 from walt.server.threads.main.filesystem import Filesystem
-from walt.server.threads.main.nodes.register import NodeRegistrationHandler
+from walt.server.threads.main.nodes.register import handle_registration_request
 from walt.server.threads.main.nodes.show import show
 from walt.server.threads.main.nodes.wait import WaitInfo
 from walt.server.threads.main.transfer import validate_cp
@@ -54,19 +54,23 @@ class ServerToNodeLink:
         self.conn.close()
 
 class NodesManager(object):
-    def __init__(self, db, tcp_server, devices, **kwargs):
+    def __init__(self, db, devices, **kwargs):
         self.db = db
         self.current_register_requests = set()
         self.devices = devices
         self.kwargs = kwargs
         self.wait_info = WaitInfo()
-        tcp_server.register_listener_class(
-                    req_id = Requests.REQ_REGISTER_NODE,
-                    cls = NodeRegistrationHandler,
-                    current_requests = self.current_register_requests,
-                    db = self.db,
-                    devices = self.devices,
-                    **self.kwargs)
+
+    def register_node(self, node_type, ip, mac):
+        handle_registration_request(
+                db = self.db,
+                devices = self.devices,
+                mac = mac,
+                ip = ip,
+                node_type = node_type,
+                current_requests = self.current_register_requests,
+                **self.kwargs
+        )
 
     def connect(self, requester, node_name):
         nodes_ip = self.get_reachable_nodes_ip(

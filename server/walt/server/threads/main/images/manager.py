@@ -10,6 +10,7 @@ from walt.server.threads.main.images.update import update_walt_software
 from walt.server.threads.main.transfer import validate_cp
 from walt.server.threads.main.images.fixowner import fix_owner
 from walt.server.threads.main.images.store import NodeImageStore
+from walt.server.threads.main.network import tftp
 
 # About terminology: See comment about it in image.py.
 
@@ -91,6 +92,7 @@ class NodeImageManager(object):
                     mac=node_mac,
                     image=image_fullname)
         self.store.update_image_mounts(requester = requester, auto_update = auto_update)
+        tftp.update(self.db)
         self.db.commit()
         self.dhcpd.update()
         return True

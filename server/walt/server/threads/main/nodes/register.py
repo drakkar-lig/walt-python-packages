@@ -1,3 +1,4 @@
+from walt.server.threads.main.network import tftp
 
 def node_exists(db, mac):
     return db.select_unique("nodes", mac=mac) != None
@@ -12,17 +13,18 @@ def register_node(  devices, db, \
     db.insert('nodes', mac=mac, image=image_fullname)
     db.commit()
 
-def finalize_registration(current_requests, mac, **kwargs):
+def finalize_registration(current_requests, mac, db, dhcpd, **kwargs):
+    # refresh the dhcpd and tftp conf
+    tftp.update(db)
+    dhcpd.update()
     current_requests.remove(mac)
 
 def update_images_and_finalize(images, image_fullname, dhcpd, **kwargs):
     images.set_image_ready(image_fullname)
     # mount needed images
-    # refresh the dhcpd conf
     images.update_image_mounts(auto_update = True)
-    dhcpd.update()
     # we are all done
-    finalize_registration(**kwargs)
+    finalize_registration(dhcpd, **kwargs)
 
 class AsyncPullTask(object):
     def __init__(self, docker, image_fullname, finalize_cb, finalize_cb_kwargs):
@@ -71,39 +73,3 @@ def handle_registration_request(
     else:
         finalize_registration(**full_kwargs)
 
-class NodeRegistrationHandler(object):
-    def __init__(self, blocking, sock, sock_file, **kwargs):
-        self.sock_file = sock_file
-        self.blocking = blocking
-        self.mac = None
-        self.ip = None
-        self.node_type = None
-        self.kwargs = kwargs
-
-    # let the event loop know what we are reading on
-    def fileno(self):
-        return self.sock_file.fileno()
-    # the node register itself in its early bootup phase,
-    # thus the protocol is simple: based on text lines
-    def readline(self):
-        return self.sock_file.readline().strip()
-    # when the event loop detects an event for us, we
-    # know a log line should be read.
-    def handle_event(self, ts):
-        if self.mac == None:
-            self.mac = self.readline()
-        elif self.ip == None:
-            self.ip = self.readline()
-        elif self.node_type == None:
-            self.node_type = self.readline()
-            handle_registration_request(
-                blocking = self.blocking,
-                mac = self.mac,
-                ip = self.ip,
-                node_type = self.node_type,
-                **self.kwargs
-            )
-            # tell the event_loop that we can be removed
-            return False
-    def close(self):
-        self.sock_file.close()

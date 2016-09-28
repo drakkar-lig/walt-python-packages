@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 from walt.common.constants import WALT_SERVER_TCP_PORT
+from walt.common.nodetypes import get_node_type_from_name
 from walt.common.tcp import TCPServer
 from walt.server.threads.main.blocking import BlockingTasksManager
 from walt.server.threads.main.db import ServerDB
@@ -15,6 +16,7 @@ from walt.server.threads.main.devices.manager import DevicesManager
 from walt.server.tools import format_sentence_about_nodes
 from walt.server.threads.main.transfer import TransferManager
 from walt.server.threads.main.apisession import APISession
+from walt.server.threads.main.network import tftp
 
 
 class Server(object):
@@ -35,7 +37,6 @@ class Server(object):
         self.transfer = TransferManager(\
                         self.tcp_server, self.ev_loop)
         self.nodes = NodesManager(  db = self.db,
-                                    tcp_server = self.tcp_server,
                                     blocking = self.blocking,
                                     images = self.images.store,
                                     dhcpd = self.dhcpd,
@@ -62,6 +63,7 @@ class Server(object):
         self.ui.task_running()
         # re-update dhcp with any new device discovered
         self.dhcpd.update()
+        tftp.update(self.db)
         self.ui.task_running()
         # mount images needed
         self.images.update()
@@ -88,6 +90,13 @@ class Server(object):
             requester.stdout.write(format_sentence_about_nodes(
                 sentence, [n.name for n in nodes_ok]) + '\n')
 
+    def register_device(self, vendor_class_identifier, ip, mac):
+        # walt nodes send their node type using the vci field of the DHCP request.
+        if get_node_type_from_name(vendor_class_identifier) != None:
+            # this is a walt node
+            self.nodes.register_node(vendor_class_identifier, ip, mac)
+        # if this is not a walt node, we do nothing for now.
+
     def rename_device(self, requester, old_name, new_name):
         self.devices.rename(requester, old_name, new_name)
         self.dhcpd.update()
@@ -95,8 +104,10 @@ class Server(object):
     def device_rescan(self, requester):
         self.devices.rescan(requester=requester)
         self.dhcpd.update()
+        tftp.update(self.db)
 
     def forget_device(self, device_name):
         self.db.forget_device(device_name)
         self.dhcpd.update()
+        tftp.update(self.db)
 
