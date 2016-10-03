@@ -6,25 +6,33 @@ def rpi_blink(b):
     with open('/sys/class/leds/led0/trigger', 'w') as f:
         f.write("%s\n" % led_module)
 
-class RPi(object):
+class RPiB(object):
     MAC_PREFIX = RPI_MAC_PREFIX
-    SHORT_NAME = "rpi"
+    SHORT_NAME = "rpi-b"
 
     @staticmethod
     def blink(b):
         rpi_blink(b)
 
-class RPi2(object):
+class RPiBPlus(object):
     MAC_PREFIX = RPI_MAC_PREFIX
-    SHORT_NAME = "rpi2"
+    SHORT_NAME = "rpi-b-plus"
 
     @staticmethod
     def blink(b):
         rpi_blink(b)
 
-class RPi3(object):
+class RPi2B(object):
     MAC_PREFIX = RPI_MAC_PREFIX
-    SHORT_NAME = "rpi3"
+    SHORT_NAME = "rpi-2-b"
+
+    @staticmethod
+    def blink(b):
+        rpi_blink(b)
+
+class RPi3B(object):
+    MAC_PREFIX = RPI_MAC_PREFIX
+    SHORT_NAME = "rpi-3-b"
 
     @staticmethod
     def blink(b):
