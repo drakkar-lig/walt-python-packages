@@ -192,7 +192,7 @@ class NodeImage(object):
             target_path = self.mount_path + SERVER_SPEC_PATH
             failsafe_makedirs(os.path.dirname(target_path))
             shutil.copy(SERVER_SPEC_PATH, target_path)
-        install_text = self.chroot('walt-node-install %(server_ip)s %(server_pubkey)s' % \
+        install_text = self.chroot('walt-node-install "%(server_ip)s" "%(server_pubkey)s"' % \
                             dict(server_ip = self.server_ip, 
                                  server_pubkey = NodeImage.server_pubkey))
         if len(install_text) > 0:
