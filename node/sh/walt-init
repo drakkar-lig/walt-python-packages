@@ -1,0 +1,110 @@
+#!/bin/sh
+set -e
+
+MOUNT='mount --no-mtab'
+UMOUNT='umount --no-mtab'
+
+admin_sh()
+{
+    echo 'Starting a shell.'
+    echo '(the node will be rebooted on exit.)'
+    # see http://www.busybox.net/FAQ.html#job_control
+    setsid sh -c 'exec bash </dev/tty1 >/dev/tty1 2>&1'
+    reboot -f
+}
+
+reboot_or_sh()
+{
+    echo '>>> Issue detected!               <<<'
+    echo 'Will reboot... (or press <ENTER> now for a shell)'
+    timeout 5 head -n 1 && admin_sh || reboot -f
+}
+
+trap reboot_or_sh EXIT
+
+do_mounts()
+{
+    $MOUNT -t proc none /proc
+    $MOUNT -o remount,ro,noatime,nodiratime /
+    $MOUNT -t tmpfs none /tmp
+}
+
+# monitor the nfs mount and reboot the node if nfs connection
+# is lost.
+# this background process is run in a chroot rooted at /tmp/wdroot.
+# Since /tmp is a tmpfs filesystem, it will not be affected
+# by the NFS disconnection (unlike all the other processes of the
+# image).
+# it may seem dirty to keep a background process running when we
+# exec the real OS init, but this is a simple
+# and generic way to handle this feature.
+start_nfs_mount_watchdog()
+{
+    mkdir -p /tmp/wdroot/bin /tmp/wdroot/dev /tmp/wdroot/mnt/nfsroot
+    cd /tmp/wdroot
+    cp "$(which busybox)" bin/
+    for c in sh ls timeout reboot sleep
+    do
+        ln -s busybox bin/$c
+    done
+    $MOUNT -o bind / mnt/nfsroot
+    $MOUNT -o bind /dev dev
+    cat > bin/watchdog.sh << EOF
+#!/bin/sh
+while [ 1 ]
+do
+    timeout -t 2 ls -d mnt/nfsroot >/dev/null || {
+        echo "NFS share was lost! Will reboot."
+        sleep 5
+        reboot -f
+    }
+    sleep 5
+done
+EOF
+    chmod +x bin/watchdog.sh
+    chroot . bin/watchdog.sh &
+}
+
+# since we share the NFS export across all rpi nodes,
+# this mount must remain read-only.
+# in order to enable writes, each rpi will write
+# the filesystem changes in memory.
+# this is done by using a 'union' filesystem
+# called overlayfs.
+mount_union()
+{
+    cd /tmp
+
+    # creating the union
+    # /: the nfs mount (that should remain read-only)
+    # fs_rw: the place to hold the filesystem changes
+    # fs_union: the mount point of the union
+    mkdir fs_rw fs_work fs_union
+    $MOUNT -t overlay -o upperdir=fs_rw,lowerdir=/,workdir=fs_work \
+                        union fs_union
+}
+
+update_mounts()
+{
+    $MOUNT --move /dev /tmp/fs_union/dev
+    $UMOUNT /proc
+}
+
+run_real_init()
+{
+    cd /tmp/fs_union
+    exec chroot . sbin/init
+}
+
+# let's go
+echo "*** Mounting...                   ***"
+do_mounts
+echo "*** Starting NFS watchdog...      ***"
+start_nfs_mount_watchdog
+echo "*** Mounting filesystem union...  ***"
+mount_union
+echo "*** Re-mounting over the union... ***"
+update_mounts
+echo "*** Starting walt image init...   ***"
+run_real_init
+

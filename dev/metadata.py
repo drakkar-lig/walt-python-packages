@@ -36,7 +36,7 @@ PACKAGE_SPECIFIC_INFO = {
                     'walt-serial-autolog = walt.node.serial.autolog:run'
                 ]
             },
-            scripts = [ 'sh/walt-monitor', 'sh/walt-echo' ]
+            scripts = [ 'sh/walt-monitor', 'sh/walt-echo', 'sh/walt-init' ]
         )
     ),
     "walt-server": dict(
