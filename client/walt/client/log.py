@@ -175,7 +175,6 @@ class WalTLogShow(cli.Application):
             senders = server.parse_set_of_nodes(self.set_of_nodes)
             if senders == None:
                 return
-            senders = set(senders) # weakref -> local object
             if self.streams != None:
                 # try to validate the regular expression.
                 try:

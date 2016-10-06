@@ -50,7 +50,7 @@ class CSAPI(APISession):
     def parse_set_of_nodes(self, node_set):
         nodes = self.nodes.parse_node_set(self.requester, node_set)
         if nodes:
-            return [n.name for n in nodes]
+            return tuple(n.name for n in nodes)
 
     @api_expose_method
     def includes_nodes_not_owned(self, node_set, warn):
