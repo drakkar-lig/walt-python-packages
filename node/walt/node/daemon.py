@@ -3,19 +3,17 @@
 import rpyc
 from plumbum import cli
 from walt.common.daemon import WalTDaemon
-from walt.common.nodetypes import get_node_type_from_mac_address
-from walt.common.tools import get_mac_address
+from walt.common.nodetypes import get_node_type_from_name
+from walt.common.tools import get_kernel_bootarg
 from walt.common.constants import WALT_NODE_DAEMON_PORT
 from walt.common.constants import WALT_SERVER_DAEMON_PORT
 from walt.common.devices.fake import Fake
 from walt.common.evloop import EventLoop
-from walt.common.apilink import APIService
+from walt.common.apilink import ServerAPILink, APIService
 from walt.node.tools import lookup_server_ip
 from walt.node.logs import LogsFifoServer
 from walt.common.api import api, api_expose_method
 from walt.common.versions import UPLOAD
-
-WALT_NODE_NETWORK_INTERFACE = "eth0"
 
 @APIService
 @api
@@ -28,18 +26,23 @@ class WalTNodeService(object):
     def blink(self, blink_status):
         self.node_cls.blink(blink_status)
 
-class NodeToServerLink(object):
+def get_node_cls_from_bootarg():
+    node_type_name = get_kernel_bootarg('walt.node.type')
+    if node_type_name == None:
+        raise RuntimeError(
+            'Missing kernel bootarg: "walt.node.type"!')
+    node_cls = get_node_type_from_name(node_type_name)
+    if node_cls == None:
+        raise RuntimeError(
+            'This image does not know how to handle the walt.node.type specified: "' \
+                    + node_type_name + '"!')
+    return node_cls
+
+class NodeToServerLink(ServerAPILink):
     def __init__(self, server_ip = None):
-        self.server_ip = server_ip
-    def __enter__(self):
-        if self.server_ip == None:
-            self.server_ip = lookup_server_ip()
-        self.conn = rpyc.connect(
-                self.server_ip,
-                WALT_SERVER_DAEMON_PORT)
-        return self.conn.root.ns
-    def __exit__(self, type, value, traceback):
-        self.conn.close()
+        if server_ip == None:
+            server_ip = lookup_server_ip()
+        ServerAPILink.__init__(self, server_ip, 'NSAPI')
 
 class WalTNodeDaemon(WalTDaemon):
     """WalT (wireless testbed) node daemon."""
@@ -48,7 +51,11 @@ class WalTNodeDaemon(WalTDaemon):
             help = "Fake mode, for simulation")
 
     def getParameters(self):
-        return dict(service_cl = WalTNodeService(self.node_cls),
+        if self.fake:
+            node_cls = Fake
+        else:
+            node_cls = get_node_cls_from_bootarg()
+        return dict(service_cl = WalTNodeService(node_cls),
                     port = WALT_NODE_DAEMON_PORT,
                     ev_loop = WalTNodeDaemon.ev_loop)
 
@@ -57,12 +64,6 @@ class WalTNodeDaemon(WalTDaemon):
         if self.fake:
             self.node_cls = Fake
             server_ip = '127.0.0.1'
-        else:
-            mac = get_mac_address(WALT_NODE_NETWORK_INTERFACE)
-            self.node_cls = get_node_type_from_mac_address(mac)
-            if self.node_cls == None:
-                raise RuntimeError(
-                    'Mac address does not match any known WalT node hardware.')
         with NodeToServerLink(server_ip) as server:
             server.node_bootup_event()
 

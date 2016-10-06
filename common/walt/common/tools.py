@@ -83,3 +83,16 @@ class AutoCleaner(object):
     def __exit__(self, t, value, traceback):
         self.obj.cleanup()
         self.obj = None
+
+# look for a kernel parameter in /proc/cmdline
+# if in the form <arg>=<val> return <val>
+# if in the form <arg> return True
+# if not found return None
+
+def get_kernel_bootarg(in_bootarg):
+    with open('/proc/cmdline') as f:
+        for bootarg in f.read().split():
+            name, val = (bootarg.split('=') + [ True ])[:2]
+            if name == in_bootarg:
+                return val
+
