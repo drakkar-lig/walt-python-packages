@@ -97,7 +97,7 @@ def get_kernel_bootarg(in_bootarg):
             if name == in_bootarg:
                 return val
 
-PROGRESS_INDICATOR_PERIOD = timedelta(seconds=0.1)
+PROGRESS_INDICATOR_PERIOD = timedelta(seconds=1.0)
 
 class BusyIndicator(object):
     def __init__(self, label):
