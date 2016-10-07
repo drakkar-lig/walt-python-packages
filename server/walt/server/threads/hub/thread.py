@@ -4,7 +4,7 @@ from walt.server.threads.hub.main import MainThreadConnector
 
 class ServerHubThread(EvThread):
     def __init__(self, tman, shared):
-        EvThread.__init__(self, tman)
+        EvThread.__init__(self, tman, 'server-hub')
         self.tasks = []
         self.main = MainThreadConnector(self)
         self.rpyc_client_server = RPyCClientServer(self.tasks, self.main)

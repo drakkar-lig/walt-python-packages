@@ -6,8 +6,8 @@ from walt.common.evloop import EventLoop
 from walt.common.tools import AutoCleaner
 
 class EvThread(Thread):
-    def __init__(self, manager):
-        Thread.__init__(self)
+    def __init__(self, manager, name):
+        Thread.__init__(self, name = name)
         self.ev_loop = EventLoop()
         self.pipe_in, self.pipe_out = Pipe() 
         self.ev_loop.register_listener(self)

@@ -7,7 +7,7 @@ from walt.server.threads.main.hub import HubThreadConnector
 
 class ServerMainThread(EvThread):
     def __init__(self, tman, shared):
-        EvThread.__init__(self, tman)
+        EvThread.__init__(self, tman, 'server-main')
         self.ui = UIManager()
         self.server = Server(self, self.ui, shared)
         self.blocking = self.server.blocking

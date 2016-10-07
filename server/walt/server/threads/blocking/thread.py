@@ -30,7 +30,7 @@ class BlockingTasksManager(object):
 
 class ServerBlockingThread(EvThread):
     def __init__(self, tman, shared):
-        EvThread.__init__(self, tman)
+        EvThread.__init__(self, tman, 'server-blocking')
         self.main = ThreadConnector()
         self.manager = BlockingTasksManager(shared.tasks, self.main)
 
