@@ -1,6 +1,7 @@
-import subprocess, os, json, re
+import subprocess, os, sys, json, re
 from plumbum.cmd import cat
 from collections import OrderedDict
+from datetime import datetime, timedelta
 
 DEVNULL = open(os.devnull, 'w')
 
@@ -96,3 +97,30 @@ def get_kernel_bootarg(in_bootarg):
             if name == in_bootarg:
                 return val
 
+PROGRESS_INDICATOR_PERIOD = timedelta(seconds=0.1)
+
+class BusyIndicator(object):
+    def __init__(self, label):
+        self.label = label
+        self.last_time = None
+        self.next_time = None
+    def start(self):
+        self.last_time = None
+        self.next_time = datetime.now() + PROGRESS_INDICATOR_PERIOD
+    def write_stdout(self, s):
+        sys.stdout.write(s)
+        sys.stdout.flush()
+    def update(self):
+        if datetime.now() > self.next_time:
+            if self.last_time == None:
+                self.write_stdout(self.label + "... *")
+            else:
+                self.write_stdout("*")
+            self.last_time = datetime.now()
+            self.next_time = self.last_time + PROGRESS_INDICATOR_PERIOD
+    def done(self):
+        if self.last_time != None:
+            self.write_stdout("\n")
+    def reset(self):
+        self.done()
+        self.start()

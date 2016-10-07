@@ -1,11 +1,13 @@
 #!/usr/bin/env python
-import rpyc, time, sys, inspect
+import rpyc, time, os, sys, inspect
+from select import select
 from datetime import datetime, timedelta
 from multiprocessing import Queue
 import Queue as QueueException
 from walt.common.constants import WALT_SERVER_DAEMON_PORT
 from walt.common.api import api, api_expose_method
 from walt.common.reusable import reusable
+from walt.common.tools import BusyIndicator
 
 # Shared Queue allowing to wait for the remote API result
 @api
@@ -95,6 +97,10 @@ class RPyCProxy(object):
 # rpyc requests.
 MAX_BLOCKING_TIME = 0.1
 
+class Fake(object):
+    def __getattr__(self, attr):
+        return lambda: None
+
 @reusable
 class ServerAPIConnection(object):
     def __init__(self, server_ip, local_service, target_api):
@@ -104,6 +110,12 @@ class ServerAPIConnection(object):
                 server_ip,
                 WALT_SERVER_DAEMON_PORT,
                 service = local_service)
+        is_interactive = os.isatty(sys.stdout.fileno()) and \
+                            os.isatty(sys.stdin.fileno())
+        if is_interactive:
+            self.indicator = BusyIndicator('Server is working')
+        else:
+            self.indicator = Fake()
     def __getattr__(self, attr):
         def remote_func_caller(*args, **kwargs):
             # start api call
@@ -115,17 +127,22 @@ class ServerAPIConnection(object):
     def get_remote_api_version(self):
         return self.rpyc_conn.root.get_api_version(self.target_api)
     def wait_cond(self, condition_func, timeout_func = None):
+        self.indicator.start()
         while condition_func():
-            self.update_progress_indicator()
+            self.indicator.update()
             timeout = MAX_BLOCKING_TIME
             if timeout_func:
                 timeout = min(timeout_func(), timeout)
-            self.rpyc_conn.serve(timeout = timeout)
-    def update_progress_indicator(self):
-        idx = int(time.time()*2) % 4
-        progress = "\\|/-"[idx]
-        sys.stdout.write('\r' + progress + '\r')
-        sys.stdout.flush()
+            r, w, e = select((self.rpyc_conn,), (), (self.rpyc_conn,), timeout)
+            if len(e) > 0:  # if error
+                return False
+            if len(r) == 0: # if timeout
+                continue
+            # otherwise, there is something to process on the rpyc connection
+            blob
+            self.indicator.reset()  # apparently the server is no longer busy
+            self.rpyc_conn.serve()  # process the request
+        self.indicator.done()
     def wait(self, max_secs):
         time_max = datetime.now() + timedelta(seconds=max_secs)
         def condition_func():
