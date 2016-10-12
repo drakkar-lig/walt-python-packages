@@ -55,41 +55,6 @@ def APIService(cls):
         return Mixed
     return mixed_cls_generator
 
-# This class allows to build RPyC proxies for the following scenario:
-# process1 <--rpyc-link--> process2 <--rpyc-link--> process3
-# If process2 wants to expose objects of process1 directly to process3,
-# it will not work directly because of the 2 layers of 'exposed_' prefixes.
-# In this case it should return RPyCProxy(<object>) instead.
-class RPyCProxy(object):
-    def __init__(self, remote_obj, path=(), ignore_spec=()):
-        self.remote_obj = remote_obj
-        self.path = path
-        self.ignore_spec = ignore_spec
-    def __getattr__(self, attr):
-        if not attr.startswith('exposed_'):
-            return None
-        # discard the 'exposed_' prefix
-        attr = attr[8:]
-        try:
-            if not hasattr(self.remote_obj, attr):
-                return None
-            obj = getattr(self.remote_obj, attr)
-            if inspect.ismethod(obj):
-                # recursively return a proxy for this method
-                return RPyCProxy(obj, self.ignore_spec)
-            else:
-                return obj
-        except self.ignore_spec:
-            return None
-    def __call__(self, *args, **kwargs):
-        # if we are here, the remote object should also be callable...
-        # call it and return the result.
-        try:
-            return self.remote_obj(*args, **kwargs)
-        except self.ignore_spec:
-            return None
-
-
 # Sometimes we start a long running process on the server and wait for
 # its completion. In this case, while we are waiting, the server may
 # send rpyc requests to update the client stdout or stderr.
@@ -135,11 +100,10 @@ class ServerAPIConnection(object):
                 timeout = min(timeout_func(), timeout)
             r, w, e = select((self.rpyc_conn,), (), (self.rpyc_conn,), timeout)
             if len(e) > 0:  # if error
-                return False
+                break
             if len(r) == 0: # if timeout
                 continue
             # otherwise, there is something to process on the rpyc connection
-            blob
             self.indicator.reset()  # apparently the server is no longer busy
             self.rpyc_conn.serve()  # process the request
         self.indicator.done()

@@ -29,13 +29,16 @@ class ExposedStream(object):
 @APIService
 @api
 class WaltClientService(object):
-    @api_expose_attrs('stdin','stdout','stderr','username','filesystem')
+    @api_expose_attrs('stdin','stdout','stderr','filesystem')
     def __init__(self):
         self.stdin = ExposedStream(sys.stdin)
         self.stdout = ExposedStream(sys.stdout)
         self.stderr = ExposedStream(sys.stderr)
         self.username = conf['username']
         self.filesystem = Filesystem()
+    @api_expose_method
+    def get_username(self):
+        return self.username
 
 class ClientToServerLink(ServerAPILink):
     service = WaltClientService()

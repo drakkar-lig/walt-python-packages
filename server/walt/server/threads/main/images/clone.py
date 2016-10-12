@@ -93,9 +93,9 @@ def save_initial_images(images_to_be_removed, saved_images,
         saved_images[image_fullname] = image_backup
         images_to_be_removed.add(image_backup)  # after the workflow is done
 
-def error_image_belongs_to_ws(requester, **args):
+def error_image_belongs_to_ws(requester, username, **args):
     requester.stderr.write(
-        MSG_IMAGE_NOT_REMOTE_BELONGS_TO_WS % requester.username)
+        MSG_IMAGE_NOT_REMOTE_BELONGS_TO_WS % username)
     return False
 
 def verify_overwrite(image_store, requester, clonable_link,
@@ -199,6 +199,9 @@ def workflow_run(workflow, **context):
 # walt image clone implementation
 # -------------------------------
 def perform_clone(requester, docker, clonable_link, image_store, force, auto_update):
+    username = requester.get_username()
+    if not username:
+        return # client already disconnected, give up
     remote_location, remote_user, remote_tag = parse_clonable_link(
                                                 requester, clonable_link)
     if remote_location == None:
@@ -220,8 +223,8 @@ def perform_clone(requester, docker, clonable_link, image_store, force, auto_upd
     # compute the workflow
     # --------------------
     existing_server_image = (LOCATION_WALT_SERVER in result[remote_tag][remote_user])
-    existing_ws_image = (LOCATION_WALT_SERVER in result[remote_tag][requester.username])
-    same_user = (requester.username == remote_user)
+    existing_ws_image = (LOCATION_WALT_SERVER in result[remote_tag][username])
+    same_user = (username == remote_user)
     # obvious facts:
     # * if remote_location is LOCATION_WALT_SERVER, existing_server_image is True
     # * if same_user is True, existing_server_image == existing_ws_image
@@ -267,7 +270,8 @@ def perform_clone(requester, docker, clonable_link, image_store, force, auto_upd
     # proceed
     # -------
     context = dict(
-        ws_image_fullname = "%s/walt-node:%s" % (requester.username, remote_tag),
+        username = username,
+        ws_image_fullname = "%s/walt-node:%s" % (username, remote_tag),
         remote_image_fullname = "%s/walt-node:%s" % (remote_user, remote_tag),
         existing_server_image = existing_server_image,
         existing_ws_image = existing_ws_image,

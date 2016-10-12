@@ -72,9 +72,12 @@ class NodeImageStore(object):
     # If expected is True or False and the result does not match expectation,
     # an error message will be printed.
     def get_user_image_from_tag(self, requester, image_tag, expected = True, ready_only = True):
+        username = requester.get_username()
+        if not username:
+            return None    # client already disconnected, give up
         found = None
         for image in self.images.values():
-            if image.tag == image_tag and image.user == requester.username:
+            if image.tag == image_tag and image.user == username:
                 found = image
         if expected == True and found is None:
             requester.stderr.write(

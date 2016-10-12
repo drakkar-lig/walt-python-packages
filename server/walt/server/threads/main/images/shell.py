@@ -21,6 +21,9 @@ class ImageShellSession(object):
         return self.image_fullname, self.container_name, self.image_tag
 
     def save(self, new_image_tag, name_confirmed):
+        username = self.requester.get_username()
+        if not username:
+            return None    # client already disconnected, give up
         # 1st step: validate new name
         existing_image = self.images.get_user_image_from_tag(
                                         self.requester,
@@ -45,8 +48,7 @@ class ImageShellSession(object):
         # ok, all is fine
 
         # 2nd step: save the image
-        image_fullname = '%s/walt-node:%s' % (
-                self.requester.username, new_image_tag)
+        image_fullname = '%s/walt-node:%s' % (username, new_image_tag)
         # with the walt image cp command, the client sends a request to start a
         # container for receiving, then immediately starts to send a tar archive,
         # and then tries to commit the container through rpyc commands.

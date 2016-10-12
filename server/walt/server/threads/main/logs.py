@@ -228,32 +228,45 @@ class LogsManager(object):
                     db = self.db,
                     hub = self.hub)
 
+    # Look for a checkpoint. Return a tuple.
+    # If the result conforms to 'expected', return (True, <checkpoint_found_or_none>)
+    # If not or an issue occured, return (False,)
     def get_checkpoint(self, requester, cp_name, expected=True):
+        username = requester.get_username()
+        if not username:
+            return (False,)    # client already disconnected, give up
         cp_info = self.db.select_unique(
-            'checkpoints', name=cp_name, username=requester.username)
+            'checkpoints', name=cp_name, username=requester.get_username())
         if expected and cp_info == None:
             requester.stderr.write("Failed: no checkpoint with this name '%s'.\n" % cp_name)
+            return (False,)
         if not expected and cp_info != None:
             requester.stderr.write('Failed: a checkpoint with this name already exists.\n')
-        return cp_info
+            return (False,)
+        return (True, cp_info)
 
     def add_checkpoint(self, requester, cp_name, date):
-        if self.get_checkpoint(requester, cp_name, expected=False) != None:
+        # expect no existing checkpoint with the same name
+        if not self.get_checkpoint(requester, cp_name, expected=False)[0]:
             return
         if not date:
             date = datetime.now()
         self.db.insert('checkpoints',
-                name=cp_name, username=requester.username, timestamp=date)
+                name=cp_name, username=requester.get_username(), timestamp=date)
         requester.stdout.write("New checkpoint %s recorded at server time: %s.\n" % (cp_name, date))
 
     def remove_checkpoint(self, requester, cp_name):
-        if self.get_checkpoint(requester, cp_name, expected=True) == None:
+        # expect a checkpoint with this name
+        if not self.get_checkpoint(requester, cp_name, expected=True)[0]:
             return
-        self.db.delete('checkpoints', name=cp_name, username=requester.username)
+        self.db.delete('checkpoints', name=cp_name, username=requester.get_username())
         requester.stdout.write("Done.\n")
 
     def list_checkpoints(self, requester):
-        res = self.db.select('checkpoints', username=requester.username)
+        username = requester.get_username()
+        if not username:
+            return None    # client already disconnected, give up
+        res = self.db.select('checkpoints', username=username)
         if len(res) == 0:
             requester.stdout.write('You own no checkpoints.\n')
         else:
@@ -262,11 +275,12 @@ class LogsManager(object):
                 self.db.pretty_printed_select("""
                     SELECT timestamp, name FROM checkpoints
                     WHERE username = %s;
-            """, (requester.username,)) + '\n')
+            """, (username,)) + '\n')
 
     def get_pickled_checkpoint_time(self, requester, cp_name):
-        cp_info = self.get_checkpoint(requester, cp_name, expected=True)
-        if cp_info == None:
+        res = self.get_checkpoint(requester, cp_name, expected=True)
+        if not res[0]:
             return
+        cp_info = res[1]
         return pickle.dumps(cp_info.timestamp)
 

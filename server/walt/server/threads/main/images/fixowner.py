@@ -24,7 +24,10 @@ Image %s now belongs to you.
 """
 
 def fix_owner(images, docker, requester, other_user):
-    if requester.username == other_user:
+    username = requester.get_username()
+    if not username:
+        return None     # client already disconnected, give up
+    if username == other_user:
         requester.stderr.write(MSG_SAME_USER % other_user)
         return
     mounted = set()
@@ -55,7 +58,7 @@ def fix_owner(images, docker, requester, other_user):
     for image in candidates:
         # rename the docker image
         old_fullname = image.fullname
-        new_fullname = "%s/walt-node:%s" % (requester.username, image.tag)
+        new_fullname = "%s/walt-node:%s" % (username, image.tag)
         docker.tag(old_fullname, new_fullname)
         docker.rmi(old_fullname)
         # update the store

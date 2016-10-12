@@ -35,17 +35,13 @@ WalT.subcommand("log", WalTLog)
 WalT.subcommand("node", WalTNode)
 
 def run():
-    init_config()
     try:
+        init_config()
         if client_update():
             restart()   # this will never return, no need to exit
         WalT.run()
     except socket.error:
         print 'Network connection to WalT server failed.'
-
-if __name__ == "__main__":
-    try:
-        run()
     except KeyboardInterrupt:
         print
         print 'Aborted.'

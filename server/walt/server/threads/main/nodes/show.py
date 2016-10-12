@@ -39,13 +39,16 @@ MSG_NO_OTHER_NODES = """\
 No other nodes were detected (apart from the ones listed above)."""
 
 def show(db, requester, show_all):
+    username = requester.get_username()
+    if not username:
+        return ""    # client already disconnected, give up
     res_user, res_free, res_other, res_not_ready = [], [], [], []
     res = db.execute(NODE_SHOW_QUERY)
     for record in res:
         if not record.image_ready:
             res_not_ready.append(record)
         else:
-            if record.image_owner == requester.username:
+            if record.image_owner == username:
                 res_user.append(record)
             elif record.image_owner == 'waltplatform':
                 res_free.append(record)

@@ -182,9 +182,12 @@ class NodesManager(object):
         return True
 
     def parse_node_set(self, requester, node_set):
+        username = requester.get_username()
+        if not username:
+            return ()    # client already disconnected, give up
         sql = None
         if node_set == None or node_set == 'my-nodes':
-            sql = NODE_SET_QUERIES['my-nodes'] % requester.username
+            sql = NODE_SET_QUERIES['my-nodes'] % username
         elif node_set == 'all-nodes':
             sql = NODE_SET_QUERIES['all-nodes']
         if sql:
@@ -215,11 +218,14 @@ class NodesManager(object):
         return ','.join(n.name for n in nodes)
 
     def includes_nodes_not_owned(self, requester, node_set, warn):
+        username = requester.get_username()
+        if not username:
+            return False    # client already disconnected, give up
         nodes = self.parse_node_set(requester, node_set)
         if nodes == None:
             return None
         not_owned = [ n for n in nodes \
-                if not (n.image.startswith(requester.username + '/') or
+                if not (n.image.startswith(username + '/') or
                         n.image.startswith('waltplatform/')) ]
         if len(not_owned) == 0:
             return False

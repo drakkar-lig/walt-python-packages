@@ -54,11 +54,14 @@ class Search(object):
 
 # this implements walt image search
 def perform_search(docker, requester, keyword):
+    username = requester.get_username()
+    if not username:
+        return None    # client already disconnected, give up
     # images owned by the requester and present locally on
     # the server are not considered "remote images".
     # (they belong to the working set of the user, instead.)
     def validate_not_in_ws(user, tag, location):
-        return user != requester.username or \
+        return user != username or \
                 location == LOCATION_DOCKER_HUB
     if keyword:
         def validate(user, tag, location):

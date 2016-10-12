@@ -2,9 +2,6 @@
 # This object represents a task that was requested by the client
 # and that must be performed by the main thread.
 class Task(object):
-    # the following exceptions may occur if the client disconnects,
-    # we should ignore them.
-    IGNORED = (ReferenceError, EOFError, AttributeError)
 
     def __init__(self, target_api, attr, args, kwargs, link_info):
         self.desc = attr, tuple(args), tuple(kwargs.items())
@@ -18,11 +15,7 @@ class Task(object):
 
 class ClientTask(Task):
     def exposed_return_result(self, res):
-        try:
-            self.link_info.requester.queue.put(res)
-        except Task.IGNORED:
-            # client not longer exists
-            pass
+        self.link_info.remote_api.queue.put(res)
 
 class HubTask(Task):
     def exposed_return_result(self, res):

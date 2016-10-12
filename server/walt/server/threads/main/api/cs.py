@@ -11,6 +11,10 @@ from walt.server.threads.main.apisession import APISession
 @api
 class CSAPI(APISession):
 
+    def on_connect(self):
+        APISession.on_connect(self)
+        self.requester = self.remote_api
+
     @api_expose_method
     def device_rescan(self):
         self.server.device_rescan(self.requester)
@@ -144,7 +148,10 @@ class CSAPI(APISession):
 
     @api_expose_method
     def show_images(self):
-        return self.images.show(self.requester.username)
+        username = self.requester.get_username()
+        if not username:
+            return None     # client already disconnected, give up
+        return self.images.show(username)
 
     @api_expose_method
     def create_image_shell_session(self, image_tag):

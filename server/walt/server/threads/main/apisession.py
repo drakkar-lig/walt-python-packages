@@ -26,8 +26,8 @@ class APISession(object):
         self.server, self.images, self.devices, self.nodes, self.logs = \
             server, server.images, server.devices, server.nodes, server.logs
         linfo = first_task.link_info
-        self.link_id, self.requester, self.remote_ip = \
-            linfo.link_id, linfo.requester, linfo.remote_ip
+        self.link_id, self.remote_api, self.remote_ip = \
+            linfo.link_id, linfo.remote_api, linfo.remote_ip
 
     def run(self, t):
         # get task info
@@ -51,7 +51,7 @@ class APISession(object):
         return self.session_objects[obj_id]
 
     def on_connect(self):
-        print 'session %d: %s just connected' % (self.link_id, self.requester.username)
+        print 'session %d: connected' % self.link_id
 
     def on_disconnect(self):
         print 'session %d: disconnected' % self.link_id
