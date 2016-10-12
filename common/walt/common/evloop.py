@@ -42,7 +42,11 @@ class EventLoop(object):
         self.poller.register(fd, events)
 
     def register_listener(self, listener, events=POLL_OPS_READ):
-        fd = listener.fileno()
+        fd = None
+        try:
+            fd = listener.fileno()
+        except:
+            pass
         if fd == None:
             return  # registration aborted
         self.listeners[fd] = listener
