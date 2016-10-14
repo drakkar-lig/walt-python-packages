@@ -2,7 +2,6 @@
 # This object represents a task that was requested by the client
 # and that must be performed by the main thread.
 class Task(object):
-
     def __init__(self, target_api, attr, args, kwargs, link_info):
         self.desc = attr, tuple(args), tuple(kwargs.items())
         self.link_info = link_info
@@ -15,7 +14,12 @@ class Task(object):
 
 class ClientTask(Task):
     def exposed_return_result(self, res):
-        self.link_info.remote_api.queue.put(res)
+        # client might already be disconnected (ctrl-C),
+        # thus we ignore errors.
+        try:
+            self.link_info.remote_api.api_channel.write('RESULT', res)
+        except:
+            pass
 
 class HubTask(Task):
     def exposed_return_result(self, res):

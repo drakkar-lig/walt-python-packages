@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import sys
-from walt.common.apilink import ServerAPILink, APIService
+from walt.common.apilink import ServerAPILink
 
 def run():
     if sys.argv[1] != 'commit':

@@ -1,3 +1,4 @@
+import os
 from walt.client import myhelp
 from walt.common.versions import API_VERSIONING
 from walt.client.link import ClientToServerLink
@@ -56,7 +57,7 @@ make a LED blink on node, etc.)
 def client_update():
     updated = False
     with ClientToServerLink() as server:
-        server_cs_api = server.get_remote_api_version()
+        server_cs_api = server.get_api_version()
         client_cs_api = API_VERSIONING['CSAPI'][0]
         if server_cs_api != client_cs_api:
             print('Auto-updating the client to match server API...')

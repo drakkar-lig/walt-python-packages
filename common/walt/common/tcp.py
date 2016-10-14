@@ -11,6 +11,7 @@ class Requests(object):
     REQ_TAR_TO_IMAGE = 7
     REQ_TAR_FROM_NODE = 8
     REQ_TAR_TO_NODE = 9
+    REQ_API_SESSION = 10
     # the request id message may be specified directly as
     # as a decimal string (e.g. '4') or by the corresponding
     # name (e.g. 'REQ_NODE_CMD')

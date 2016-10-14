@@ -3,7 +3,7 @@ import sys
 from walt.client.config import conf
 from walt.client.filesystem import Filesystem
 from walt.common.api import api, api_expose_method, api_expose_attrs
-from walt.common.apilink import ServerAPILink, APIService
+from walt.common.apilink import ServerAPILink
 
 @api
 class ExposedStream(object):
@@ -26,7 +26,6 @@ class ExposedStream(object):
 # of course.
 # but the client also exposes a few objects / features
 # in the following class.
-@APIService
 @api
 class WaltClientService(object):
     @api_expose_attrs('stdin','stdout','stderr','filesystem')
@@ -34,14 +33,17 @@ class WaltClientService(object):
         self.stdin = ExposedStream(sys.stdin)
         self.stdout = ExposedStream(sys.stdout)
         self.stderr = ExposedStream(sys.stderr)
-        self.username = conf['username']
         self.filesystem = Filesystem()
     @api_expose_method
     def get_username(self):
-        return self.username
+        return conf['username']
 
 class ClientToServerLink(ServerAPILink):
+    # optimization:
+    # create service only once.
+    # (this will allow to reuse an existing connection in the code of
+    # ServerAPILink)
     service = WaltClientService()
     def __init__(self):
-        ServerAPILink.__init__(self, conf['server'], 'CSAPI',
-                                ClientToServerLink.service)
+        ServerAPILink.__init__(self,
+                conf['server'], 'CSAPI', ClientToServerLink.service)
