@@ -1,12 +1,11 @@
 import requests
-from walt.server.tools import failsafe_response_q_put
 
 def perform_publish(requester, dh_peer, auth_conf, docker, image_fullname, **kwargs):
     return docker.push(image_fullname, dh_peer, auth_conf, requester.stdout)
 
 class PublishTask(object):
-    def __init__(self, q, requester, **kwargs):
-        self.response_q = q
+    def __init__(self, hub_task, requester, **kwargs):
+        self.hub_task = hub_task
         self.requester = requester
         self.kwargs = kwargs
     def perform(self):
@@ -19,18 +18,19 @@ class PublishTask(object):
             res = None
         elif isinstance(res, Exception):
             raise res   # unexpected
-        failsafe_response_q_put(self.response_q, res)
+        self.hub_task.return_result(res)
 
 # this implements walt image publish
-def publish(image_store, requester, q, image_tag, blocking, **kwargs):
+def publish(image_store, requester, task, image_tag, blocking, **kwargs):
     image = image_store.get_user_image_from_tag(requester, image_tag)
     if image == None:
         # issue already reported, just unblock the client
-        q.put(False)
+        task.return_result(False)
     else:
+        task.set_async()    # result will be available later
         blocking.do(PublishTask(
             image_fullname = image.fullname,
             requester = requester,
-            q = q,
+            hub_task = task,
             **kwargs
         ))

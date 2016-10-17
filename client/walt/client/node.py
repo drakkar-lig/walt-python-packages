@@ -1,6 +1,5 @@
 import time, sys
 from plumbum import cli
-from walt.common.apilink import ResponseQueue
 from walt.client import myhelp
 from walt.client.link import ClientToServerLink
 from walt.client.tools import confirm
@@ -187,11 +186,9 @@ class WalTNodeCp(cli.Application):
 class WalTNodeWait(cli.Application):
     """wait for a node (or a set of nodes) to be ready"""
     def main(self, node_set):
-        q = ResponseQueue()
         try:
             with ClientToServerLink() as server_link:
-                server_link.wait_for_nodes(q, node_set)
-                server_link.wait_queue(q)
+                server_link.wait_for_nodes(node_set)
         except KeyboardInterrupt:
             print 'Aborted.'
 

@@ -24,8 +24,8 @@ class NodeImageManager(object):
     def update(self):
         self.store.refresh()
         self.store.update_image_mounts(auto_update = True)
-    def search(self, requester, q, keyword):
-        search(q, self.blocking, self.docker, requester, keyword)
+    def search(self, requester, task, keyword):
+        search(task, self.blocking, self.docker, requester, keyword)
     def clone(self, **kwargs):
         clone(blocking = self.blocking,
               docker = self.docker,

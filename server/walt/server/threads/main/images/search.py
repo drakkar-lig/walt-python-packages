@@ -1,6 +1,5 @@
 import requests
 from collections import defaultdict
-from walt.server.tools import failsafe_response_q_put
 from walt.server.tools import columnate, \
                 display_transient_label, hide_transient_label
 
@@ -91,8 +90,8 @@ def perform_search(docker, requester, keyword):
                ['User', 'Image name', 'Location', 'Clonable link'])
 
 class SearchTask(object):
-    def __init__(self, q, docker, requester, keyword):
-        self.response_q = q
+    def __init__(self, hub_task, docker, requester, keyword):
+        self.hub_task = hub_task
         self.docker = docker
         self.requester = requester
         self.keyword = keyword
@@ -103,10 +102,13 @@ class SearchTask(object):
             res = 'Network connection to docker hub failed.'
         elif isinstance(res, Exception):
             raise res   # unexpected
-        failsafe_response_q_put(self.response_q, res)
+        self.hub_task.return_result(res)
 
 # this implements walt image search
-def search(q, blocking_manager, docker, requester, keyword):
-    blocking_manager.do(SearchTask(q, docker, requester, keyword))
+def search(hub_task, blocking_manager, docker, requester, keyword):
+    # the result of the task the hub thread submitted to us
+    # will not be available right now
+    hub_task.set_async()
+    blocking_manager.do(SearchTask(hub_task, docker, requester, keyword))
 
 

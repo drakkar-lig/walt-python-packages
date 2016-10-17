@@ -7,11 +7,6 @@ from walt.common.reusable import reusable
 from walt.common.tools import BusyIndicator
 from walt.common.tcp import Requests
 
-# this class will be removed shortly
-# but not in this commit.
-class ResponseQueue(object):
-    pass
-
 # This decorator allows to define RPyC-based API service classes
 # with a customized __init__ function.
 # (without it, one has to conform to the prototype of the base

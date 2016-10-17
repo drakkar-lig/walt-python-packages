@@ -77,8 +77,8 @@ class CSAPI(APISession):
         return self.nodes.validate_cp(self.requester, src, dst)
 
     @api_expose_method
-    def wait_for_nodes(self, q, node_set):
-        self.nodes.wait(self.requester, q, node_set)
+    def wait_for_nodes(self, node_set):
+        self.nodes.wait(self.requester, self.task, node_set)
 
     @api_expose_method
     def rename(self, old_name, new_name):
@@ -110,13 +110,13 @@ class CSAPI(APISession):
         return self.images.fix_owner(self.requester, other_user)
 
     @api_expose_method
-    def search_images(self, q, keyword):
-        self.images.search(self.requester, q, keyword)
+    def search_images(self, keyword):
+        self.images.search(self.requester, self.task, keyword)
 
     @api_expose_method
-    def clone_image(self, q, clonable_link, force=False, auto_update=False):
+    def clone_image(self, clonable_link, force=False, auto_update=False):
         self.images.clone(requester = self.requester,
-                          q = q,
+                          task = self.task,
                           clonable_link = clonable_link,
                           force = force,
                           auto_update = auto_update)
@@ -133,10 +133,10 @@ class CSAPI(APISession):
         dh_peer.establish_session(client_pub_key)
 
     @api_expose_method
-    def publish_image(self, q, auth_conf, image_tag):
+    def publish_image(self, auth_conf, image_tag):
         dh_peer = self.get_session_object(auth_conf['dh_peer_id'])
         self.images.publish(requester = self.requester,
-                          q = q,
+                          task = self.task,
                           dh_peer = dh_peer,
                           auth_conf = auth_conf,
                           image_tag = image_tag)

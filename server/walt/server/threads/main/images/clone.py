@@ -1,5 +1,4 @@
 import requests, uuid
-from walt.server.tools import failsafe_response_q_put
 from walt.server.threads.main.images.search import \
         Search, \
         LOCATION_WALT_SERVER, LOCATION_DOCKER_HUB, \
@@ -294,8 +293,8 @@ def perform_clone(requester, docker, clonable_link, image_store, force, auto_upd
         requester.stdout.write('Done.\n')
 
 class CloneTask(object):
-    def __init__(self, q, requester, **kwargs):
-        self.response_q = q
+    def __init__(self, hub_task, requester, **kwargs):
+        self.hub_task = hub_task
         self.requester = requester
         self.kwargs = kwargs
     def perform(self):
@@ -309,9 +308,12 @@ class CloneTask(object):
             res = None
         elif isinstance(res, Exception):
             raise res   # unexpected
-        failsafe_response_q_put(self.response_q, res)
+        self.hub_task.return_result(res)
 
 # this implements walt image clone
-def clone(blocking, **kwargs):
-    blocking.do(CloneTask(**kwargs))
+def clone(task, blocking, **kwargs):
+    # the result of the task the hub thread submitted to us
+    # will not be available right now
+    task.set_async()
+    blocking.do(CloneTask(hub_task = task, **kwargs))
 

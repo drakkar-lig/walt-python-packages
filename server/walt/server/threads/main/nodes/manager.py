@@ -203,9 +203,9 @@ class NodesManager(object):
             return None
         return sorted(nodes)
 
-    def wait(self, requester, q, node_set):
+    def wait(self, requester, task, node_set):
         nodes = self.parse_node_set(requester, node_set)
-        self.wait_info.wait(requester, q, nodes)
+        self.wait_info.wait(requester, task, nodes)
 
     def node_bootup_event(self, node_name):
         node_info = self.get_node_info(None, node_name)

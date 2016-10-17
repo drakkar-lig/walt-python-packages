@@ -1,5 +1,5 @@
 from walt.common.versions import API_VERSIONING
-from walt.server.threads.hub.task import ClientTask, HubTask
+from walt.server.threads.hub.task import Task
 from walt.common.tcp import Requests
 from walt.common.apilink import APIChannel, AttrCallAggregator
 
@@ -43,10 +43,12 @@ class APISessionManager(object):
         remote_ip, remote_port = sock.getpeername()
         remote_api = RemoteAPI(self.api_channel)
         self.link_info = LinkInfo(remote_api, remote_ip)
-    def record_task(self, attr, args, kwargs, cls=ClientTask):
+    def record_task(self, attr, args, kwargs, result_cb = None):
         print 'hub record_task:', attr, args, kwargs
-        t = cls(self.target_api, attr, args, kwargs, self.link_info)
-        self.tasks.insert(0, t)
+        t = Task(self.tasks, self.target_api, attr, args, kwargs,
+                    self.link_info, result_cb)
+        self.tasks.add(t)
+        self.tasks.print_status()
         # notify the server that we have a new task
         self.main.pipe.send(0)
     def fileno(self):
@@ -62,18 +64,25 @@ class APISessionManager(object):
             return False
         attr, args, kwargs = event[1:]
         print 'hub api_call:', self.target_api, attr, args, kwargs
-        self.record_task(attr, args, kwargs)
+        self.record_task(attr, args, kwargs, result_cb=self.return_result)
         return True
+    def return_result(self, res):
+        # client might already be disconnected (ctrl-C),
+        # thus we ignore errors.
+        try:
+            self.api_channel.write('RESULT', res)
+        except:
+            pass
     def init_target_api(self):
         try:
             self.target_api = self.sock_file.readline().strip()
             self.sock_file.write("%d\n" % API_VERSIONING[self.target_api][0])
-            self.record_task('on_connect', [], {}, cls=HubTask)
+            self.record_task('on_connect', [], {})
             return True
         except:
             return False
     def close(self):
         if self.target_api != None:
-            self.record_task('on_disconnect', [], {}, cls=HubTask)
+            self.record_task('on_disconnect', [], {})
         self.sock_file.close()
 

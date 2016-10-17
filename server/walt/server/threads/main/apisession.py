@@ -28,8 +28,10 @@ class APISession(object):
         linfo = first_task.link_info
         self.link_id, self.remote_api, self.remote_ip = \
             linfo.link_id, linfo.remote_api, linfo.remote_ip
+        self.task = None
 
     def run(self, t):
+        self.task = t
         # get task info
         attr, args, kwargs_items = t.desc()
         # rebuild kwargs
@@ -39,8 +41,9 @@ class APISession(object):
         m = getattr(self, attr)
         # run task
         res = m(*args, **kwargs)
-        # return result
-        t.return_result(res)
+        # return result, unless async mode was set
+        if not t.is_async():
+            t.return_result(res)
 
     def register_session_object(self, obj):
         obj_id = len(self.session_objects)

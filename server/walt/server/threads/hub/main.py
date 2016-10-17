@@ -7,10 +7,7 @@ class RPyCMainService(object):
     def __init__(self, thread):
         self.tasks = thread.tasks
     def exposed_pop_task(self):
-        t = self.tasks.pop()
-        # avoid garbage collection for now
-        RPyCMainService.last_task = t
-        return t
+        return self.tasks.next()
 
 class MainThreadConnector(ThreadConnector):
     def __init__(self, thread):
