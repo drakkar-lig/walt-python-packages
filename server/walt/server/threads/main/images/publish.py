@@ -1,7 +1,7 @@
 import requests
 
 def perform_publish(requester, dh_peer, auth_conf, docker, image_fullname, **kwargs):
-    return docker.push(image_fullname, dh_peer, auth_conf, requester.stdout)
+    return docker.push(image_fullname, dh_peer, auth_conf, requester)
 
 class PublishTask(object):
     def __init__(self, hub_task, requester, **kwargs):

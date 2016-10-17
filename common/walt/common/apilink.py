@@ -100,6 +100,8 @@ MAX_BLOCKING_TIME = 0.1
 class Fake(object):
     def __getattr__(self, attr):
         return lambda: None
+    def set_label(self, label):
+        pass
 
 @reusable
 class ServerAPIConnection(object):
@@ -127,10 +129,16 @@ class ServerAPIConnection(object):
             self.sock_file.write('%s\n' % self.target_api)
             self.remote_api_version = int(self.sock_file.readline().strip())
             self.connected = True
+    def set_busy_label(self, label):
+        self.indicator.set_label(label)
+    def get_api_version(self):
+        return self.remote_api_version
     def handle_client_call(self, path, args, kwargs):
-        if path == 'get_api_version':
-            return self.remote_api_version
+        if hasattr(self, path):
+            # this is something implemented locally
+            return getattr(self, path)(*args, **kwargs)
         else:
+            # this is a remote api call
             return self.do_remote_api_call(path, args, kwargs)
     def do_remote_api_call(self, path, args, kwargs):
         # send the api call

@@ -124,3 +124,8 @@ class BusyIndicator(object):
     def reset(self):
         self.done()
         self.start()
+    def set_label(self, label):
+        self.label = label
+        if self.last_time != None:
+            self.reset()
+

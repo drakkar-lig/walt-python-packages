@@ -1,8 +1,6 @@
 from walt.common.crypto.blowfish import BlowFish
 from walt.server.threads.main.images.image import parse_image_fullname
-from walt.server.tools import \
-        display_transient_label, hide_transient_label, \
-        indicate_progress
+from walt.server.tools import indicate_progress
 from walt.server import const
 from docker import Client
 from datetime import datetime
@@ -31,16 +29,12 @@ class DockerClient(object):
         except:
             return False
         return True
-    def pull(self, image_fullname, stdout = None):
-        if stdout == None:
-            stdout = sys.stdout
+    def pull(self, image_fullname, requester = None):
         fullname, name, repo, user, tag = parse_image_fullname(image_fullname)
         label = 'Downloading %s/%s' % (user, tag)
         stream = self.c.pull(name, tag=requests.utils.quote(tag), stream=True)
-        indicate_progress(stdout, label, stream)
-    def login(self, dh_peer, auth_conf, stdout):
-        label = 'Authenticating to the docker hub...'
-        display_transient_label(stdout, label)
+        indicate_progress(sys.stdout, label, stream)
+    def login(self, dh_peer, auth_conf, requester):
         try:
             symmetric_key = dh_peer.symmetric_key
             cypher = BlowFish(symmetric_key)
@@ -55,21 +49,16 @@ class DockerClient(object):
                             reauth   = True)
         except Exception as e:
             print e
-            hide_transient_label(stdout, label)
-            stdout.write('%s FAILED.\n' % label)
+            requester.stdout.write('FAILED.\n')
             return False
-        hide_transient_label(stdout, label)
-        stdout.write('%s done.\n' % label)
         return True
-    def push(self, image_fullname, dh_peer, auth_conf, stdout = None):
-        if stdout == None:
-            stdout = sys.stdout
+    def push(self, image_fullname, dh_peer, auth_conf, requester):
         fullname, name, repo, user, tag = parse_image_fullname(image_fullname)
-        if not self.login(dh_peer, auth_conf, stdout):
+        if not self.login(dh_peer, auth_conf, requester):
             return False
-        label = 'Pushing %s' % tag
         stream = self.c.push(name, tag=requests.utils.quote(tag), stream=True)
-        indicate_progress(stdout, label, stream)
+        label = 'Pushing %s' % tag
+        indicate_progress(sys.stdout, label, stream)
         return True
     def tag(self, old_fullname, new_fullname):
         dummy1, new_name, dummy2, dummy3, new_tag = parse_image_fullname(new_fullname)

@@ -15,6 +15,7 @@ class WalTImageSearch(cli.Application):
     """search for remote WalT node OS images"""
     def main(self, keyword=None):
         with ClientToServerLink() as server_link:
+            server_link.set_busy_label('Searching')
             print server_link.search_images(keyword)
 
 @WalTImage.subcommand("clone")
@@ -24,6 +25,7 @@ class WalTImageClone(cli.Application):
     _auto_update = False # default
     def main(self, clonable_image_link):
         with ClientToServerLink() as server_link:
+            server_link.set_busy_label('Validating / Cloning')
             server_link.clone_image(clonable_image_link, self._force, self._auto_update)
     @cli.autoswitch(help='do it, even if it overwrites an existing image.')
     def force(self):
@@ -37,6 +39,7 @@ class WalTImagePublish(cli.Application):
     """publish a WalT image on the docker hub"""
     def main(self, image_name):
         with ClientToServerLink() as server_link:
+            server_link.set_busy_label('Validating / Publishing')
             auth_conf = get_auth_conf(server_link)
             server_link.publish_image(auth_conf, image_name)
 

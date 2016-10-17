@@ -150,7 +150,7 @@ def tag_server_image_to_requester(docker,
     docker.tag(remote_image_fullname, ws_image_fullname)
 
 def pull_hub_image(docker, requester, remote_image_fullname, **args):
-    docker.pull(remote_image_fullname, requester.stdout)
+    docker.pull(remote_image_fullname, requester)
 
 def update_walt_image(image_store, ws_image_fullname, auto_update, **args):
     if ws_image_fullname in image_store:
@@ -212,7 +212,7 @@ def perform_clone(requester, docker, clonable_link, image_store, force, auto_upd
     def validate(user, tag, location):
         return tag == remote_tag
     # search
-    result = Search(docker, requester, 'Validating...').search(validate)
+    result = Search(docker, requester).search(validate)
     # check that the requested image is in the resultset
     if remote_location not in result[remote_tag][remote_user]:
         requester.stderr.write(

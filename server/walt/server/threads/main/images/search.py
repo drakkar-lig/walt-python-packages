@@ -1,7 +1,6 @@
 import requests
 from collections import defaultdict
-from walt.server.tools import columnate, \
-                display_transient_label, hide_transient_label
+from walt.server.tools import columnate
 
 # About terminology: See comment about it in image.py.
 
@@ -19,15 +18,13 @@ LOCATION_LONG_LABEL = {
 LOCATION_PER_LABEL = {v: k for k, v in LOCATION_LABEL.items()}
 
 class Search(object):
-    def __init__(self, docker, requester, transient_label='Searching...'):
+    def __init__(self, docker, requester):
         self.docker = docker
         self.requester = requester
         self.result = defaultdict(lambda : defaultdict(set))
-        self.transient_label = transient_label
     # search returns a dictionary with the following format:
     # { <tag> -> { <user> -> <location> } }
     def search(self, validate = None):
-        display_transient_label(self.requester.stdout, self.transient_label)
         candidates = []
         if not validate:
             def validate(user, tag, location):
@@ -46,7 +43,6 @@ class Search(object):
         for user, tag, location in candidates:
             if validate(user, tag, location):
                 self.insert_result(tag, user, location)
-        hide_transient_label(self.requester.stdout, self.transient_label)
         return self.result
     def insert_result(self, tag, user, location):
         self.result[tag][user].add(location)

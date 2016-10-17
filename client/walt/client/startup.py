@@ -53,12 +53,13 @@ def init_config():
         sys.exit()
 
 def test_config(conf, credentials_check):
-    # we try to establish a RPyC connection to the server,
+    # we try to establish a connection to the server,
     # and optionaly to connect to the docker hub.
     config.set_conf(conf)
     try:
         with ClientToServerLink() as server:
             if credentials_check:
+                server.set_busy_label('Authenticating to the docker hub')
                 auth_conf = get_auth_conf(server)
                 if not server.docker_login(auth_conf):
                     print 'Re-trying...'

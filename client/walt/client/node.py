@@ -188,6 +188,7 @@ class WalTNodeWait(cli.Application):
     def main(self, node_set):
         try:
             with ClientToServerLink() as server_link:
+                server_link.set_busy_label('Waiting')
                 server_link.wait_for_nodes(node_set)
         except KeyboardInterrupt:
             print 'Aborted.'

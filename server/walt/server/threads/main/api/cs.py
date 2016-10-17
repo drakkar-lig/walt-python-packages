@@ -144,7 +144,7 @@ class CSAPI(APISession):
     @api_expose_method
     def docker_login(self, auth_conf):
         dh_peer = self.get_session_object(auth_conf['dh_peer_id'])
-        return self.server.docker.login(dh_peer, auth_conf, self.requester.stdout)
+        return self.server.docker.login(dh_peer, auth_conf, self.requester)
 
     @api_expose_method
     def show_images(self):
