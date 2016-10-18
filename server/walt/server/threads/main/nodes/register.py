@@ -13,18 +13,18 @@ def register_node(  devices, db, \
     db.insert('nodes', mac=mac, image=image_fullname)
     db.commit()
 
-def finalize_registration(current_requests, mac, db, dhcpd, **kwargs):
+def finalize_registration(current_requests, images, mac, db, dhcpd, **kwargs):
+    # mount needed images
+    images.update_image_mounts(auto_update = True)
     # refresh the dhcpd and tftp conf
     tftp.update(db)
     dhcpd.update()
     current_requests.remove(mac)
 
-def update_images_and_finalize(images, image_fullname, dhcpd, **kwargs):
+def update_images_and_finalize(images, image_fullname, **kwargs):
     images.set_image_ready(image_fullname)
-    # mount needed images
-    images.update_image_mounts(auto_update = True)
     # we are all done
-    finalize_registration(dhcpd, **kwargs)
+    finalize_registration(images = images, **kwargs)
 
 class AsyncPullTask(object):
     def __init__(self, docker, image_fullname, finalize_cb, finalize_cb_kwargs):
