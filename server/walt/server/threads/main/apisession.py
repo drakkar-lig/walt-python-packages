@@ -37,10 +37,15 @@ class APISession(object):
         # rebuild kwargs
         # (t did not returned a dict, this is would involve rpyc calls again)
         kwargs = { k:v for k, v in kwargs_items }
-        # lookup task
-        m = getattr(self, attr)
-        # run task
-        res = m(*args, **kwargs)
+        try:
+            # lookup task
+            m = getattr(self, attr)
+            # run task
+            res = m(*args, **kwargs)
+        except BaseException as e:
+            print 'Exception occured while performing API request:'
+            print e
+            res = e
         # return result, unless async mode was set
         if not t.is_async():
             t.return_result(res)

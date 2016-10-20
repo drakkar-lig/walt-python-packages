@@ -96,8 +96,6 @@ class SearchTask(object):
     def handle_result(self, res):
         if isinstance(res, requests.exceptions.RequestException):
             res = 'Network connection to docker hub failed.'
-        elif isinstance(res, Exception):
-            raise res   # unexpected
         self.hub_task.return_result(res)
 
 # this implements walt image search

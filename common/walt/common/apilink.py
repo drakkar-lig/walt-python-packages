@@ -103,6 +103,9 @@ class Fake(object):
     def set_label(self, label):
         pass
 
+class LinkException(Exception):
+    pass
+
 @reusable
 class ServerAPIConnection(object):
     def __init__(self, server_ip, local_service, target_api):
@@ -166,10 +169,13 @@ class ServerAPIConnection(object):
                 if event[0] == 'API_CALL':
                     self.handle_api_call(*event[1:])
                     continue
+                elif event[0] == 'EXCEPTION':
+                    print 'Unexpected server-side issue! %s' % event[1]
+                    break
                 elif event[0] == 'RESULT':
                     api_result = event[1]
                     break
-            raise RuntimeError('Server sent unexpected event: ' + repr(event))
+            raise LinkException('Unexpected communication issue with the server.')
         self.indicator.done()
         return api_result
     def __del__(self):

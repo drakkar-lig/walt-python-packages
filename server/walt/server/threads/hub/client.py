@@ -70,7 +70,10 @@ class APISessionManager(object):
         # client might already be disconnected (ctrl-C),
         # thus we ignore errors.
         try:
-            self.api_channel.write('RESULT', res)
+            if isinstance(res, BaseException):
+                self.api_channel.write('EXCEPTION', str(res))
+            else:
+                self.api_channel.write('RESULT', res)
         except:
             pass
     def init_target_api(self):

@@ -2,8 +2,12 @@ import sys, signal, rpyc
 from multiprocessing import Pipe
 from rpyc.core.stream import PipeStream
 from threading import Thread
+from select import select
 from walt.common.evloop import EventLoop
 from walt.common.tools import AutoCleaner
+
+class DownwardPropagatedException(Exception):
+    pass
 
 class EvThread(Thread):
     def __init__(self, manager, name):
@@ -18,10 +22,16 @@ class EvThread(Thread):
         return getattr(self.ev_loop, attr)
 
     def run(self):
-        with AutoCleaner(self):
-            self.prepare()
-            self.ev_loop.loop()
-        
+        try:
+            with AutoCleaner(self):
+                self.prepare()
+                self.ev_loop.loop()
+        except DownwardPropagatedException:
+            print self.name + ' stopped because of propagated exception.'
+        except BaseException as e:
+            self.pipe_in.send(e) # propagate upward
+            raise
+
     def fileno(self):
         return self.pipe_in.fileno()
 
@@ -29,11 +39,8 @@ class EvThread(Thread):
         self.pipe_out.send(e)
 
     def handle_event(self, ts):
-        e = self.pipe_in.recv()
-        print 'Got exception', e
-        sys.stdout.flush()
-        self.cleanup()
-        raise e
+        self.down_exception = self.pipe_in.recv()
+        raise DownwardPropagatedException
 
     def prepare(self):
         pass    # optionally override in subclass
@@ -50,12 +57,17 @@ class EvThreadsManager(object):
         try:
             for t in self.threads:
                 t.start()
-            signal.pause()
+            read_set = tuple(t.pipe_out for t in self.threads)
+            r, w, e = select(read_set, (), read_set)
+            e = r[0].recv()
+            raise e
         except BaseException as e:
-            print 'initial exception', e
-            sys.stdout.flush()
+            # propagate downward to threads that are still alive
             for t in self.threads:
-                t.forward_exception(e)
+                try:
+                    t.forward_exception(e)
+                except:
+                    pass
 
 class ThreadConnector(object):
     def __init__(self, rpyc_service = rpyc.VoidService):

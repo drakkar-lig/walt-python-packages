@@ -306,8 +306,6 @@ class CloneTask(object):
             self.requester.stderr.write(
                 'Network connection to docker hub failed.\n')
             res = None
-        elif isinstance(res, Exception):
-            raise res   # unexpected
         self.hub_task.return_result(res)
 
 # this implements walt image clone
