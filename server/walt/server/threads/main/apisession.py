@@ -1,3 +1,4 @@
+import sys
 
 class APISession(object):
 
@@ -23,8 +24,10 @@ class APISession(object):
 
     def __init__(self, first_task, server):
         self.session_objects = []
-        self.server, self.images, self.devices, self.nodes, self.logs = \
-            server, server.images, server.devices, server.nodes, server.logs
+        self.server, self.images, self.devices, self.topology, \
+                self.nodes, self.logs = \
+            server, server.images, server.devices, server.topology, \
+                server.nodes, server.logs
         linfo = first_task.link_info
         self.link_id, self.remote_api, self.remote_ip = \
             linfo.link_id, linfo.remote_api, linfo.remote_ip
@@ -44,7 +47,7 @@ class APISession(object):
             res = m(*args, **kwargs)
         except BaseException as e:
             print 'Exception occured while performing API request:'
-            print e
+            sys.excepthook(*sys.exc_info())
             res = e
         # return result, unless async mode was set
         if not t.is_async():

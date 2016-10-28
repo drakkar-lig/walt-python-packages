@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 from walt.server import const
 from walt.server.threads.main.network.tools import ip, net
-from walt.common.nodetypes import is_a_node_type_name
 from operator import itemgetter
 from itertools import groupby
 from walt.server.threads.main.images.image import get_mount_path
@@ -34,6 +33,13 @@ subnet %(subnet_ip)s netmask %(subnet_netmask)s {
     max-lease-time 30;
     default-lease-time 30;
 
+    # get the vendor class identifier if available
+    if exists vendor-class-identifier {
+        set vci = option vendor-class-identifier;
+    } else {
+        set vci = "";
+    }
+
     # when we assign a new IP address, let walt register
     # this new device
     on commit {
@@ -48,7 +54,7 @@ subnet %(subnet_ip)s netmask %(subnet_netmask)s {
             suffix (concat ("0", binary-to-ascii (16, 8, "", substring(hardware,5,1))),2), ":",
             suffix (concat ("0", binary-to-ascii (16, 8, "", substring(hardware,6,1))),2)
         );
-        execute("/usr/local/bin/walt-dhcp-event", "commit", option vendor-class-identifier,
+        execute("/usr/local/bin/walt-dhcp-event", "commit", vci,
                         ip_string, mac_address_string);
     }
 }

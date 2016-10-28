@@ -3,7 +3,7 @@
 import rpyc
 from plumbum import cli
 from walt.common.daemon import WalTDaemon
-from walt.common.nodetypes import get_node_type_from_name
+from walt.common.devices.registry import get_node_cls_from_model
 from walt.common.tools import get_kernel_bootarg
 from walt.common.constants import WALT_NODE_DAEMON_PORT
 from walt.common.constants import WALT_SERVER_DAEMON_PORT
@@ -31,7 +31,7 @@ def get_node_cls_from_bootarg():
     if node_type_name == None:
         raise RuntimeError(
             'Missing kernel bootarg: "walt.node.type"!')
-    node_cls = get_node_type_from_name(node_type_name)
+    node_cls = get_node_cls_from_model(node_type_name)
     if node_cls == None:
         raise RuntimeError(
             'This image does not know how to handle the walt.node.type specified: "' \

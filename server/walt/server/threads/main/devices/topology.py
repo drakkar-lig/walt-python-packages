@@ -2,13 +2,11 @@
 
 import time
 
-from walt.common.nodetypes import get_node_type_from_mac_address
 from walt.common.tools import get_mac_address
 from walt.server import const
 from walt.server.threads.main import snmp
 from walt.server.threads.main.network.tools import ip_in_walt_network, lldp_update, \
-                                        restart_dhcp_setup_on_switch, \
-                                        set_static_ip_on_switch
+               set_static_ip_on_switch, restart_dhcp_setup_on_switch, get_server_ip
 from walt.server.threads.main.tree import Tree
 from walt.server.tools import format_paragraph
 
@@ -60,24 +58,16 @@ tips:
 
 class Topology(object):
 
-    def __init__(self, db):
-        self.db = db
-
-    def get_type(self, mac):
-        node_type = get_node_type_from_mac_address(mac)
-        if node_type != None:
-            # this is a node
-            return node_type.SHORT_NAME
-        elif mac == self.server_mac:
-            return 'server'
-        else:
-            return 'switch'
+    def __init__(self, devices):
+        self.devices = devices
+        self.db = devices.db
 
     def collect_connected_devices(self, ui, host, host_depth,
                             host_mac, processed_switches):
 
         print "collect devices connected on %s" % host
         switches_with_dhcp_restarted = set()
+        switches_with_wrong_ip = set()
         # avoid to loop forever...
         if host_depth > 0:
             processed_switches.add(host_mac)
@@ -89,13 +79,16 @@ class Topology(object):
 
             # record neighbors in db and recurse
             for port, neighbor_info in snmp_proxy.lldp.get_neighbors().items():
-                # ignore neighbors on port 1 and 2 of the main switch
-                # (port 1 is associated to VLAN walt-out, port 2 to the server)
-                if neighbors_depth == 2 and port < 3:
+                # ignore neighbors on port 1 of the main switch
+                # (port 1 is associated to VLAN walt-out)
+                if neighbors_depth == 2 and port < 2:
                     continue
                 ip, mac = neighbor_info['ip'], neighbor_info['mac']
-                device_type = self.get_type(mac)
-                if mac in processed_switches:
+                device_type = self.devices.get_type(mac)
+                if device_type == None:
+                    # this device did not get a dhcp lease?
+                    print 'Warning: Unregistered device with mac %s detected on %s\'s port %d. Ignoring.' % \
+                                (mac, host, port)
                     continue
                 valid_ip = str(ip) != 'None'
                 if not valid_ip or not ip_in_walt_network(ip):
@@ -104,80 +97,73 @@ class Topology(object):
                     if ui:
                         ui.task_running()
                     print 'Not ready, one neighbor has ip %s (not in WalT network yet)...' % ip
-                    if valid_ip and device_type == 'switch' and \
-                            mac not in switches_with_dhcp_restarted:
-                        print 'trying to restart the dhcp client on switch %s (%s)' % (ip, mac)
-                        switches_with_dhcp_restarted.add(mac)
-                        restart_dhcp_setup_on_switch(ip)
+                    if device_type == 'switch' and valid_ip:
+                        if mac not in switches_with_dhcp_restarted:
+                            print 'trying to restart the dhcp client on switch %s (%s)' % (ip, mac)
+                            switches_with_dhcp_restarted.add(mac)
+                            restart_dhcp_setup_on_switch(ip)
+                        switches_with_wrong_ip.add(mac)
                     lldp_update()
                     time.sleep(1)
                     issue = True
                     break
+                elif valid_ip and ip_in_walt_network(ip):
+                    if mac in switches_with_wrong_ip:
+                        switches_with_wrong_ip.discard(mac)
+                        print 'Affecting static IP configuration on switch %s (%s)...' % \
+                            (ip, mac)
+                        set_static_ip_on_switch(ip)
                 if neighbors_depth == 1:
                     # main switch is the root of the topology tree
                     switch_mac, switch_port = None, None
                 else:
                     switch_mac, switch_port = host_mac, port
-                device_is_new = self.add_device(type=device_type,
+                self.update_device_topology(
                                 mac=mac,
                                 switch_mac=switch_mac,
-                                switch_port=switch_port,
-                                ip=ip)
-                if device_type == 'switch':
-                    if device_is_new:
-                        print 'Affecting static IP configuration on switch %s (%s)...' % \
-                            (ip, mac)
-                        set_static_ip_on_switch(ip)
+                                switch_port=switch_port)
+                if device_type == 'switch' and mac not in processed_switches:
                     # recursively discover devices connected to this switch
                     self.collect_connected_devices(ui, ip, neighbors_depth,
                                             mac, processed_switches)
             if not issue:
                 break   # otherwise restart the loop
 
-    def rescan(self, requester=None, ui=None):
-        self.db.execute("""
-            UPDATE devices
-            SET reachable = 0;""")
-
-        self.server_mac = get_mac_address(const.WALT_INTF)
-        self.collect_connected_devices(ui, "localhost", 0, self.server_mac, set())
+    def rescan(self, requester=None, remote_ip=None, ui=None):
+        # register the server in the device list, if missing
+        server_mac = get_mac_address(const.WALT_INTF)
+        self.devices.add_if_missing(
+                mac = server_mac, ip = str(get_server_ip()),
+                device_type = 'server')
+        reachable_filters = [ "type = 'server'" ]
+        # if the client is connected on the walt network, set it as reachable
+        if remote_ip:
+            reachable_filters.append("ip = '%s'" % remote_ip)
+        # initialize all devices to unreachable except selected ones
+        self.db.execute("UPDATE devices SET reachable = 0;")
+        self.db.execute("UPDATE devices SET reachable = 1 WHERE %s;" % \
+                            " OR ".join(reachable_filters))
+        # explore the network
+        self.collect_connected_devices(ui, "localhost", 0, server_mac, set())
+        # commit
         self.db.commit()
-
+        # notify the client
         if requester != None:
             requester.stdout.write('done.\n')
 
-    def generate_device_name(self, **kwargs):
-        if kwargs['type'] == 'server':
-            return 'walt-server'
-        return "%s-%s" %(
-            kwargs['type'],
-            "".join(kwargs['mac'].split(':')[3:]))
-
-    def add_device(self, **kwargs):
+    def update_device_topology(self, mac, switch_mac, switch_port):
         # if we are there then we can reach this device
-        kwargs['reachable'] = 1
-        # update device info
-        num_rows = self.db.update("devices", 'mac', **kwargs)
-        # if no row was updated, this is a new device
-        if num_rows == 0:
-            # generate a name for this device
-            name = self.generate_device_name(**kwargs)
-            kwargs['name'] = name
-            # insert a new row
-            self.db.insert("devices", **kwargs)
-        if 'switch_mac' in kwargs:
-            mac = kwargs['mac']
-            switch_mac = kwargs['switch_mac']
-            switch_port = kwargs['switch_port']
-            # add/update topology info:
-            # - update or insert topology info for device with specified mac
-            # - if any other device was connected at this place, it will
-            #   be replaced (thus this other device will appear disconnected)
-            self.db.delete('topology', mac = mac)
-            self.db.delete('topology', switch_mac = switch_mac,
-                                       switch_port = switch_port)
-            self.db.insert("topology", **kwargs)
-        return num_rows == 0 # return True if new device
+        self.db.update('devices', 'mac', mac = mac, reachable = 1)
+        # add/update topology info:
+        # - update or insert topology info for device with specified mac
+        # - if any other device was connected at this place, it will
+        #   be replaced (thus this other device will appear disconnected)
+        self.db.delete('topology', mac = mac)
+        self.db.delete('topology', switch_mac = switch_mac,
+                                   switch_port = switch_port)
+        self.db.insert("topology", mac = mac,
+                                   switch_mac = switch_mac,
+                                   switch_port = switch_port)
 
     def tree(self):
         t = Tree()

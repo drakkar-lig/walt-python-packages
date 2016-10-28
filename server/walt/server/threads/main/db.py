@@ -26,7 +26,11 @@ class ServerDB(PostgresDB):
                     ready BOOLEAN);""")
         self.execute("""CREATE TABLE IF NOT EXISTS nodes (
                     mac TEXT REFERENCES devices(mac),
-                    image TEXT REFERENCES images(fullname));""")
+                    image TEXT REFERENCES images(fullname),
+                    model TEXT);""")
+        self.execute("""CREATE TABLE IF NOT EXISTS switches (
+                    mac TEXT REFERENCES devices(mac),
+                    model TEXT);""")
         self.execute("""CREATE TABLE IF NOT EXISTS config (
                     item TEXT PRIMARY KEY,
                     value TEXT);""")

@@ -1,25 +1,16 @@
 from walt.server.threads.main.network import tftp
 
-def node_exists(db, mac):
-    return db.select_unique("nodes", mac=mac) != None
-
-def register_node(  devices, db, \
-                    mac, ip, node_type, \
-                    image_fullname, **kwargs):
-    # insert in table devices if missing
-    if not db.select_unique("devices", mac=mac):
-        devices.add(type=node_type, mac=mac, ip=ip)
-    # insert in table nodes
-    db.insert('nodes', mac=mac, image=image_fullname)
+def associate_node_image(db, mac, image_fullname, **kwargs):
+    # update table node
+    db.update('nodes', 'mac', mac=mac, image=image_fullname)
     db.commit()
 
-def finalize_registration(current_requests, images, mac, db, dhcpd, **kwargs):
+def finalize_registration(images, mac, db, dhcpd, **kwargs):
     # mount needed images
     images.update_image_mounts(auto_update = True)
     # refresh the dhcpd and tftp conf
     tftp.update(db)
     dhcpd.update()
-    current_requests.remove(mac)
 
 def update_images_and_finalize(images, image_fullname, **kwargs):
     images.set_image_ready(image_fullname)
@@ -40,14 +31,9 @@ class AsyncPullTask(object):
         self.finalize_cb(**self.finalize_cb_kwargs)
 
 def handle_registration_request(
-                db, docker, blocking, mac, images, node_type, \
-                current_requests, **kwargs):
-    if mac in current_requests or node_exists(db, mac):
-        # this is a duplicate request, we already have registered
-        # this node or it is being registered
-        return
-    current_requests.add(mac)
-    image_fullname = images.get_default_image(node_type)
+                db, docker, blocking, mac, images, model, \
+                **kwargs):
+    image_fullname = images.get_default_image(model)
     image_is_new = image_fullname not in images
     # if image is new, register it before the node
     # (cf db integrity constraint)
@@ -58,12 +44,10 @@ def handle_registration_request(
         db = db,
         images = images,
         mac = mac,
-        node_type = node_type,
         image_fullname = image_fullname,
-        current_requests = current_requests,
         **kwargs
     )
-    register_node(**full_kwargs)
+    associate_node_image(**full_kwargs)
     # if image is new
     if image_is_new:
         # we have to pull an image, that will be long,

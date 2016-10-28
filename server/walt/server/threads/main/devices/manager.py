@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from walt.server.threads.main.devices.topology import Topology
+from walt.server.threads.main.network.tools import set_static_ip_on_switch
 import re
 
 DEVICE_NAME_NOT_FOUND="""No device with name '%s' found.\n"""
@@ -17,10 +17,31 @@ class DevicesManager(object):
 
     def __init__(self, db):
         self.db = db
-        self.topology = Topology(db)
 
-    def rescan(self, **kwargs):
-        self.topology.rescan(**kwargs)
+    def register_device(self, device_cls, ip, mac):
+        # insert in table devices if missing
+        if self.db.select_unique("devices", mac=mac):
+            return False
+        else:
+            if device_cls == None:
+                device_type = 'unknown'
+            else:
+                device_type = device_cls.WALT_TYPE
+            kwargs = dict(
+                mac=mac,
+                ip=ip,
+                device_type=device_type
+            )
+            if device_cls != None:
+                if device_cls.WALT_TYPE == 'switch':
+                    print 'Affecting static IP configuration on switch %s (%s)...' % \
+                        (ip, mac)
+                    set_static_ip_on_switch(ip)
+                    kwargs['model'] = device_cls.MODEL_NAME
+                elif device_cls.WALT_TYPE == 'node':
+                    kwargs['model'] = device_cls.MODEL_NAME
+            self.add_if_missing(**kwargs)
+            return True     # device added
 
     def rename(self, requester, old_name, new_name):
         device_info = self.get_device_info(requester, old_name)
@@ -35,6 +56,12 @@ class DevicesManager(object):
         # all is fine, let's update it
         self.db.update("devices", 'mac', mac = device_info.mac, name = new_name)
         self.db.commit()
+
+    def get_type(self, mac):
+        device_info = self.db.select_unique("devices", mac=mac)
+        if not device_info:
+            return None
+        return device_info.type
 
     def get_device_info(self, requester, device_name, \
                         err_message = DEVICE_NAME_NOT_FOUND):
@@ -59,8 +86,42 @@ class DevicesManager(object):
             self.notify_unknown_ip(requester, device_name)
         return device_info.ip
 
-    def add(self, **kwargs):
-        self.topology.add_device(**kwargs)
+    def generate_device_name(self, device_type, mac, **kwargs):
+        if device_type == 'server':
+            return 'walt-server'
+        else:
+            return "%s-%s" %(
+                device_type,
+                "".join(mac.split(':')[3:]))
+
+    def add_if_missing(self, **kwargs):
+        if self.db.select_unique("devices", mac=kwargs['mac']):
+            return False
+        else:
+            device_type = kwargs['device_type']
+            kwargs['type'] = device_type    # db column name is 'type'
+            # generate a name for this device
+            kwargs['name'] = self.generate_device_name(**kwargs)
+            # insert a new row
+            self.db.insert("devices", **kwargs)
+            # if switch or node, insert in relevant table
+            if device_type == 'switch':
+                self.db.insert('switches', **kwargs)
+            elif device_type == 'node':
+                self.db.insert('nodes', **kwargs)
+            # that's it.
+            self.db.commit()
+            return True
+
+    def add_or_update(self, **kwargs):
+        if self.db.select_unique("devices", mac=kwargs['mac']):
+            # device already exists, update it
+            device_type = kwargs['device_type']
+            kwargs['type'] = device_type    # db column name is 'type'
+            self.db.update("devices", 'mac', **kwargs)
+        else:
+            self.add_if_missing(**kwargs)
+        self.db.commit()
 
     def is_reachable(self, requester, device_name):
         res = self.get_device_info(requester, device_name)

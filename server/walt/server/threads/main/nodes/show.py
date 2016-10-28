@@ -1,14 +1,15 @@
 from walt.server.tools import format_paragraph, columnate
 
 NODE_SHOW_QUERY = """
-    SELECT  d.name as name, d.type as type,
+    SELECT  d.name as name, n.model as model,
         split_part(n.image, '/', 1) as image_owner,
         split_part(n.image, ':', 2) as image_tag,
         i.ready as image_ready,
         d.ip as ip,
         (case when d.reachable = 1 then 'yes' else 'NO' end) as reachable
     FROM devices d, nodes n, images i
-    WHERE   d.mac = n.mac
+    WHERE   d.type = 'node'
+    AND     d.mac = n.mac
     AND     n.image = i.fullname
     ORDER BY image_owner, name;"""
 
@@ -62,10 +63,10 @@ def show(db, requester, show_all):
         footnote = None
         if not show_all and len(res_free) == 0:
             footnote = MSG_RERUN_WITH_ALL
-        table = [ (record.name, record.type,
+        table = [ (record.name, record.model,
                    record.image_tag, record.ip, record.reachable) \
                     for record in res_user ]
-        header = [ 'name', 'type', 'image', 'ip', 'reachable' ]
+        header = [ 'name', 'model', 'image', 'ip', 'reachable' ]
         result_msg += format_paragraph(
                         TITLE_NODE_SHOW_USER_NODES_PART,
                         columnate(table, header=header),
@@ -75,9 +76,9 @@ def show(db, requester, show_all):
         footnote = None
         if not show_all:
             footnote = MSG_RERUN_WITH_ALL
-        table = [ (record.name, record.type, record.ip, record.reachable) \
+        table = [ (record.name, record.model, record.ip, record.reachable) \
                     for record in res_free ]
-        header = [ 'name', 'type', 'ip', 'reachable' ]
+        header = [ 'name', 'model', 'ip', 'reachable' ]
         result_msg += format_paragraph(
                         TITLE_NODE_SHOW_FREE_NODES_PART,
                         columnate(table, header=header),
@@ -91,19 +92,19 @@ def show(db, requester, show_all):
     else:
         if len(res_other) > 0:
             # display nodes of other users
-            table = [  (record.name, record.type, record.image_owner,
+            table = [  (record.name, record.model, record.image_owner,
                         'server:%s/%s' % (record.image_owner, record.image_tag),
                         record.ip, record.reachable) \
                             for record in res_other ]
-            header = [ 'name', 'type', 'image_owner', 'clonable_image_link', 'ip', 'reachable' ]
+            header = [ 'name', 'model', 'image_owner', 'clonable_image_link', 'ip', 'reachable' ]
             result_msg += format_paragraph(
                         TITLE_NODE_SHOW_OTHER_NODES_PART,
                         columnate(table, header=header))
         if len(res_not_ready) > 0:
             # display nodes whose image is currently being downloaded
-            table = [  (record.name, record.type, record.ip) \
+            table = [  (record.name, record.model, record.ip) \
                             for record in res_not_ready ]
-            header = [ 'name', 'type', 'ip' ]
+            header = [ 'name', 'model', 'ip' ]
             result_msg += format_paragraph(
                         TITLE_NODE_SHOW_NOT_READY_NODES_PART,
                         columnate(table, header=header))

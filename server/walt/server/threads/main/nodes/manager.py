@@ -1,7 +1,6 @@
 import rpyc
 
 from walt.common.constants import WALT_NODE_DAEMON_PORT
-from walt.common.nodetypes import is_a_node_type_name
 from walt.common.tcp import Requests
 from walt.server.const import SSH_COMMAND
 from walt.server.threads.main.filesystem import Filesystem
@@ -54,21 +53,18 @@ class ServerToNodeLink:
         self.conn.close()
 
 class NodesManager(object):
-    def __init__(self, db, devices, **kwargs):
+    def __init__(self, db, devices, topology, **kwargs):
         self.db = db
-        self.current_register_requests = set()
         self.devices = devices
+        self.topology = topology
         self.kwargs = kwargs
         self.wait_info = WaitInfo()
 
-    def register_node(self, node_type, ip, mac):
+    def register_node(self, mac, model):
         handle_registration_request(
                 db = self.db,
-                devices = self.devices,
                 mac = mac,
-                ip = ip,
-                node_type = node_type,
-                current_requests = self.current_register_requests,
+                model = model,
                 **self.kwargs
         )
 
@@ -95,7 +91,7 @@ class NodesManager(object):
         if device_info == None:
             return None # error already reported
         device_type = device_info.type
-        if not is_a_node_type_name(device_type):
+        if device_type != 'node':
             requester.stderr.write('%s is not a node, it is a %s.\n' % \
                                     (node_name, device_type))
             return None
@@ -117,7 +113,7 @@ class NodesManager(object):
                 return None
             else:
                 # rescan, just in case, and retry
-                self.devices.topology.rescan()   # just in case
+                self.topology.rescan()   # just in case
                 return self.get_reachable_node_info(
                         requester, node_name, after_rescan = True)
         return node_info
@@ -145,7 +141,7 @@ class NodesManager(object):
         nodes_ok = []
         nodes_ko = []
         for node in nodes:
-            sw_ip, sw_port = self.devices.topology.get_connectivity_info( \
+            sw_ip, sw_port = self.topology.get_connectivity_info( \
                                     node.mac)
             if sw_ip:
                 nodes_ok.append(node)
@@ -169,12 +165,12 @@ class NodesManager(object):
                 break
             elif pass_count == 0:
                 # rescan and retry
-                self.devices.topology.rescan()
+                self.topology.rescan()
         if len(nodes_ok) == 0:
             return False
         # otherwise, at least one node can be reached, so do it.
         for node in nodes_ok:
-            self.devices.topology.setpower(node.mac, poweron)
+            self.topology.setpower(node.mac, poweron)
         s_poweron = {True:'on',False:'off'}[poweron]
         requester.stdout.write(format_sentence_about_nodes(
             '%s was(were) powered ' + s_poweron + '.' ,

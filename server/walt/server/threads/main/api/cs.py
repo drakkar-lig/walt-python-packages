@@ -17,15 +17,15 @@ class CSAPI(APISession):
 
     @api_expose_method
     def device_rescan(self):
-        self.server.device_rescan(self.requester)
+        self.server.device_rescan(self.requester, self.remote_ip)
 
     @api_expose_method
     def device_tree(self):
-        return self.devices.topology.tree()
+        return self.topology.tree()
 
     @api_expose_method
     def device_show(self):
-        return self.devices.topology.show()
+        return self.topology.show()
 
     @api_expose_method
     def show_nodes(self, show_all):

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from walt.common.constants import WALT_SERVER_TCP_PORT
-from walt.common.nodetypes import get_node_type_from_name
+from walt.common.devices.registry import get_device_cls_from_vci_and_mac
 from walt.common.tcp import TCPServer
 from walt.server.threads.main.blocking import BlockingTasksManager
 from walt.server.threads.main.db import ServerDB
@@ -13,6 +13,7 @@ from walt.server.threads.main.network.dhcpd import DHCPServer
 from walt.server.threads.main.network.tools import dhcp_stop
 from walt.server.threads.main.nodes.manager import NodesManager
 from walt.server.threads.main.devices.manager import DevicesManager
+from walt.server.threads.main.devices.topology import Topology
 from walt.server.tools import format_sentence_about_nodes
 from walt.server.threads.main.transfer import TransferManager
 from walt.server.threads.main.apisession import APISession
@@ -28,6 +29,7 @@ class Server(object):
         self.docker = DockerClient()
         self.blocking = BlockingTasksManager(shared.tasks)
         self.devices = DevicesManager(self.db)
+        self.topology = Topology(self.devices)
         self.dhcpd = DHCPServer(self.db)
         self.images = NodeImageManager(self.db, self.blocking, self.dhcpd, self.docker)
         self.tcp_server = TCPServer(WALT_SERVER_TCP_PORT)
@@ -41,7 +43,8 @@ class Server(object):
                                     images = self.images.store,
                                     dhcpd = self.dhcpd,
                                     docker = self.docker,
-                                    devices = self.devices)
+                                    devices = self.devices,
+                                    topology = self.topology)
 
     def prepare(self):
         self.tcp_server.join_event_loop(self.ev_loop)
@@ -59,7 +62,7 @@ class Server(object):
         self.dhcpd.update(force=True)
         self.ui.task_running()
         # topology exploration
-        self.devices.rescan(ui=self.ui)
+        self.topology.rescan(ui=self.ui)
         self.ui.task_running()
         # re-update dhcp with any new device discovered
         self.dhcpd.update()
@@ -91,18 +94,20 @@ class Server(object):
                 sentence, [n.name for n in nodes_ok]) + '\n')
 
     def register_device(self, vendor_class_identifier, ip, mac):
-        # walt nodes send their node type using the vci field of the DHCP request.
-        if get_node_type_from_name(vendor_class_identifier) != None:
+        # let's try to identify this device given its mac address
+        # and/or the vci field of the DHCP request.
+        device_cls = get_device_cls_from_vci_and_mac(vendor_class_identifier, mac)
+        added = self.devices.register_device(device_cls, ip, mac)
+        if added and device_cls != None and device_cls.WALT_TYPE == 'node':
             # this is a walt node
-            self.nodes.register_node(vendor_class_identifier, ip, mac)
-        # if this is not a walt node, we do nothing for now.
+            self.nodes.register_node(mac, device_cls.MODEL_NAME)
 
     def rename_device(self, requester, old_name, new_name):
         self.devices.rename(requester, old_name, new_name)
         self.dhcpd.update()
 
-    def device_rescan(self, requester):
-        self.devices.rescan(requester=requester)
+    def device_rescan(self, requester, remote_ip = None):
+        self.topology.rescan(requester=requester, remote_ip = remote_ip)
         self.dhcpd.update()
         tftp.update(self.db)
 
