@@ -132,8 +132,8 @@ class NodeImageStore(object):
             self.db.execute("""
                 SELECT DISTINCT image FROM nodes""").fetchall()])
         return res
-    def get_default_image(self, node_type):
-        return 'waltplatform/walt-node:%s-default' % node_type
+    def get_default_image(self, node_model):
+        return 'waltplatform/walt-node:%s-default' % node_model
     def umount_used_image(self, image):
         images = self.get_images_in_use()
         images.remove(image.fullname)

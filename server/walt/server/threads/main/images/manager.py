@@ -84,8 +84,8 @@ class NodeImageManager(object):
             # different images depending on the type of each WalT node.
             # we compute the appropriate image fullname here.
             for node_mac in node_macs:
-                node_type = self.db.select_unique('devices', mac=node_mac).type
-                image_fullnames[node_mac] = self.store.get_default_image(node_type)
+                node_model = self.db.select_unique('devices', mac=node_mac).type
+                image_fullnames[node_mac] = self.store.get_default_image(node_model)
         # let's update the database about which node is mounting what
         for node_mac, image_fullname in image_fullnames.items():
             self.db.update('nodes', 'mac',

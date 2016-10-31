@@ -27,15 +27,15 @@ class WalTNodeService(object):
         self.node_cls.blink(blink_status)
 
 def get_node_cls_from_bootarg():
-    node_type_name = get_kernel_bootarg('walt.node.type')
-    if node_type_name == None:
+    node_model = get_kernel_bootarg('walt.node.model')
+    if node_model == None:
         raise RuntimeError(
-            'Missing kernel bootarg: "walt.node.type"!')
-    node_cls = get_node_cls_from_model(node_type_name)
+            'Missing kernel bootarg: "walt.node.model"!')
+    node_cls = get_node_cls_from_model(node_model)
     if node_cls == None:
         raise RuntimeError(
-            'This image does not know how to handle the walt.node.type specified: "' \
-                    + node_type_name + '"!')
+            'This image does not know how to handle the walt.node.model specified: "' \
+                    + node_model + '"!')
     return node_cls
 
 class NodeToServerLink(ServerAPILink):
