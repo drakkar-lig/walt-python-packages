@@ -64,7 +64,7 @@ class NodeImageManager(object):
             return True
         else:
             return self.store.get_user_image_from_tag(requester, image_tag) != None
-    def set_image(self, requester, node_macs, image_tag):
+    def set_image(self, requester, nodes, image_tag):
         # if image tag is specified, let's get its fullname
         auto_update = False
         if image_tag != 'default':
@@ -76,16 +76,15 @@ class NodeImageManager(object):
                 auto_update = False)
             if compatibility != 0:
                 return False
-            image_fullnames = { node_mac: image.fullname for node_mac in node_macs }
+            image_fullnames = { node.mac: image.fullname for node in nodes }
         else:
             auto_update = True
             image_fullnames = {}
             # since the 'default' keyword was specified, we might have to deploy
             # different images depending on the type of each WalT node.
             # we compute the appropriate image fullname here.
-            for node_mac in node_macs:
-                node_model = self.db.select_unique('devices', mac=node_mac).type
-                image_fullnames[node_mac] = self.store.get_default_image(node_model)
+            for node in nodes:
+                image_fullnames[node.mac] = self.store.get_default_image(node.model)
         # let's update the database about which node is mounting what
         for node_mac, image_fullname in image_fullnames.items():
             self.db.update('nodes', 'mac',

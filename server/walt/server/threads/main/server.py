@@ -84,8 +84,7 @@ class Server(object):
             return # error already reported
         nodes_ok, nodes_ko = self.nodes.filter_on_connectivity( \
                             requester, nodes, warn_unknown_topology)
-        macs = [ n.mac for n in nodes_ok ]
-        if self.images.set_image(requester, macs, image_tag):
+        if self.images.set_image(requester, nodes_ok, image_tag):
             if image_tag == 'default':
                 sentence = '%s will now boot its(their) default image (other users will see it(they) is(are) \'free\').'
             else:
