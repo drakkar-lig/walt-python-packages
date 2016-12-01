@@ -7,7 +7,7 @@ from walt.common.devices.registry import get_node_cls_from_model
 from walt.common.tools import get_kernel_bootarg
 from walt.common.constants import WALT_NODE_DAEMON_PORT
 from walt.common.constants import WALT_SERVER_DAEMON_PORT
-from walt.common.devices.fake import Fake
+from walt.common.devices.nodes.fake import Fake
 from walt.common.evloop import EventLoop
 from walt.common.apilink import ServerAPILink, APIService
 from walt.node.tools import lookup_server_ip
