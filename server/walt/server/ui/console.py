@@ -1,7 +1,7 @@
 # coding=utf-8
 import curses, os, cPickle as pickle
 from walt.common.evloop import EventLoop
-from walt.common.tools import failsafe_mkfifo
+from walt.common.fifo import open_readable_fifo
 from walt.server.const import UI_FIFO_PATH
 
 class Console(object):
@@ -23,9 +23,7 @@ class Console(object):
             u'└': curses.ACS_LLCORNER
         }
         self.stdscr.refresh()
-        failsafe_mkfifo(UI_FIFO_PATH)
-        self.fifo = os.fdopen(
-            os.open(UI_FIFO_PATH, os.O_RDWR | os.O_NONBLOCK), 'r', 0)
+        self.fifo = open_readable_fifo(UI_FIFO_PATH)
     def __del__(self):
         curses.endwin()
         self.fifo.close()

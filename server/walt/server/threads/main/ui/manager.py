@@ -1,6 +1,6 @@
 import os, select, cPickle as pickle
 from walt.server.const import UI_FIFO_PATH, UI_RESPONSE_FIFO_PATH
-from walt.common.tools import failsafe_mkfifo
+from walt.common.fifo import open_readable_fifo
 
 class UIManager(object):
     def ui_running(self):
@@ -10,15 +10,9 @@ class UIManager(object):
             pickle.dump(args, fifo)
     def wait_user_keypress(self):
         if self.ui_running():
-            failsafe_mkfifo(UI_RESPONSE_FIFO_PATH)
-            response_fifo = os.fdopen(
-                os.open(UI_RESPONSE_FIFO_PATH, os.O_RDWR | os.O_NONBLOCK), 'r', 0)
+            response_fifo = open_readable_fifo(UI_RESPONSE_FIFO_PATH)
             self.send_request_to_ui('WAIT_ENTER', UI_RESPONSE_FIFO_PATH)
             # block until we get the response message back
-            poller = select.poll()
-            poller.register(response_fifo, select.POLLIN)
-            poller.poll()
-            poller.unregister(response_fifo)
             pickle.load(response_fifo)
             response_fifo.close()
             os.remove(UI_RESPONSE_FIFO_PATH)

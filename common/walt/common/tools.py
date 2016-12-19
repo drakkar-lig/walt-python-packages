@@ -43,15 +43,6 @@ def failsafe_symlink(src_target, dst_path, force_relative = False):
     # create the symlink
     os.symlink(src_target, dst_path)
 
-def failsafe_mkfifo(path):
-    # check if it does not exist already
-    if os.path.exists(path):
-        return
-    # ensure parent dir exists
-    failsafe_makedirs(os.path.dirname(path))
-    # create the fifo
-    os.mkfifo(path)
-
 # Note: json comments are not allowed in the standard
 # and thus not handled in the json python module.
 # We handle them manually.
@@ -128,4 +119,14 @@ class BusyIndicator(object):
         self.label = label
         if self.last_time != None:
             self.reset()
+
+def fd_copy(fd_src, fd_dst, size):
+    try:
+        s = os.read(fd_src, size)
+        if len(s) == 0:
+            return None
+        os.write(fd_dst, s)
+        return s
+    except:
+        return None
 
