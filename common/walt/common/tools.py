@@ -1,4 +1,4 @@
-import subprocess, os, sys, json, re
+import subprocess, os, sys, json, re, fcntl
 from plumbum.cmd import cat
 from collections import OrderedDict
 from datetime import datetime, timedelta
@@ -129,4 +129,8 @@ def fd_copy(fd_src, fd_dst, size):
         return s
     except:
         return None
+
+def set_non_blocking(fd):
+    fl = fcntl.fcntl(fd, fcntl.F_GETFL)
+    fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
 

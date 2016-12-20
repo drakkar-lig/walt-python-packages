@@ -33,7 +33,8 @@ PACKAGE_SPECIFIC_INFO = {
                     'walt-node-daemon = walt.node.daemon:run',
                     'walt-node-install = walt.node.install:run',
                     'walt-node-versioning-getnumbers = walt.node.versioning:getnumbers',
-                    'walt-serial-autolog = walt.node.serial.autolog:run'
+                    'walt-serial-autolog = walt.node.serial.autolog:run',
+                    'walt-logs-daemon = walt.node.logs.daemon:run'
                 ]
             },
             scripts = [ 'sh/walt-monitor', 'sh/walt-echo', 'sh/walt-init' ]

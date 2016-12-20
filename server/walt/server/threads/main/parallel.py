@@ -5,6 +5,7 @@ from subprocess import Popen, STDOUT
 from walt.common.io import SmartBufferingFileReader, \
                             read_and_copy
 from walt.common.tcp import read_pickle
+from walt.common.tty import set_tty_size_raw
 
 
 class ForkPtyProcessListener(object):
@@ -64,8 +65,7 @@ class ParallelProcessSocketListener(object):
         if slave_pid == 0:
             # set the window size appropriate for the remote client
             if 'win_size' in self.params:
-                fcntl.ioctl(sys.stdout.fileno(), termios.TIOCSWINSZ,
-                                self.params['win_size'])
+                set_tty_size_raw(sys.stdout.fileno(), self.params['win_size'])
             os.execvpe(cmd_args[0], cmd_args, env)
         # the parent should communicate.
         # use unbuffered communication with the slave process

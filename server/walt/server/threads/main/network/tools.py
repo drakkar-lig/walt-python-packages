@@ -30,14 +30,16 @@ def get_mac_address(intf):
     with open('/sys/class/net/' + intf +'/address') as f:
         return f.read().strip()
 
+dh_client = None
 def dhcp_wait_ip(intf, ui, msg, explain=None, todo=None):
+    global dh_client
     # dhclient will go to background when an IP is obtained,
     # which should release the popen process.
     ui.task_start(msg, explain=explain, todo=todo)
     cmd = 'dhclient -1 %s' % intf
-    while True:
-        dh_client = subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE)
-        poller = select.poll()
+    #while True:
+    dh_client = subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE)
+    """    poller = select.poll()
         poller.register(dh_client.stdout, select.POLLIN)
         while len(poller.poll(500)) == 0:   # timeout unit is milliseconds
             ui.task_running()
@@ -45,7 +47,7 @@ def dhcp_wait_ip(intf, ui, msg, explain=None, todo=None):
         # check the return code, if not 0 loop again
         dh_client.wait()
         if dh_client.returncode == 0:
-            break
+            break"""
     ui.task_done()
 
 def dhcp_stop(preserve_setup=True):

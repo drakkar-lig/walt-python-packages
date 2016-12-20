@@ -1,23 +1,28 @@
-#!/bin/sh
+#!/usr/bin/env bash
+# walt-monitor is a shell script, and thus it loads fast,
+# even on slow hardware (such as a raspberry pi).
+#
+# However, it cannot perform complex tasks such as offering
+# a virtual tty to the command that will be run.
+#
+# Thus all the work is delegated to a background daemon
+# called walt-monitor-daemon, written in python.
+#
+# In this shell script, we just perform tty forwarding.
+# This means, considering the local tty and a remote tty
+# handled by the background daemon:
+# * we set the local tty in raw mode
+# * we forward the traffic to the remote tty
+# * the remote tty runs the command
+# * the remote tty output is transfered back to the local tty
 
-DEBUG=0
-if [ "$1" = "--debug" ]
-then
-	DEBUG=1
-	shift
-	echo "WARNING: debug mode is slower and thus timestamps may be less precise." >&2
-fi
 
 if [ -z "$1" ]
 then
-	echo "Usage: $0 [--debug] <command line and args>"
+	echo "Usage: $0 <command line and args>"
 	echo
 	echo "This will catch stdout and stderr and send them"
 	echo "to walt server as log lines."
-	echo
-	echo "By default the stdout and stderr of the command line"
-	echo "are not echo-ed locally (for performance reasons)."
-	echo "Use --debug to enable them."
 	exit
 fi
 
@@ -27,42 +32,66 @@ then
 	exit
 fi
 
-fifo_prefix="/tmp/$$_fifo."
-stream_prefix="$(basename "$1").$$."
+# note: the naming sheme of the following fifos is known
+# by the background daemon
+stdin_fifo=/tmp/walt-monitor-stdin-$$.fifo
+stdout_fifo=/tmp/walt-monitor-stdout-$$.fifo
 
-fifo_stdout="${fifo_prefix}out"
-fifo_stderr="${fifo_prefix}err"
-
+# register cleanup procedurr on exit
 on_exit()
 {
-	rm $fifo_stdout $fifo_stderr
-}
+    # kill the background 'cat' process if any
+    if [ ! -z "$cat_pid" ]
+    then
+        kill -INT $cat_pid
+    fi
 
-# create the FIFOs and setup an EXIT handler
-# to delete them at the end
-mkfifo $fifo_stdout $fifo_stderr
+    # clean up and restore tty settings
+    if [ ! -z "$saved_tty_settings" ]
+    then
+        stty $saved_tty_settings <&6
+    fi
+
+    if [ -f "$stdin_fifo" ]
+    then
+        rm -f $stdin_fifo
+    fi
+
+    if [ -f "$stdout_fifo" ]
+    then
+        rm -f $stdout_fifo
+    fi
+}
 trap on_exit EXIT
 
-# request walt-node-daemon to monitor these 2 FIFOs
-# and pass what's coming in as logs to the server
-echo """\
-MONITOR ${stream_prefix}stdout $fifo_stdout
-MONITOR ${stream_prefix}stderr $fifo_stderr
-LOG ${stream_prefix}lifecycle started""" > /var/lib/walt/logs.fifo
+# create fifos
+mkfifo $stdin_fifo $stdout_fifo
 
-if [ "$DEBUG" = "0" ]
-then
-	# start the command with stdout and stderr redirected
-	# to the FIFOs
-	"$@" >$fifo_stdout 2>$fifo_stderr
-else
-	# start the command with 
-	# - stdout duplicated both on stdout and on the related fifo.
-	# - stderr duplicated both on stderr and on the related fifo.
-	# note: use of fd 6 allows to avoid merging stderr and stdout
-	# before processing stderr.
-	{ { "$@" | tee $fifo_stdout 1>&6; } 2>&1 | tee $fifo_stderr 1>&2; } 6>&1
-fi
+# set tty in raw mode
+saved_tty_settings=$(stty -g)
+stty raw -echo
 
-echo LOG ${stream_prefix}lifecycle ended > /var/lib/walt/logs.fifo
+# send the request to walt-logs-daemon specifying
+# our PID, UID, GID, terminal size.
+# Note: walt-monitor-daemon will retrieve some more information
+# in /proc/<PID>/[cmdline,env,...] in order to mimic our
+# local parameters.
+echo MONITOR $$ $(id -u) $(id -g) $(stty size) >/var/lib/walt/logs.fifo
+
+# we should copy everything from stdin to <stdin_fifo>.
+# we first copy fd 0 (stdin) to fd 6 and close fd 0
+# (just to make it sure that only this 'cat' process will
+# read on stdin)
+exec 6<&0
+exec 0<&-
+(cat <&6 > $stdin_fifo) &
+cat_pid=$!
+
+# we should also copy everything from <stdout_fifo> to stdout
+cat < $stdout_fifo
+
+# the previous cat returned, this means the command run
+# by the background daemon has completed.
+# this ends the script (but at_exit() will be called to
+# clean up things).
 

@@ -47,6 +47,30 @@ Restart=on-failure
 WantedBy=multi-user.target
 """
 
+SYSTEMD_LOGS_SERVICE_PATH = "/etc/systemd/system/walt-logs.service"
+SYSTEMD_LOGS_SERVICE_CONF = """
+# walt-logs-daemon - WalT log management daemon
+#
+# The WalT platform provides a lightweight distributed testbed for
+# sensor networks, distributed protocols, distributed data
+# management.
+
+[Unit]
+Description=WalT logs daemon
+# start the daemon after ssh is started.
+After=ssh.service
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/default/walt-logs
+EnvironmentFile=-/etc/sysconfig/walt-logs
+ExecStart=/usr/local/bin/walt-logs-daemon $DAEMON_ARGS
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+"""
+
 # when using walt, nodes often get new operating system
 # images, and usually each of these images has a new
 # authentication key.
@@ -87,6 +111,8 @@ def run():
         f.write(NTP_CONF % env)
     with open(SYSTEMD_SERVICE_PATH, 'w') as f:
         f.write(SYSTEMD_SERVICE_CONF % env)
+    with open(SYSTEMD_LOGS_SERVICE_PATH, 'w') as f:
+        f.write(SYSTEMD_LOGS_SERVICE_CONF % env)
     with open(NODE_ECDSA_KEYPAIR['private_key_path'], 'w') as f:
         f.write(NODE_ECDSA_KEYPAIR['private_key'])
     with open(NODE_ECDSA_KEYPAIR['public_key_path'], 'w') as f:
