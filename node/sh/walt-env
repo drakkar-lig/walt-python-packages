@@ -1,0 +1,20 @@
+#!/bin/sh
+
+list_walt_kernel_args()
+{
+    cat /proc/cmdline | tr ' ' '\n' | grep 'walt\.' | tr '=' ' '
+}
+
+format_export_statements()
+{
+    while read var value
+    do
+        # variable identifier cannot contain dot characters
+        # => replace walt.server.ip -> walt_server_ip
+        var="$(echo "$var" | tr '.' '_')"
+        # save and export variable
+        echo "export $var='$value'"
+    done
+}
+
+eval "$(list_walt_kernel_args | format_export_statements)"

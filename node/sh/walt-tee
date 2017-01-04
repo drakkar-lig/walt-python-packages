@@ -1,0 +1,33 @@
+#!/bin/sh
+
+USAGE="Usage: $ <cmd...> | $(basename $0) <logstream-name>"
+
+# get walt-related env variables
+. /bin/walt-env
+
+# get stream name as first arg
+stream="$1"
+
+if [ -z "$stream" ]
+then
+    echo "$USAGE" >&2
+    exit 1
+fi
+
+# save stdout as fd 6
+exec 6<&1
+
+# read log lines, timestamp them
+# and send them through network
+{
+    echo REQ_NEW_INCOMING_LOGS
+    echo "$stream"
+    while read line
+    do
+        # send log line through pipe
+        echo "$(date +%s.%N) $line"
+        # also print it to stdout
+        echo "$line" >&6
+    done
+} | nc $walt_server_ip 12347
+

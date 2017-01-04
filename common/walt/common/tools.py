@@ -134,3 +134,6 @@ def set_non_blocking(fd):
     fl = fcntl.fcntl(fd, fcntl.F_GETFL)
     fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
 
+def remove_non_utf8(s):
+    return s.decode('utf-8','ignore').encode("utf-8")
+
