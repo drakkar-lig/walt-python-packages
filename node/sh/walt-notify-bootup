@@ -1,0 +1,12 @@
+#!/bin/sh
+
+# get walt-related env variables
+. /bin/walt-env
+
+nc $walt_server_ip 12345 >/dev/null << EOF
+REQ_API_SESSION
+NSAPI
+('API_CALL', 'node_bootup_event', (), {})
+('CLOSE')
+EOF
+

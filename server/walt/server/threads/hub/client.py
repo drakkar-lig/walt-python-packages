@@ -62,6 +62,10 @@ class APISessionManager(object):
         event = self.api_channel.read()
         if event == None:
             return False
+        # e.g. if you send ('CLOSE',) instead of ('API_CALL','<func>',<args>,<kwargs>)
+        # the connection will be closed from server side.
+        if len(event) != 4:
+            return False
         attr, args, kwargs = event[1:]
         print 'hub api_call:', self.target_api, attr, args, kwargs
         self.record_task(attr, args, kwargs, result_cb=self.return_result)
