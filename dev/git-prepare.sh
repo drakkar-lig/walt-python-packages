@@ -16,6 +16,17 @@ menu()
     return 0
 }
 
+git_diff()
+{
+    title="$1"
+    shift
+    {
+        echo "****************** $title ****************************"
+        echo
+        git -c color.diff=always diff "$@"
+    } | less -R
+}
+
 handle_deleted()
 {
     path="$1"
@@ -38,9 +49,7 @@ handle_deleted()
 handle_modified()
 {
     path="$1"
-    echo "****************** DIFF ****************************"
-    echo
-    git diff "$path"
+    git_diff 'DIFF' "$path"
     echo
     menu "Confirm all changes" "Select changes" "Bypass all changes for now (^D)" "Stop (^C)"
     case "$?" in
@@ -90,9 +99,7 @@ handle_untracked()
             then
                 echo "Not displaying this file, since it seems to be binary."
             else
-                echo "****************** NEW FILE CONTENT ****************"
-                echo
-                git diff /dev/null "$path"
+                git_diff 'NEW FILE CONTENT' /dev/null "$path"
             fi
             echo
             menu "Confirm new file" "Edit file" "Bypass file for now (^D)" "Stop (^C)"
@@ -124,16 +131,23 @@ git status --porcelain | sed -e "s/^.//g" | grep -v '^ ' | \
     do
         exec 6<&0   # save stdin (the pipe)
         exec 0<$tty # direct stdin to the tty for interaction
-        clear
-        echo "****************** STATUS **************************"
-        echo
         status="$(git -c color.status=always status)"
-        # git status: print staged changes
-        echo -n "$status" | sed -n '/Changes not staged.*/q;p'
-        # git status: print unstaged changes, with current file highlighted
-        echo -n "$status" | sed -n -e '/Changes not staged/,$ p' | \
-                    grep -E --color "(.*$path)?"
-        echo
+        staged="$(echo "$status" | sed -n '/Changes not staged.*/q;p')"
+        staged_numlines="$(echo "$staged" | wc -l)"
+        unstaged="$(echo "$status" | sed -n -e '/Changes not staged/,$ p')"
+        unstaged_line="$(echo "$unstaged" | sed -n "/^$path$/=")"
+        {
+            echo "****************** STATUS **************************"
+            echo
+            {
+                # git status: print staged changes
+                echo "$staged"
+                echo
+                # git status: print unstaged changes, with current file highlighted
+                echo "$unstaged" | grep -E --color=always "(.*$path)?"
+                echo
+            } | tail -n +$((staged_numlines + unstaged_line - 8))
+        } | less -R
         case "$state" in
             "M")
                 handle_modified $path
