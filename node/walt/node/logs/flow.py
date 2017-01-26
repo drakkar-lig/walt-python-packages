@@ -1,18 +1,15 @@
+import subprocess
 from time import time
-from walt.node.tools import lookup_server_ip
-from walt.common.constants import WALT_SERVER_TCP_PORT
-from walt.common.tcp import write_pickle, client_socket, \
-                            Requests
 from walt.common.tools import remove_non_utf8
 
+WALT_CAT_BINARY = subprocess.check_output('which walt-cat',
+                            shell = True).strip()
+
 class LogsFlowToServer(object):
-    server_ip = lookup_server_ip()
     def __init__(self, stream_name):
-        s = client_socket(LogsFlowToServer.server_ip, WALT_SERVER_TCP_PORT)
-        self.stream = s.makefile()
-        Requests.send_id(self.stream, Requests.REQ_NEW_INCOMING_LOGS)
-        self.stream.write('%s\n' % stream_name)
-        self.stream.flush()
+        self.popen = subprocess.Popen([WALT_CAT_BINARY, '--ts', stream_name],
+                        stdin=subprocess.PIPE)
+        self.stream = self.popen.stdin
         self.last_used = time()
     def log(self, line, timestamp = None):
         if timestamp == None:
