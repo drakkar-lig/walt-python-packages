@@ -1,0 +1,20 @@
+# walt-logs-daemon - WalT log management daemon
+#
+# The WalT platform provides a lightweight distributed testbed for
+# sensor networks, distributed protocols, distributed data
+# management.
+
+[Unit]
+Description=WalT logs daemon
+# start the daemon after ssh is started.
+After=ssh.service
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/default/walt-logs
+EnvironmentFile=-/etc/sysconfig/walt-logs
+ExecStart=/usr/local/bin/walt-logs-daemon $DAEMON_ARGS
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

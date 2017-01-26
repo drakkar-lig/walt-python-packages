@@ -24,20 +24,19 @@ PACKAGE_SPECIFIC_INFO = {
     ),
     "walt-node": dict(
         subdir = 'node',
-        requires = ['rpyc>=3.3','plumbum>=1.4.2','walt-common==%(upload)s'],
+        requires = ['walt-common==%(upload)s'],
         version_str = '%(upload)s',
         setup = dict(
             description = "WalT (Wireless Testbed) software embedded in images.",
             entry_points = {
                 'console_scripts': [
-                    'walt-node-daemon = walt.node.daemon:run',
-                    'walt-node-install = walt.node.install:run',
-                    'walt-node-versioning-getnumbers = walt.node.versioning:getnumbers',
+                    'walt-setup-systemd = walt.node.setup.systemd:run',
                     'walt-serial-autolog = walt.node.serial.autolog:run',
                     'walt-logs-daemon = walt.node.logs.daemon:run'
                 ]
             },
-            scripts = [ 'sh/walt-monitor', 'sh/walt-echo', 'sh/walt-init' ]
+            scripts = [ 'sh/walt-monitor', 'sh/walt-echo' ],
+            include_package_data = True
         )
     ),
     "walt-server": dict(
@@ -56,7 +55,8 @@ PACKAGE_SPECIFIC_INFO = {
                     'walt-server-console = walt.server.ui.console:run',
                     'walt-dhcp-event = walt.server.dhcpevent:run'
                 ]
-            }
+            },
+            include_package_data = True
         )
     ),
     "walt-common": dict(

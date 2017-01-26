@@ -1,0 +1,20 @@
+# walt-notify-bootup - WalT node bootup notification
+#
+# The WalT platform provides a lightweight distributed testbed for
+# sensor networks, distributed protocols, distributed data
+# management.
+
+[Unit]
+Description=WalT node bootup notification
+# notify bootup to the server after ssh is started.
+# this ensures that when the server is notified,
+# it knows it can reach us through ssh.
+After=ssh.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/walt-notify-bootup
+
+[Install]
+WantedBy=multi-user.target
+

@@ -2,6 +2,7 @@ import os, re, time, shutil, shlex
 from plumbum.cmd import chroot
 from walt.server.threads.main.network.tools import get_server_ip
 from walt.server.threads.main.filesystem import Filesystem
+from walt.server.threads.main.images.setup import setup
 from walt.common.tools import \
         failsafe_makedirs, succeeds
 from walt.common.versions import API_VERSIONING, UPLOAD
@@ -47,20 +48,6 @@ from walt.common.versions import API_VERSIONING, UPLOAD
 
 IMAGE_MOUNT_PATH='/var/lib/walt/images/%s/fs'
 IMAGE_DIFF_PATH='/var/lib/walt/images/%s/diff'
-SERVER_PUBKEY_PATH = '/root/.ssh/id_dsa.pub'
-HOSTS_FILE_CONTENT="""\
-127.0.0.1   localhost
-::1     localhost ip6-localhost ip6-loopback
-ff02::1     ip6-allnodes
-ff02::2     ip6-allrouters
-"""
-SERVER_SPEC_PATH='/etc/walt/server.spec'
-
-MSG_IMAGE_NOT_COMPATIBLE="""\
-The WalT software embedded in %(tag)s is too %(image_status)s. It is not compatible with the WalT server.
-Type "walt --help-about compatibility" for information about upgrade & downgrade options.
-Aborted.
-"""
 
 def get_mount_path(image_fullname):
     mount_path, dummy = get_mount_info(image_fullname)
@@ -69,10 +56,6 @@ def get_mount_path(image_fullname):
 def get_mount_info(image_fullname):
     sub_path = re.sub('[^a-zA-Z0-9/-]+', '_', re.sub(':', '/', image_fullname))
     return IMAGE_MOUNT_PATH % sub_path, IMAGE_DIFF_PATH % sub_path
-
-def get_server_pubkey():
-    with open(SERVER_PUBKEY_PATH, 'r') as f:
-        return f.read()
 
 def parse_image_fullname(image_fullname):
     image_name, image_tag = image_fullname.split(':')
@@ -89,10 +72,7 @@ def validate_image_tag(requester, image_tag):
 FS_CMD_PATTERN = 'docker run --rm --entrypoint %%(prog)s %(image)s %%(prog_args)s'
 
 class NodeImage(object):
-    server_pubkey = None
     def __init__(self, docker, fullname):
-        if NodeImage.server_pubkey == None:
-            NodeImage.server_pubkey = get_server_pubkey()
         self.docker = docker
         self.rename(fullname)
         self.created_at = None
@@ -134,38 +114,6 @@ class NodeImage(object):
         with self.ensure_temporary_mount():
             args = shlex.split(cmd)
             return chroot(self.mount_path, *args, retcode = None).strip()
-    def get_versioning_numbers(self):
-        with self.ensure_temporary_mount():
-            version_check_available = self.chroot('which walt-node-versioning-getnumbers')
-            if len(version_check_available) == 0:
-                # image was built before the version management code
-                return (0, 0)
-            else:
-                version_check_result = self.chroot('walt-node-versioning-getnumbers')
-                return eval(version_check_result)
-    def update_walt_software(self):
-        assert (not self.mounted), 'update_walt_software() called when the image is mounted!'
-        self.chroot('pip install --upgrade "walt-nodeselector==%d.*"' % \
-                        API_VERSIONING['NSAPI'][0])
-    def check_server_compatibility(self, requester, auto_update):
-        srv_ns_api, srv_upload = (API_VERSIONING['NSAPI'][0], UPLOAD)
-        node_ns_api, node_upload = self.get_versioning_numbers()
-        if srv_ns_api == node_ns_api:
-            compatibility = 0
-        else:
-            if node_upload < srv_upload:
-                compatibility = -1
-                image_status = 'old'
-            else:
-                compatibility = 1
-                image_status = 'recent'
-            if requester and not auto_update:
-                requester.stderr.write(MSG_IMAGE_NOT_COMPATIBLE % dict(
-                    tag = self.tag,
-                    image_status = image_status
-                ))
-            print 'Incompatibility server <-> image detected.'
-        return compatibility
     def os_mount(self):
         self.mount_path, self.diff_path = self.get_mount_info()
         failsafe_makedirs(self.mount_path)
@@ -175,29 +123,7 @@ class NodeImage(object):
     def mount(self, requester = None, auto_update = False):
         print 'Mounting %s...' % self.fullname
         self.os_mount()
-        compatibility = self.check_server_compatibility(requester, auto_update)
-        if compatibility != 0:
-            if auto_update:
-                self.os_unmount()
-                self.update_walt_software()
-                self.os_mount()
-            else:
-                if requester == None and auto_update == False:
-                    raise RuntimeError("Programming error: Image mounting with auto_update disabled " + \
-                                        "and no requester to warn about the incompatibility issue.")
-                # cannot go any further
-                self.os_unmount()
-                return
-        if os.path.exists(SERVER_SPEC_PATH):
-            target_path = self.mount_path + SERVER_SPEC_PATH
-            failsafe_makedirs(os.path.dirname(target_path))
-            shutil.copy(SERVER_SPEC_PATH, target_path)
-        install_text = self.chroot('walt-node-install "%(server_ip)s" "%(server_pubkey)s"' % \
-                            dict(server_ip = self.server_ip, 
-                                 server_pubkey = NodeImage.server_pubkey))
-        if len(install_text) > 0:
-            print install_text
-        self.create_hosts_file()
+        setup(self)
         print 'Mounting %s... done' % self.fullname
     def os_unmount(self):
         while not succeeds('umount %s 2>/dev/null' % self.mount_path):
@@ -209,10 +135,4 @@ class NodeImage(object):
         print 'Un-mounting %s...' % self.fullname,
         self.os_unmount()
         print 'done'
-    def create_hosts_file(self):
-        # since file /etc/hosts is managed by docker,
-        # it appears empty on the bind mount.
-        # let's create it appropriately.
-        with open(self.mount_path + '/etc/hosts', 'w') as f:
-            f.write(HOSTS_FILE_CONTENT)
 

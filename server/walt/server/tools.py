@@ -112,3 +112,10 @@ def merge_named_tuples(nt1, nt2):
     d.update(nt2._asdict())
     return to_named_tuple(d)
 
+def update_template(path, template_env):
+        with open(path, 'r+') as f:
+            template_content = f.read()
+            file_content = template_content % template_env
+            f.seek(0)
+            f.write(file_content)
+            f.truncate()

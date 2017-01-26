@@ -1,0 +1,5 @@
+#!/bin/sh
+
+export walt_server_ip=%(server_ip)s
+export walt_server_rpc_port=%(walt_server_rpc_port)s
+export walt_server_logs_port=%(walt_server_logs_port)s
