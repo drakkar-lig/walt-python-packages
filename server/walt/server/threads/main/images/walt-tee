@@ -3,7 +3,7 @@
 USAGE="Usage: $ <cmd...> | $(basename $0) <logstream-name>"
 
 # get walt-related env variables
-. /bin/walt-env
+. walt-env
 
 # get stream name as first arg
 stream="$1"
