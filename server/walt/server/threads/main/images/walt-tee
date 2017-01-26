@@ -1,9 +1,30 @@
 #!/bin/sh
 
-USAGE="Usage: $ <cmd...> | $(basename $0) <logstream-name>"
+USAGE="\
+Usage: $ <cmd...> | $(basename $0) [--ts] <logstream-label>
+
+Output lines of <cmd...> will be transmitted up to
+WalT server and stored as log lines associated with
+the given log stream label.
+
+If you have means to specify high precision timestamps
+(e.g. network capture timestamps), you may use option --ts
+and stream lines of the following form instead:
+<float_timestamp> <log_line>
+with float_timestamp a unix timestamp (float number of
+seconds since 1970), as obtained with 'date +%s.%N'.
+"
 
 # get walt-related env variables
 . walt-env
+
+# check possible option
+ts_mode=0
+if [ "$1" = "--ts" ]
+then
+    ts_mode=1
+    shift
+fi
 
 # get stream name as first arg
 stream="$1"
@@ -22,13 +43,24 @@ exec 6<&1
 {
     echo REQ_NEW_INCOMING_LOGS
     echo "$stream"
-    while read line
-    do
-        # send log line through pipe
-        echo "$(date +%s.%N) $line"
-        # also print it to stdout
-        echo "$line" >&6
-    done
+    if [ "$ts_mode" = "1" ]
+    then
+        while read ts line
+        do
+            # send log line through pipe
+            echo "$ts $line"
+            # also print it to stdout
+            echo "$line" >&6
+        done
+    else
+        while read line
+        do
+            # send log line through pipe
+            echo "$(date +%s.%N) $line"
+            # also print it to stdout
+            echo "$line" >&6
+        done
+    fi
     # this "CLOSE" message is not formatted as a
     # log line, thus the server will close the
     # connection, which will cause the nc process
