@@ -136,6 +136,8 @@ git status --porcelain | sed -e "s/^.//g" | grep -v '^ ' | \
         staged_numlines="$(echo "$staged" | wc -l)"
         unstaged="$(echo "$status" | sed -n -e '/Changes not staged/,$ p')"
         unstaged_line="$(echo "$unstaged" | sed -n "/^$path$/=")"
+        less_offset="$((staged_numlines + unstaged_line - 8))"
+        ((less_offset<0)) && less_offset=0
         {
             echo "****************** STATUS **************************"
             echo
@@ -146,7 +148,7 @@ git status --porcelain | sed -e "s/^.//g" | grep -v '^ ' | \
                 # git status: print unstaged changes, with current file highlighted
                 echo "$unstaged" | grep -E --color=always "(.*$path)?"
                 echo
-            } | tail -n +$((staged_numlines + unstaged_line - 8))
+            } | tail -n +$less_offset
         } | less -R
         case "$state" in
             "M")
