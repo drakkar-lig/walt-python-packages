@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-
+from walt.common.tools import on_sigterm_throw_exception
 from walt.common.thread import EvThreadsManager
 from walt.server.threads.main.thread import ServerMainThread
 from walt.server.threads.blocking.thread import ServerBlockingThread
@@ -9,6 +9,8 @@ class Shared(object):
     pass
 
 def run():
+    # exit gracefully on SIGTERM
+    on_sigterm_throw_exception()
     # initialize shared context
     shared = Shared()
     shared.tasks = {}

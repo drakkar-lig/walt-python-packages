@@ -1,4 +1,4 @@
-import subprocess, os, sys, json, re, fcntl
+import subprocess, os, sys, json, re, fcntl, signal
 from plumbum.cmd import cat
 from collections import OrderedDict
 from datetime import datetime, timedelta
@@ -136,4 +136,11 @@ def set_non_blocking(fd):
 
 def remove_non_utf8(s):
     return s.decode('utf-8','ignore').encode("utf-8")
+
+def on_sigterm_throw_exception():
+    def signal_handler(signal, frame):
+        print('SIGTERM received.')
+        raise KeyboardInterrupt
+    signal.signal(signal.SIGTERM, signal_handler)
+
 
