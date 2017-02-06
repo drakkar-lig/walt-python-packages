@@ -1,6 +1,7 @@
 from setuptools import setup, find_packages
-from walt.clientselector.info import SETUP_INFO
 
+# make sure we are executing the new info.py
+execfile('walt/clientselector/info.py')
 SETUP_INFO.update(
     packages = find_packages()
 )
