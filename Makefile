@@ -36,9 +36,14 @@ install: $(patsubst %,%.install,$(INSTALLABLE_PACKAGES_ON_SERVER))
 
 pull: $(patsubst %,%.pull,$(INSTALLABLE_PACKAGES_ON_SERVER))
 
+clean: $(patsubst %,%.clean,$(ALL_PACKAGES))
+
 client.%: common.%
 server.%: common.%
 node.%: common.%
+
+%.clean: %.info
+	@cd $*; pwd; python setup.py clean --all
 
 %.install: %.info
 	@$(MAKE) $*.uninstall
