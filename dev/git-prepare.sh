@@ -132,11 +132,13 @@ git status --porcelain | sed -e "s/^.//g" | grep -v '^ ' | \
         exec 6<&0   # save stdin (the pipe)
         exec 0<$tty # direct stdin to the tty for interaction
         status="$(git -c color.status=always status)"
+        status_nocolor="$(git -c color.status=never status)"
         staged="$(echo "$status" | sed -n '/Changes not staged.*/q;p')"
         staged_numlines="$(echo "$staged" | wc -l)"
         unstaged="$(echo "$status" | sed -n -e '/Changes not staged/,$ p')"
-        unstaged_line="$(echo "$unstaged" | sed -n "/^$path$/=")"
-        less_offset="$((staged_numlines + unstaged_line - 8))"
+        unstaged_nocolor="$(echo "$status_nocolor" | sed -n -e '/Changes not staged/,$ p')"
+        unstaged_lnum="$(echo "$unstaged_nocolor" | sed -n "\| $path$|=")"
+        less_offset="$((staged_numlines + unstaged_lnum - 8))"
         ((less_offset<0)) && less_offset=0
         {
             echo "****************** STATUS **************************"
