@@ -129,7 +129,6 @@ def setup(ui):
 
 def init_after_system_restart(ui):
     wait_for_main_switch(ui, MSG_DETECTING_MAIN_SWITCH)
-    network.tools.dhcp_wait_ip(EXTERN_INTF, ui, MSG_DHCP_REQUEST)
 
 def wait_for_main_switch(ui, msg, explain = None, todo = None):
     ui.task_start(msg, explain=explain, todo=todo)
