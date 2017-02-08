@@ -81,7 +81,7 @@ def format_sentence_about_nodes(sentence, nodes):
     (and if there are many nodes, an ellipsis is used.)
     """
     # conjugate if plural or singular
-    if len(nodes) > 1:
+    if len(nodes) == 1:
         sentence = re.sub(CONJUGATE_REGEXP, r'\2', sentence)
     else:
         sentence = re.sub(CONJUGATE_REGEXP, r'\1', sentence)
@@ -89,6 +89,8 @@ def format_sentence_about_nodes(sentence, nodes):
     sorted_nodes = sorted(nodes)
     if len(nodes) > MAX_PRINTED_NODES:
         s_nodes = 'Nodes %s, %s, ..., %s' % (sorted_nodes[0], sorted_nodes[1], sorted_nodes[-1])
+    elif len(nodes) == 0:
+        s_nodes = 'No nodes'
     elif len(nodes) > 1:
         s_nodes = 'Nodes %s and %s' % (', '.join(sorted_nodes[:-1]), sorted_nodes[-1])
     else:
