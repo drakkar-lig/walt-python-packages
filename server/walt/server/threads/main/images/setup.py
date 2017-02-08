@@ -4,7 +4,7 @@ from walt.common.constants import \
         WALT_SERVER_DAEMON_PORT, WALT_SERVER_TCP_PORT
 from walt.server.threads.main.images import spec
 from walt.server.tools import update_template
-from walt.server.network.tools import get_server_ip
+from walt.server.threads.main.network.tools import get_server_ip
 from pkg_resources import resource_filename
 
 # List scripts to be installed on the node and indicate

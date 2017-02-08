@@ -1,6 +1,7 @@
 from plumbum.cmd import exportfs
 from walt.server import const
 from walt.common.tools import do, succeeds
+from walt.server.threads.main.network.tools import get_walt_subnet
 
 IMAGE_EXPORT_PATTERN = """
 %(image_mountpoint)s %(walt_subnet)s(fsid=%(fsid)s,rw,sync,no_root_squash,no_subtree_check)
@@ -14,7 +15,7 @@ def generate_exports_file(images):
         f.write("\n".join([
             IMAGE_EXPORT_PATTERN % dict(
                 image_mountpoint=image.mount_path,
-                walt_subnet=const.WALT_SUBNET,
+                walt_subnet=get_walt_subnet(),
                 fsid=get_fsid(image)
             ) for image in images ]))
 

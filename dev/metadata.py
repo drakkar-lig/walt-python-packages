@@ -53,7 +53,8 @@ PACKAGE_SPECIFIC_INFO = {
                 'console_scripts': [
                     'walt-server-daemon = walt.server.daemon:run',
                     'walt-server-console = walt.server.ui.console:run',
-                    'walt-dhcp-event = walt.server.dhcpevent:run'
+                    'walt-dhcp-event = walt.server.dhcpevent:run',
+                    'walt-net-config = walt.server.netconfig:run'
                 ]
             },
             include_package_data = True

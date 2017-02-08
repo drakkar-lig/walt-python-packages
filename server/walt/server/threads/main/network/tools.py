@@ -2,14 +2,17 @@
 import select, subprocess, shlex
 from ipaddress import ip_address, ip_network
 from walt.common.tools import do, succeeds
-from walt.server import const
+from walt.server import const, conf
 from walt.server.threads.main.snmp import Proxy
 
 def ip(ip_as_str):
     return ip_address(unicode(ip_as_str))
 
 def net(net_as_str):
-    return ip_network(unicode(net_as_str))
+    return ip_network(unicode(net_as_str), strict=False)
+
+def get_walt_subnet():
+    return net(conf['network']['walt-net']['ip'])
 
 def find_free_ip_near(ip, intf, increment):
     target_ip = ip
@@ -67,7 +70,7 @@ def check_if_we_can_reach(remote_ip):
     return succeeds('ping -c 1 -w 1 %s' % remote_ip)
 
 def is_walt_address(ip):
-    return ip in net(const.WALT_SUBNET)
+    return ip in get_walt_subnet()
 
 def assign_temp_ip_to_reach_neighbor(neighbor_ip, callback, intf, *args):
     reached = False
@@ -105,19 +108,9 @@ def lldp_update():
     do('lldpcli update')
 
 def get_server_ip():
-    subnet = net(const.WALT_SUBNET)
-    return list(subnet.hosts()).pop(0)
-
-def set_server_ip():
-    do('ip link set up dev %s' % const.WALT_INTF)
-    add_ip_to_interface(
-            get_server_ip(),
-            net(const.WALT_SUBNET),
-            const.WALT_INTF)
-    # let neighbors know we have updated things
-    lldp_update()
+    return conf['network']['walt-net']['ip'].split('/')[0]
 
 def ip_in_walt_network(input_ip):
-    subnet = net(const.WALT_SUBNET)
+    subnet = get_walt_subnet()
     return ip(input_ip) in subnet
 

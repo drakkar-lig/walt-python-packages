@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 from walt.server import const
-from walt.server.threads.main.network.tools import ip, net
+from walt.server.threads.main.network.tools import ip, net, get_walt_subnet
 from operator import itemgetter
 from itertools import groupby
 from walt.server.threads.main.images.image import get_mount_path
@@ -89,7 +89,7 @@ def get_contiguous_ranges(ips):
     return ranges
 
 def generate_dhcpd_conf(devices):
-    subnet = net(const.WALT_SUBNET)
+    subnet = get_walt_subnet()
     devices_confs = []
     free_ips = list(subnet.hosts())
     server_ip = free_ips.pop(0)

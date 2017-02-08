@@ -1,8 +1,7 @@
 
 SETUP_INTF                  = "eth0"
-WALT_INTF                   = "eth0.1"
-EXTERN_INTF                 = "eth0.169"
-WALT_SUBNET                 = "192.168.152.0/24"
+WALT_INTF                   = "walt-net"
+EXTERN_INTF                 = "walt-out"
 DEFAULT_IMAGE               = 'default'
 SNMP_TIMEOUT                = 20
 DOCKER_HUB_GET_TAGS_URL     = 'https://registry.hub.docker.com/v1/repositories/%(image_name)s/tags'
