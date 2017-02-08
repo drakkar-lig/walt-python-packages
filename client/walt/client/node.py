@@ -108,6 +108,7 @@ class PoETemporarilyOff:
     def __enter__(self):
         self.really_off = self.server.poweroff(
                 self.node_set, warn_unknown_topology=True)
+        return self.really_off
     def __exit__(self, type, value, traceback):
         if self.really_off:
             self.server.poweron(
@@ -120,8 +121,9 @@ class WalTNodeReboot(cli.Application):
         with ClientToServerLink() as server:
             if not WalTNode.confirm_nodes_not_owned(server, node_set):
                 return
-            with PoETemporarilyOff(server, node_set):
-                time.sleep(POE_REBOOT_DELAY)
+            with PoETemporarilyOff(server, node_set) as really_off:
+                if really_off:
+                    time.sleep(POE_REBOOT_DELAY)
 
 @WalTNode.subcommand("deploy")
 class WalTNodeDeploy(cli.Application):
@@ -140,9 +142,10 @@ class WalTNodeDeploy(cli.Application):
                     return
                 if not WalTNode.confirm_nodes_not_owned(server, node_set):
                     return
-                with PoETemporarilyOff(server, node_set):
-                    server.set_image(node_set, image_name_or_default, warn_unknown_topology=False)
-                    time.sleep(POE_REBOOT_DELAY)
+                with PoETemporarilyOff(server, node_set) as really_off:
+                    if really_off:
+                        server.set_image(node_set, image_name_or_default, warn_unknown_topology=False)
+                        time.sleep(POE_REBOOT_DELAY)
 
 @WalTNode.subcommand("ping")
 class WalTNodePing(cli.Application):
