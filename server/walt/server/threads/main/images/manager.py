@@ -23,7 +23,7 @@ class NodeImageManager(object):
         self.store = NodeImageStore(self.docker, self.db)
     def update(self):
         self.store.refresh()
-        self.store.update_image_mounts(auto_update = True)
+        self.store.update_image_mounts()
     def search(self, requester, task, keyword):
         search(task, self.blocking, self.docker, requester, keyword)
     def clone(self, **kwargs):
@@ -66,19 +66,12 @@ class NodeImageManager(object):
             return self.store.get_user_image_from_tag(requester, image_tag) != None
     def set_image(self, requester, nodes, image_tag):
         # if image tag is specified, let's get its fullname
-        auto_update = False
         if image_tag != 'default':
             image = self.store.get_user_image_from_tag(requester, image_tag)
             if image == None:
                 return False
-            # ensure the image is compatible with the server
-            compatibility = image.check_server_compatibility(requester,
-                auto_update = False)
-            if compatibility != 0:
-                return False
             image_fullnames = { node.mac: image.fullname for node in nodes }
         else:
-            auto_update = True
             image_fullnames = {}
             # since the 'default' keyword was specified, we might have to deploy
             # different images depending on the type of each WalT node.
@@ -90,7 +83,7 @@ class NodeImageManager(object):
             self.db.update('nodes', 'mac',
                     mac=node_mac,
                     image=image_fullname)
-        self.store.update_image_mounts(requester = requester, auto_update = auto_update)
+        self.store.update_image_mounts(requester = requester)
         tftp.update(self.db)
         self.db.commit()
         self.dhcpd.update()

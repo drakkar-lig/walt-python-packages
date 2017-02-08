@@ -114,12 +114,11 @@ class CSAPI(APISession):
         self.images.search(self.requester, self.task, keyword)
 
     @api_expose_method
-    def clone_image(self, clonable_link, force=False, auto_update=False):
+    def clone_image(self, clonable_link, force=False):
         self.images.clone(requester = self.requester,
                           task = self.task,
                           clonable_link = clonable_link,
-                          force = force,
-                          auto_update = auto_update)
+                          force = force)
 
     @api_expose_method
     def create_dh_peer(self):

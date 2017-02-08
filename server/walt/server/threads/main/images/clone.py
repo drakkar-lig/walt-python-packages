@@ -36,13 +36,6 @@ Invalid clonable image link. Format must be:
 (tip: walt image search [<keyword>])
 """
 
-MSG_IMAGE_NOT_COMPATIBLE="""\
-The WalT software embedded in %(link)s is not compatible with the WalT server, and cloning
-it would overwrite your image %(tag)s, which is currently deployed.
-This is not allowed, unless you rerun with --update option.
-Type "walt --help-about compatibility" for information about compatibility matters.
-Aborted.
-"""
 # Subroutines
 # -----------
 def parse_clonable_link(requester, clonable_link):
@@ -104,16 +97,16 @@ def verify_overwrite(image_store, requester, clonable_link,
         requester.stderr.write(MSG_USE_FORCE % clonable_link)
         return False
 
+# we should verify that the image is compatible with the node types
+# currently using it
 def verify_compatibility_issue(image_store, requester, clonable_link,
-                    ws_image_fullname, remote_image_fullname, auto_update,
+                    ws_image_fullname, remote_image_fullname,
                     docker, **args):
-    if auto_update:
-        return  # no problem
     ws_image = image_store[ws_image_fullname]
     if not ws_image.mounted:
         return  # no problem
     # there is a risk of overwritting the mounted ws image with
-    # a target image that embeds incompatible walt software.
+    # a target image that is incompatible.
     # we will have to mount the target image in order to check
     # its compatibility.
     # we use a new docker tag pointing to this image, in order to
@@ -122,11 +115,11 @@ def verify_compatibility_issue(image_store, requester, clonable_link,
     docker.tag(remote_image_fullname, tmp_image_fullname)
     image_store.register_image(tmp_image_fullname, True)
     tmp_image = image_store[tmp_image_fullname]
-    compatibility = tmp_image.check_server_compatibility()
+    compatible = True   # for now
     image_store.remove(tmp_image_fullname)
     docker.untag(tmp_image_fullname)
-    if compatibility != 0:
-        requester.stderr.write(MSG_IMAGE_NOT_COMPATIBLE)
+    if not compatible:
+        pass # do something
         return False
 
 def remove_ws_image(docker, ws_image_fullname, **args):
@@ -152,7 +145,7 @@ def tag_server_image_to_requester(docker,
 def pull_hub_image(docker, requester, remote_image_fullname, **args):
     docker.pull(remote_image_fullname, requester)
 
-def update_walt_image(image_store, ws_image_fullname, auto_update, **args):
+def update_walt_image(image_store, ws_image_fullname, **args):
     if ws_image_fullname in image_store:
         # an image with the target name exists
         existing_dest_image = image_store[ws_image_fullname]
@@ -167,7 +160,7 @@ def update_walt_image(image_store, ws_image_fullname, auto_update, **args):
         existing_dest_image.update_top_layer_id()
         if need_mount_umount:
             # re-mount
-            image_store.update_image_mounts(auto_update = auto_update)
+            image_store.update_image_mounts()
     else:
         # add this new image in the store
         image_store.register_image(ws_image_fullname, True)
@@ -197,7 +190,7 @@ def workflow_run(workflow, **context):
 
 # walt image clone implementation
 # -------------------------------
-def perform_clone(requester, docker, clonable_link, image_store, force, auto_update):
+def perform_clone(requester, docker, clonable_link, image_store, force):
     username = requester.get_username()
     if not username:
         return # client already disconnected, give up
@@ -278,7 +271,6 @@ def perform_clone(requester, docker, clonable_link, image_store, force, auto_upd
         docker = docker,
         requester = requester,
         force = force,
-        auto_update = auto_update,
         saved_images = {},
         images_to_be_removed = set(),
         clonable_link = clonable_link

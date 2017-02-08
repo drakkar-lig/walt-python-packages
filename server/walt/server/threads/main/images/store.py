@@ -98,7 +98,7 @@ class NodeImageStore(object):
                 requester.stderr.write('Sorry, cannot proceed because the image is mounted.\n')
                 return None
         return image
-    def update_image_mounts(self, images_in_use = None, requester = None, auto_update = False):
+    def update_image_mounts(self, images_in_use = None, requester = None):
         if images_in_use == None:
             images_in_use = self.get_images_in_use()
         images_found = []
@@ -107,7 +107,7 @@ class NodeImageStore(object):
             if fullname in self.images:
                 img = self.images[fullname]
                 if not img.mounted:
-                    img.mount(requester = requester, auto_update = auto_update)
+                    img.mount(requester = requester)
                 images_found.append(img)
             else:
                 sys.stderr.write(MSG_IMAGE_IS_USED_BUT_NOT_FOUND % fullname)

@@ -4,36 +4,10 @@ from walt.common.versions import API_VERSIONING
 from walt.client.link import ClientToServerLink
 
 myhelp.register_topic('compatibility', """
-The WalT servers, clients and images may be installed at different points in time, and
+The WalT servers and clients may be installed at different points in time, and
 thus may not be compatible.
-WalT knows which versions are compatible and which versions are not, and provides
-means to overcome incompatibilities.
-
-Client vs server compatibility
-------------------------------
-
-The walt command line tool will automatically upgrade or downgrade itself in order to
-to communicate properly with a given WalT server. (1)
-
-Image vs server compatibility
------------------------------
-
-If the WalT software embedded in an image (2) is not compatible with the server, an error message
-indicates the problem when the user tries to deploy it.
-
-The user may overcome this by using one of these two commands:
-$ walt image update <image>
-or
-$ walt server update --ref <image>
-
-Most of the time, one will use the image update option.
-Note: in rare cases, when downgrading an image to match an older server, issues might arise:
-the user scripts embedded in the image might rely on new WalT features, and these features
-will not be available anymore after the downgrade. In this case, the scripts should be adapted.
-
-The server update option is useful when one wants to test thoroughly the reproducibility of a past
-experiment. It allows to rewind the WalT platform software stack to the point in time when this
-experiment was first run.
+However, the walt command line tool will automatically upgrade or downgrade
+itself in order to to communicate properly with a given WalT server. (1)
 
 Notes
 -----
@@ -43,10 +17,6 @@ the tool will have to auto-downgrade itself to match the version of the older Wa
 Users may also want to use two (or more...) WalT platforms, e.g. one for debugging and one for
 large scale experiments, and these two platforms may have different versions. In this case, the
 tool will upgrade / downgrade itself each time the user switches from one platform to the other.
-
-(2) There is a thin software layer in all WalT images. It provides means to manage WalT logs
-(walt-monitor, walt-echo tools and related software) and provides a lightweight API (e.g.
-make a LED blink on node, etc.)
 
 """)
 

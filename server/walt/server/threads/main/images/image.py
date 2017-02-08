@@ -120,7 +120,7 @@ class NodeImage(object):
         failsafe_makedirs(self.diff_path)
         self.docker.image_mount(self.top_layer_id, self.diff_path, self.mount_path)
         self.mounted = True
-    def mount(self, requester = None, auto_update = False):
+    def mount(self, requester = None):
         print 'Mounting %s...' % self.fullname
         self.os_mount()
         setup(self)

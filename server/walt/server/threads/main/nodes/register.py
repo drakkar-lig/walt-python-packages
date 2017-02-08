@@ -7,7 +7,7 @@ def associate_node_image(db, mac, image_fullname, **kwargs):
 
 def finalize_registration(images, mac, db, dhcpd, **kwargs):
     # mount needed images
-    images.update_image_mounts(auto_update = True)
+    images.update_image_mounts()
     # refresh the dhcpd and tftp conf
     tftp.update(db)
     dhcpd.update()

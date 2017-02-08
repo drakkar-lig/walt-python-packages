@@ -74,11 +74,7 @@ class ImageShellSession(object):
                 # umount
                 self.images.umount_used_image(image)
                 # re-mount
-                # (just in case the user tried to update the walt-node package, since this
-                # image in mounted we cannot let the user install a walt-node version
-                # uncompatible with the server. auto_update = True will restore an appropriate
-                # version if needed.)
-                self.images.update_image_mounts(auto_update = True)
+                self.images.update_image_mounts()
             # done.
             self.requester.stdout.write('Image %s updated%s.\n' % \
                             (new_image_tag, node_reboot_msg))
