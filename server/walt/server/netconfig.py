@@ -3,6 +3,12 @@ from walt.common.tools import do
 from walt.server import conf
 
 IFACE_STATE_FILE='/var/lib/walt/.%(iface)s.state'
+DOT1Q_FILTER='''\
+ebtables -t filter -A FORWARD -p 802_1Q \
+    -i %(src)s -o %(dst)s -j DROP'''
+
+def filter_out_8021q(iface_src, iface_dst):
+    do(DOT1Q_FILTER % dict(src=iface_src, dst=iface_dst))
 
 def get_state_file(iface):
     return IFACE_STATE_FILE % dict(iface=iface)
@@ -44,6 +50,11 @@ def setup_native_conf(raw_iface, iface, state_file):
     create_dummy_iface(iface, state_file)
     br_iface = 'br.' + iface
     create_bridge_iface(br_iface, (raw_iface, iface), state_file)
+    # isc-dhcp-server reads packets in raw mode on its interface
+    # thus it detects 8021q (VLAN-tagged) packets it should not see.
+    # In order to work around this issue we do not let 8021q
+    # packets cross the bridge and reach our interface.
+    filter_out_8021q(raw_iface, iface)
 
 def setup_ip_conf(iface, ip_conf):
     if ip_conf == 'dhcp':
