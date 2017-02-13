@@ -1,0 +1,21 @@
+#!/bin/sh
+set -e
+on_exit()
+{
+    echo "walt-nfs-watchdog exited! What happened?? Let's reboot!"
+    reboot -f
+}
+
+trap on_exit EXIT
+echo "walt-nfs-watchdog started."
+
+while [ 1 ]
+do
+    # reboot if ever the nfs root is lost
+    timeout -t 2 ls -d mnt/nfsroot >/dev/null || {
+        echo "NFS share was lost! Will reboot."
+        sleep 5
+        reboot -f
+    }
+    sleep 5
+done

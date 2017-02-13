@@ -14,7 +14,9 @@ NODE_SCRIPTS = {'walt-env': True,
                 'walt-cat': False,
                 'walt-tee': False,
                 'walt-notify-bootup': False,
-                'walt-init': False }
+                'walt-init': False,
+                'walt-nfs-watchdog': False,
+                'walt-net-service': False}
 
 TEMPLATE_ENV = dict(
     server_ip = str(get_server_ip()),

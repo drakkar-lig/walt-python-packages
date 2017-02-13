@@ -3,6 +3,11 @@ set -e
 
 MOUNT='mount --no-mtab'
 UMOUNT='umount --no-mtab'
+ROOTFS='/tmp/rootfs'
+ROOTFS_BUSYBOX_APPLETS="
+    sh ls timeout reboot sleep nc chroot
+    mktemp mkfifo
+"
 
 admin_sh()
 {
@@ -29,40 +34,52 @@ do_mounts()
     $MOUNT -t tmpfs none /tmp
 }
 
-# monitor the nfs mount and reboot the node if nfs connection
-# is lost.
-# this background process is run in a chroot rooted at /tmp/wdroot.
-# Since /tmp is a tmpfs filesystem, it will not be affected
-# by the NFS disconnection (unlike all the other processes of the
-# image).
-# it may seem dirty to keep a background process running when we
-# exec the real OS init, but this is a simple
-# and generic way to handle this feature.
-start_nfs_mount_watchdog()
+run_bgscript_in_rootfs()
 {
-    mkdir -p /tmp/wdroot/bin /tmp/wdroot/dev /tmp/wdroot/mnt/nfsroot
-    cd /tmp/wdroot
+    cd $ROOTFS
+    script_path_src="mnt/fs_union/usr/local/bin/$1"
+    script_path_dst="bin/$1"
+    shift; args="$@"
+    cp -p "$script_path_src" "$script_path_dst"
+    chroot . bin/sh $script_path_dst $args &
+    cd -
+}
+
+prepare_rootfs()
+{
+    mkdir $ROOTFS
+    cd $ROOTFS
+    mkdir -p tmp bin dev mnt/nfsroot
     cp "$(which busybox)" bin/
-    for c in sh ls timeout reboot sleep
+    for c in $ROOTFS_BUSYBOX_APPLETS
     do
         ln -s busybox bin/$c
     done
-    $MOUNT -o bind,ro / mnt/nfsroot
-    $MOUNT -o bind /dev dev
-    cat > bin/watchdog.sh << EOF
-#!/bin/sh
-while [ 1 ]
-do
-    timeout -t 2 ls -d mnt/nfsroot >/dev/null || {
-        echo "NFS share was lost! Will reboot."
-        sleep 5
-        reboot -f
-    }
-    sleep 5
-done
-EOF
-    chmod +x bin/watchdog.sh
-    chroot . bin/watchdog.sh &
+    # make the NFS mount and /dev visible in the rootfs
+    $MOUNT -o bind,ro /     mnt/nfsroot
+    $MOUNT -o bind    /dev  dev
+    cd -
+}
+
+# we will start 2 background processes in a chroot rooted in memory
+# (at /tmp/rootfs, and /tmp is a tmpfs filesystem):
+# * an nfs watchdog that will monitor the nfs mount and reboot the
+#   node if nfs connection is lost
+# * a lightweight network service able to fulfill soft-reboot and
+#   led blink requests coming from the server
+# We could not start those processes on the final rootfs because
+# they could be affected by NFS disconnections or various other OS
+# issues possibly occurring on the image.
+# And we need those features to be as robust as possible, in order
+# to avoid the case of unresponsive nodes with no way to reboot them
+# remotely.
+# It may seem dirty to keep background processes running when we
+# exec the real OS init, but this is a simple and generic way to
+# handle these features in all WalT images.
+start_background_processes()
+{
+    run_bgscript_in_rootfs walt-nfs-watchdog
+    run_bgscript_in_rootfs walt-net-service mnt/fs_union
 }
 
 # since we share the NFS export across all rpi nodes,
@@ -73,7 +90,7 @@ EOF
 # called overlayfs.
 mount_union()
 {
-    cd /tmp
+    cd $ROOTFS/mnt
 
     # creating the union
     # /: the nfs mount (that should remain read-only)
@@ -87,23 +104,25 @@ mount_union()
 
 update_mounts()
 {
-    $MOUNT --move /dev /tmp/fs_union/dev
+    $MOUNT --move /dev $ROOTFS/mnt/fs_union/dev
     $UMOUNT /proc
 }
 
 run_real_init()
 {
-    cd /tmp/fs_union
+    cd $ROOTFS/mnt/fs_union
     exec chroot . sbin/init
 }
 
 # let's go
 echo "*** Mounting...                   ***"
 do_mounts
-echo "*** Starting NFS watchdog...      ***"
-start_nfs_mount_watchdog
+echo "*** Preparing rootfs...           ***"
+prepare_rootfs
 echo "*** Mounting filesystem union...  ***"
 mount_union
+echo "*** Starting bg processes...      ***"
+start_background_processes
 echo "*** Re-mounting over the union... ***"
 update_mounts
 echo "*** Starting walt image init...   ***"

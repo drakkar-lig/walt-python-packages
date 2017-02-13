@@ -1,0 +1,60 @@
+#!/bin/sh
+set -e
+MSG_NO_BLINK_EXEC='/bin/blink unavailable or not executable on image'
+MSG_BLINK_FAILED='/bin/blink returned a non-zero error code'
+
+final_root="$1"
+
+on_exit()
+{
+    echo "walt-net-service exited! What happened?? Let's reboot!"
+    reboot -f
+}
+
+trap on_exit EXIT
+echo "walt-net-service started."
+
+# create fifos to communicate with the nc process
+fifo_in=$(mktemp -u); mkfifo $fifo_in
+fifo_out=$(mktemp -u); mkfifo $fifo_out
+
+# start the nc process in the background
+# to communicate with the server
+while [ 1 ]
+do
+    nc -l -p 3333
+done < $fifo_out > $fifo_in &
+
+# pipe fd 5 to standard output of nc (we will read
+# requests from the server there)
+# pipe fd 6 to standard input of nc (we will send
+# results there)
+exec 6>$fifo_out 5<$fifo_in
+
+# loop and handle coming requests
+while read req args <&5
+do
+    # reboot the node when we receive REBOOT
+    [ "$req" = "REBOOT" ] && {
+        echo OK >&6
+        reboot -f
+    }
+    # start /bin/blink [0|1] when we receive BLINK [0|1]
+    [ "$req" = "BLINK" ] && {
+        [ -e "$final_root/bin/blink" ] && {
+            cd "$final_root"
+            chroot . bin/blink $args && {
+                # all is fine
+                echo OK >&6
+            } || {
+                # /bin/blink apparently failed
+                echo KO $MSG_BLINK_FAILED >&6
+            }
+            cd -
+        } || {
+            # no /bin/blink on this image
+            echo KO $MSG_NO_BLINK_EXEC >&6
+        }
+    }
+done
+
