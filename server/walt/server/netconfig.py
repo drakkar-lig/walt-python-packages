@@ -47,9 +47,7 @@ def create_bridge_iface(br_iface, interfaces, state_file):
     state_file.write(br_iface + '\n')
 
 def setup_native_conf(raw_iface, iface, state_file):
-    create_dummy_iface(iface, state_file)
-    br_iface = 'br.' + iface
-    create_bridge_iface(br_iface, (raw_iface, iface), state_file)
+    create_bridge_iface(iface, (raw_iface,), state_file)
     # isc-dhcp-server reads packets in raw mode on its interface
     # thus it detects 8021q (VLAN-tagged) packets it should not see.
     # In order to work around this issue we do not let 8021q
