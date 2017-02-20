@@ -22,7 +22,7 @@ fifo_out=$(mktemp -u); mkfifo $fifo_out
 # to communicate with the server
 while [ 1 ]
 do
-    nc -l -p 3333
+    nc -l -p %(walt_node_net_service_port)s
 done < $fifo_out > $fifo_in &
 
 # pipe fd 5 to standard output of nc (we will read
@@ -34,6 +34,10 @@ exec 6>$fifo_out 5<$fifo_in
 # loop and handle coming requests
 while read req args <&5
 do
+    # respond to server if it checks whether we are alive
+    [ "$req" = "PING" ] && {
+        echo OK >&6
+    }
     # reboot the node when we receive REBOOT
     [ "$req" = "REBOOT" ] && {
         echo OK >&6

@@ -2,6 +2,7 @@ import os, shutil
 from walt.common.tools import failsafe_makedirs
 from walt.common.constants import \
         WALT_SERVER_DAEMON_PORT, WALT_SERVER_TCP_PORT
+from walt.server.const import WALT_NODE_NET_SERVICE_PORT
 from walt.server.threads.main.images import spec
 from walt.server.tools import update_template
 from walt.server.threads.main.network.tools import get_server_ip
@@ -16,12 +17,13 @@ NODE_SCRIPTS = {'walt-env': True,
                 'walt-notify-bootup': False,
                 'walt-init': False,
                 'walt-nfs-watchdog': False,
-                'walt-net-service': False}
+                'walt-net-service': True}
 
 TEMPLATE_ENV = dict(
     server_ip = str(get_server_ip()),
     walt_server_rpc_port = WALT_SERVER_DAEMON_PORT,
-    walt_server_logs_port = WALT_SERVER_TCP_PORT
+    walt_server_logs_port = WALT_SERVER_TCP_PORT,
+    walt_node_net_service_port = WALT_NODE_NET_SERVICE_PORT
 )
 
 # when using walt, nodes often get new operating system

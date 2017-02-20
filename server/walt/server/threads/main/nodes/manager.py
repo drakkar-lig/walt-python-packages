@@ -1,8 +1,6 @@
-import rpyc
-
-from walt.common.constants import WALT_NODE_DAEMON_PORT
+import socket
 from walt.common.tcp import Requests
-from walt.server.const import SSH_COMMAND
+from walt.server.const import SSH_COMMAND, WALT_NODE_NET_SERVICE_PORT
 from walt.server.threads.main.filesystem import Filesystem
 from walt.server.threads.main.nodes.register import handle_registration_request
 from walt.server.threads.main.nodes.show import show
@@ -11,6 +9,7 @@ from walt.server.threads.main.transfer import validate_cp
 from walt.server.tools import format_sentence_about_nodes, \
                                 merge_named_tuples
 
+NODE_CONNECTION_TIMEOUT = 1
 
 NODE_SET_QUERIES = {
         'my-nodes': """
@@ -44,13 +43,34 @@ FS_CMD_PATTERN = SSH_COMMAND + ' root@%(node_ip)s %%(prog)s %%(prog_args)s'
 class ServerToNodeLink:
     def __init__(self, ip_address):
         self.node_ip = ip_address
+        self.conn = None
+        self.rfile = None
 
-    def __enter__(self):
-        self.conn = rpyc.connect(self.node_ip, WALT_NODE_DAEMON_PORT)
-        return self.conn.root
+    def connect(self):
+        try:
+            self.conn = socket.create_connection(
+                    (self.node_ip, WALT_NODE_NET_SERVICE_PORT),
+                    NODE_CONNECTION_TIMEOUT)
+            self.rfile = self.conn.makefile()
+        except socket.timeout:
+            return (False, 'Connection timeout.')
+        except socket.error:
+            return (False, 'Connection failed.')
+        return (True,)
 
-    def __exit__(self, type, value, traceback):
-        self.conn.close()
+    def request(self, req):
+        self.conn.send(req + '\n')
+        resp = self.rfile.readline().split(' ',1)
+        resp = tuple(part.strip() for part in resp)
+        if resp[0] == 'OK':
+            return (True,)
+        else:
+            return (False, resp[1])
+
+    def __del__(self):
+        if self.conn:
+            self.rfile.close()
+            self.conn.close()
 
 class NodesManager(object):
     def __init__(self, db, devices, topology, **kwargs):
@@ -73,14 +93,24 @@ class NodesManager(object):
                         requester, node_name)
         if len(nodes_ip) == 0:
             return None # error was already reported
-        return ServerToNodeLink(nodes_ip[0])
+        link = ServerToNodeLink(nodes_ip[0])
+        connect_status = link.connect()
+        if not connect_status[0]:
+            requester.stderr.write('Error connecting to %s: %s\n' % \
+                    (node_name, connect_status[1]))
+            return None
+        return link
 
     def blink(self, requester, node_name, blink_status):
         link = self.connect(requester, node_name)
         if link == None:
             return False # error was already reported
-        with link as node_service:
-            node_service.blink(blink_status)
+        res = link.request('BLINK %d' % int(blink_status))
+        del link
+        if not res[0]:
+            requester.stderr.write('Blink request to %s failed: %s\n' % \
+                    (node_name, res[1]))
+            return False
         return True
 
     def show(self, requester, show_all):
@@ -101,21 +131,23 @@ class NodesManager(object):
             return None
         return merge_named_tuples(device_info, node_info)
 
-    def get_reachable_node_info(self, requester, node_name, after_rescan = False):
+    def get_reachable_node_info(self, requester, node_name):
         node_info = self.get_node_info(requester, node_name)
         if node_info == None:
             return None # error already reported
         if node_info.reachable == 0:
-            if after_rescan:
+            link = ServerToNodeLink(node_info.ip)
+            res = link.connect()
+            del link
+            if not res[0]:
                 requester.stderr.write(
                         'Connot reach %s. The node seems dead or disconnected.\n' % \
                                     node_name)
                 return None
             else:
-                # rescan, just in case, and retry
-                self.topology.rescan()   # just in case
-                return self.get_reachable_node_info(
-                        requester, node_name, after_rescan = True)
+                # Could connect. Node should be marked as reachable.
+                self.db.update('devices', 'mac', mac=node_info.mac, reachable=1)
+                node_info = self.get_node_info(requester, node_name)
         return node_info
 
     def get_node_ip(self, requester, node_name):

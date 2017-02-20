@@ -10,3 +10,4 @@ WALT_DBUSER                 = "root"
 SSH_COMMAND                 = "ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5"
 UI_FIFO_PATH                = '/var/lib/walt/ui.fifo'
 UI_RESPONSE_FIFO_PATH       = '/var/lib/walt/ui-response.fifo'
+WALT_NODE_NET_SERVICE_PORT  = 12346
