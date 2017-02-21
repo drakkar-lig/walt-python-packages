@@ -55,7 +55,7 @@ class WalTNode(cli.Application):
         with ClientToServerLink() as server:
             if not WalTNode.confirm_nodes_not_owned(server, node_set):
                 return
-            nodes_ip = server.get_reachable_nodes_ip(node_set)
+            nodes_ip = server.get_nodes_ip(node_set)
             if len(nodes_ip) == 0:
                 return  # issue already reported
             elif len(nodes_ip) > 1 and not several_nodes_allowed:

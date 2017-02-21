@@ -32,9 +32,8 @@ class CSAPI(APISession):
         return self.nodes.show(self.requester, show_all)
 
     @api_expose_method
-    def get_reachable_nodes_ip(self, node_set):
-        return self.nodes.get_reachable_nodes_ip(
-                        self.requester, node_set)
+    def get_nodes_ip(self, node_set):
+        return self.nodes.get_nodes_ip(self.requester, node_set)
 
     @api_expose_method
     def get_device_ip(self, device_name):
