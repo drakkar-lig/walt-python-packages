@@ -273,7 +273,7 @@ class TopologyManager(object):
     def rescan(self, requester=None, remote_ip=None, ui=None):
         # register the server in the device list, if missing
         server_mac = get_mac_address(const.WALT_INTF)
-        self.devices.add_if_missing(
+        self.devices.add_or_update(
                 mac = server_mac, ip = str(get_server_ip()),
                 device_type = 'server')
         reachable_filters = [ "type = 'server'" ]

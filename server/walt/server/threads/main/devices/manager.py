@@ -19,29 +19,20 @@ class DevicesManager(object):
         self.db = db
 
     def register_device(self, device_cls, ip, mac):
-        # insert in table devices if missing
-        if self.db.select_unique("devices", mac=mac):
-            return False
+        """Derive device type from device type, then add or update"""
+        kwargs = dict(
+            mac=mac,
+            ip=ip
+        )
+        if device_cls == None:
+            kwargs['device_type'] = 'unknown'
         else:
-            if device_cls == None:
-                device_type = 'unknown'
-            else:
-                device_type = device_cls.WALT_TYPE
-            kwargs = dict(
-                mac=mac,
-                ip=ip,
-                device_type=device_type
-            )
-            if device_cls != None:
-                if device_cls.WALT_TYPE == 'switch':
-                    print 'Affecting static IP configuration on switch %s (%s)...' % \
-                        (ip, mac)
-                    set_static_ip_on_switch(ip)
-                    kwargs['model'] = device_cls.MODEL_NAME
-                elif device_cls.WALT_TYPE == 'node':
-                    kwargs['model'] = device_cls.MODEL_NAME
-            self.add_if_missing(**kwargs)
-            return True     # device added
+            kwargs['device_type'] = device_cls.WALT_TYPE
+            kwargs['model'] = device_cls.MODEL_NAME
+            if device_cls.WALT_TYPE == 'switch':
+                print 'Switch: assigning static IP configuration %s (%s)...' % (ip, mac)
+                #set_static_ip_on_switch(ip)
+        return self.add_or_update(**kwargs)
 
     def rename(self, requester, old_name, new_name):
         device_info = self.get_device_info(requester, old_name)
@@ -94,34 +85,30 @@ class DevicesManager(object):
                 device_type,
                 "".join(mac.split(':')[3:]))
 
-    def add_if_missing(self, **kwargs):
-        if self.db.select_unique("devices", mac=kwargs['mac']):
-            return False
+    def add_or_update(self, **kwargs):
+        """Return False if device exists and unmodified, True if device created or updated"""
+        device = self.db.select_unique("devices", mac=kwargs['mac']);
+        kwargs['type'] = kwargs['device_type']  # db column name is 'type'
+        if device:
+            if (kwargs['ip'] != device.ip) or (kwargs['type'] != device.type):
+                print 'Device: %s has changed, updating (%s, %s) to (%s, %s)' % \
+                    (device.name, device.ip, device.type, kwargs['ip'], kwargs['type'])
+                self.db.update("devices", 'mac', **kwargs)
+            else:
+                print 'Device: %s exists' % device.name
+                return False
         else:
-            device_type = kwargs['device_type']
-            kwargs['type'] = device_type    # db column name is 'type'
             # generate a name for this device
             kwargs['name'] = self.generate_device_name(**kwargs)
-            # insert a new row
+            print 'Device: %s is new, adding (%s, %s)' % (kwargs['name'], kwargs['ip'], kwargs['type'])
             self.db.insert("devices", **kwargs)
             # if switch or node, insert in relevant table
             if device_type == 'switch':
                 self.db.insert('switches', **kwargs)
             elif device_type == 'node':
                 self.db.insert('nodes', **kwargs)
-            # that's it.
-            self.db.commit()
-            return True
-
-    def add_or_update(self, **kwargs):
-        if self.db.select_unique("devices", mac=kwargs['mac']):
-            # device already exists, update it
-            device_type = kwargs['device_type']
-            kwargs['type'] = device_type    # db column name is 'type'
-            self.db.update("devices", 'mac', **kwargs)
-        else:
-            self.add_if_missing(**kwargs)
         self.db.commit()
+        return True
 
     def is_reachable(self, requester, device_name):
         res = self.get_device_info(requester, device_name)
