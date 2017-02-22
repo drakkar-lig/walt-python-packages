@@ -13,7 +13,7 @@ from walt.server.threads.main.network.dhcpd import DHCPServer
 from walt.server.threads.main.network.tools import dhcp_stop
 from walt.server.threads.main.nodes.manager import NodesManager
 from walt.server.threads.main.devices.manager import DevicesManager
-from walt.server.threads.main.devices.topology import Topology
+from walt.server.threads.main.devices.topology import TopologyManager
 from walt.server.tools import format_sentence_about_nodes
 from walt.server.threads.main.transfer import TransferManager
 from walt.server.threads.main.apisession import APISession
@@ -29,7 +29,7 @@ class Server(object):
         self.docker = DockerClient()
         self.blocking = BlockingTasksManager(shared.tasks)
         self.devices = DevicesManager(self.db)
-        self.topology = Topology(self.devices)
+        self.topology = TopologyManager(self.devices)
         self.dhcpd = DHCPServer(self.db)
         self.images = NodeImageManager(self.db, self.blocking, self.dhcpd, self.docker)
         self.tcp_server = TCPServer(WALT_SERVER_TCP_PORT)

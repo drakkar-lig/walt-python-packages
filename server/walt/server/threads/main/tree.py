@@ -10,39 +10,47 @@ UPPER_V_RIGHT_H = u'\u2514' # upper vertical + right horizontal bars
 SPACE = u' '
 
 class Tree(object):
-    """Class allowing to display an object hierarchy as a tree."""
+    """Class allowing to display an object graph as a tree."""
     def __init__(self):
         self.nodes = OrderedDict()
         self.up_to_date = False
-    def add_node(self, key, label, subtree_offset=0, parent_key = None):
+    def add_node(self, key, label):
         self.nodes[key] = dict(
             key=key,
             label=label,
-            subtree_offset=subtree_offset,
-            parent_key=parent_key)
+            children=[])
         self.up_to_date = False
-    def compute_children(self):
+    def add_child(self, node_key, child_pos, child_key):
+        self.nodes[node_key]['children'].append((child_pos, child_key))
+    def sort_children(self):
+        # sort children by child_pos
         for node in self.nodes.values():
-            node['children'] = []
-        for node in self.nodes.values():
-            parent_key = node['parent_key']
-            if parent_key != None:
-                node_key = node['key']
-                parent = self.nodes[parent_key]
-                parent['children'].append(node_key)
+            node['children'] = sorted(node['children'])
     def printed(self, root):
         self.root_node = self.nodes[root]
         if self.up_to_date == False:
-            self.compute_children()
+            self.sort_children()
             self.up_to_date = True
         return self.print_elem(**self.root_node)
-    def print_elem(self, key, label, subtree_offset, parent_key, \
-                        children, prefix = '', \
-                        last_child = False, **kwargs):
-        if self.root_node['key'] == key:  # root element
+    def print_elem(self, key, label, children,
+                        child_pos = None, prefix = '',
+                        last_child = False, seen = None, **kwargs):
+        if seen == None:
+            seen = set()
+        if self.root_node['key'] == key and key not in seen:  # root element
             output = "%s\n" % label
+            # align to 2nd letter of the name
+            subtree_offset = 1
             prefix += (SPACE * subtree_offset)
         else:
+            if key in seen:
+                label = '[back to %s]' % label
+            if child_pos == None:
+                subtree_offset = 1
+            else:
+                label = "%d: %s" % (child_pos, label)
+                # align to 2nd letter of the name
+                subtree_offset = len("%d" % child_pos) + 2
             if last_child:
                 sep_char_item = UPPER_V_RIGHT_H
                 sep_char_child = SPACE
@@ -52,13 +60,18 @@ class Tree(object):
             output = "%s%s%s%s\n" % \
                     (prefix, sep_char_item, WHOLE_H, label)
             prefix += sep_char_child + (SPACE * (subtree_offset+1))
-        num_children = len(children)
-        for idx, child_key in enumerate(children):
-                last_child = (idx == num_children-1)
-                child = self.nodes[child_key]
-                output += self.print_elem(
-                                prefix = prefix,
-                                last_child = last_child,
-                                **child)
+        if key not in seen:
+            seen.add(key)
+            num_children = len(children)
+            for idx, child in enumerate(children):
+                    child_pos, child_key = child
+                    last_child = (idx == num_children-1)
+                    child = self.nodes[child_key]
+                    output += self.print_elem(
+                                    child_pos = child_pos,
+                                    prefix = prefix,
+                                    last_child = last_child,
+                                    seen = seen,
+                                    **child)
         return output
 

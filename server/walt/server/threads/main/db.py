@@ -18,9 +18,11 @@ class ServerDB(PostgresDB):
                     reachable INTEGER,
                     type TEXT);""")
         self.execute("""CREATE TABLE IF NOT EXISTS topology (
-                    mac TEXT REFERENCES devices(mac),
-                    switch_mac TEXT REFERENCES devices(mac),
-                    switch_port INTEGER);""")
+                    mac1 TEXT REFERENCES devices(mac),
+                    port1 INTEGER,
+                    mac2 TEXT REFERENCES devices(mac),
+                    port2 INTEGER,
+                    confirmed BOOLEAN);""")
         self.execute("""CREATE TABLE IF NOT EXISTS images (
                     fullname TEXT PRIMARY KEY,
                     ready BOOLEAN);""")
