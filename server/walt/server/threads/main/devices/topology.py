@@ -15,10 +15,10 @@ TOPOLOGY_QUERY = """
     SELECT  d1.name as name, d1.type as type, d1.mac as mac,
             d1.ip as ip,
             (case when d1.reachable = 1 then 'yes' else 'NO' end) as reachable,
-            d2.name as switch_name, t.switch_port as switch_port
+            d2.name as switch_name, t.port1 as switch_port
     FROM devices d1
-    LEFT JOIN topology t ON d1.mac = t.mac
-    LEFT JOIN devices d2 ON t.switch_mac = d2.mac
+    LEFT JOIN topology t ON d1.mac = t.mac2
+    LEFT JOIN devices d2 ON t.mac1 = d2.mac
     ORDER BY switch_name, switch_port;"""
 
 FLOATING_DEVICES_QUERY = """
@@ -26,8 +26,8 @@ FLOATING_DEVICES_QUERY = """
             d1.ip as ip,
             (case when d1.reachable = 1 then 'yes' else 'NO' end) as reachable
     FROM devices d1 LEFT JOIN topology t
-    ON   d1.mac = t.mac
-    WHERE t.mac is NULL;"""
+    ON   d1.mac = t.mac2
+    WHERE t.mac2 is NULL;"""
 
 MSG_DEVICE_TREE_EXPLAIN_UNREACHABLE = """\
 note: devices marked with parentheses are unreachable
