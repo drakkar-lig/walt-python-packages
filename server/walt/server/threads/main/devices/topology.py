@@ -151,21 +151,46 @@ class Topology(object):
     def cleanup(self):
         # this will remove obsolete links from moved devices,
         # and ensure we have no loops.
-        # 1) we build the set of confirmed nodes (nodes that
-        #    were detected during last scan)
-        confirmed_macs = set()
+        # 1) we initialize a set of 'accepted' nodes using the
+        #    nodes that were detected during last scan, and
+        #    record the set of unconfirmed links
+        # 2) we drop unconfirmed links linking 2 nodes already accepted
+        # 3) we accept nodes linked to an accepted node
+        # 4) we return to 2, unless last loop did not alter anything.
+        # --
+        # this is step 1
+        accepted_macs = set()
+        remaining_links = set()
         for mac1, mac2, port1, port2, confirmed in self:
             if confirmed:
-                confirmed_macs.add(mac1)
-                confirmed_macs.add(mac2)
-        # 2) we drop unconfirmed links linking 2 confirmed nodes
-        to_be_dropped = []
-        for mac1, mac2, port1, port2, confirmed in self:
-            if not confirmed and \
-                    mac1 in confirmed_macs and mac2 in confirmed_macs:
-                to_be_dropped.append((mac1, mac2))
-        for k in to_be_dropped:
-            self.links.pop(k)
+                accepted_macs.add(mac1)
+                accepted_macs.add(mac2)
+            else:
+                remaining_links.add((mac1, mac2))
+        still_moving = True
+        while still_moving:
+            still_moving = False
+            # this is step 2
+            to_be_dropped = []
+            for mac1, mac2 in remaining_links:
+                if mac1 in accepted_macs and mac2 in accepted_macs:
+                    to_be_dropped.append((mac1, mac2))
+            for k in to_be_dropped:
+                still_moving = True
+                self.links.pop(k)
+                remaining_links.remove(k)
+            # this is step 3
+            treated_at_step3 = []
+            for mac1, mac2 in remaining_links:
+                if mac1 in accepted_macs:
+                    accepted_macs.add(mac2)
+                    treated_at_step3.append((mac1, mac2))
+                elif mac2 in accepted_macs:
+                    accepted_macs.add(mac1)
+                    treated_at_step3.append((mac1, mac2))
+            for k in treated_at_step3:
+                still_moving = True
+                remaining_links.remove(k)
 
     def get_neighbors(self, mac):
         for mac1, mac2 in self.links:
