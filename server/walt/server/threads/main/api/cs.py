@@ -25,7 +25,7 @@ class CSAPI(APISession):
 
     @api_expose_method
     def device_show(self):
-        return self.topology.show()
+        return self.devices.show()
 
     @api_expose_method
     def show_nodes(self, show_all):

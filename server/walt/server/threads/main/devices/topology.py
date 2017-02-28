@@ -8,53 +8,17 @@ from walt.server.threads.main import snmp
 from walt.server.threads.main.network.tools import ip_in_walt_network, lldp_update, \
                set_static_ip_on_switch, restart_dhcp_setup_on_switch, get_server_ip
 from walt.server.threads.main.tree import Tree
-from walt.server.tools import format_paragraph
 
-
-TOPOLOGY_QUERY = """
-    SELECT  d1.name as name, d1.type as type, d1.mac as mac,
-            d1.ip as ip,
-            (case when d1.reachable = 1 then 'yes' else 'NO' end) as reachable,
-            d2.name as switch_name, t.port1 as switch_port
-    FROM devices d1
-    LEFT JOIN topology t ON d1.mac = t.mac2
-    LEFT JOIN devices d2 ON t.mac1 = d2.mac
-    ORDER BY switch_name, switch_port;"""
-
-FLOATING_DEVICES_QUERY = """
-    SELECT  d1.name as name, d1.type as type, d1.mac as mac,
-            d1.ip as ip,
-            (case when d1.reachable = 1 then 'yes' else 'NO' end) as reachable
-    FROM devices d1 LEFT JOIN topology t
-    ON   d1.mac = t.mac2
-    WHERE t.mac2 is NULL;"""
 
 MSG_DEVICE_TREE_EXPLAIN_UNREACHABLE = """\
-note: devices marked with parentheses are unreachable
+note: devices marked with parentheses were not detected at last scan.
 """
 
 MSG_DEVICE_TREE_MORE_DETAILS = """
 tips:
 - use 'walt device rescan' to update
-- use 'walt device show' for more info
+- use 'walt device show' for device details
 """
-
-TITLE_DEVICE_SHOW_MAIN = """\
-The WalT network contains the following devices:"""
-
-FOOTNOTE_DEVICE_SHOW_MAIN = """\
-tips:
-- use 'walt device tree' for a tree view of the network
-- use 'walt device rescan' to update
-- use 'walt device forget <device_name>' in case of a broken device"""
-
-TITLE_DEVICE_SHOW_FLOATING = """\
-The network position of the following devices is unknown (at least for now):"""
-
-FOOTNOTE_DEVICE_SHOW_FLOATING = """\
-tips:
-- use 'walt device rescan' in a few minutes to update
-- use 'walt device forget <device_name>' to make WalT forget about an obsolete device"""
 
 class Topology(object):
     def __init__(self):
@@ -344,21 +308,6 @@ class TopologyManager(object):
         device_types = { d.mac: d.type for d in self.db.select('devices') }
         # compute and return the topology tree
         return db_topology.printed_tree(root_mac, device_labels, device_types)
-
-    def show(self):
-        # ** message about connected devices
-        msg = format_paragraph(
-                TITLE_DEVICE_SHOW_MAIN,
-                self.db.pretty_printed_select(TOPOLOGY_QUERY),
-                FOOTNOTE_DEVICE_SHOW_MAIN)
-        # ** message about floating devices, if at least one
-        res = self.db.execute(FLOATING_DEVICES_QUERY).fetchall()
-        if len(res) > 0:
-            msg += format_paragraph(
-                        TITLE_DEVICE_SHOW_FLOATING,
-                        self.db.pretty_printed_resultset(res),
-                        FOOTNOTE_DEVICE_SHOW_FLOATING)
-        return msg
 
     def setpower(self, device_mac, poweron):
         # we have to know on which PoE switch port the node is

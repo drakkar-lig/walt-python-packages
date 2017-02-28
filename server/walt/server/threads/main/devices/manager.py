@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 from walt.server.threads.main.network.tools import set_static_ip_on_switch
+from walt.server.tools import format_paragraph
 import re
 
 DEVICE_NAME_NOT_FOUND="""No device with name '%s' found.\n"""
@@ -12,6 +13,16 @@ Only alphanumeric characters and '-' are allowed.
 The 1st character must be an alphabet letter.
 (Example: rpi-D327)
 """
+
+DEVICES_QUERY = """select * from devices order by type, name;"""
+
+TITLE_DEVICE_SHOW_MAIN = """\
+The WalT network contains the following devices:"""
+
+FOOTNOTE_DEVICE_SHOW_MAIN = """\
+tips:
+- use 'walt device tree' for a tree view of the network
+- use 'walt device forget <device_name>' to make WalT forget about an obsolete device"""
 
 class DevicesManager(object):
 
@@ -120,3 +131,10 @@ class DevicesManager(object):
         # if we got this event, then the node is reachable
         self.db.update('devices', 'ip', ip=node_ip, reachable=1)
         self.db.commit()
+
+    def show(self):
+        return format_paragraph(
+                TITLE_DEVICE_SHOW_MAIN,
+                self.db.pretty_printed_select(DEVICES_QUERY),
+                FOOTNOTE_DEVICE_SHOW_MAIN)
+
