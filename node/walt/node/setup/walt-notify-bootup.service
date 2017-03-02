@@ -13,7 +13,7 @@ After=ssh.service
 
 [Service]
 Type=oneshot
-ExecStart=/bin/walt-notify-bootup
+ExecStart=/usr/local/bin/walt-notify-bootup
 
 [Install]
 WantedBy=multi-user.target
