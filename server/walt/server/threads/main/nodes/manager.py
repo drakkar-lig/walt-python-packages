@@ -77,7 +77,7 @@ class NodesManager(object):
         self.db = db
         self.devices = devices
         self.topology = topology
-        self.kwargs = kwargs
+        self.other_kwargs = kwargs
         self.wait_info = WaitInfo()
 
     def register_node(self, mac, model):
@@ -85,7 +85,7 @@ class NodesManager(object):
                 db = self.db,
                 mac = mac,
                 model = model,
-                **self.kwargs
+                **self.other_kwargs
         )
 
     def connect(self, requester, node_name):
