@@ -96,10 +96,11 @@ class Server(object):
         # let's try to identify this device given its mac address
         # and/or the vci field of the DHCP request.
         device_cls = get_device_cls_from_vci_and_mac(vendor_class_identifier, mac)
-        added = self.devices.register_device(device_cls, ip, mac)
-        if added and device_cls != None and device_cls.WALT_TYPE == 'node':
+        new_equipment = self.devices.register_device(device_cls, ip, mac)
+        if new_equipment and device_cls != None and device_cls.WALT_TYPE == 'node':
             # this is a walt node
-            self.nodes.register_node(mac, device_cls.MODEL_NAME)
+            self.nodes.register_node(   mac = mac,
+                                        model = device_cls.MODEL_NAME)
 
     def rename_device(self, requester, old_name, new_name):
         self.devices.rename(requester, old_name, new_name)

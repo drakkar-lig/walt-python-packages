@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
-from walt.server.threads.main.network.tools import set_static_ip_on_switch
+from walt.server.threads.main.network.tools import set_static_ip_on_switch, \
+                                                    ip_in_walt_network
 from walt.server.tools import format_paragraph
 import re
 
@@ -30,7 +31,7 @@ class DevicesManager(object):
         self.db = db
 
     def register_device(self, device_cls, ip, mac):
-        """Derive device type from device type, then add or update"""
+        """Derive device type from device type, then add or update, return True if new equipment."""
         kwargs = dict(
             mac=mac,
             ip=ip
@@ -96,30 +97,52 @@ class DevicesManager(object):
                 device_type,
                 "".join(mac.split(':')[3:]))
 
-    def add_or_update(self, **kwargs):
-        """Return False if device exists and unmodified, True if device created or updated"""
-        device = self.db.select_unique("devices", mac=kwargs['mac']);
-        kwargs['type'] = kwargs['device_type']  # db column name is 'type'
-        if device:
-            if (kwargs['ip'] != device.ip) or (kwargs['type'] != device.type):
-                print 'Device: %s has changed, updating (%s, %s) to (%s, %s)' % \
-                    (device.name, device.ip, device.type, kwargs['ip'], kwargs['type'])
-                self.db.update("devices", 'mac', **kwargs)
-            else:
-                print 'Device: %s exists' % device.name
-                return False
+    def add_or_update(self, **args_data):
+        """Return True if a new equipment (node, switch) was identified, False otherwise"""
+        new_equipment = False
+        modified = False
+        db_data = self.db.select_unique("devices", mac=args_data['mac']);
+        args_data['type'] = args_data['device_type']  # db column name is 'type'
+        if db_data:
+            # -- device found in db
+            updates = {}
+            name = db_data.name
+            if db_data.type == 'unknown' and args_data['type'] != 'unknown':
+                # device was in db, but type was unknown.
+                if 'unknown' in db_data.name:
+                    # device name has not been updated by the user,
+                    # we will generate a new one more appropriate for the new type
+                    name = self.generate_device_name(**args_data)
+                    updates['name'] = name
+                # now we know its type, so we consider we have a new equipment here.
+                new_equipment = True
+                print 'Device: %s updating type, unknown -> %s' % (name, args_data['type'])
+                updates['type'] = args_data['type']
+            if not ip_in_walt_network(db_data.ip) and ip_in_walt_network(args_data['ip']):
+                # the device updated its IP by requesting our managed DHCP server
+                print 'Device: %s updating ip, %s -> %s (now in walt network)' % (name, db_data.ip, args_data['ip'])
+                updates['ip'] = args_data['ip']
+            if len(updates) > 0:
+                modified = True
+                self.db.update("devices", 'mac', mac=args_data['mac'], **updates)
         else:
+            # device was not known in db yet
             # generate a name for this device
-            kwargs['name'] = self.generate_device_name(**kwargs)
-            print 'Device: %s is new, adding (%s, %s)' % (kwargs['name'], kwargs['ip'], kwargs['type'])
-            self.db.insert("devices", **kwargs)
-            # if switch or node, insert in relevant table
-            if device_type == 'switch':
-                self.db.insert('switches', **kwargs)
-            elif device_type == 'node':
-                self.db.insert('nodes', **kwargs)
-        self.db.commit()
-        return True
+            args_data['name'] = self.generate_device_name(**args_data)
+            print 'Device: %s is new, adding (%s, %s)' % (args_data['name'], args_data['ip'], args_data['type'])
+            self.db.insert("devices", **args_data)
+            modified = True
+            if args_data['type'] != 'unknown':
+                new_equipment = True
+        # if new switch or node, call relevant code
+        if new_equipment:
+            if args_data['type'] == 'switch':
+                self.db.insert('switches', **args_data)
+            elif args_data['type'] == 'node':
+                self.db.insert('nodes', **args_data)
+        if modified:
+            self.db.commit()
+        return new_equipment
 
     def is_reachable(self, requester, device_name):
         res = self.get_device_info(requester, device_name)
