@@ -324,10 +324,15 @@ class TopologyManager(object):
         return True
 
     def get_connectivity_info(self, device_mac):
-        topology_info = self.db.select_unique("topology", mac=device_mac)
-        if not topology_info:
+        # we look for a record where mac1 or mac2 equals device_mac
+        records = list(self.db.select("topology", mac1=device_mac))
+        records += list(self.db.select("topology", mac2=device_mac))
+        if len(records) != 1:
             return (None, None)
-        switch_mac = topology_info.switch_mac
-        switch_port = topology_info.switch_port
+        record = records[0]
+        if record.mac1 == device_mac:
+             switch_mac, switch_port = record.mac2, record.port2
+        else:
+             switch_mac, switch_port = record.mac1, record.port1
         switch_info = self.db.select_unique("devices", mac=switch_mac)
         return switch_info.ip, switch_port
