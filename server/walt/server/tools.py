@@ -82,9 +82,9 @@ def format_sentence_about_nodes(sentence, nodes):
     """
     # conjugate if plural or singular
     if len(nodes) == 1:
-        sentence = re.sub(CONJUGATE_REGEXP, r'\2', sentence)
-    else:
         sentence = re.sub(CONJUGATE_REGEXP, r'\1', sentence)
+    else:
+        sentence = re.sub(CONJUGATE_REGEXP, r'\2', sentence)
     # designation of nodes
     sorted_nodes = sorted(nodes)
     if len(nodes) > MAX_PRINTED_NODES:
