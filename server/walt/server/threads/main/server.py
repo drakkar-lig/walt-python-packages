@@ -10,7 +10,6 @@ from walt.server.threads.main.interactive import InteractionManager
 from walt.server.threads.main.logs import LogsManager
 from walt.server.threads.main.mydocker import DockerClient
 from walt.server.threads.main.network.dhcpd import DHCPServer
-from walt.server.threads.main.network.tools import dhcp_stop
 from walt.server.threads.main.nodes.manager import NodesManager
 from walt.server.threads.main.devices.manager import DevicesManager
 from walt.server.threads.main.devices.topology import TopologyManager
@@ -76,7 +75,6 @@ class Server(object):
         APISession.cleanup_all()
         self.images.cleanup()
         self.blocking.cleanup()
-        dhcp_stop()
 
     def set_image(self, requester, node_set, image_tag, warn_unknown_topology):
         nodes = self.nodes.parse_node_set(requester, node_set)

@@ -179,14 +179,6 @@ def setup_platform(ui):
     switch_ip = network.tools.ip(main_switch_info['ip'])
     auto_configure_main_switch(ui, switch_ip)
     wait_other_elements_plugged(ui)
-    # get a server ip on walt-out (external VLAN) using DHCP
-    mac_addr = network.tools.get_mac_address(EXTERN_INTF)
-    network.tools.dhcp_wait_ip(
-                EXTERN_INTF,
-                ui,
-                MSG_DHCP_REQUEST,
-                EXPLAIN_PLUG_INTERNET_CABLE,
-                ACTION_PLUG_INTERNET_CABLE % dict(mac = mac_addr))
     # check connection to the docker hub
     check_docker(ui)
 
