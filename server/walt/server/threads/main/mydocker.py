@@ -32,8 +32,12 @@ class DockerClient(object):
     def pull(self, image_fullname, requester = None):
         fullname, name, repo, user, tag = parse_image_fullname(image_fullname)
         label = 'Downloading %s/%s' % (user, tag)
+        def checker(line):
+            info = eval(line.strip())
+            if 'error' in info:
+                raise Exception(info['errorDetail']['message'])
         stream = self.c.pull(name, tag=requests.utils.quote(tag), stream=True)
-        indicate_progress(sys.stdout, label, stream)
+        indicate_progress(sys.stdout, label, stream, checker)
     def login(self, dh_peer, auth_conf, requester):
         try:
             symmetric_key = dh_peer.symmetric_key
