@@ -68,7 +68,7 @@ class Server(object):
         tftp.update(self.db)
         self.ui.task_running()
         # mount images needed
-        self.images.update()
+        self.images.update(startup = True)
         self.ui.task_done()
 
     def cleanup(self):

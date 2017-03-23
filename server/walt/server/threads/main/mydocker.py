@@ -79,7 +79,11 @@ class DockerClient(object):
             tag = requests.utils.unquote(elem['name'])
             yield (image_name.split('/')[0], tag)
     def get_local_images(self):
-        return sum([ i['RepoTags'] for i in self.c.images() ], [])
+        return { tag: i for tag, i in self.iter_local_images() }
+    def iter_local_images(self):
+        for i in self.c.images():
+            for tag in i['RepoTags']:
+                yield (tag, i)
     def get_creation_time(self, image_fullname):
         for i in self.c.images():
             if image_fullname in i['RepoTags']:
@@ -121,7 +125,8 @@ class DockerClient(object):
         with open('/var/lib/docker/repositories-aufs') as conf_file:
             info = json.load(conf_file)
         return info['Repositories'][image_repo][image_tag]
-    def get_image_layers(self, image_id):
+    def get_image_layers(self, image_fullname):
+        image_id = self.get_top_layer_id(image_fullname)
         br = []
         while True:
             br.append('/var/lib/docker/aufs/diff/%s' % image_id)
@@ -136,8 +141,8 @@ class DockerClient(object):
         return self.c.inspect_container(cid)['Name'].lstrip('/')
     def events(self):
         return self.c.events(decode=True)
-    def image_mount(self, top_layer_id, diff_path, mount_path):
-        layers = self.get_image_layers(top_layer_id)
+    def image_mount(self, image_fullname, diff_path, mount_path):
+        layers = self.get_image_layers(image_fullname)
         branches = [ layer + '=ro+wh' for layer in layers ]
         branches.insert(0, diff_path + '=rw')
         if len(branches) > AUFS_BR_LIMIT:

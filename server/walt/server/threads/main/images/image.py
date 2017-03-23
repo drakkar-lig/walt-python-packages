@@ -72,27 +72,33 @@ def validate_image_tag(requester, image_tag):
 FS_CMD_PATTERN = 'docker run --rm --entrypoint %%(prog)s %(image)s %%(prog_args)s'
 
 class NodeImage(object):
-    def __init__(self, docker, fullname):
+    def __init__(self, docker, fullname, is_ready, created_at = None):
         self.docker = docker
         self.rename(fullname)
-        self.created_at = None
-        self.ready = False
+        self.last_created_at = created_at
+        self.last_top_layer_id = self.get_top_layer_id()
+        self.ready = is_ready
         self.mount_path = None
         self.mounted = False
-        self.top_layer_id = None
         self.server_ip = get_server_ip()
         self.filesystem = Filesystem(FS_CMD_PATTERN % dict(image = self.fullname))
     def rename(self, fullname):
         self.fullname, self.name, dummy, self.user, self.tag = \
             parse_image_fullname(fullname)
     def set_ready(self, is_ready):
-        if is_ready and not self.ready:
-            # image just became ready, get the creation time and image id from docker
-            self.created_at = self.docker.get_creation_time(self.fullname)
-            self.update_top_layer_id()
         self.ready = is_ready
-    def update_top_layer_id(self):
-        self.top_layer_id = self.docker.get_top_layer_id(self.fullname)
+        if is_ready:
+            self.get_created_at()   # prepare created_at value
+    def get_created_at(self):
+        if not self.ready:
+            return None
+        top_layer_id = self.get_top_layer_id()
+        if self.last_created_at == None or self.last_top_layer_id != top_layer_id:
+            self.last_created_at = self.docker.get_creation_time(self.fullname)
+        self.last_top_layer_id = top_layer_id
+        return self.last_created_at
+    def get_top_layer_id(self):
+        return self.docker.get_top_layer_id(self.fullname)
     def __del__(self):
         if self.mounted:
             self.unmount()
@@ -118,7 +124,7 @@ class NodeImage(object):
         self.mount_path, self.diff_path = self.get_mount_info()
         failsafe_makedirs(self.mount_path)
         failsafe_makedirs(self.diff_path)
-        self.docker.image_mount(self.top_layer_id, self.diff_path, self.mount_path)
+        self.docker.image_mount(self.fullname, self.diff_path, self.mount_path)
         self.mounted = True
     def mount(self, requester = None):
         print 'Mounting %s...' % self.fullname

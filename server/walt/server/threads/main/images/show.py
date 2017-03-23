@@ -13,10 +13,11 @@ def show(images, username):
     for image in images.itervalues():
         if image.user != username:
             continue
+        created_at = image.get_created_at()
         tabular_data.append([
                     image.tag,
                     str(image.mounted),
-                    image.created_at if image.created_at else 'N/A',
+                    created_at if created_at else 'N/A',
                     str(image.ready) ])
     if len(tabular_data) > 0:
         header = [ 'Name', 'Mounted', 'Created', 'Ready' ]

@@ -1,4 +1,5 @@
 import sys
+from datetime import datetime
 
 from walt.server.threads.main.images.image import NodeImage
 from walt.server.threads.main.network import nfs
@@ -15,21 +16,42 @@ This operation would overwrite it%s.
 MSG_WOULD_OVERWRITE_IMAGE_REBOOTED_NODES='\
  (and reboot %d node(s))'
 
+MSG_REMOVING_FROM_DB = """\
+WARNING: Removing image %s from db because docker does not list it."""
+
+MSG_IMAGE_READY_BUT_MISSING = """\
+Image %s is marked ready in db, but docker does not list it! Aborting."""
+
 class NodeImageStore(object):
     def __init__(self, docker, db):
         self.docker = docker
         self.db = db
         self.images = {}
-    def refresh(self):
+    def refresh(self, startup = False):
         db_images = { db_img.fullname: db_img.ready \
                         for db_img in self.db.select('images') }
+        docker_images = self.docker.get_local_images()
         # add missing images
         for db_fullname in db_images:
+            db_ready = db_images[db_fullname]
             if '/walt-node' in db_fullname and db_fullname not in self.images:
-                self.images[db_fullname] = NodeImage(self.docker, db_fullname)
-            # and update their 'ready' status
-            image = self.images[db_fullname]
-            image.set_ready(db_images[db_fullname])
+                if db_fullname in docker_images:
+                    created_at = datetime.fromtimestamp(
+                            docker_images[db_fullname]['Created'])
+                    self.images[db_fullname] = NodeImage(
+                        self.docker, db_fullname, True, created_at)
+                else:
+                    # if the daemon is starting, remove images from db not listed
+                    # by docker.
+                    if startup:
+                        print(MSG_REMOVING_FROM_DB % db_fullname)
+                        self.db.delete('images', fullname = db_fullname)
+                    else:
+                        assert (db_ready == False), \
+                            MSG_IMAGE_READY_BUT_MISSING % db_fullname
+                        # image is not ready yet (probably being pulled)
+                        self.images[db_fullname] = NodeImage(
+                            self.docker, db_fullname, False)
         # remove deleted images
         for fullname in self.images.keys():
             if fullname not in db_images:

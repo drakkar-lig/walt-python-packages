@@ -21,8 +21,8 @@ class NodeImageManager(object):
         self.dhcpd = dhcpd
         self.docker = docker
         self.store = NodeImageStore(self.docker, self.db)
-    def update(self):
-        self.store.refresh()
+    def update(self, startup = False):
+        self.store.refresh(startup)
         self.store.update_image_mounts()
     def search(self, requester, task, keyword):
         search(task, self.blocking, self.docker, requester, keyword)

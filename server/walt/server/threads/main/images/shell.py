@@ -64,8 +64,6 @@ class ImageShellSession(object):
         if self.image_tag == new_image_tag:
             # same name, we are modifying the image
             image = self.images.get_user_image_from_tag(self.requester, new_image_tag)
-            # let the image know that a new layer was just commited
-            image.update_top_layer_id()
             # if image is mounted, umount/mount it in order to make
             # the nodes reboot with the new version
             node_reboot_msg = ''

@@ -151,14 +151,9 @@ def update_walt_image(image_store, ws_image_fullname, **args):
         existing_dest_image = image_store[ws_image_fullname]
         # if image is mounted, umount/mount it in order to make
         # the nodes reboot with the new version
-        need_mount_umount = existing_dest_image.mounted
-        if need_mount_umount:
+        if existing_dest_image.mounted:
             # umount
             image_store.umount_used_image(existing_dest_image)
-        # image has changed, update the top filesystem layer it
-        # points to.
-        existing_dest_image.update_top_layer_id()
-        if need_mount_umount:
             # re-mount
             image_store.update_image_mounts()
     else:
