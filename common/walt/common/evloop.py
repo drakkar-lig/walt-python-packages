@@ -72,14 +72,18 @@ class EventLoop(object):
     def loop(self):
         while True:
             # handle any expired planned event
+            now = time()
             while len(self.planned_events) > 0 and \
-                        self.planned_events[0][0] <= time():
+                        self.planned_events[0][0] <= now:
                 ts, target, repeat_delay, kwargs = \
                                     heappop(self.planned_events)
                 target.handle_planned_event(**kwargs)
                 if repeat_delay:
+                    next_ts = ts + repeat_delay
+                    if next_ts < now:                   # we are very late
+                        next_ts = now + repeat_delay    # reschedule
                     self.plan_event(
-                        ts + repeat_delay, target, repeat_delay, **kwargs)
+                        next_ts, target, repeat_delay, **kwargs)
             # if a listener provides a method is_valid(),
             # check it and remove it if result is False
             for listener in self.listeners.values():
