@@ -1,8 +1,8 @@
 #!/bin/sh
 set -e
 
-MOUNT='mount --no-mtab'
-UMOUNT='umount --no-mtab'
+MOUNT='busybox mount'
+UMOUNT='busybox umount'
 ROOTFS='/tmp/rootfs'
 ROOTFS_BUSYBOX_APPLETS="
     sh ls timeout reboot sleep nc chroot
@@ -22,7 +22,7 @@ reboot_or_sh()
 {
     echo '>>> Issue detected!               <<<'
     echo 'Will reboot... (or press <ENTER> now for a shell)'
-    timeout 5 head -n 1 && admin_sh || reboot -f
+    busybox timeout -t 5 head -n 1 && admin_sh || reboot -f
 }
 
 trap reboot_or_sh EXIT
@@ -97,6 +97,7 @@ mount_union()
     # fs_rw: the place to hold the filesystem changes
     # fs_union: the mount point of the union
     mkdir fs_rw fs_work fs_union
+    modprobe overlay || modprobe overlayfs || true
     $MOUNT -t overlay -o upperdir=fs_rw,lowerdir=/,workdir=fs_work \
                         union fs_union 2>/dev/null || \
     $MOUNT -t overlayfs -o upperdir=fs_rw,lowerdir=/ union fs_union
@@ -104,7 +105,7 @@ mount_union()
 
 update_mounts()
 {
-    $MOUNT --move /dev $ROOTFS/mnt/fs_union/dev
+    $MOUNT -o move /dev $ROOTFS/mnt/fs_union/dev
     $UMOUNT /proc
 }
 
