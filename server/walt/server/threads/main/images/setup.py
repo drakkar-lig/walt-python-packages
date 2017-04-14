@@ -1,4 +1,4 @@
-import os, shutil
+import os, shutil, os.path
 from walt.common.tools import failsafe_makedirs
 from walt.common.constants import \
         WALT_SERVER_DAEMON_PORT, WALT_SERVER_TCP_PORT
@@ -72,8 +72,8 @@ def setup(image):
     # authorize server pub key
     failsafe_makedirs(mount_path + os.path.dirname(AUTHORIZED_KEYS_PATH))
     shutil.copy(SERVER_PUBKEY_PATH, mount_path + AUTHORIZED_KEYS_PATH)
-    # copy walt scripts in <image>/usr/local/bin, update template parameters
-    image_bindir = mount_path + '/usr/local/bin/'
+    # copy walt scripts in <image>/bin, update template parameters
+    image_bindir = mount_path + '/bin/'
     for script_name, template in NODE_SCRIPTS.items():
         script_path = resource_filename(__name__, script_name)
         shutil.copy(script_path, image_bindir)

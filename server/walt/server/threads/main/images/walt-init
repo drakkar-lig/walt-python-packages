@@ -37,7 +37,7 @@ do_mounts()
 run_bgscript_in_rootfs()
 {
     cd $ROOTFS
-    script_path_src="mnt/fs_union/usr/local/bin/$1"
+    script_path_src="mnt/fs_union/bin/$1"
     script_path_dst="bin/$1"
     shift; args="$@"
     cp -p "$script_path_src" "$script_path_dst"
