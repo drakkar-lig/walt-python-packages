@@ -29,9 +29,10 @@ subnet %(subnet_ip)s netmask %(subnet_netmask)s {
     # check if the ip is already used
     ping-check = 1;
 
-    # recheck often if you are now registered
-    max-lease-time 30;
-    default-lease-time 30;
+    # no need to recheck often if you are now registered
+    min-lease-time 6000000;
+    max-lease-time 6000000;
+    default-lease-time 6000000;
 
     # get the vendor class identifier if available
     if exists vendor-class-identifier {
