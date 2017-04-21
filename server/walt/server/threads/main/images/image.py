@@ -134,7 +134,13 @@ class NodeImage(object):
     def os_unmount(self):
         while not succeeds('umount %s 2>/dev/null' % self.mount_path):
             time.sleep(0.1)
-        shutil.rmtree(self.diff_path)
+        while True:
+            try:
+                shutil.rmtree(self.diff_path)
+            except OSError:
+                time.sleep(0.1)
+                continue
+            break
         os.rmdir(self.mount_path)
         self.mounted = False
     def unmount(self):
