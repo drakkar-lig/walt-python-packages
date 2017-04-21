@@ -121,9 +121,15 @@ class WalTNodeReboot(cli.Application):
         with ClientToServerLink() as server:
             if not WalTNode.confirm_nodes_not_owned(server, node_set):
                 return
-            with PoETemporarilyOff(server, node_set) as really_off:
-                if really_off:
-                    time.sleep(POE_REBOOT_DELAY)
+            # try to soft-reboot
+            print('Trying soft-reboot...')
+            nodes_ok, nodes_ko = server.softreboot(node_set)
+            # if it fails, try to power-cycle using PoE
+            if len(nodes_ko) > 0:
+                print('Trying hard-reboot (PoE)...')
+                with PoETemporarilyOff(server, nodes_ko) as really_off:
+                    if really_off:
+                        time.sleep(POE_REBOOT_DELAY)
 
 @WalTNode.subcommand("deploy")
 class WalTNodeDeploy(cli.Application):

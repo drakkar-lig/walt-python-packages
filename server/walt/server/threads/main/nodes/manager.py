@@ -209,6 +209,30 @@ class NodesManager(object):
             [n.name for n in nodes_ok]) + '\n')
         return True
 
+    def softreboot(self, requester, node_set):
+        nodes = self.parse_node_set(requester, node_set)
+        if nodes == None:
+            return None # error already reported
+        nodes_ko, nodes_ok = [], []
+        for node in nodes:
+            link = self.connect(requester, node.name)
+            if link == None:
+                nodes_ko.append(node.name)
+                continue
+            res = link.request('REBOOT')
+            del link
+            if not res[0]:
+                requester.stderr.write('Soft-reboot request to %s failed: %s\n' % \
+                        (node.name, res[1]))
+                nodes_ko.append(node.name)
+                continue
+            nodes_ok.append(node.name)
+        if len(nodes_ok) > 0:
+            requester.stdout.write(format_sentence_about_nodes(
+                '%s was(were) rebooted.' , nodes_ok) + '\n')
+        # return nodes OK and KO in node_set form
+        return ','.join(sorted(nodes_ok)), ','.join(sorted(nodes_ko))
+
     def parse_node_set(self, requester, node_set):
         username = requester.get_username()
         if not username:

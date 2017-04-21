@@ -72,6 +72,10 @@ class CSAPI(APISession):
         return self.nodes.setpower(self.requester, node_set, True, warn_unknown_topology)
 
     @api_expose_method
+    def softreboot(self, node_set):
+        return self.nodes.softreboot(self.requester, node_set)
+
+    @api_expose_method
     def validate_node_cp(self, src, dst):
         return self.nodes.validate_cp(self.requester, src, dst)
 
