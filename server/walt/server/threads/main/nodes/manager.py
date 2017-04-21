@@ -59,13 +59,18 @@ class ServerToNodeLink:
         return (True,)
 
     def request(self, req):
-        self.conn.send(req + '\n')
-        resp = self.rfile.readline().split(' ',1)
-        resp = tuple(part.strip() for part in resp)
-        if resp[0] == 'OK':
-            return (True,)
-        else:
-            return (False, resp[1])
+        try:
+            self.conn.send(req + '\n')
+            resp = self.rfile.readline().split(' ',1)
+            resp = tuple(part.strip() for part in resp)
+            if resp[0] == 'OK':
+                return (True,)
+            else:
+                return (False, resp[1])
+        except socket.timeout:
+            return (False, 'Connection timeout.')
+        except socket.error:
+            return (False, 'Connection failed.')
 
     def __del__(self):
         if self.conn:
