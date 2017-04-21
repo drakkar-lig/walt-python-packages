@@ -20,6 +20,10 @@ tips:
 - use 'walt device show' for device details
 """
 
+MSG_NO_NEIGHBORS = """\
+WalT Server did not detect any neighbor!
+"""
+
 class Topology(object):
     def __init__(self):
         # links as a dict (mac1, mac2) -> (port1, port2, confirmed)
@@ -303,6 +307,8 @@ class TopologyManager(object):
         for port, neighbor_mac, neighbor_port, confirmed in \
                 db_topology.get_neighbors(server_mac):
             root_mac = neighbor_mac
+        if root_mac == None:
+            return MSG_NO_NEIGHBORS + MSG_DEVICE_TREE_MORE_DETAILS
         # compute device mac to label and type associations
         device_labels = { d.mac: d.name for d in self.db.select('devices') }
         device_types = { d.mac: d.type for d in self.db.select('devices') }
