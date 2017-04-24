@@ -102,17 +102,6 @@ class WalTImageDuplicate(cli.Application):
         with ClientToServerLink() as server:
             server.duplicate_image(image_name, new_image_name)
 
-@WalTImage.subcommand("update")
-class WalTImageUpdate(cli.Application):
-    """update walt internal software in an image"""
-    _force = False # default
-    def main(self, image_name):
-        with ClientToServerLink(True) as server:
-            server.update_image(image_name, self._force)
-    @cli.autoswitch(help='do it, restart nodes if needed.')
-    def force(self):
-        self._force = True
-
 @WalTImage.subcommand("cp")
 class WalTImageCp(cli.Application):
     """transfer files (client machine <-> image)"""
