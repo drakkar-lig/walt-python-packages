@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 from walt.server.threads.main.snmp.base import load_mib, unload_mib, get_loaded_mibs, \
                     unload_any_of_these_mibs
+from snimpy import snmp
 
 POE_PORT_ENABLED=1
 POE_PORT_DISABLED=2
@@ -23,7 +24,10 @@ def detect_correct_mib(snmp_proxy, host):
         try:
             dummy = snmp_proxy.pethPsePortAdminEnable.keys()
             break # ok previous line passed with no error
-        except:
+        except (snmp.SNMPNoSuchObject,
+                snmp.SNMPNoSuchInstance,
+                snmp.SNMPEndOfMibView):
+            # issue with this MIB, try next one
             unload_mib(mib)
             mib = None
     if mib == None:
