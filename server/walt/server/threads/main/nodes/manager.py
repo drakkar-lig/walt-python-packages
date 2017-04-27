@@ -1,13 +1,13 @@
 import socket
 from walt.common.tcp import Requests
+from walt.common.tools import format_sentence_about_nodes
 from walt.server.const import SSH_COMMAND, WALT_NODE_NET_SERVICE_PORT
 from walt.server.threads.main.filesystem import Filesystem
 from walt.server.threads.main.nodes.register import handle_registration_request
 from walt.server.threads.main.nodes.show import show
 from walt.server.threads.main.nodes.wait import WaitInfo
 from walt.server.threads.main.transfer import validate_cp
-from walt.server.tools import format_sentence_about_nodes, \
-                                merge_named_tuples
+from walt.server.tools import merge_named_tuples
 
 NODE_CONNECTION_TIMEOUT = 1
 

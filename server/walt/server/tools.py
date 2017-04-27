@@ -68,38 +68,6 @@ def format_paragraph(title, content, footnote=None):
                                     content = content,
                                     footnote = footnote)
 
-
-MAX_PRINTED_NODES = 10
-CONJUGATE_REGEXP = r'\b(\w*)\((\w*)\)'
-
-def format_sentence_about_nodes(sentence, nodes):
-    """
-    example 1:
-        input: sentence = '% seems(seem) dead.', nodes = ['rpi0']
-        output: 'Node rpi0 seems dead.'
-    example 2:
-        input: sentence = '% seems(seem) dead.', nodes = ['rpi0', 'rpi1', 'rpi2']
-        output: 'Nodes rpi0, rpi1 and rpi2 seem dead.'
-    (and if there are many nodes, an ellipsis is used.)
-    """
-    # conjugate if plural or singular
-    if len(nodes) == 1:
-        sentence = re.sub(CONJUGATE_REGEXP, r'\1', sentence)
-    else:
-        sentence = re.sub(CONJUGATE_REGEXP, r'\2', sentence)
-    # designation of nodes
-    sorted_nodes = sorted(nodes)
-    if len(nodes) > MAX_PRINTED_NODES:
-        s_nodes = 'Nodes %s, %s, ..., %s' % (sorted_nodes[0], sorted_nodes[1], sorted_nodes[-1])
-    elif len(nodes) == 0:
-        s_nodes = 'No nodes'
-    elif len(nodes) > 1:
-        s_nodes = 'Nodes %s and %s' % (', '.join(sorted_nodes[:-1]), sorted_nodes[-1])
-    else:
-        s_nodes = 'Node %s' % tuple(nodes)
-    # almost done
-    return sentence % s_nodes
-
 # are you sure you want to understand what follows? This is sorcery...
 nt_index = 0
 nt_classes = {}

@@ -3,6 +3,7 @@
 from walt.common.constants import WALT_SERVER_TCP_PORT
 from walt.common.devices.registry import get_device_cls_from_vci_and_mac
 from walt.common.tcp import TCPServer
+from walt.common.tools import format_sentence_about_nodes
 from walt.server.threads.main.blocking import BlockingTasksManager
 from walt.server.threads.main.db import ServerDB
 from walt.server.threads.main.images.manager import NodeImageManager
@@ -13,7 +14,6 @@ from walt.server.threads.main.network.dhcpd import DHCPServer
 from walt.server.threads.main.nodes.manager import NodesManager
 from walt.server.threads.main.devices.manager import DevicesManager
 from walt.server.threads.main.devices.topology import TopologyManager
-from walt.server.tools import format_sentence_about_nodes
 from walt.server.threads.main.transfer import TransferManager
 from walt.server.threads.main.apisession import APISession
 from walt.server.threads.main.network import tftp
