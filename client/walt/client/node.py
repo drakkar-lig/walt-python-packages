@@ -1,5 +1,6 @@
 import time, sys
 from plumbum import cli
+from walt.common.tools import format_sentence_about_nodes
 from walt.client import myhelp
 from walt.client.link import ClientToServerLink
 from walt.client.tools import confirm
@@ -9,6 +10,11 @@ from walt.client.interactive import run_node_cmd, \
 from walt.client.transfer import run_transfer_with_node
 
 POE_REBOOT_DELAY            = 2  # seconds
+
+MSG_SOFT_REBOOT_FAILED = """\
+%s did not acknowledge the reboot request. Probably it(they) was(were) not fully booted yet."""
+MSG_SOFT_REBOOT_FAILED_TIP = """\
+Retry 'walt node reboot %(nodes_ko)s' in a moment (and add option --hard if it still fails)."""
 
 myhelp.register_topic('node-terminology', """
 * 'owning' a node
@@ -104,32 +110,46 @@ class PoETemporarilyOff:
     def __init__(self, server, node_set):
         self.server = server
         self.node_set = node_set
-        self.really_off = False
+        self.node_set_off = None
     def __enter__(self):
-        self.really_off = self.server.poweroff(
-                self.node_set, warn_unknown_topology=True)
-        return self.really_off
+        self.node_set_off = self.server.poweroff(
+                self.node_set, warn_poe_issues=True)
+        return self.node_set_off != None
     def __exit__(self, type, value, traceback):
-        if self.really_off:
+        if self.node_set_off:
             self.server.poweron(
-                self.node_set, warn_unknown_topology=False)
+                self.node_set_off, warn_poe_issues=True)
+
+def reboot_nodes(server, node_set, hard=False):
+    # try to soft-reboot
+    if hard:
+        print('Trying soft-reboot...')
+    nodes_ok, nodes_ko = server.softreboot(node_set)
+        # if it fails, try to power-cycle using PoE
+    if len(nodes_ko) > 0:
+        if hard:
+            print('Trying hard-reboot (PoE)...')
+            with PoETemporarilyOff(server, nodes_ko) as really_off:
+                if really_off:
+                    time.sleep(POE_REBOOT_DELAY)
+        else:
+            print(format_sentence_about_nodes(
+                    MSG_SOFT_REBOOT_FAILED,
+                    nodes_ko.split(',')))
+            print(MSG_SOFT_REBOOT_FAILED_TIP % dict(nodes_ko = nodes_ko))
 
 @WalTNode.subcommand("reboot")
 class WalTNodeReboot(cli.Application):
     """reboot a (set of) node(s)"""
+    _hard = False # default
     def main(self, node_set):
         with ClientToServerLink() as server:
             if not WalTNode.confirm_nodes_not_owned(server, node_set):
                 return
-            # try to soft-reboot
-            print('Trying soft-reboot...')
-            nodes_ok, nodes_ko = server.softreboot(node_set)
-            # if it fails, try to power-cycle using PoE
-            if len(nodes_ko) > 0:
-                print('Trying hard-reboot (PoE)...')
-                with PoETemporarilyOff(server, nodes_ko) as really_off:
-                    if really_off:
-                        time.sleep(POE_REBOOT_DELAY)
+            reboot_nodes(server, node_set, self._hard)
+    @cli.autoswitch(help='try hard-reboot (PoE) if soft-reboot fails')
+    def hard(self):
+        self._hard = True
 
 @WalTNode.subcommand("deploy")
 class WalTNodeDeploy(cli.Application):
@@ -139,19 +159,15 @@ class WalTNodeDeploy(cli.Application):
             if server.has_image(image_name_or_default):
                 # the list of nodes the keyword "my-nodes" refers to
                 # may be altered by the server.set_image() call, thus
-                # server.poweron() may not be applied on the same nodes
-                # as server.poweroff().
-                # thus we have to get a real list of nodes before starting
+                # we have to get a real list of nodes before starting
                 # anything.
                 node_set = server.develop_node_set(node_set)
                 if node_set is None:
                     return
                 if not WalTNode.confirm_nodes_not_owned(server, node_set):
                     return
-                with PoETemporarilyOff(server, node_set) as really_off:
-                    if really_off:
-                        server.set_image(node_set, image_name_or_default, warn_unknown_topology=False)
-                        time.sleep(POE_REBOOT_DELAY)
+                server.set_image(node_set, image_name_or_default)
+                reboot_nodes(server, node_set)
 
 @WalTNode.subcommand("ping")
 class WalTNodePing(cli.Application):

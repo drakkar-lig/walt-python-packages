@@ -193,7 +193,6 @@ class WalTLogShow(cli.Application):
                 if num_logs > NUM_LOGS_CONFIRM_TRESHOLD:
                     print 'This will display approximately %d log records from history.' % num_logs
                     if not confirm():
-                        print 'Aborted.'
                         return
         conn = LogsFlowFromServer(conf['server'])
         conn.request_log_dump(  history = history_range,

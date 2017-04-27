@@ -1,6 +1,7 @@
 from plumbum import cli
 from walt.client.link import ClientToServerLink
 from walt.client.interactive import run_device_ping
+from walt.client.device.admin import WalTDeviceAdmin
 
 class WalTDevice(cli.Application):
     """management of WalT platform devices"""
@@ -81,3 +82,5 @@ class WalTDeviceForget(cli.Application):
     def force(self):
         self._force = True
 
+# this one has much code and has its own module
+WalTDevice.subcommand("admin", WalTDeviceAdmin)

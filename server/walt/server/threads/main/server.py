@@ -76,19 +76,11 @@ class Server(object):
         self.images.cleanup()
         self.blocking.cleanup()
 
-    def set_image(self, requester, node_set, image_tag, warn_unknown_topology):
+    def set_image(self, requester, node_set, image_tag):
         nodes = self.nodes.parse_node_set(requester, node_set)
         if nodes == None:
             return # error already reported
-        nodes_ok, nodes_ko = self.nodes.filter_on_connectivity( \
-                            requester, nodes, warn_unknown_topology)
-        if self.images.set_image(requester, nodes_ok, image_tag):
-            if image_tag == 'default':
-                sentence = '%s will now boot its(their) default image (other users will see it(they) is(are) \'free\').'
-            else:
-                sentence = '%s will now boot ' + image_tag + '.'
-            requester.stdout.write(format_sentence_about_nodes(
-                sentence, [n.name for n in nodes_ok]) + '\n')
+        return self.images.set_image(requester, nodes, image_tag)
 
     def register_device(self, vendor_class_identifier, ip, mac):
         # let's try to identify this device given its mac address

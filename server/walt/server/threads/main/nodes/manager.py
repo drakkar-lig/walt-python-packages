@@ -1,4 +1,6 @@
 import socket
+from collections import defaultdict
+from snimpy import snmp
 from walt.common.tcp import Requests
 from walt.common.tools import format_sentence_about_nodes
 from walt.server.const import SSH_COMMAND, WALT_NODE_NET_SERVICE_PORT
@@ -29,13 +31,18 @@ NODE_SET_QUERIES = {
             ORDER BY name;"""
 }
 
-MSG_NODE_NEVER_REGISTERED = """\
-Node %s was eventually detected but never registered itself to the server.
-It seems it is not running a valid WalT boot image.
+MSG_CONNECTIVITY_UNKNOWN = """\
+%s: Unknown PoE switch port. Cannot proceed! Try 'walt device rescan'.
 """
 
-MSG_CONNECTIVITY_UNKNOWN = """\
-%s: Unknown PoE switch port. Cannot proceed! Please retry in a few minutes.
+MSG_POE_REBOOT_UNABLE_EXPLAIN = """\
+%%s is(are) connected on switch '%(sw_name)s' which has PoE disabled. Cannot proceed!
+If '%(sw_name)s' is PoE-capable, you can activate PoE hard-reboots by running:
+$ walt device admin %(sw_name)s
+"""
+
+MSG_POE_REBOOT_FAILED = """\
+FAILED to turn node %(node_name)s %(state)s using PoE: SNMP request to %(sw_name)s (%(sw_ip)s) failed.
 """
 
 FS_CMD_PATTERN = SSH_COMMAND + ' root@%(node_ip)s %%(prog)s %%(prog_args)s'
@@ -130,11 +137,7 @@ class NodesManager(object):
             requester.stderr.write('%s is not a node, it is a %s.\n' % \
                                     (node_name, device_type))
             return None
-        node_info = self.db.select_unique("nodes", mac=device_info.mac)
-        if node_info == None:
-            requester.stderr.write(MSG_NODE_NEVER_REGISTERED % node_name)
-            return None
-        return merge_named_tuples(device_info, node_info)
+        return self.devices.get_complete_device_info(device_info.mac)
 
     def get_reachable_node_info(self, requester, node_name):
         node_info = self.get_node_info(requester, node_name)
@@ -169,45 +172,89 @@ class NodesManager(object):
             return () # error already reported
         return tuple(node.ip for node in nodes)
 
-    def filter_on_connectivity(self, requester, nodes, warn):
+    def filter_poe_rebootable(self, requester, nodes,
+                warn_unknown_connectivity, warn_poe_forbidden):
         nodes_ok = []
-        nodes_ko = []
+        nodes_unknown = []
+        nodes_forbidden = defaultdict(list)
         for node in nodes:
-            sw_ip, sw_port = self.topology.get_connectivity_info( \
+            sw_info, sw_port = self.topology.get_connectivity_info( \
                                     node.mac)
-            if sw_ip:
-                nodes_ok.append(node)
+            if sw_info:
+                if sw_info.poe_reboot_nodes == True:
+                    nodes_ok.append(node)
+                else:
+                    nodes_forbidden[sw_info.name].append(node)
             else:
-                nodes_ko.append(node)
-        if len(nodes_ko) > 0 and warn:
+                nodes_unknown.append(node)
+        if len(nodes_unknown) > 0 and warn_unknown_connectivity:
             requester.stderr.write(format_sentence_about_nodes(
-                MSG_CONNECTIVITY_UNKNOWN, [n.name for n in nodes_ko]))
-        return nodes_ok, nodes_ko
+                MSG_CONNECTIVITY_UNKNOWN, [n.name for n in nodes_unknown]))
+        if len(nodes_forbidden) > 0 and warn_poe_forbidden:
+            for sw_name, sw_nodes in nodes_forbidden.items():
+                explain = MSG_POE_REBOOT_UNABLE_EXPLAIN % dict(
+                    sw_name = sw_name
+                )
+                requester.stderr.write(format_sentence_about_nodes(
+                    explain,
+                    [n.name for n in sw_nodes]))
+        return nodes_ok, nodes_unknown, nodes_forbidden
 
-    def setpower(self, requester, node_set, poweron, warn_unknown_topology):
+    def setpower(self, requester, node_set, poweron, warn_poe_issues):
+        """Hard-reboot nodes by setting the PoE switch port off and back on"""
+        # we have to verify that:
+        # - we know where each node is connected (PoE switch port)
+        # - PoE remote control is allowed on this switch
+        #
+        # we verify this in several steps:
+        # 1- we call filter_poe_rebootable() but disabling
+        #    warnings about nodes with unknown connectivity
+        # 2- if such nodes were returned, we rescan the network,
+        #    and then call filter_poe_rebootable() again,
+        #    for those problematic nodes only, and this time
+        #    with the warning enabled.
         nodes = self.parse_node_set(requester, node_set)
         if nodes == None:
             return None # error already reported
-        # verify connectivity of all designated nodes
-        for pass_count in range(2):
-            nodes_ok, nodes_ko = self.filter_on_connectivity( \
+        nodes_ok, nodes_unknown, nodes_forbidden = \
+                    self.filter_poe_rebootable( \
                                 requester, nodes,
-                                pass_count > 0 and warn_unknown_topology)
-            if len(nodes_ko) == 0:
-                break
-            elif pass_count == 0:
-                # rescan and retry
-                self.topology.rescan()
+                                False,
+                                warn_poe_issues)
+        if len(nodes_unknown) > 0:
+            # rescan and retry
+            self.topology.rescan()
+            nodes_ok2, nodes_unknown2, nodes_forbidden2 = \
+            self.filter_poe_rebootable( requester,
+                                        nodes_unknown,
+                                        warn_poe_issues,
+                                        warn_poe_issues)
+            nodes_ok += nodes_ok2
         if len(nodes_ok) == 0:
-            return False
+            return None
         # otherwise, at least one node can be reached, so do it.
+        s_state = {True:'on',False:'off'}[poweron]
+        nodes_really_ok = []
         for node in nodes_ok:
-            self.topology.setpower(node.mac, poweron)
-        s_poweron = {True:'on',False:'off'}[poweron]
-        requester.stdout.write(format_sentence_about_nodes(
-            '%s was(were) powered ' + s_poweron + '.' ,
-            [n.name for n in nodes_ok]) + '\n')
-        return True
+            try:
+                self.topology.setpower(node.mac, poweron)
+                nodes_really_ok.append(node)
+            except snmp.SNMPException:
+                sw_info, sw_port = \
+                    self.topology.get_connectivity_info(node.mac)
+                requester.stderr.write(MSG_POE_REBOOT_FAILED % dict(
+                        node_name = node.name,
+                        state = s_state,
+                        sw_name = sw_info.name,
+                        sw_ip = sw_info.ip))
+        if len(nodes_really_ok) > 0:
+            requester.stdout.write(format_sentence_about_nodes(
+                '%s was(were) powered ' + s_state + '.' ,
+                [n.name for n in nodes_really_ok]) + '\n')
+            # return successful nodes as a node_set
+            return ','.join(n.name for n in nodes_really_ok)
+        else:
+            return None
 
     def softreboot(self, requester, node_set):
         nodes = self.parse_node_set(requester, node_set)

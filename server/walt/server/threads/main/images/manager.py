@@ -10,8 +10,11 @@ from walt.server.threads.main.transfer import validate_cp
 from walt.server.threads.main.images.fixowner import fix_owner
 from walt.server.threads.main.images.store import NodeImageStore
 from walt.server.threads.main.network import tftp
+from walt.common.tools import format_sentence_about_nodes
 
 # About terminology: See comment about it in image.py.
+MSG_BOOT_DEFAULT_IMAGE = """\
+%s will now boot its(their) default image (other users will see it(they) is(are) 'free')."""
 
 class NodeImageManager(object):
     def __init__(self, db, blocking_manager, dhcpd, docker):
@@ -84,6 +87,13 @@ class NodeImageManager(object):
         tftp.update(self.db)
         self.db.commit()
         self.dhcpd.update()
+        # inform requester
+        if image_tag == 'default':
+            sentence = MSG_BOOT_DEFAULT_IMAGE
+        else:
+            sentence = '%s will now boot ' + image_tag + '.'
+        requester.stdout.write(format_sentence_about_nodes(
+            sentence, [n.name for n in nodes]) + '\n')
         return True
     def create_shell_session(self, requester, image_tag):
         image = self.store.get_user_image_from_tag(requester, image_tag)

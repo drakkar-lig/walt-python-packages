@@ -32,7 +32,10 @@ class ServerDB(PostgresDB):
                     model TEXT);""")
         self.execute("""CREATE TABLE IF NOT EXISTS switches (
                     mac TEXT REFERENCES devices(mac),
-                    model TEXT);""")
+                    model TEXT,
+                    lldp_explore BOOLEAN DEFAULT FALSE,
+                    poe_reboot_nodes BOOLEAN DEFAULT FALSE,
+                    snmp_conf TEXT);""")
         self.execute("""CREATE TABLE IF NOT EXISTS config (
                     item TEXT PRIMARY KEY,
                     value TEXT);""")

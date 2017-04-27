@@ -70,7 +70,7 @@ class WalTImageShell(cli.Application):
                     if res == 'NAME_NOT_OK':
                         continue
                     if res == 'NAME_NEEDS_CONFIRM':
-                        if confirm():
+                        if confirm(komsg = None):
                             server.image_shell_session_save(
                                     session_id, new_name, name_confirmed = True)
                         else:

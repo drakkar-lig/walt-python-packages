@@ -64,12 +64,12 @@ class CSAPI(APISession):
         return self.nodes.develop_node_set(self.requester, node_set)
 
     @api_expose_method
-    def poweroff(self, node_set, warn_unknown_topology):
-        return self.nodes.setpower(self.requester, node_set, False, warn_unknown_topology)
+    def poweroff(self, node_set, warn_poe_issues):
+        return self.nodes.setpower(self.requester, node_set, False, warn_poe_issues)
 
     @api_expose_method
-    def poweron(self, node_set, warn_unknown_topology):
-        return self.nodes.setpower(self.requester, node_set, True, warn_unknown_topology)
+    def poweron(self, node_set, warn_poe_issues):
+        return self.nodes.setpower(self.requester, node_set, True, warn_poe_issues)
 
     @api_expose_method
     def softreboot(self, node_set):
@@ -92,8 +92,8 @@ class CSAPI(APISession):
         return self.images.has_image(self.requester, image_tag)
 
     @api_expose_method
-    def set_image(self, node_set, image_tag, warn_unknown_topology):
-        self.server.set_image(self.requester, node_set, image_tag, warn_unknown_topology)
+    def set_image(self, node_set, image_tag):
+        self.server.set_image(self.requester, node_set, image_tag)
 
     @api_expose_method
     def is_device_reachable(self, device_name):
@@ -107,6 +107,14 @@ class CSAPI(APISession):
     @api_expose_method
     def forget(self, device_name):
         self.server.forget_device(device_name)
+
+    @api_expose_method
+    def get_device_type(self, device_name):
+        return self.devices.get_type_from_name(self.requester, device_name)
+
+    @api_expose_method
+    def apply_switch_conf(self, device_name, conf):
+        return self.devices.apply_switch_conf(self.requester, device_name, conf)
 
     @api_expose_method
     def fix_image_owner(self, other_user):

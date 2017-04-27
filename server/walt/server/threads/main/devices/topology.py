@@ -5,8 +5,8 @@ import time
 from walt.common.tools import get_mac_address
 from walt.server import const
 from walt.server.threads.main import snmp
-from walt.server.threads.main.network.tools import ip_in_walt_network, lldp_update, \
-               set_static_ip_on_switch, restart_dhcp_setup_on_switch, get_server_ip
+from walt.server.threads.main.network.tools import \
+        ip_in_walt_network, lldp_update, get_server_ip
 from walt.server.threads.main.tree import Tree
 
 
@@ -207,68 +207,41 @@ class TopologyManager(object):
                             host_mac, processed_switches):
 
         print "collecting on %s %s" % (host, host_mac)
-        switches_with_dhcp_restarted = set()
-        switches_with_wrong_ip = set()
         # avoid to loop forever...
         if host_depth > 0:
             processed_switches.add(host_mac)
         neighbors_depth = host_depth + 1
-        while True:
-            issue = False
-            # get a SNMP proxy with LLDP feature
-            snmp_proxy = snmp.Proxy(host, lldp=True)
 
-            # record neighbors in db and recurse
-            for port, neighbor_info in snmp_proxy.lldp.get_neighbors().items():
-                # ignore neighbors on port 1 of the main switch
-                # (port 1 is associated to VLAN walt-out)
-                if neighbors_depth == 2 and port < 2:
-                    continue
-                ip, mac = neighbor_info['ip'], neighbor_info['mac']
-                print '---- found on %s %s -- port %d: %s %s' % (host, host_mac, port, ip, mac)
-                device_type = self.devices.get_type(mac)
-                if device_type == None:
-                    # this device did not get a dhcp lease?
-                    print 'Warning: Unregistered device with mac %s detected on %s\'s port %d. Ignoring.' % \
-                                (mac, host, port)
-                    continue
-                valid_ip = str(ip) != 'None'
-                if not valid_ip or not ip_in_walt_network(ip):
-                    # if someone is viewing the UI, let him know that we are still
-                    # alive, because this could cause a long delay.
-                    if ui:
-                        ui.task_running()
-                    print 'Not ready, one neighbor has ip %s (not in WalT network yet)...' % ip
-                    if device_type == 'switch' and valid_ip:
-                        if mac not in switches_with_dhcp_restarted:
-                            print 'trying to restart the dhcp client on switch %s (%s)' % (ip, mac)
-                            switches_with_dhcp_restarted.add(mac)
-                            restart_dhcp_setup_on_switch(ip)
-                        switches_with_wrong_ip.add(mac)
-                    lldp_update()
-                    time.sleep(1)
-                    issue = True
-                    break
-                elif valid_ip and ip_in_walt_network(ip):
-                    if mac in switches_with_wrong_ip:
-                        switches_with_wrong_ip.discard(mac)
-                        print 'Affecting static IP configuration on switch %s (%s)...' % \
-                            (ip, mac)
-                        set_static_ip_on_switch(ip)
-                topology.register_neighbor(host_mac, port, mac)
-                if device_type == 'switch' and mac not in processed_switches:
-                    # recursively discover devices connected to this switch
-                    self.collect_connected_devices(ui, topology, ip, neighbors_depth,
-                                            mac, processed_switches)
-            if not issue:
-                break   # otherwise restart the loop
+        # get a SNMP proxy with LLDP feature
+        snmp_proxy = snmp.Proxy(host, lldp=True)
+
+        # record neighbors and recurse
+        for port, neighbor_info in snmp_proxy.lldp.get_neighbors().items():
+            # ignore neighbors on port 1 of the main switch
+            # (port 1 is associated to VLAN walt-out)
+            if neighbors_depth == 2 and port < 2:
+                continue
+            ip, mac = neighbor_info['ip'], neighbor_info['mac']
+            print '---- found on %s %s -- port %d: %s %s' % (host, host_mac, port, ip, mac)
+            topology.register_neighbor(host_mac, port, mac)
+            device_info = self.devices.get_complete_device_info(mac)
+            if device_info == None:
+                # unknown device
+                self.devices.add_or_update(
+                        mac = mac, ip = ip, type = 'unknown')
+            elif device_info.type == 'switch' and \
+                     mac not in processed_switches and \
+                     device_info.lldp_explore == True:
+                # recursively discover devices connected to this switch
+                self.collect_connected_devices(ui, topology, ip, neighbors_depth,
+                                        mac, processed_switches)
 
     def rescan(self, requester=None, remote_ip=None, ui=None):
         # register the server in the device list, if missing
         server_mac = get_mac_address(const.WALT_INTF)
         self.devices.add_or_update(
                 mac = server_mac, ip = str(get_server_ip()),
-                device_type = 'server')
+                type = 'server')
         reachable_filters = [ "type = 'server'" ]
         # if the client is connected on the walt network, set it as reachable
         if remote_ip:
@@ -317,15 +290,15 @@ class TopologyManager(object):
 
     def setpower(self, device_mac, poweron):
         # we have to know on which PoE switch port the node is
-        switch_ip, switch_port = self.get_connectivity_info(device_mac)
-        if not switch_ip:
+        switch_info, switch_port = self.get_connectivity_info(device_mac)
+        if not switch_info:
             return False
         # if powering off, the device will be unreachable
         if not poweron:
             self.db.update('devices', 'mac', mac=device_mac, reachable=0)
             self.db.commit()
         # let's request the switch to enable or disable the PoE
-        proxy = snmp.Proxy(switch_ip, poe=True)
+        proxy = snmp.Proxy(switch_info.ip, poe=True)
         proxy.poe.set_port(switch_port, poweron)
         return True
 
@@ -340,5 +313,5 @@ class TopologyManager(object):
              switch_mac, switch_port = record.mac2, record.port2
         else:
              switch_mac, switch_port = record.mac1, record.port1
-        switch_info = self.db.select_unique("devices", mac=switch_mac)
-        return switch_info.ip, switch_port
+        switch_info = self.devices.get_complete_device_info(switch_mac)
+        return switch_info, switch_port
