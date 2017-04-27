@@ -63,14 +63,16 @@ class PostgresDB():
     def get_server_cursor(self):
         return ServerCursor(self.conn)
 
+    def get_column_names(self, table):
+        self.c.execute("SELECT * FROM %s LIMIT 0" % table)
+        return tuple(col_desc[0] for col_desc in self.c.description)
+
     # from a dictionary of the form <col_name> -> <value>
     # we want to filter-out keys that are not column names,
     # and return ([<col_name>, ...], [<value>, ...]).
     def get_cols_and_values(self, table, dictionary):
         # retrieve fields names for this table 
-        self.c.execute("SELECT * FROM %s LIMIT 0" % table)
-        col_names = set(col_desc[0] for col_desc in self.c.description)
-
+        col_names = set(self.get_column_names(table))
         res = {}
         for k in dictionary:
             # filter-out keys of dictionary that are not 
