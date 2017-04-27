@@ -89,8 +89,7 @@ def get_contiguous_ranges(ips):
         ranges.append((group[0], group[-1]))
     return ranges
 
-def generate_dhcpd_conf(devices):
-    subnet = get_walt_subnet()
+def generate_dhcpd_conf(subnet, devices):
     devices_confs = []
     free_ips = list(subnet.hosts())
     server_ip = free_ips.pop(0)
@@ -100,7 +99,7 @@ def generate_dhcpd_conf(devices):
         else:
             conf_pattern = NODE_CONF_PATTERN
         devices_confs.append(conf_pattern % device_info)
-        free_ips.remove(ip(device_info['ip']))
+        free_ips.remove(device_info['ip'])
     range_confs = []
     for r in get_contiguous_ranges(free_ips):
         first, last = r
@@ -127,18 +126,22 @@ class DHCPServer(object):
     def __init__(self, db):
         self.db = db
     def update(self, force=False):
+        subnet = get_walt_subnet()
         devices = []
         for item in \
                 self.db.execute(QUERY_DEVICES_WITH_IP).fetchall():
+            device_ip = ip(item.ip)
+            if device_ip not in subnet:
+                continue
             device_type = item.type
             device_mac = item.mac
             if device_type != 'server':
                 devices.append(dict(
-                    type=item.type,
+                    type=device_type,
                     hostname=item.name,
-                    ip=item.ip,
+                    ip=device_ip,
                     mac=device_mac))
-        conf = generate_dhcpd_conf(devices)
+        conf = generate_dhcpd_conf(subnet, devices)
         with open(DHCPD_CONF_FILE, 'r') as conf_file:
             old_conf = conf_file.read()
         if conf != old_conf:
