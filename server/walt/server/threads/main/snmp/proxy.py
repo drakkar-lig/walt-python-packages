@@ -10,7 +10,8 @@ SNMP_OPTS = {
     "version": 2,
     "community": "private",
     'retries': 2,
-    'timeout': const.SNMP_TIMEOUT
+    'timeout': const.SNMP_TIMEOUT,
+    'cache': True
 }
 
 class Proxy(object):
