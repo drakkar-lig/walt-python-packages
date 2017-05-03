@@ -95,6 +95,7 @@ class BusyIndicator(object):
         self.label = label
         self.last_time = None
         self.next_time = None
+        self.msg_len = None
     def start(self):
         self.last_time = None
         self.next_time = datetime.now() + PROGRESS_INDICATOR_PERIOD
@@ -104,14 +105,17 @@ class BusyIndicator(object):
     def update(self):
         if datetime.now() > self.next_time:
             if self.last_time == None:
-                self.write_stdout(self.label + "... *")
+                msg = self.label + "... *"
+                self.write_stdout(msg)
+                self.msg_len = len(msg)
             else:
                 self.write_stdout("*")
+                self.msg_len += 1
             self.last_time = datetime.now()
             self.next_time = self.last_time + PROGRESS_INDICATOR_PERIOD
     def done(self):
         if self.last_time != None:
-            self.write_stdout("\n")
+            self.write_stdout("\r" + (' ' * self.msg_len) + "\r")
     def reset(self):
         self.done()
         self.start()
