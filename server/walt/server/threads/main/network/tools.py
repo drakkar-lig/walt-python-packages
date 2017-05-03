@@ -61,18 +61,6 @@ def assign_temp_ip_to_reach_neighbor(neighbor_ip, callback, intf, *args):
             break
     return (reached, callback_result)
 
-def restart_dhcp_setup_on_switch_cb(local_ip, switch_ip, intf):
-    p = Proxy(str(switch_ip), ipsetup=True)
-    p.ipsetup.perform_dhcp_setup()
-
-def restart_dhcp_setup_on_switch(switch_ip):
-    reached, res = assign_temp_ip_to_reach_neighbor(
-                                ip(switch_ip),
-                                restart_dhcp_setup_on_switch_cb,
-                                const.WALT_INTF)
-    if not reached:
-        print 'Warning: Could not reach %s and restart its DHCP client.' % switch_ip
-
 def set_static_ip_on_switch(switch_ip):
     p = Proxy(switch_ip, ipsetup=True)
     p.ipsetup.record_current_ip_config_as_static()
