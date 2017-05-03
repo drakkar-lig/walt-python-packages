@@ -61,8 +61,8 @@ def assign_temp_ip_to_reach_neighbor(neighbor_ip, callback, intf, *args):
             break
     return (reached, callback_result)
 
-def set_static_ip_on_switch(switch_ip):
-    p = Proxy(switch_ip, ipsetup=True)
+def set_static_ip_on_switch(switch_ip, snmp_conf):
+    p = Proxy(switch_ip, snmp_conf, ipsetup=True)
     p.ipsetup.record_current_ip_config_as_static()
 
 def lldp_update():

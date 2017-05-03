@@ -7,17 +7,16 @@ from walt.server.threads.main.snmp.ipsetup import IPSetupProxy
 from walt.server import const
 
 SNMP_OPTS = {
-    "version": 2,
-    "community": "private",
     'retries': 2,
     'timeout': const.SNMP_TIMEOUT,
     'cache': True
 }
 
 class Proxy(object):
-        def __init__(self, host, poe=False, lldp=False, vlan=False, ipsetup=False):
+        def __init__(self, host, snmp_conf, poe=False, lldp=False, vlan=False, ipsetup=False):
             opts = SNMP_OPTS.copy()
-            opts['host'] = host
+            opts.update(host = host)
+            opts.update(snmp_conf)
             self.host = host
             self.snmp = Manager(**opts)
             if poe:

@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # coding=utf-8
 import time, snimpy
+from walt.server.const import SERVER_SNMP_CONF
 from walt.server.threads.main.mydocker import DockerClient
 from walt.server.threads.main import snmp
 from walt.server.threads.main.network.tools import lldp_update
@@ -50,7 +51,7 @@ def wait_companion_services(ui):
     ui.task_start(MSG_WAITING_COMPANION_SERVICES)
     while True:
         try:
-            snmp_local = snmp.Proxy('localhost', lldp=True)
+            snmp_local = snmp.Proxy('localhost', SERVER_SNMP_CONF, lldp=True)
             print snmp_local.lldp.get_local_ips()
         except snimpy.snmp.SNMPException:
             ui.task_running()
@@ -78,7 +79,7 @@ def wait_for_main_switch(ui, msg, explain = None, todo = None):
     ui.task_start(msg, explain=explain, todo=todo)
     # retrieve info about the main switch by
     # using the local lldp & snmp daemons
-    snmp_local = snmp.Proxy('localhost', lldp=True)
+    snmp_local = snmp.Proxy('localhost', SERVER_SNMP_CONF, lldp=True)
     while len(snmp_local.lldp.get_neighbors()) == 0:
         ui.task_running()
         lldp_update()

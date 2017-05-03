@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import time
+import time, json
 
 from walt.common.tools import get_mac_address
 from walt.server import const
@@ -203,6 +203,10 @@ class TopologyManager(object):
         self.devices = devices
         self.db = devices.db
 
+    def get_snmp_conf(self, switch_mac):
+        switch_info = self.db.select_unique('switches', mac = switch_mac)
+        return json.loads(switch_info.snmp_conf)
+
     def collect_connected_devices(self, ui, topology, host, host_depth,
                             host_mac, processed_switches):
 
@@ -213,7 +217,11 @@ class TopologyManager(object):
         neighbors_depth = host_depth + 1
 
         # get a SNMP proxy with LLDP feature
-        snmp_proxy = snmp.Proxy(host, lldp=True)
+        if host_depth == 0:
+            snmp_conf = const.SERVER_SNMP_CONF
+        else:
+            snmp_conf = self.get_snmp_conf(host_mac)
+        snmp_proxy = snmp.Proxy(host, snmp_conf, lldp=True)
 
         # record neighbors and recurse
         for port, neighbor_info in snmp_proxy.lldp.get_neighbors().items():
@@ -298,7 +306,8 @@ class TopologyManager(object):
             self.db.update('devices', 'mac', mac=device_mac, reachable=0)
             self.db.commit()
         # let's request the switch to enable or disable the PoE
-        proxy = snmp.Proxy(switch_info.ip, poe=True)
+        snmp_conf = json.loads(switch_info.snmp_conf)
+        proxy = snmp.Proxy(switch_info.ip, snmp_conf, poe=True)
         proxy.poe.set_port(switch_port, poweron)
         return True
 
