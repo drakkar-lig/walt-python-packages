@@ -5,6 +5,7 @@ from snimpy import snmp
 
 POE_PORT_ENABLED=1
 POE_PORT_DISABLED=2
+POE_PORT_SPEEDS=(10**7, 10**8, 10**9)   # 10Mb/s 100Mb/s 1Gb/s
 
 # Several mibs exist depending on the device vendor.
 # In the worst case, on the WalT platform we
@@ -12,10 +13,51 @@ POE_PORT_DISABLED=2
 # In this case we should unload a mib and load another
 # when we pass from one vendor to another.
 # In order to handle this, we use a wrapper around the
-# SNMP proxy. This wrapper ensures that each time the SNMP
-# proxy is accessed, the appropriate MIB is loaded.
+# SNMP proxy. The SafeProxy wrapper ensures that each time
+# the SNMP proxy is accessed, the appropriate MIB is loaded.
 
 CANDIDATE_POE_MIBS = ["POWER-ETHERNET-MIB", "NETGEAR-POWER-ETHERNET-MIB"]
+POE_PORT_MAPPING_CACHE = {}
+
+# In POWER-ETHERNET-MIB, PoE ports are identified using a
+# tuple (grp_index, port_index).
+# grp_index identifies a PoE port group (box in the stack,
+# module in a rack, etc. or 1 for non-modular devices).
+# port_index identifies the PoE port within this group.
+# On the other hand, LLDP ports are identified using a global
+# index meaningful for the whole switch.
+# When we want to alter PoE state on a port, we have to compute
+# the appropriate (grp_index, port_index) given the LLDP port index.
+# I have found the following solution:
+# - list the switch ports with speed 10Mb/s 100Mb/s or 1Gb/s
+#   (these are the possible speeds for a PoE port), using IF-MIB
+# - list the PoE ports, using POWER-ETHERNET-MIB
+# - verify that these 2 lists have the same length
+# - "zip" these 2 lists in order to attach each LLDP port to its
+#   corresponding PoE port identification tuple.
+# IMPORTANT: This only works with switches where all ethernet
+# ports are PoE capable.
+
+MSG_ISSUE_POE_PORT_MAPPING = """\
+WalT can only identify PoE ports on devices where all ports are PoE-capable.
+This does not seem to be the case on switch %s."""
+
+def get_poe_port_mapping(snmp_proxy, host):
+    if not host in POE_PORT_MAPPING_CACHE:
+        if "IF-MIB" not in get_loaded_mibs():
+            load_mib("IF-MIB")
+        iface_port_indexes = list(
+                int(k) for k, v in snmp_proxy.ifSpeed.items()
+                if v in POE_PORT_SPEEDS)
+        poe_port_indexes = list(
+                (int(grp_idx), int(grp_port)) \
+                for grp_idx, grp_port in snmp_proxy.pethPsePortAdminEnable.keys())
+        if len(iface_port_indexes) != len(poe_port_indexes):
+            raise RuntimeError(MSG_ISSUE_POE_PORT_MAPPING % host)
+        iface_to_poe_index = { a: b for a, b in \
+                zip(iface_port_indexes, poe_port_indexes) }
+        POE_PORT_MAPPING_CACHE[host] = iface_to_poe_index
+    return POE_PORT_MAPPING_CACHE[host]
 
 def detect_correct_mib(snmp_proxy, host):
     unload_any_of_these_mibs(CANDIDATE_POE_MIBS)
@@ -63,8 +105,10 @@ class PoEProxy(object):
 
     def __init__(self, snmp_proxy, host):
         self.snmp = SafeProxy(snmp_proxy, host)
+        self.port_mapping = get_poe_port_mapping(snmp_proxy, host)
 
     def set_port(self, switch_port, active_or_not):
         port_state = POE_PORT_ENABLED if active_or_not else POE_PORT_DISABLED
-        self.snmp.pethPsePortAdminEnable[(1,switch_port)] = port_state
+        poe_port = self.port_mapping[switch_port]
+        self.snmp.pethPsePortAdminEnable[poe_port] = port_state
 
