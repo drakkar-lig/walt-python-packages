@@ -48,6 +48,7 @@ class EventLoop(object):
         except:
             pass
         if fd == None:
+            print 'FAILED to get file-descriptor of listener', listener
             return  # registration aborted
         self.listeners[fd] = listener
         self.poller.register(fd, events)
