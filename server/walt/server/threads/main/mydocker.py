@@ -7,7 +7,7 @@ from datetime import datetime
 from plumbum.cmd import mount
 import sys, requests, shlex, json
 
-DOCKER_TIMEOUT=15
+DOCKER_TIMEOUT=None
 AUFS_BR_LIMIT=127
 AUFS_BR_MOUNT_LIMIT=42
 REGISTRY='https://index.docker.io/v1/'
