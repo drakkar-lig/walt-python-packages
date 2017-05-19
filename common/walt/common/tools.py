@@ -177,3 +177,13 @@ def format_sentence_about_nodes(sentence, nodes):
         s_nodes = 'Node %s' % tuple(nodes)
     # almost done
     return sentence % s_nodes
+
+class SimpleContainer(object):
+    def __init__(self, **args):
+        self.update(**args)
+    def update(self, **args):
+        self.__dict__.update(**args)
+        return self
+    def copy(self):
+        return SimpleContainer(**self.__dict__)
+

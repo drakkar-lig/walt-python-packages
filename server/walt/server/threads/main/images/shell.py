@@ -15,7 +15,7 @@ class ImageShellSession(object):
 
     def get_parameters(self):
         # return an immutable object (a tuple, not a dict)
-        # otherwise we will cause other RPyC calls
+        # otherwise we will cause other RPC calls
         # default new name is to propose the same name
         # (and override the image if user confirms)
         return self.image_fullname, self.container_name, self.image_tag
@@ -51,7 +51,7 @@ class ImageShellSession(object):
         image_fullname = '%s/walt-node:%s' % (username, new_image_tag)
         # with the walt image cp command, the client sends a request to start a
         # container for receiving, then immediately starts to send a tar archive,
-        # and then tries to commit the container through rpyc commands.
+        # and then tries to commit the container through rpc commands.
         # we have to ensure here that the container was run and completed its job.
         while True:
             event = self.docker_events.next()

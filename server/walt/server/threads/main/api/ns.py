@@ -8,8 +8,8 @@ from walt.server.threads.main.apisession import APISession
 class NSAPI(APISession):
 
     @api_expose_method
-    def node_bootup_event(self):
-        self.devices.node_bootup_event(self.remote_ip)
-        node_name = self.devices.get_name_from_ip(self.remote_ip)
-        self.nodes.node_bootup_event(node_name)
+    def node_bootup_event(self, context):
+        context.devices.node_bootup_event(context.remote_ip)
+        node_name = context.devices.get_name_from_ip(context.remote_ip)
+        context.nodes.node_bootup_event(node_name)
 

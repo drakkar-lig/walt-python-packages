@@ -1,41 +1,27 @@
-import sys, traceback
-from walt.common.thread import ThreadConnector
+from walt.common.thread import RPCThreadConnector
+from walt.common.apilink import AttrCallRunner, AttrCallAggregator
 
-class BlockingTasksManager(ThreadConnector):
-    def __init__(self, tasks, *args, **kwargs):
-        ThreadConnector.__init__(self, *args, **kwargs)
-        self.next_task_id = 0
-        self.tasks = tasks
+class BlockingTasksManager(RPCThreadConnector):
+    def session(self, requester):
+        # we will receive:
+        # service.<func>(rpc_context, <args...>)
+        # and we must forward the call as:
+        # requester.<func>(<args...>)
+        # the following code handles this forwarding
+        # and removal of the 'rpc_context' parameter.
+        runner = AttrCallRunner(requester)
+        def forward_to_requester(attr, args, kwargs):
+            return runner.do(attr, args[1:], kwargs)
+        service = AttrCallAggregator(forward_to_requester)
+        return self.local_service(service)
 
-    def join_event_loop(self, ev_loop):
-        self.ev_loop = ev_loop
-        ev_loop.register_listener(self)
+    def clone_image(self, requester, result_cb, *args, **kwargs):
+        self.session(requester).async.clone_image(*args, **kwargs).then(result_cb)
 
-    def do(self, blocking_task):
-        task_id = self.next_task_id
-        self.next_task_id += 1
-        self.tasks[task_id] = blocking_task
-        self.pipe.send(task_id)
+    def search_image(self, requester, result_cb, *args, **kwargs):
+        self.session(requester).async.search_image(*args, **kwargs).then(result_cb)
 
-    # let the event loop know what we are reading on
-    def fileno(self):
-        return self.pipe.fileno()
+    def publish_image(self, requester, result_cb, *args, **kwargs):
+        self.session(requester).async.publish_image(*args, **kwargs).then(result_cb)
 
-    # when the event loop detects an event for us, this
-    # means the background process has completed a
-    # task.
-    def handle_event(self, ts):
-        task_id = self.pipe.recv()
-        task = self.tasks[task_id]
-        if isinstance(task.result, Exception):
-            print "Exception occured in the blocking tasks thread. Backtrace:"
-            # print back trace
-            traceback.print_tb(task.result.info[2])
-            # print exception message
-            print task.result.info[1]
-        task.handle_result(task.result)
-        del self.tasks[task_id]
-
-    def cleanup(self):
-        self.close()
 

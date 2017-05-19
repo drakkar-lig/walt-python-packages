@@ -1,57 +1,59 @@
-import sys
+from walt.common.tools import SimpleContainer
+from walt.server.threads.main.task import APISessionTask
 
 class APISession(object):
 
+    NEXT_ID = 0
     SESSIONS = {}
     TARGET_APIS = {}
+    SERVER_CONTEXT = None
 
     @staticmethod
     def register_target_api(name, cls):
         APISession.TARGET_APIS[name] = cls
 
     @staticmethod
-    def get(server, task):
-        link_id = task.link_info.link_id
-        if link_id not in APISession.SESSIONS:
-            cls = APISession.TARGET_APIS[task.target_api]
-            APISession.SESSIONS[link_id] = cls(task, server)
-        return APISession.SESSIONS[link_id]
+    def create(server, target_api, remote_ip):
+        session_id = APISession.NEXT_ID
+        APISession.NEXT_ID += 1
+        cls = APISession.TARGET_APIS[target_api]
+        APISession.SESSIONS[session_id] = cls(server, remote_ip)
+        print 'session %d: connected' % session_id
+        return session_id
+
+    @staticmethod
+    def destroy(session_id):
+        print 'session %d: disconnected' % session_id
+        APISession.SESSIONS[session_id].cleanup()
+        del APISession.SESSIONS[session_id]
 
     @staticmethod
     def cleanup_all():
         for session in APISession.SESSIONS.values():
             session.cleanup()
 
-    def __init__(self, first_task, server):
-        self.session_objects = []
-        self.server, self.images, self.devices, self.topology, \
-                self.nodes, self.logs = \
-            server, server.images, server.devices, server.topology, \
-                server.nodes, server.logs
-        linfo = first_task.link_info
-        self.link_id, self.remote_api, self.remote_ip = \
-            linfo.link_id, linfo.remote_api, linfo.remote_ip
-        self.task = None
+    @staticmethod
+    def get(session_id):
+        return APISession.SESSIONS[session_id]
 
-    def run(self, t):
-        self.task = t
-        # get task info
-        attr, args, kwargs_items = t.desc()
-        # rebuild kwargs
-        # (t did not returned a dict, this is would involve rpyc calls again)
-        kwargs = { k:v for k, v in kwargs_items }
-        try:
-            # lookup task
-            m = getattr(self, attr)
-            # run task
-            res = m(*args, **kwargs)
-        except BaseException as e:
-            print 'Exception occured while performing API request:'
-            sys.excepthook(*sys.exc_info())
-            res = e
-        # return result, unless async mode was set
-        if not t.is_async():
-            t.return_result(res)
+    def __init__(self, server, remote_ip):
+        self.session_objects = []
+        if APISession.SERVER_CONTEXT == None:
+            APISession.SERVER_CONTEXT = SimpleContainer(
+                    server = server,
+                    images = server.images,
+                    devices = server.devices,
+                    topology = server.topology,
+                    nodes = server.nodes,
+                    logs = server.logs
+            )
+        self.context = APISession.SERVER_CONTEXT.copy().update(
+            remote_ip = remote_ip,
+        )
+
+    def run_task(self, rpc_context, attr, args, kwargs):
+        task = APISessionTask(rpc_context, self, attr, args, kwargs)
+        task.run()
 
     def register_session_object(self, obj):
         obj_id = len(self.session_objects)
@@ -60,14 +62,6 @@ class APISession(object):
 
     def get_session_object(self, obj_id):
         return self.session_objects[obj_id]
-
-    def on_connect(self):
-        print 'session %d: connected' % self.link_id
-
-    def on_disconnect(self):
-        print 'session %d: disconnected' % self.link_id
-        self.cleanup()
-        del APISession.SESSIONS[self.link_id]
 
     def cleanup(self):
         for obj in self.session_objects:

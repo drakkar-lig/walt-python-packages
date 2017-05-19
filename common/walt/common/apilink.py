@@ -1,27 +1,11 @@
 #!/usr/bin/env python
-import rpyc, os, sys
+import os, sys
 from select import select
 from socket import socket
 from walt.common.constants import WALT_SERVER_DAEMON_PORT
 from walt.common.reusable import reusable
 from walt.common.tools import BusyIndicator
 from walt.common.tcp import Requests
-
-# This decorator allows to define RPyC-based API service classes
-# with a customized __init__ function.
-# (without it, one has to conform to the prototype of the base
-# class rpyc.Service.__init__(), because the rpyc core
-# instanciates such a service itself.)
-def APIService(cls):
-    # caution: cls must be the first base class in order to be
-    # first in the method resolution order (e.g. regarding on_connect()).
-    def mixed_cls_generator(*cls_args, **cls_kwargs):
-        class Mixed(cls, rpyc.Service):
-            def __init__(self, *args, **kwargs):
-                rpyc.Service.__init__(self, *args, **kwargs)
-                cls.__init__(self, *cls_args, **cls_kwargs)
-        return Mixed
-    return mixed_cls_generator
 
 # exceptions may occur if the client disconnects.
 # we should ignore those.

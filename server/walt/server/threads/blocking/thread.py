@@ -1,39 +1,30 @@
-import sys
-from walt.common.thread import EvThread, ThreadConnector
+from walt.common.thread import EvThread, RPCThreadConnector
+from walt.server.threads.blocking.images.clone import clone
+from walt.server.threads.blocking.images.publish import publish
+from walt.server.threads.blocking.images.search import search
 
-class BlockingTasksManager(object):
-    def __init__(self, tasks, connection_to_main):
-        self.tasks = tasks
-        self.main = connection_to_main
+class BlockingTasksService(object):
+    def __init__(self, server):
+        self.server = server
 
-    # let the event loop know what we are reading on
-    def fileno(self):
-        return self.main.pipe.fileno()
+    def clone_image(self, context, *args, **kwargs):
+        res = clone(context.requester.sync, self.server, *args, **kwargs)
+        context.task.return_result(res)
 
-    # when the event loop detects an event for us, this
-    # means we have a new task to perform.
-    def handle_event(self, ts):
-        task_id = self.main.pipe.recv()
-        task = self.tasks[task_id]
-        try:
-            task.result = task.perform()
-        except Exception as e:
-            e.info = sys.exc_info()
-            task.result = e
-        self.main.pipe.send(task_id)
+    def search_image(self, context, *args, **kwargs):
+        res = search(context.requester.sync, self.server, *args, **kwargs)
+        context.task.return_result(res)
 
-    def close(self):
-        pass
-
-    def cleanup(self):
-        self.close()
+    def publish_image(self, context, *args, **kwargs):
+        res = publish(context.requester.sync, self.server, *args, **kwargs)
+        context.task.return_result(res)
 
 class ServerBlockingThread(EvThread):
-    def __init__(self, tman, shared):
+    def __init__(self, tman, server):
         EvThread.__init__(self, tman, 'server-blocking')
-        self.main = ThreadConnector()
-        self.manager = BlockingTasksManager(shared.tasks, self.main)
+        service = BlockingTasksService(server)
+        self.main = RPCThreadConnector(service)
 
     def prepare(self):
-        self.register_listener(self.manager)
+        self.register_listener(self.main)
 

@@ -11,161 +11,157 @@ from walt.server.threads.main.apisession import APISession
 @api
 class CSAPI(APISession):
 
-    def on_connect(self):
-        APISession.on_connect(self)
-        self.requester = self.remote_api
+    @api_expose_method
+    def device_rescan(self, context):
+        context.server.device_rescan(context.requester.sync, context.remote_ip)
 
     @api_expose_method
-    def device_rescan(self):
-        self.server.device_rescan(self.requester, self.remote_ip)
+    def device_tree(self, context):
+        return context.topology.tree()
 
     @api_expose_method
-    def device_tree(self):
-        return self.topology.tree()
+    def device_show(self, context):
+        return context.devices.show()
 
     @api_expose_method
-    def device_show(self):
-        return self.devices.show()
+    def show_nodes(self, context, show_all):
+        return context.nodes.show(context.requester.sync, show_all)
 
     @api_expose_method
-    def show_nodes(self, show_all):
-        return self.nodes.show(self.requester, show_all)
+    def get_nodes_ip(self, context, node_set):
+        return context.nodes.get_nodes_ip(context.requester.sync, node_set)
 
     @api_expose_method
-    def get_nodes_ip(self, node_set):
-        return self.nodes.get_nodes_ip(self.requester, node_set)
+    def get_device_ip(self, context, device_name):
+        return context.devices.get_device_ip(
+                        context.requester.sync, device_name)
 
     @api_expose_method
-    def get_device_ip(self, device_name):
-        return self.devices.get_device_ip(
-                        self.requester, device_name)
+    def get_node_ip(self, context, node_name):
+        return context.nodes.get_node_ip(
+                        context.requester.sync, node_name)
 
     @api_expose_method
-    def get_node_ip(self, node_name):
-        return self.nodes.get_node_ip(
-                        self.requester, node_name)
+    def blink(self, context, node_name, blink_status):
+        return context.nodes.blink(context.requester.sync, node_name, blink_status)
 
     @api_expose_method
-    def blink(self, node_name, blink_status):
-        return self.nodes.blink(self.requester, node_name, blink_status)
-
-    @api_expose_method
-    def parse_set_of_nodes(self, node_set):
-        nodes = self.nodes.parse_node_set(self.requester, node_set)
+    def parse_set_of_nodes(self, context, node_set):
+        nodes = context.nodes.parse_node_set(context.requester.sync, node_set)
         if nodes:
             return tuple(n.name for n in nodes)
 
     @api_expose_method
-    def includes_nodes_not_owned(self, node_set, warn):
-        return self.nodes.includes_nodes_not_owned(self.requester, node_set, warn)
+    def includes_nodes_not_owned(self, context, node_set, warn):
+        return context.nodes.includes_nodes_not_owned(context.requester.sync, node_set, warn)
 
     @api_expose_method
-    def develop_node_set(self, node_set):
-        return self.nodes.develop_node_set(self.requester, node_set)
+    def develop_node_set(self, context, node_set):
+        return context.nodes.develop_node_set(context.requester.sync, node_set)
 
     @api_expose_method
-    def poweroff(self, node_set, warn_poe_issues):
-        return self.nodes.setpower(self.requester, node_set, False, warn_poe_issues)
+    def poweroff(self, context, node_set, warn_poe_issues):
+        return context.nodes.setpower(context.requester.sync, node_set, False, warn_poe_issues)
 
     @api_expose_method
-    def poweron(self, node_set, warn_poe_issues):
-        return self.nodes.setpower(self.requester, node_set, True, warn_poe_issues)
+    def poweron(self, context, node_set, warn_poe_issues):
+        return context.nodes.setpower(context.requester.sync, node_set, True, warn_poe_issues)
 
     @api_expose_method
-    def softreboot(self, node_set):
-        return self.nodes.softreboot(self.requester, node_set)
+    def softreboot(self, context, node_set):
+        return context.nodes.softreboot(context.requester.sync, node_set)
 
     @api_expose_method
-    def validate_node_cp(self, src, dst):
-        return self.nodes.validate_cp(self.requester, src, dst)
+    def validate_node_cp(self, context, src, dst):
+        return context.nodes.validate_cp(context.requester.sync, src, dst)
 
     @api_expose_method
-    def wait_for_nodes(self, node_set):
-        self.nodes.wait(self.requester, self.task, node_set)
+    def wait_for_nodes(self, context, node_set):
+        context.nodes.wait(context.requester.sync, context.task, node_set)
 
     @api_expose_method
-    def rename(self, old_name, new_name):
-        self.server.rename_device(self.requester, old_name, new_name)
+    def rename(self, context, old_name, new_name):
+        context.server.rename_device(context.requester.sync, old_name, new_name)
 
     @api_expose_method
-    def has_image(self, image_tag):
-        return self.images.has_image(self.requester, image_tag)
+    def has_image(self, context, image_tag):
+        return context.images.has_image(context.requester.sync, image_tag)
 
     @api_expose_method
-    def set_image(self, node_set, image_tag):
-        self.server.set_image(self.requester, node_set, image_tag)
+    def set_image(self, context, node_set, image_tag):
+        context.server.set_image(context.requester.sync, node_set, image_tag)
 
     @api_expose_method
-    def is_device_reachable(self, device_name):
-        return self.devices.is_reachable(self.requester, device_name)
+    def is_device_reachable(self, context, device_name):
+        return context.devices.is_reachable(context.requester.sync, device_name)
 
     @api_expose_method
-    def count_logs(self, history, **kwargs):
+    def count_logs(self, context, history, **kwargs):
         unpickled_history = (pickle.loads(e) if e else None for e in history)
-        return self.server.db.count_logs(history = unpickled_history, **kwargs)
+        return context.server.db.count_logs(history = unpickled_history, **kwargs)
 
     @api_expose_method
-    def forget(self, device_name):
-        self.server.forget_device(device_name)
+    def forget(self, context, device_name):
+        context.server.forget_device(device_name)
 
     @api_expose_method
-    def get_device_type(self, device_name):
-        return self.devices.get_type_from_name(self.requester, device_name)
+    def get_device_type(self, context, device_name):
+        return context.devices.get_type_from_name(context.requester.sync, device_name)
 
     @api_expose_method
-    def apply_switch_conf(self, device_name, conf):
-        return self.devices.apply_switch_conf(self.requester, device_name, conf)
+    def apply_switch_conf(self, context, device_name, conf):
+        return context.devices.apply_switch_conf(context.requester.sync, device_name, conf)
 
     @api_expose_method
-    def fix_image_owner(self, other_user):
-        return self.images.fix_owner(self.requester, other_user)
+    def fix_image_owner(self, context, other_user):
+        return context.images.fix_owner(context.requester.sync, other_user)
 
     @api_expose_method
-    def search_images(self, keyword):
-        self.images.search(self.requester, self.task, keyword)
+    def search_images(self, context, keyword):
+        context.images.search(context.requester.sync, context.task, keyword)
 
     @api_expose_method
-    def clone_image(self, clonable_link, force=False):
-        self.images.clone(requester = self.requester,
-                          task = self.task,
+    def clone_image(self, context, clonable_link, force=False):
+        context.images.clone(requester = context.requester.sync,
+                          task = context.task,
                           clonable_link = clonable_link,
                           force = force)
 
     @api_expose_method
-    def create_dh_peer(self):
+    def create_dh_peer(self, context):
         dh_peer = DHPeer()
         dh_peer_id = self.register_session_object(dh_peer)
         return dh_peer_id, dh_peer.pub_key
 
     @api_expose_method
-    def establish_dh_session(self, dh_peer_id, client_pub_key):
+    def establish_dh_session(self, context, dh_peer_id, client_pub_key):
         dh_peer = self.get_session_object(dh_peer_id)
         dh_peer.establish_session(client_pub_key)
 
     @api_expose_method
-    def publish_image(self, auth_conf, image_tag):
+    def publish_image(self, context, auth_conf, image_tag):
         dh_peer = self.get_session_object(auth_conf['dh_peer_id'])
-        self.images.publish(requester = self.requester,
-                          task = self.task,
+        context.images.publish(requester = context.requester.sync,
+                          task = context.task,
                           dh_peer = dh_peer,
                           auth_conf = auth_conf,
                           image_tag = image_tag)
 
     @api_expose_method
-    def docker_login(self, auth_conf):
+    def docker_login(self, context, auth_conf):
         dh_peer = self.get_session_object(auth_conf['dh_peer_id'])
-        return self.server.docker.login(dh_peer, auth_conf, self.requester)
+        return context.server.docker.login(dh_peer, auth_conf, context.requester.sync)
 
     @api_expose_method
-    def show_images(self):
-        username = self.requester.get_username()
+    def show_images(self, context):
+        username = context.requester.sync.get_username()
         if not username:
             return None     # client already disconnected, give up
-        return self.images.show(username)
+        return context.images.show(username)
 
     @api_expose_method
-    def create_image_shell_session(self, image_tag):
-        session = self.images.create_shell_session(self.requester, image_tag)
+    def create_image_shell_session(self, context, image_tag):
+        session = context.images.create_shell_session(context.requester.sync, image_tag)
         if session == None:
             return None
         session_id = self.register_session_object(session)
@@ -173,46 +169,46 @@ class CSAPI(APISession):
         return session_id, fullname, container_name, default_new_name
 
     @api_expose_method
-    def image_shell_session_save(self, session_id, new_name, name_confirmed):
+    def image_shell_session_save(self, context, session_id, new_name, name_confirmed):
         session = self.get_session_object(session_id)
         return session.save(new_name, name_confirmed)
 
     @api_expose_method
-    def remove_image(self, image_tag):
-        self.images.remove(self.requester, image_tag)
+    def remove_image(self, context, image_tag):
+        context.images.remove(context.requester.sync, image_tag)
 
     @api_expose_method
-    def rename_image(self, image_tag, new_tag):
-        self.images.rename(self.requester, image_tag, new_tag)
+    def rename_image(self, context, image_tag, new_tag):
+        context.images.rename(context.requester.sync, image_tag, new_tag)
 
     @api_expose_method
-    def duplicate_image(self, image_tag, new_tag):
-        self.images.duplicate(self.requester, image_tag, new_tag)
+    def duplicate_image(self, context, image_tag, new_tag):
+        context.images.duplicate(context.requester.sync, image_tag, new_tag)
 
     @api_expose_method
-    def validate_image_cp(self, src, dst):
-        return self.images.validate_cp(self.requester, src, dst)
+    def validate_image_cp(self, context, src, dst):
+        return context.images.validate_cp(context.requester.sync, src, dst)
 
     @api_expose_method
-    def add_checkpoint(self, cp_name, pickled_date):
+    def add_checkpoint(self, context, cp_name, pickled_date):
         date = None
         if pickled_date:
             date = pickle.loads(pickled_date)
-        self.logs.add_checkpoint(self.requester, cp_name, date)
+        context.logs.add_checkpoint(context.requester.sync, cp_name, date)
 
     @api_expose_method
-    def remove_checkpoint(self, cp_name):
-        self.logs.remove_checkpoint(self.requester, cp_name)
+    def remove_checkpoint(self, context, cp_name):
+        context.logs.remove_checkpoint(context.requester.sync, cp_name)
 
     @api_expose_method
-    def list_checkpoints(self):
-        self.logs.list_checkpoints(self.requester)
+    def list_checkpoints(self, context):
+        context.logs.list_checkpoints(context.requester.sync)
 
     @api_expose_method
-    def get_pickled_time(self):
+    def get_pickled_time(self, context):
         return pickle.dumps(datetime.datetime.now())
 
     @api_expose_method
-    def get_pickled_checkpoint_time(self, cp_name):
-        return self.logs.get_pickled_checkpoint_time(self.requester, cp_name)
+    def get_pickled_checkpoint_time(self, context, cp_name):
+        return context.logs.get_pickled_checkpoint_time(context.requester.sync, cp_name)
 

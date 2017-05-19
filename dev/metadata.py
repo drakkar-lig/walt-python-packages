@@ -11,7 +11,7 @@ PACKAGE_GENERIC_INFO = dict(
 PACKAGE_SPECIFIC_INFO = {
     "walt-client": dict(
         subdir = 'client',
-        requires = ['rpyc>=3.3','plumbum>=1.4.2','walt-common==%(upload)s'],
+        requires = ['plumbum>=1.4.2','walt-common==%(upload)s'],
         version_str = '%(upload)s',
         setup = dict(
             description = "WalT (Wireless Testbed) control tool.",
@@ -41,8 +41,7 @@ PACKAGE_SPECIFIC_INFO = {
     ),
     "walt-server": dict(
         subdir = 'server',
-        requires = [
-                        'rpyc>=3.3','plumbum>=1.4.2',
+        requires = [    'plumbum>=1.4.2',
                         'ipaddress>=1.0.7','requests>=2.3.0',
                         'docker-py>=1.2.2','sdnotify>=0.3.0',
                         'walt-common==%(upload)s'],
@@ -62,7 +61,7 @@ PACKAGE_SPECIFIC_INFO = {
     ),
     "walt-common": dict(
         subdir = 'common',
-        requires = ['rpyc>=3.3','plumbum>=1.4.2'],
+        requires = ['plumbum>=1.4.2'],
         version_str = '%(upload)s',
         setup = dict(
             description = "WalT (Wireless Testbed) common python modules."

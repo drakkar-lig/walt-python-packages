@@ -21,12 +21,12 @@ from walt.server.threads.main.network import tftp
 
 class Server(object):
 
-    def __init__(self, ev_loop, ui, shared):
+    def __init__(self, ev_loop, ui):
         self.ev_loop = ev_loop
         self.ui = ui
         self.db = ServerDB()
         self.docker = DockerClient()
-        self.blocking = BlockingTasksManager(shared.tasks)
+        self.blocking = BlockingTasksManager()
         self.devices = DevicesManager(self.db)
         self.topology = TopologyManager(self.devices)
         self.dhcpd = DHCPServer(self.db)
@@ -47,7 +47,6 @@ class Server(object):
 
     def prepare(self):
         self.tcp_server.join_event_loop(self.ev_loop)
-        self.blocking.join_event_loop(self.ev_loop)
         self.db.plan_auto_commit(self.ev_loop)
 
     def update(self):
@@ -74,7 +73,6 @@ class Server(object):
     def cleanup(self):
         APISession.cleanup_all()
         self.images.cleanup()
-        self.blocking.cleanup()
 
     def set_image(self, requester, node_set, image_tag):
         nodes = self.nodes.parse_node_set(requester, node_set)

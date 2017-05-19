@@ -1,17 +1,15 @@
 from walt.common.thread import EvThread
 from walt.common.tcp import TCPServer
+from walt.common.thread import RPCThreadConnector
 from walt.server.threads.hub.client import APISessionManager
-from walt.server.threads.hub.main import MainThreadConnector
-from walt.server.threads.hub.task import TaskRegistry
 from walt.common.constants import WALT_SERVER_DAEMON_PORT
 
 TCP_LISTENER_CLASSES = ( APISessionManager, )
 
 class ServerHubThread(EvThread):
-    def __init__(self, tman, shared):
+    def __init__(self, tman):
         EvThread.__init__(self, tman, 'server-hub')
-        self.tasks = TaskRegistry()
-        self.main = MainThreadConnector(self)
+        self.main = RPCThreadConnector(self)
         self.tcp_server = TCPServer(WALT_SERVER_DAEMON_PORT)
         for cls in TCP_LISTENER_CLASSES:
             self.tcp_server.register_listener_class(
@@ -22,4 +20,3 @@ class ServerHubThread(EvThread):
     def prepare(self):
         self.tcp_server.join_event_loop(self.ev_loop)
         self.register_listener(self.main)
-

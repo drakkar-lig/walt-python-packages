@@ -1,61 +1,29 @@
 from walt.common.versions import API_VERSIONING
-from walt.server.threads.hub.task import Task
 from walt.common.tcp import Requests
 from walt.common.apilink import APIChannel, AttrCallAggregator
 
-class LinkInfo(object):
-    INDEX = 0
-    def __init__(self, remote_api, remote_ip):
-        self.remote_api = remote_api
-        self.exposed_remote_api = remote_api
-        self.exposed_remote_ip = remote_ip
-        self.exposed_link_id = LinkInfo.INDEX
-        LinkInfo.INDEX += 1
-
-class RemoteAPI(AttrCallAggregator):
-    IGNORED = (EOFError,)
-    def __init__(self, api_channel):
-        self.api_channel = api_channel
-        AttrCallAggregator.__init__(self, self.attr_call)
-        # since this object will be accessed from the main thread,
-        # we must expose these two methods of the base class
-        self.exposed___getattr__ = self.__getattr__
-        self.exposed___call__ = self.__call__
-    def attr_call(self, path, args, kwargs):
-        try:
-            self.api_channel.write('API_CALL', path, args, kwargs)
-            res = self.api_channel.read()
-            if res == None:
-                return None
-            return res[1]
-        except RemoteAPI.IGNORED:
-            pass
-        return None
-
 class APISessionManager(object):
     REQ_ID = Requests.REQ_API_SESSION
+    REQUESTER_API_IGNORED = (EOFError,)
     def __init__(self, thread, sock, sock_file, **kwargs):
+        self.thread = thread
         self.main = thread.main
-        self.tasks = thread.tasks
         self.sock_file = sock_file
         self.target_api = None
         self.api_channel = APIChannel(sock_file)
-        remote_ip, remote_port = sock.getpeername()
-        remote_api = RemoteAPI(self.api_channel)
-        self.link_info = LinkInfo(remote_api, remote_ip)
-    def record_task(self, attr, args, kwargs, result_cb = None):
-        print 'hub record_task:', attr, args, kwargs
-        t = Task(self.tasks, self.target_api, attr, args, kwargs,
-                    self.link_info, result_cb)
-        self.tasks.add(t)
-        self.tasks.print_status()
-        # notify the server that we have a new task
-        self.main.pipe.send(0)
+        self.remote_ip, remote_port = sock.getpeername()
+        self.session_id = None
+        self.requester = AttrCallAggregator(self.forward_requester_request)
+        self.rpc_session = self.main.local_service(self.requester)
+    def record_task(self, attr, args, kwargs):
+        self.rpc_session.async.run_task(self.session_id, attr, args, kwargs).then(
+            self.return_result
+        )
     def fileno(self):
         return self.api_channel.fileno()
     def handle_event(self, ts):
         if not self.target_api:
-            return self.init_target_api()
+            return self.init_target_api() and self.init_session()
         else:
             return self.handle_api_call()
     def handle_api_call(self):
@@ -68,7 +36,7 @@ class APISessionManager(object):
             return False
         attr, args, kwargs = event[1:]
         print 'hub api_call:', self.target_api, attr, args, kwargs
-        self.record_task(attr, args, kwargs, result_cb=self.return_result)
+        self.record_task(attr, args, kwargs)
         return True
     def return_result(self, res):
         # client might already be disconnected (ctrl-C),
@@ -90,12 +58,26 @@ class APISessionManager(object):
                 # ex: SSAPI -> server to server communication
                 api_version = 0
             self.sock_file.write("%d\n" % api_version)
-            self.record_task('on_connect', [], {})
             return True
         except:
             return False
+    def init_session(self):
+        self.session_id = self.rpc_session.sync.create_session(
+                                self.target_api, self.remote_ip)
+        return True
     def close(self):
-        if self.target_api != None:
-            self.record_task('on_disconnect', [], {})
+        if self.session_id != None:
+            self.rpc_session.sync.destroy_session(self.session_id)
         self.sock_file.close()
+    def forward_requester_request(self, path, args, kwargs):
+        args = args[1:] # discard 1st arg, rpc context
+        try:
+            self.api_channel.write('API_CALL', path, args, kwargs)
+            res = self.api_channel.read()
+            if res == None:
+                return None
+            return res[1]
+        except REQUESTER_API_IGNORED:
+            pass
+        return None
 
