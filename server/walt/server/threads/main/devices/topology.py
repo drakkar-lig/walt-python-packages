@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import time, json
+import json, re
 
 from walt.common.tools import get_mac_address
 from walt.server import const
@@ -207,6 +207,9 @@ class TopologyManager(object):
         switch_info = self.db.select_unique('switches', mac = switch_mac)
         return json.loads(switch_info.snmp_conf)
 
+    def cleanup_sysname(self, sysname):
+        return re.sub("[^a-z0-9-]", "-", sysname.split('.')[0])
+
     def collect_connected_devices(self, ui, topology, host, host_depth,
                             host_mac, processed_switches):
 
@@ -229,14 +232,19 @@ class TopologyManager(object):
             # (port 1 is associated to VLAN walt-out)
             if neighbors_depth == 2 and port < 2:
                 continue
-            ip, mac = neighbor_info['ip'], neighbor_info['mac']
-            print '---- found on %s %s -- port %d: %s %s' % (host, host_mac, port, ip, mac)
+            ip, mac, sysname =  neighbor_info['ip'], neighbor_info['mac'], \
+                                neighbor_info['sysname']
+            print '---- found on %s %s -- port %d: %s %s %s' % \
+                        (host, host_mac, port, ip, mac, sysname)
             topology.register_neighbor(host_mac, port, mac)
             device_info = self.devices.get_complete_device_info(mac)
             if device_info == None:
                 # unknown device
-                self.devices.add_or_update(
-                        mac = mac, ip = ip, type = 'unknown')
+                info = dict(mac = mac, ip = ip, type = 'unknown')
+                name = self.cleanup_sysname(sysname)
+                if len(name) > 2:   # name seems meaningful...
+                    info.update(name = name)
+                self.devices.add_or_update(**info)
             elif device_info.type == 'switch' and \
                      mac not in processed_switches and \
                      device_info.lldp_explore == True:
