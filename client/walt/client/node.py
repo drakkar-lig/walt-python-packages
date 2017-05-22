@@ -183,7 +183,7 @@ class WalTNodePing(cli.Application):
 class WalTNodeShell(cli.Application):
     """run an interactive shell connected to the node"""
     def main(self, node_name):
-        WalTNode.run_cmd(   node_name, False, ['bash'],
+        WalTNode.run_cmd(   node_name, False, [ ],
                             startup_msg=NODE_SHELL_MESSAGE)
 
 @WalTNode.subcommand("run")

@@ -37,7 +37,10 @@ class NodeCmdSocketListener(PromptSocketListener):
     REQ_ID = Requests.REQ_NODE_CMD
     def get_command(self, node_ip, cmdargs, **kwargs):
         cmd = ' '.join(cmdargs)
-        quoted_cmd = "'" + "'\"'\"'".join(cmd.split("'")) + "'"
+        if cmd == '':
+            quoted_cmd = ''
+        else:
+            quoted_cmd = "'" + "'\"'\"'".join(cmd.split("'")) + "'"
         return '%(ssh)s root@%(ip)s %(cmd)s' % dict(
             ssh = INTERACTIVE_SSH_COMMAND,
             ip = node_ip,
