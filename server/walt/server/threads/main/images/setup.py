@@ -64,6 +64,7 @@ ff02::2     ip6-allrouters
 
 def setup(image):
     mount_path = image.mount_path
+    failsafe_makedirs(mount_path + '/etc/ssh')
     # set node pub and priv key
     with open(mount_path + NODE_ECDSA_KEYPAIR['private_key_path'], 'w') as f:
         f.write(NODE_ECDSA_KEYPAIR['private_key'])
