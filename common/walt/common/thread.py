@@ -29,7 +29,10 @@ class EvThread(Thread):
         except DownwardPropagatedException:
             print self.name + ' stopped because of propagated exception.'
         except BaseException as e:
-            self.pipe_in.send(e) # propagate upward
+            try:
+                self.pipe_in.send(e) # propagate upward
+            except BaseException as issue:
+                self.pipe_in.send(Exception(str(e)))
             raise
 
     def fileno(self):
