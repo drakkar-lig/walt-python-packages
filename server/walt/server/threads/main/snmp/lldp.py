@@ -29,7 +29,10 @@ class LLDPProxy(object):
                 port = int(port)
                 mac_per_port[port] = decode_mac_address(
                                 chassis_values[neighbor_key])
-                sysname_per_port[port] = str(sys_names[neighbor_key])
+                if neighbor_key in sys_names:
+                    sysname_per_port[port] = str(sys_names[neighbor_key])
+                else:
+                    sysname_per_port[port] = ''
 
         # retrieve ip addresses of neighbors
         for neighbor_ip_info in ip_info:
