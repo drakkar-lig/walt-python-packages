@@ -4,10 +4,9 @@ from walt.server.threads.main.images.image import parse_image_fullname, validate
 # About terminology: See comment about it in image.py.
 class ImageShellSession(object):
 
-    def __init__(self, images, requester, image_fullname):
+    def __init__(self, images, image_fullname):
         self.images = images
         self.docker = images.docker
-        self.requester = requester
         self.image_fullname, dummy1, dummy2, dummy3, self.image_tag = \
             parse_image_fullname(image_fullname)
         self.container_name = str(uuid.uuid4())
@@ -20,13 +19,13 @@ class ImageShellSession(object):
         # (and override the image if user confirms)
         return self.image_fullname, self.container_name, self.image_tag
 
-    def save(self, new_image_tag, name_confirmed):
-        username = self.requester.get_username()
+    def save(self, requester, new_image_tag, name_confirmed):
+        username = requester.get_username()
         if not username:
             return None    # client already disconnected, give up
         # 1st step: validate new name
         existing_image = self.images.get_user_image_from_tag(
-                                        self.requester,
+                                        requester,
                                         new_image_tag,
                                         expected=None)
         if self.image_tag == new_image_tag:
@@ -36,14 +35,14 @@ class ImageShellSession(object):
                 # same name for the modified image.
                 # this would overwrite the existing one.
                 # we will let the user confirm this.
-                self.images.warn_overwrite_image(self.requester, existing_image.fullname)
+                self.images.warn_overwrite_image(requester, existing_image.fullname)
                 return 'NAME_NEEDS_CONFIRM'
         else:   # save as a different name
             if existing_image:
-                self.requester.stderr.write('Bad name: Image already exists.\n')
+                requester.stderr.write('Bad name: Image already exists.\n')
                 return 'NAME_NOT_OK'
         # verify name syntax
-        if not validate_image_tag(self.requester, new_image_tag):
+        if not validate_image_tag(requester, new_image_tag):
             return 'NAME_NOT_OK'
         # ok, all is fine
 
@@ -63,7 +62,7 @@ class ImageShellSession(object):
                 'Image modified using walt image [cp|shell]')
         if self.image_tag == new_image_tag:
             # same name, we are modifying the image
-            image = self.images.get_user_image_from_tag(self.requester, new_image_tag)
+            image = self.images.get_user_image_from_tag(requester, new_image_tag)
             # if image is mounted, umount/mount it in order to make
             # the nodes reboot with the new version
             node_reboot_msg = ''
@@ -74,13 +73,13 @@ class ImageShellSession(object):
                 # re-mount
                 self.images.update_image_mounts()
             # done.
-            self.requester.stdout.write('Image %s updated%s.\n' % \
+            requester.stdout.write('Image %s updated%s.\n' % \
                             (new_image_tag, node_reboot_msg))
         else:
             # we are saving changes to a new image, leaving the initial one
             # unchanged
             self.images.register_image(image_fullname, True)
-            self.requester.stdout.write('New image %s saved.\n' % new_image_tag)
+            requester.stdout.write('New image %s saved.\n' % new_image_tag)
         return 'OK_SAVED'
 
     def cleanup(self):

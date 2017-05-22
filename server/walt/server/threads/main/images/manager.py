@@ -92,7 +92,7 @@ class NodeImageManager(object):
     def create_shell_session(self, requester, image_tag):
         image = self.store.get_user_image_from_tag(requester, image_tag)
         if image:
-            session = ImageShellSession(self.store, requester, image.fullname)
+            session = ImageShellSession(self.store, image.fullname)
             return session
         return None
 
