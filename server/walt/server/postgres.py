@@ -8,15 +8,17 @@ from subprocess import Popen, PIPE
 from sys import stderr
 
 class ServerCursor(object):
-    def __init__(self, conn):
-        cursor_name = str(uuid.uuid4())
-        self.conn = conn
+    def __init__(self, db):
+        self.name = str(uuid.uuid4())
+        self.db = db
+        self.conn = db.conn
         self.server_cursor = self.conn.cursor(
-                                name = cursor_name,
-                                cursor_factory = NamedTupleCursor,
-                                withhold = True)
-    def __del__(self):
+                                name = self.name,
+                                cursor_factory = NamedTupleCursor)
+        self.db.server_cursors[self.name] = self
+    def close(self):
         self.server_cursor.close()
+        del self.db.server_cursors[self.name]
     def execute(self, *args):
         return self.server_cursor.execute(*args)
     def __iter__(self):
@@ -34,6 +36,7 @@ class PostgresDB():
                 self.create_db_and_user()
         # allow name-based access to columns
         self.c = self.conn.cursor(cursor_factory = NamedTupleCursor)
+        self.server_cursors = {}
 
     def __del__(self):
         self.conn.commit()
@@ -60,8 +63,11 @@ class PostgresDB():
         return self.c
 
     # with server cursors, the resultset is not sent all at once to the client.
-    def get_server_cursor(self):
-        return ServerCursor(self.conn)
+    def get_server_cursor(self, name = None):
+        if name == None:
+            return ServerCursor(self)
+        else:
+            return self.server_cursors[name]
 
     def get_column_names(self, table):
         self.c.execute("SELECT * FROM %s LIMIT 0" % table)

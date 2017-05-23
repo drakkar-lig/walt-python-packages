@@ -24,4 +24,16 @@ class BlockingTasksManager(RPCThreadConnector):
     def publish_image(self, requester, result_cb, *args, **kwargs):
         self.session(requester).async.publish_image(*args, **kwargs).then(result_cb)
 
+    def stream_db_logs(self, logs_handler):
+        # ensure all past logs are commited
+        logs_handler.db.commit()
+        # create a server cursor
+        cursor = logs_handler.db.get_server_cursor()
+        # define callback function
+        def cb(res):
+            cursor.close()
+            logs_handler.notify_history_processed()
+        # request the blocking task to stream logs
+        self.session(logs_handler).async.stream_db_logs(
+                cursor.name, **logs_handler.params).then(cb)
 

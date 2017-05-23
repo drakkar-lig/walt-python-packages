@@ -2,6 +2,7 @@ from walt.common.thread import EvThread, RPCThreadConnector
 from walt.server.threads.blocking.images.clone import clone
 from walt.server.threads.blocking.images.publish import publish
 from walt.server.threads.blocking.images.search import search
+from walt.server.threads.blocking.logs import stream_db_logs
 
 class BlockingTasksService(object):
     def __init__(self, server):
@@ -17,6 +18,11 @@ class BlockingTasksService(object):
 
     def publish_image(self, context, *args, **kwargs):
         res = publish(context.requester.sync, self.server, *args, **kwargs)
+        context.task.return_result(res)
+
+    def stream_db_logs(self, context, cursor_name, **params):
+        res = stream_db_logs(self.server.db, context.requester.sync,
+                             cursor_name, **params)
         context.task.return_result(res)
 
 class ServerBlockingThread(EvThread):

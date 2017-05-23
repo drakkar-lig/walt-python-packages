@@ -94,30 +94,9 @@ class LogsStreamListener(object):
     def close(self):
         self.sock_file.close()
 
-class RetrieveDBLogsTask(object):
-    def __init__(self, client_handler):
-        self.handler = client_handler
-        self.db = self.handler.db
-    def prepare(self):
-        # ensure all past logs are commited
-        self.db.commit()
-        # create a server cursor
-        self.c = self.db.get_server_cursor()
-    def perform(self):
-        # this is where things may take some time...
-        for record in self.db.get_logs(self.c, **self.handler.params):
-            d = record._asdict()
-            if self.handler.write_to_client(
-                        senders_filtered = True, **d) == False:
-                break
-        del self.c
-    def handle_result(self, res):
-        self.handler.notify_history_processed()
-
 class LogsToSocketHandler(object):
     def __init__(self, db, hub, sock, sock_file, blocking, **kwargs):
         self.db = db
-        self.db_logs_task = RetrieveDBLogsTask(self)
         self.sock_file_r = sock_file
         self.sock_file_w = sock.makefile('w', 0)
         self.cache = {}
@@ -187,7 +166,7 @@ class LogsToSocketHandler(object):
     def handle_params(self, history, realtime, senders, streams):
         if history:
             # unpickle the elements of the history range
-            history = (pickle.loads(e) if e else None for e in history)
+            history = tuple(pickle.loads(e) if e else None for e in history)
         if streams:
             self.streams_regexp = re.compile(streams)
         else:
@@ -197,8 +176,7 @@ class LogsToSocketHandler(object):
                             senders = senders)
         if history:
             self.retrieving_from_db = True
-            self.db_logs_task.prepare()
-            self.blocking.do(self.db_logs_task)
+            self.blocking.stream_db_logs(self)
         else:
             self.retrieving_from_db = False
         if realtime:
