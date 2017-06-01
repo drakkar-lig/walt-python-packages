@@ -72,8 +72,10 @@ class ServerToNodeLink:
             resp = tuple(part.strip() for part in resp)
             if resp[0] == 'OK':
                 return (True,)
-            else:
+            elif len(resp) == 2:
                 return (False, resp[1])
+            else:
+                return (False, 'Node did not acknowledge reboot request.')
         except socket.timeout:
             return (False, 'Connection timeout.')
         except socket.error:
