@@ -7,23 +7,6 @@ from psycopg2.extras import NamedTupleCursor
 from subprocess import Popen, PIPE
 from sys import stderr
 
-class ServerCursor(object):
-    def __init__(self, db):
-        self.name = str(uuid.uuid4())
-        self.db = db
-        self.conn = db.conn
-        self.server_cursor = self.conn.cursor(
-                                name = self.name,
-                                cursor_factory = NamedTupleCursor)
-        self.db.server_cursors[self.name] = self
-    def close(self):
-        self.server_cursor.close()
-        del self.db.server_cursors[self.name]
-    def execute(self, *args):
-        return self.server_cursor.execute(*args)
-    def __iter__(self):
-        return self.server_cursor.__iter__()
-
 class PostgresDB():
 
     def __init__(self):
@@ -63,11 +46,16 @@ class PostgresDB():
         return self.c
 
     # with server cursors, the resultset is not sent all at once to the client.
-    def get_server_cursor(self, name = None):
-        if name == None:
-            return ServerCursor(self)
-        else:
-            return self.server_cursors[name]
+    def create_server_cursor(self):
+        name = str(uuid.uuid4())
+        self.server_cursors[name] = self.conn.cursor(
+                                        name = name,
+                                        cursor_factory = NamedTupleCursor)
+        return name
+
+    def delete_server_cursor(self, name):
+        self.server_cursors[name].close()
+        del self.server_cursors[name]
 
     def get_column_names(self, table):
         self.c.execute("SELECT * FROM %s LIMIT 0" % table)
