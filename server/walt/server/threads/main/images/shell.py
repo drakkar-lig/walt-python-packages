@@ -4,13 +4,14 @@ from walt.server.threads.main.images.image import parse_image_fullname, validate
 # About terminology: See comment about it in image.py.
 class ImageShellSession(object):
 
-    def __init__(self, images, image_fullname):
+    def __init__(self, images, image_fullname, task_label):
         self.images = images
         self.docker = images.docker
         self.image_fullname, dummy1, dummy2, dummy3, self.image_tag = \
             parse_image_fullname(image_fullname)
         self.container_name = str(uuid.uuid4())
         self.docker_events = self.docker.events()
+        self.images[image_fullname].task_label = task_label
 
     def get_parameters(self):
         # return an immutable object (a tuple, not a dict)
@@ -80,8 +81,10 @@ class ImageShellSession(object):
             # unchanged
             self.images.register_image(image_fullname, True)
             requester.stdout.write('New image %s saved.\n' % new_image_tag)
+        self.images[self.image_fullname].task_label = None
         return 'OK_SAVED'
 
     def cleanup(self):
         self.docker.stop_container(self.container_name)
+        self.images[self.image_fullname].task_label = None
 

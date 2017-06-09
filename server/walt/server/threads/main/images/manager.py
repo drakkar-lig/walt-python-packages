@@ -89,10 +89,14 @@ class NodeImageManager(object):
         requester.stdout.write(format_sentence_about_nodes(
             sentence, [n.name for n in nodes]) + '\n')
         return True
-    def create_shell_session(self, requester, image_tag):
+    def create_shell_session(self, requester, image_tag, task_label):
         image = self.store.get_user_image_from_tag(requester, image_tag)
-        if image:
-            session = ImageShellSession(self.store, image.fullname)
-            return session
-        return None
+        if image is None:
+            return None
+        if image.task_label:
+            requester.stderr.write('Cannot open image %s because a %s is already running.\n' % \
+                                    (image_tag, image.task_label))
+            return None
+        session = ImageShellSession(self.store, image.fullname, task_label)
+        return session
 

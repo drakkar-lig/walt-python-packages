@@ -2,7 +2,7 @@ from walt.common.crypto.blowfish import BlowFish
 from walt.server.threads.main.images.image import parse_image_fullname
 from walt.server.tools import indicate_progress
 from walt.server import const
-from docker import Client
+from docker import Client, errors
 from datetime import datetime
 from plumbum.cmd import mount
 import sys, requests, shlex, json
@@ -138,7 +138,11 @@ class DockerClient(object):
                 image_id = info['parent']
         return br
     def get_container_name(self, cid):
-        return self.c.inspect_container(cid)['Name'].lstrip('/')
+        try:
+            container = self.c.inspect_container(cid)
+            return container['Name'].lstrip('/')
+        except errors.NotFound:
+            return None
     def events(self):
         return self.c.events(decode=True)
     def image_mount(self, image_fullname, diff_path, mount_path):

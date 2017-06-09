@@ -82,6 +82,7 @@ class NodeImage(object):
         self.mounted = False
         self.server_ip = get_server_ip()
         self.filesystem = Filesystem(FS_CMD_PATTERN % dict(image = self.fullname))
+        self.task_label = None
     def rename(self, fullname):
         self.fullname, self.name, dummy, self.user, self.tag = \
             parse_image_fullname(fullname)

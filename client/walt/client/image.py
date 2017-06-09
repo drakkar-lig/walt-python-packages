@@ -52,7 +52,7 @@ class WalTImageShell(cli.Application):
     def main(self, image_name):
         with ClientToServerLink() as server:
             session_info = server.create_image_shell_session(
-                            image_name)
+                            image_name, 'shell session')
             if session_info == None:
                 return  # issue already reported
             session_id, image_fullname, container_name, default_new_name = \
@@ -112,7 +112,7 @@ class WalTImageCp(cli.Application):
                 return
             info = { k:v for k,v in info }
             session_info = server.create_image_shell_session(
-                            info['image_tag'])
+                            info['image_tag'], 'file transfer')
             if session_info == None:
                 return  # issue already reported
             session_id, image_fullname, container_name, default_new_name = \

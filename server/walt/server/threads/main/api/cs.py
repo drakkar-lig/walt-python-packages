@@ -160,8 +160,9 @@ class CSAPI(APISession):
         return context.images.show(username)
 
     @api_expose_method
-    def create_image_shell_session(self, context, image_tag):
-        session = context.images.create_shell_session(context.requester.sync, image_tag)
+    def create_image_shell_session(self, context, image_tag, task_label):
+        session = context.images.create_shell_session(
+                    context.requester.sync, image_tag, task_label)
         if session == None:
             return None
         session_id = self.register_session_object(session)
