@@ -48,9 +48,13 @@ class PostgresDB():
     # with server cursors, the resultset is not sent all at once to the client.
     def create_server_cursor(self):
         name = str(uuid.uuid4())
+        # we share a database connection, thus we have to create a cursor
+        # WITH HOLD, otherwise any other thread issuing a commit would
+        # cause the cursor to be discarded.
         self.server_cursors[name] = self.conn.cursor(
                                         name = name,
-                                        cursor_factory = NamedTupleCursor)
+                                        cursor_factory = NamedTupleCursor,
+                                        withhold = True)
         return name
 
     def delete_server_cursor(self, name):

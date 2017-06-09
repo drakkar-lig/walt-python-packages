@@ -20,9 +20,8 @@ class BlockingTasksService(object):
         res = publish(context.requester.sync, self.server, *args, **kwargs)
         context.task.return_result(res)
 
-    def stream_db_logs(self, context, cursor_name, **params):
-        res = stream_db_logs(self.server.db, context.requester.sync,
-                             cursor_name, **params)
+    def stream_db_logs(self, context, **params):
+        res = stream_db_logs(self.server.db, context.requester.sync, **params)
         context.task.return_result(res)
 
 class ServerBlockingThread(EvThread):

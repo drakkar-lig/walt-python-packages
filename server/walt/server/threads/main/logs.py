@@ -94,6 +94,9 @@ class LogsStreamListener(object):
     def close(self):
         self.sock_file.close()
 
+PHASE_WAIT_FOR_BLCK_THREAD = 0
+PHASE_RETRIEVING_FROM_DB = 1
+PHASE_SENDING_TO_CLIENT = 2
 class LogsToSocketHandler(object):
     def __init__(self, db, hub, sock, sock_file, blocking, **kwargs):
         self.db = db
@@ -103,16 +106,25 @@ class LogsToSocketHandler(object):
         self.params = None
         self.hub = hub
         self.blocking = blocking
-        self.retrieving_from_db = None
+        self.phase = None
         self.realtime_buffer = []
         #sock.settimeout(1.0)
     def log(self, **record):
-        # if we are processing the history part,
-        # do not send the realtime logs right now
-        if self.retrieving_from_db:
+        if self.phase == PHASE_WAIT_FOR_BLCK_THREAD:
+            # blocking thread is not ready yet,
+            # we will let the log go to db and
+            # the blocking thread will retrieve it later.
+            return
+        elif self.phase == PHASE_RETRIEVING_FROM_DB:
+            # the blocking thread is still sending logs
+            # from db
+            # => do not send the realtime logs right now,
+            # record them for later
             self.realtime_buffer.append(record)
-        else:   # ok, write to client
+        elif self.phase == PHASE_SENDING_TO_CLIENT:
             return self.write_to_client(**record)
+    def notify_history_processing_startup(self):
+        self.phase = PHASE_RETRIEVING_FROM_DB
     def notify_history_processed(self):
         if self.params['realtime']:
             # done with the history part.
@@ -122,7 +134,7 @@ class LogsToSocketHandler(object):
                     break
             # notify that next logs can be sent
             # directly to the client
-            self.retrieving_from_db = False
+            self.phase = PHASE_SENDING_TO_CLIENT
         else:
             # no realtime mode, we can quit
             self.close()
@@ -175,10 +187,10 @@ class LogsToSocketHandler(object):
                             realtime = realtime,
                             senders = senders)
         if history:
-            self.retrieving_from_db = True
+            self.phase = PHASE_WAIT_FOR_BLCK_THREAD
             self.blocking.stream_db_logs(self)
         else:
-            self.retrieving_from_db = False
+            self.phase = PHASE_SENDING_TO_CLIENT
         if realtime:
             self.hub.addHandler(self)
     # this is what we do when the event loop detects an event for us
