@@ -24,6 +24,10 @@ class BlockingTasksService(object):
         res = stream_db_logs(self.server.db, context.requester.sync, **params)
         context.task.return_result(res)
 
+    def pull_image(self, context, image_fullname):
+        res = self.server.docker.pull(image_fullname)
+        context.task.return_result(res)
+
 class ServerBlockingThread(EvThread):
     def __init__(self, tman, server):
         EvThread.__init__(self, tman, 'server-blocking')

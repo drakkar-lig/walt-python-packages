@@ -17,19 +17,6 @@ def update_images_and_finalize(images, image_fullname, **kwargs):
     # we are all done
     finalize_registration(images = images, **kwargs)
 
-class AsyncPullTask(object):
-    def __init__(self, docker, image_fullname, finalize_cb, finalize_cb_kwargs):
-        self.docker = docker
-        self.image_fullname = image_fullname
-        self.finalize_cb = finalize_cb
-        self.finalize_cb_kwargs = finalize_cb_kwargs
-    def perform(self):
-        # pull image: this is where things may take some time...
-        self.docker.pull(self.image_fullname)
-    def handle_result(self, res):
-        # this should go fast
-        self.finalize_cb(**self.finalize_cb_kwargs)
-
 def handle_registration_request(
                 db, docker, blocking, mac, images, model, \
                 **kwargs):
@@ -52,8 +39,9 @@ def handle_registration_request(
     if image_is_new:
         # we have to pull an image, that will be long,
         # let's do this asynchronously
-        blocking.do(AsyncPullTask(docker, image_fullname,
-                            update_images_and_finalize, full_kwargs))
+        def callback(res):
+            update_images_and_finalize(**full_kwargs)
+        blocking.pull_image(image_fullname, callback)
     else:
         finalize_registration(**full_kwargs)
 
