@@ -1,10 +1,12 @@
 import os
-from walt.common.tools import failsafe_symlink
+from walt.common.tools import failsafe_makedirs, failsafe_symlink
 from walt.server.threads.main.images.image import get_mount_path
 
 TFTP_PATH='/var/lib/walt/nodes/'
 
 def update(db):
+    # create dir if it does not exist yet
+    failsafe_makedirs(TFTP_PATH)
     # list existing links, in case some of them are obsolete
     invalid_links = set(f for f in os.listdir(TFTP_PATH))
     # each node must have a link from the tftp dir to
