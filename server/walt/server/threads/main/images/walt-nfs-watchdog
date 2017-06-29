@@ -1,4 +1,5 @@
 #!/bin/sh
+# we want to reboot if ever the nfs root is lost.
 set -e
 on_exit()
 {
@@ -11,8 +12,7 @@ echo "walt-nfs-watchdog started."
 
 while [ 1 ]
 do
-    # reboot if ever the nfs root is lost
-    timeout -t 2 ls -d mnt/nfsroot >/dev/null || {
+    timeout -t 2 ls -l mnt/nfsroot/bin/walt-init >/dev/null || {
         echo "NFS share was lost! Will reboot."
         sleep 5
         reboot -f
