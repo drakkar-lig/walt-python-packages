@@ -262,6 +262,13 @@ class NodesManager(object):
         nodes = self.parse_node_set(requester, node_set)
         if nodes == None:
             return None # error already reported
+        # first, we pass all nodes to unreachable
+        # (if we manage to reboot them, they will be unreachable
+        #  for a little time; if we do not manage to reboot them,
+        #  this means there are already unreachable...)
+        for node in nodes:
+            self.db.update('devices', 'mac', mac = node.mac, reachable = 0);
+        self.db.commit()
         nodes_ko, nodes_ok = [], []
         for node in nodes:
             link = self.connect(requester, node.name)
