@@ -8,12 +8,10 @@ class WaitInfo(object):
 
     def wait(self, requester, task, nodes):
         if nodes == None:
-            task.return_result(0) # unblock the client
-            return
+            return         # unblock the client
         unreachable_nodes = [ node for node in nodes if node.reachable == 0 ]
         if len(unreachable_nodes) == 0:
-            task.return_result(0)    # unblock the client
-            return
+            return         # unblock the client
         # ok, the client will really have to wait
         task.set_async()   # result will be available later
         tid = id(task)
