@@ -2,7 +2,7 @@
 from walt.common.tcp import Requests
 from walt.server.threads.main.parallel import ParallelProcessSocketListener
 from walt.server.const import SSH_COMMAND
-import os
+import os, random
 
 TYPE_CLIENT = 0
 TYPE_IMAGE = 1
@@ -15,6 +15,9 @@ $ walt $(image_or_node_label) cp <$(image_or_node_label)>:<file_path> <local_fil
 
 Regular files as well as directories are accepted.
 """
+
+def get_random_suffix():
+    return ''.join(random.choice('0123456789ABCDEF') for i in range(8))
 
 def analyse_file_types(requester, image_tag_or_node, src_path, src_fs, dst_path, dst_fs, **kwargs):
     bad = dict(valid = False)
@@ -104,30 +107,33 @@ def validate_cp(image_or_node_label, caller,
         return
     # all seems fine
     client_operand_index = operand_index_per_type[TYPE_CLIENT]
+    src_dir = os.path.dirname(src_path)
+    src_name = os.path.basename(src_path)
     info.update(
-        src_dir = os.path.dirname(src_path),
-        src_name = os.path.basename(src_path),
+        src_dir = src_dir,
+        src_name = src_name,
+        tmp_name = src_name + '.' + get_random_suffix(),
         client_operand_index = client_operand_index,
         **caller.get_cp_entity_attrs(requester, image_tag_or_node)
     )
-    # return an immutable object
-    return tuple(info.items())
+    return info
 
-def docker_wrap_cmd(cmd):
+def docker_wrap_cmd(cmd, input_needed = False):
+    input_opt = '-i' if input_needed else ''
     return '''\
-        docker run -i --name %%(container_name)s --entrypoint /bin/sh \
-        %%(image_fullname)s -c "%s; sync; sync"
-    ''' % cmd
+        docker run %(input_opt)s --name %%(container_name)s \
+        --entrypoint /bin/sh %%(image_fullname)s -c "%(cmd)s; sync; sync"
+    ''' % dict(cmd = cmd, input_opt = input_opt)
 
 def ssh_wrap_cmd(cmd):
-    return SSH_COMMAND + ' root@%(node_ip)s "' + cmd + '"'
+    return SSH_COMMAND + ' -q root@%(node_ip)s "' + cmd + '"'
 
 TarSendCommand='''\
-        tar c -C %(src_dir)s %(src_name)s \
-        --transform 's/^[^\/]*/%(dst_name)s/' '''
+        cd %(src_dir)s && ln -s %(src_name)s %(tmp_name)s && \
+        tar c -h %(tmp_name)s && rm %(tmp_name)s '''
 
 TarReceiveCommand='''\
-        tar x -C %(dst_dir)s'''
+        cd %(dst_dir)s && tar x && mv %(tmp_name)s %(dst_name)s '''
 
 class ImageTarSender(ParallelProcessSocketListener):
     REQ_ID = Requests.REQ_TAR_FROM_IMAGE
@@ -137,7 +143,8 @@ class ImageTarSender(ParallelProcessSocketListener):
 class ImageTarReceiver(ParallelProcessSocketListener):
     REQ_ID = Requests.REQ_TAR_TO_IMAGE
     def get_command(self, **params):
-        return docker_wrap_cmd(TarReceiveCommand) % params
+        return docker_wrap_cmd(\
+                TarReceiveCommand, input_needed = True) % params
 
 class NodeTarSender(ParallelProcessSocketListener):
     REQ_ID = Requests.REQ_TAR_FROM_NODE

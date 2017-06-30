@@ -110,7 +110,6 @@ class WalTImageCp(cli.Application):
             info = server.validate_image_cp(src, dst)
             if info == None:
                 return
-            info = { k:v for k,v in info }
             session_info = server.create_image_shell_session(
                             info['image_tag'], 'file transfer')
             if session_info == None:

@@ -17,7 +17,7 @@ class Filesystem(object):
         if len(self.run_cmd('find %s' % path)) == 0:
             return None
         for ftype in [ 'f', 'd' ]:
-            check_cmd = 'find %(path)s -type %(ftype)s -maxdepth 0 -printf %(ftype)s' % \
+            check_cmd = 'find %(path)s -type %(ftype)s -maxdepth 0 -exec echo -n %(ftype)s \;' % \
                 dict(
                     path = path,
                     ftype = ftype

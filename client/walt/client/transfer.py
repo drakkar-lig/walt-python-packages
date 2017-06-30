@@ -6,35 +6,32 @@ from walt.common.constants import WALT_SERVER_TCP_PORT
 import os, tarfile
 
 
-def run_transfer_with_image(image_fullname, container_name,
-                            dst_dir, dst_name, src_dir, src_name,
-                            client_operand_index, **kwargs):
+def run_transfer_with_image(client_operand_index, **kwargs):
     if client_operand_index == 0:
         req_id = Requests.REQ_TAR_TO_IMAGE
     else:
         req_id = Requests.REQ_TAR_FROM_IMAGE
-    run_transfer(req_id, dst_dir, dst_name, src_dir, src_name,
-                    client_operand_index,
-                    container_name = container_name,
-                    image_fullname = image_fullname)
+    run_transfer(req_id = req_id,
+                 client_operand_index = client_operand_index,
+                 **kwargs)
 
-def run_transfer_with_node(node_ip, dst_dir, dst_name, src_dir, src_name,
-                            client_operand_index, **kwargs):
+def run_transfer_with_node(client_operand_index, **kwargs):
     if client_operand_index == 0:
         req_id = Requests.REQ_TAR_TO_NODE
     else:
         req_id = Requests.REQ_TAR_FROM_NODE
-    run_transfer(req_id, dst_dir, dst_name, src_dir, src_name,
-                    client_operand_index,
-                    node_ip = node_ip)
+    run_transfer(req_id = req_id,
+                 client_operand_index = client_operand_index,
+                 **kwargs)
 
-def run_transfer(req_id, dst_dir, dst_name, src_dir, src_name,
+def run_transfer(req_id, dst_dir, dst_name, src_dir, src_name, tmp_name,
                             client_operand_index, **entity_params):
     params = dict(
         dst_dir = dst_dir,
         dst_name = dst_name,
         src_dir = src_dir,
         src_name = src_name,
+        tmp_name = tmp_name,
         **entity_params
     )
     # connect to server
@@ -51,11 +48,14 @@ def run_transfer(req_id, dst_dir, dst_name, src_dir, src_name,
         if client_operand_index == 0:
             # client is sending
             with tarfile.open(mode='w|', fileobj=f) as archive:
-                archive.add(os.path.join(src_dir, src_name), arcname=dst_name)
+                archive.add(os.path.join(src_dir, src_name), arcname=tmp_name)
         else:
             # client is receiving
             with tarfile.open(mode='r|', fileobj=f) as archive:
                 archive.extractall(path=dst_dir)
+            tmp_path = os.path.join(dst_dir, tmp_name)
+            dst_path = os.path.join(dst_dir, dst_name)
+            os.rename(tmp_path, dst_path)
     f.close()
     s.close()
 
