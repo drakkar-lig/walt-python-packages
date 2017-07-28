@@ -1,5 +1,5 @@
 import os, shutil, os.path
-from walt.common.tools import failsafe_makedirs
+from walt.common.tools import failsafe_makedirs, do
 from walt.common.constants import \
         WALT_SERVER_DAEMON_PORT, WALT_SERVER_TCP_PORT
 from walt.server.const import WALT_NODE_NET_SERVICE_PORT
@@ -53,7 +53,7 @@ ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBNtfaPjg
 )
 
 AUTHORIZED_KEYS_PATH = '/root/.ssh/authorized_keys'
-SERVER_PUBKEY_PATH = '/root/.ssh/id_dsa.pub'
+SERVER_PUBKEY_PATH = '/root/.ssh/id_rsa.pub'
 
 HOSTS_FILE_CONTENT="""\
 127.0.0.1   localhost
@@ -61,6 +61,10 @@ HOSTS_FILE_CONTENT="""\
 ff02::1     ip6-allnodes
 ff02::2     ip6-allrouters
 """
+
+def ensure_root_key_exists():
+    if not os.path.isfile('/root/.ssh/id_rsa'):
+        do("ssh-keygen -q -t rsa -f /root/.ssh/id_rsa -N ''")
 
 def setup(image):
     mount_path = image.mount_path
@@ -71,6 +75,7 @@ def setup(image):
     with open(mount_path + NODE_ECDSA_KEYPAIR['public_key_path'], 'w') as f:
         f.write(NODE_ECDSA_KEYPAIR['public_key'])
     # authorize server pub key
+    ensure_root_key_exists()
     failsafe_makedirs(mount_path + os.path.dirname(AUTHORIZED_KEYS_PATH))
     shutil.copy(SERVER_PUBKEY_PATH, mount_path + AUTHORIZED_KEYS_PATH)
     # copy walt scripts in <image>/bin, update template parameters
