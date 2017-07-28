@@ -13,8 +13,11 @@ admin_sh()
 {
     echo 'Starting a shell.'
     echo '(the node will be rebooted on exit.)'
+    # Inspired from Debian's initrd scripts
+    read console rest </proc/consoles
+    [ "${console}" = "tty0" ] && console="tty1"
     # see http://www.busybox.net/FAQ.html#job_control
-    setsid sh -c 'exec sh </dev/tty1 >/dev/tty1 2>&1'
+    setsid sh -c "exec sh -i <>/dev/${console} 1>&0 2>&1"
     reboot -f
 }
 
