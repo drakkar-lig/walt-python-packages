@@ -160,7 +160,11 @@ class DevicesManager(object):
                 new_equipment = True
                 print 'Device: %s updating type, unknown -> %s' % (name, args_data['type'])
                 updates['type'] = args_data['type']
-            if not ip_in_walt_network(db_data.ip) and ip_in_walt_network(args_data['ip']):
+            if db_data.ip is None and args_data['ip'] is not None:
+                print 'Device: %s updating ip, unknown -> %s' % (name, args_data['ip'])
+                updates['ip'] = args_data['ip']
+            elif db_data.ip is not None and args_data['ip'] is not None and \
+                    not ip_in_walt_network(db_data.ip) and ip_in_walt_network(args_data['ip']):
                 # the device updated its IP by requesting our managed DHCP server
                 print 'Device: %s updating ip, %s -> %s (now in walt network)' % (name, db_data.ip, args_data['ip'])
                 updates['ip'] = args_data['ip']
