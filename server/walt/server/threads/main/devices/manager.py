@@ -120,9 +120,20 @@ class DevicesManager(object):
         if type == 'server':
             return 'walt-server'
         else:
-            return "%s-%s" %(
-                type,
-                "".join(mac.split(':')[3:]))
+            prefix = "%s-%s" % (type, "".join(mac.split(':')[3:]))
+            i = 1
+            while True:
+                if i == 1:
+                    name = prefix
+                else:
+                    name = "%s-%d" % (prefix, i)
+                device_info = self.db.select_unique("devices", name=name)
+                if device_info == None:
+                    # ok name does not exist in db yet
+                    return name
+                else:
+                    # device name already exists! Check next one.
+                    i += 1
 
     def add_or_update(self, **args_data):
         """Return True if a new equipment (node, switch) was identified, False otherwise"""

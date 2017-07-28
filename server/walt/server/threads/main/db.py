@@ -13,8 +13,8 @@ class ServerDB(PostgresDB):
         # create the db schema
         self.execute("""CREATE TABLE IF NOT EXISTS devices (
                     mac TEXT PRIMARY KEY,
-                    ip TEXT,
-                    name TEXT,
+                    ip TEXT UNIQUE,
+                    name TEXT UNIQUE,
                     reachable INTEGER,
                     type TEXT);""")
         self.execute("""CREATE TABLE IF NOT EXISTS topology (
