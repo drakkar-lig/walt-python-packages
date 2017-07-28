@@ -1,5 +1,6 @@
 from plumbum import cli
 from collections import OrderedDict
+from walt.common.tools import serialize_ordered_dict, deserialize_ordered_dict
 from walt.client.link import ClientToServerLink
 from walt.client.tools import yes_or_no, choose, confirm
 
@@ -32,13 +33,21 @@ Is WalT allowed to temporarily disable PoE on its ports?"""
 MSG_INDICATE_SNMP_VERSION = """\
 Please indicate the version WalT should use to query this switch."""
 
-def ask_switch_conf():
+MSG_UNKNOWN_MANAGEMENT_IP = """\
+Management IP of this switch is unknown. Please specify it:"""
+
+def ask_switch_conf(device_info):
+    conf = OrderedDict()
     print 'Starting switch setup'
     print '---------------------'
-    conf = OrderedDict()
     conf['allow_lldp_explore'] = False
     conf['allow_poe_reboot'] = None
     conf['snmp'] = None
+    conf['ip'] = device_info['ip']
+    if conf['ip'] is None:
+        print MSG_UNKNOWN_MANAGEMENT_IP,
+        conf['ip'] = raw_input()
+        print 'OK.\n'
     print MSG_EXPLAIN_LLDP_EXPLORE
     if yes_or_no('Is WalT allowed to explore LLDP neighbors of this switch?'):
         conf['allow_lldp_explore'] = True
@@ -92,19 +101,13 @@ def display_conf(conf, prefix = ''):
         else:
             print '%s%s: %s' % (prefix, k, str(v))
 
-def conf_to_tuple(conf):
-    new_conf = []
-    for k, v in conf.items():
-        if isinstance(v, OrderedDict):
-            v = conf_to_tuple(v)
-        new_conf.append((k, v))
-    return tuple(new_conf)
-
 class WalTDeviceAdmin(cli.Application):
     """configure WalT regarding network switches and unknown devices"""
     def main(self, device_name):
         with ClientToServerLink() as server:
-            device_type = server.get_device_type(device_name)
+            device_info = server.get_device_info(device_name)
+            device_info = deserialize_ordered_dict(device_info)
+            device_type = device_info['type']
             if not device_type:
                 return  # issue already reported
             if device_type not in ('unknown', 'switch'):
@@ -118,9 +121,9 @@ class WalTDeviceAdmin(cli.Application):
                 if yes_or_no('Is it a network switch?', komsg = 'Nothing to do.'):
                     device_type = 'switch'
             if device_type == 'switch':
-                conf = ask_switch_conf()
+                conf = ask_switch_conf(device_info)
                 if conf == None:
                     return
-                conf = conf_to_tuple(conf)
+                conf = serialize_ordered_dict(conf)
                 server.apply_switch_conf(device_name, conf)
 

@@ -2,6 +2,7 @@ import datetime, cPickle as pickle
 
 from walt.common.crypto.dh import DHPeer
 from walt.common.api import api, api_expose_method
+from walt.common.tools import serialize_ordered_dict, deserialize_ordered_dict
 
 from walt.server.threads.main.apisession import APISession
 
@@ -105,11 +106,13 @@ class CSAPI(APISession):
         context.server.forget_device(device_name)
 
     @api_expose_method
-    def get_device_type(self, context, device_name):
-        return context.devices.get_type_from_name(context.requester.sync, device_name)
+    def get_device_info(self, context, device_name):
+        device_info = context.devices.get_device_info(context.requester.sync, device_name)
+        return serialize_ordered_dict(device_info._asdict())
 
     @api_expose_method
     def apply_switch_conf(self, context, device_name, conf):
+        conf = deserialize_ordered_dict(conf)
         return context.devices.apply_switch_conf(context.requester.sync, device_name, conf)
 
     @api_expose_method

@@ -34,14 +34,6 @@ WalT also detected the following devices but could not detect their type:"""
 FOOTNOTE_SOME_UNKNOWN_DEVICES = """\
 Use 'walt device admin <name>' to fix this."""
 
-def tuple_to_dict(t):
-    d = {}
-    for k, v in t:
-        if isinstance(v, tuple):
-            v = tuple_to_dict(v)
-        d.update({ k: v})
-    return d
-
 class DevicesManager(object):
 
     def __init__(self, db):
@@ -222,12 +214,6 @@ class DevicesManager(object):
                         FOOTNOTE_SOME_UNKNOWN_DEVICES)
         return msg
 
-    def get_type_from_name(self, requester, device_name):
-        device_info = self.get_device_info(requester, device_name)
-        if device_info == None:
-            return None # error already reported
-        return device_info.type
-
     def apply_switch_conf(self, requester, device_name, conf):
         device_info = self.get_device_info(requester, device_name)
         if device_info == None:
@@ -237,10 +223,10 @@ class DevicesManager(object):
                 'Cannot proceed because device is a %s.\n' % device_info.type)
             return
         device_info = device_info._asdict()
-        conf = tuple_to_dict(conf)
         device_info.update(
                 requester = requester,
                 type = 'switch',  # if it was 'unknown'
+                ip = conf['ip'],
                 lldp_explore = conf['allow_lldp_explore'],
                 poe_reboot_nodes = conf['allow_poe_reboot'],
                 snmp_conf = json.dumps(conf['snmp']))
