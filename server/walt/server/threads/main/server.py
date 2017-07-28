@@ -80,10 +80,18 @@ class Server(object):
             return # error already reported
         return self.images.set_image(requester, nodes, image_tag)
 
-    def register_device(self, vendor_class_identifier, ip, mac):
+    def register_device(self, vendor_class_identifier, user_class_identifier, ip, mac):
         # let's try to identify this device given its mac address
         # and/or the vci field of the DHCP request.
-        device_cls = get_device_cls_from_vci_and_mac(vendor_class_identifier, mac)
+        print(user_class_identifier)
+        if user_class_identifier.startswith('walt.node'):
+            model = user_class_identifier[10:]
+            class DevClass:
+                MODEL_NAME = model
+                WALT_TYPE  = "node"
+            device_cls = DevClass
+        else:
+            device_cls = get_device_cls_from_vci_and_mac(vendor_class_identifier, mac)
         new_equipment = self.devices.register_device(device_cls, ip, mac)
         if new_equipment and device_cls != None and device_cls.WALT_TYPE == 'node':
             # this is a walt node

@@ -41,6 +41,13 @@ subnet %(subnet_ip)s netmask %(subnet_netmask)s {
         set vci = "";
     }
 
+    # get the user class identifier if available
+    if exists user-class {
+        set uci = option user-class;
+    } else {
+        set uci = "";
+    }
+
     # when we assign a new IP address, let walt register
     # this new device
     on commit {
@@ -55,7 +62,7 @@ subnet %(subnet_ip)s netmask %(subnet_netmask)s {
             suffix (concat ("0", binary-to-ascii (16, 8, "", substring(hardware,5,1))),2), ":",
             suffix (concat ("0", binary-to-ascii (16, 8, "", substring(hardware,6,1))),2)
         );
-        execute("/usr/local/bin/walt-dhcp-event", "commit", vci,
+        execute("/usr/local/bin/walt-dhcp-event", "commit", vci, uci,
                         ip_string, mac_address_string);
     }
 }

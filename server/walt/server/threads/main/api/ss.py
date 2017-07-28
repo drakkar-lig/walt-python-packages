@@ -14,6 +14,6 @@ from walt.server.threads.main.apisession import APISession
 class SSAPI(APISession):
 
     @api_expose_method
-    def register_device(self, context, vendor_class_identifier, ip, mac):
-        context.server.register_device(vendor_class_identifier, ip, mac)
+    def register_device(self, context, *args):
+        context.server.register_device(*args)
 
