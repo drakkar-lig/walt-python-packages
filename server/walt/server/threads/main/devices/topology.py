@@ -248,6 +248,14 @@ class TopologyManager(object):
             elif device_info.type == 'switch' and \
                      mac not in processed_switches and \
                      device_info.lldp_explore == True:
+                # if ip was not transmitted through LLDP but we have it in db,
+                # get it now.
+                if ip is None:
+                    ip = device_info.ip
+                if ip is None:
+                    print 'WARNING: cannot explore switch %s because LLDP did not give its management IP.' \
+                            % device_info.name
+                    continue
                 # recursively discover devices connected to this switch
                 self.collect_connected_devices(ui, topology, ip, neighbors_depth,
                                         mac, processed_switches)
