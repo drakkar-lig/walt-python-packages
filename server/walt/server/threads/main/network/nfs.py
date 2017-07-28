@@ -17,7 +17,8 @@ def generate_exports_file(images):
                 image_mountpoint=image.mount_path,
                 walt_subnet=get_walt_subnet(),
                 fsid=get_fsid(image)
-            ) for image in images ]))
+            ) for image in images \
+               if image.ready ]))
 
 def update_exported_filesystems(images):
     generate_exports_file(images)

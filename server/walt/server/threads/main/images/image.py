@@ -76,7 +76,7 @@ class NodeImage(object):
         self.docker = docker
         self.rename(fullname)
         self.last_created_at = created_at
-        self.last_top_layer_id = self.get_top_layer_id()
+        self.last_top_layer_id = None
         self.ready = is_ready
         self.mount_path = None
         self.mounted = False
@@ -99,6 +99,9 @@ class NodeImage(object):
         self.last_top_layer_id = top_layer_id
         return self.last_created_at
     def get_top_layer_id(self):
+        assert (self.ready), \
+            'Tried to get top layer id of image %s which is not ready.' % \
+            self.fullname
         return self.docker.get_top_layer_id(self.fullname)
     def __del__(self):
         if self.mounted:
