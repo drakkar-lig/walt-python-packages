@@ -32,7 +32,7 @@ trap reboot_or_sh EXIT
 
 do_mounts()
 {
-    $MOUNT -t proc none /proc
+    [ -e "/proc/self" ] || $MOUNT -t proc none /proc
     #$MOUNT -o remount,ro,noatime,nodiratime /
     $MOUNT -t tmpfs none /tmp
 }
