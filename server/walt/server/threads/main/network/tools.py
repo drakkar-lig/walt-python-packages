@@ -14,6 +14,13 @@ def net(net_as_str):
 def get_walt_subnet():
     return net(conf['network']['walt-net']['ip'])
 
+def get_walt_adm_subnet():
+    walt_adm_conf = conf['network'].get('walt-adm', None)
+    if walt_adm_conf is None:
+        return None
+    else:
+        return net(walt_adm_conf['ip'])
+
 def find_free_ip_near(ip, intf, increment):
     target_ip = ip
     while True:
@@ -74,4 +81,11 @@ def get_server_ip():
 def ip_in_walt_network(input_ip):
     subnet = get_walt_subnet()
     return ip(input_ip) in subnet
+
+def ip_in_walt_adm_network(input_ip):
+    subnet = get_walt_adm_subnet()
+    if subnet is None:
+        return False
+    else:
+        return ip(input_ip) in subnet
 

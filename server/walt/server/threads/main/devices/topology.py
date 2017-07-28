@@ -6,7 +6,7 @@ from walt.common.tools import get_mac_address
 from walt.server import const
 from walt.server.threads.main import snmp
 from walt.server.threads.main.network.tools import \
-        ip_in_walt_network, lldp_update, get_server_ip
+        ip_in_walt_network, ip_in_walt_adm_network, lldp_update, get_server_ip
 from walt.server.threads.main.tree import Tree
 
 
@@ -294,16 +294,29 @@ class TopologyManager(object):
         if requester != None:
             requester.stdout.write('done.\n')
 
-    def tree(self):
-        db_topology = Topology()
-        db_topology.load_from_db(self.db)
+    def get_tree_root_mac(self, db_topology):
         # the root of the tree should be the main switch.
-        # this is the unique neighbor of this server.
+        # we analyse the neighbors of this server:
+        # - if we find one, we return it
+        # - if we find several ones, we favor the ones in
+        #   walt-net or walt-adm (thus we discard neighbors found from walt-out)
         server_mac = get_mac_address(const.WALT_INTF)
         root_mac = None
         for port, neighbor_mac, neighbor_port, confirmed in \
                 db_topology.get_neighbors(server_mac):
             root_mac = neighbor_mac
+            info = self.devices.get_complete_device_info(neighbor_mac)
+            if info.ip is not None:
+                if ip_in_walt_network(info.ip):
+                    break
+                if ip_in_walt_adm_network(info.ip):
+                    break
+        return root_mac
+
+    def tree(self):
+        db_topology = Topology()
+        db_topology.load_from_db(self.db)
+        root_mac = self.get_tree_root_mac(db_topology)
         if root_mac == None:
             return MSG_NO_NEIGHBORS + MSG_DEVICE_TREE_MORE_DETAILS
         # compute device mac to label and type associations
