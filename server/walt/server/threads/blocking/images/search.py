@@ -30,7 +30,7 @@ class Search(object):
             def validate(user, tag, location):
                 return True
         # look up for candidates on the docker hub
-        for result in self.docker.search('walt-node'):
+        for result in self.docker.search('walt'):
             if '/walt-node' in result['name']:
                 for user, tag in self.docker.lookup_remote_tags(result['name']):
                     candidates.append((user, tag, LOCATION_DOCKER_HUB))
