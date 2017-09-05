@@ -83,15 +83,20 @@ class Server(object):
     def register_device(self, vendor_class_identifier, user_class_identifier, ip, mac):
         # let's try to identify this device given its mac address
         # and/or the vci field of the DHCP request.
-        print(user_class_identifier)
         if user_class_identifier.startswith('walt.node'):
-            model = user_class_identifier[10:]
+            auto_id = user_class_identifier
+        elif vendor_class_identifier.startswith('walt.node'):
+            auto_id = vendor_class_identifier
+        else:
+            auto_id = None
+        if auto_id is None:
+            device_cls = get_device_cls_from_vci_and_mac(vendor_class_identifier, mac)
+        else:
+            model = auto_id[10:]
             class DevClass:
                 MODEL_NAME = model
                 WALT_TYPE  = "node"
             device_cls = DevClass
-        else:
-            device_cls = get_device_cls_from_vci_and_mac(vendor_class_identifier, mac)
         new_equipment = self.devices.register_device(device_cls, ip, mac)
         if new_equipment and device_cls != None and device_cls.WALT_TYPE == 'node':
             # this is a walt node
