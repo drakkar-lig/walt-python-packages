@@ -1,1 +1,3 @@
 include walt/server/threads/main/images/walt-*
+include walt/server/threads/main/images/boot/*.ipxe
+include walt/server/threads/main/images/boot/*.uboot

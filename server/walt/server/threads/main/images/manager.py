@@ -9,6 +9,7 @@ from walt.server.threads.main.images.duplicate import duplicate
 from walt.server.threads.main.transfer import validate_cp
 from walt.server.threads.main.images.fixowner import fix_owner
 from walt.server.threads.main.images.store import NodeImageStore
+from walt.server.threads.main.images.boot.bootfiles import update_bootfiles
 from walt.server.threads.main.network import tftp
 from walt.common.tools import format_sentence_about_nodes
 
@@ -24,6 +25,7 @@ class NodeImageManager(object):
         self.docker = docker
         self.store = NodeImageStore(self.docker, self.db)
     def update(self, startup = False):
+        update_bootfiles()
         self.store.refresh(startup)
         self.store.update_image_mounts()
     def search(self, requester, task, keyword):

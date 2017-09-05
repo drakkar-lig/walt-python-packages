@@ -1,0 +1,21 @@
+#!ipxe
+
+set node_model pc-x86-64
+set walt_init /bin/walt-init
+
+# compute kernel url
+set kernel_url /nodes/${mac:hexhyp}/${node_model}/kernel
+
+# compute kernel command line args
+set nfs_root ${next-server}:/var/lib/walt/nodes/${mac}
+set nfs_bootargs root=/dev/nfs nfsroot=${nfs_root},nfsvers=3
+set walt_bootargs walt.node.model=${node_model} walt.server.ip=${next-server}
+set other_bootargs init=${walt_init} ip=dhcp panic=30
+set bootargs ${nfs_bootargs} ${walt_bootargs} ${other_bootargs}
+
+echo server script
+
+# boot
+echo Please boot... ${bootargs}
+boot ${kernel_url} ${bootargs}
+
