@@ -80,24 +80,25 @@ class Server(object):
             return # error already reported
         return self.images.set_image(requester, nodes, image_tag)
 
-    def register_device(self, vendor_class_identifier, user_class_identifier, ip, mac):
+    def register_device(self, vci, uci, ip, mac, **kwargs):
         # let's try to identify this device given its mac address
         # and/or the vci field of the DHCP request.
-        if user_class_identifier.startswith('walt.node'):
-            auto_id = user_class_identifier
-        elif vendor_class_identifier.startswith('walt.node'):
-            auto_id = vendor_class_identifier
+        if uci.startswith('walt.node'):
+            auto_id = uci
+        elif vci.startswith('walt.node'):
+            auto_id = vci
         else:
             auto_id = None
         if auto_id is None:
-            device_cls = get_device_cls_from_vci_and_mac(vendor_class_identifier, mac)
+            device_cls = get_device_cls_from_vci_and_mac(vci, mac)
         else:
             model = auto_id[10:]
             class DevClass:
                 MODEL_NAME = model
                 WALT_TYPE  = "node"
             device_cls = DevClass
-        new_equipment = self.devices.register_device(device_cls, ip, mac)
+        new_equipment = self.devices.register_device(device_cls,
+                    ip = ip, mac = mac, **kwargs)
         if new_equipment and device_cls != None and device_cls.WALT_TYPE == 'node':
             # this is a walt node
             self.nodes.register_node(   mac = mac,
@@ -117,3 +118,13 @@ class Server(object):
         self.dhcpd.update()
         tftp.update(self.db)
 
+    def create_vnode(self, requester, name):
+        if not self.devices.validate_device_name(requester, name):
+            return False
+        mac, ip, model = self.nodes.generate_vnode_info()
+        vci = 'walt.node.' + model
+        # mimic a DHCP request from the node in order to
+        # bootstrap the registration procedure (possibly involving
+        # the download of a default image...)
+        self.register_device(vci, '', ip, mac, name = name, virtual = True)
+        return True

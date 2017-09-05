@@ -39,12 +39,8 @@ class DevicesManager(object):
     def __init__(self, db):
         self.db = db
 
-    def register_device(self, device_cls, ip, mac):
+    def register_device(self, device_cls, **kwargs):
         """Derive device type from device class, then add or update, return True if new equipment."""
-        kwargs = dict(
-            mac=mac,
-            ip=ip
-        )
         if device_cls == None:
             kwargs['type'] = 'unknown'
         else:
@@ -52,15 +48,20 @@ class DevicesManager(object):
             kwargs['model'] = device_cls.MODEL_NAME
         return self.add_or_update(**kwargs)
 
+    def validate_device_name(self, requester, name):
+        if self.get_device_info(requester, name, err_message = None) != None:
+            requester.stderr.write("""Failed: a device with name '%s' already exists.\n""" % name)
+            return False
+        if not re.match('^[a-zA-Z][a-zA-Z0-9-]*$', name):
+            requester.stderr.write(NEW_NAME_ERROR_AND_GUIDELINES)
+            return False
+        return True
+
     def rename(self, requester, old_name, new_name):
         device_info = self.get_device_info(requester, old_name)
         if device_info == None:
             return
-        if self.get_device_info(requester, new_name, err_message = None) != None:
-            requester.stderr.write("""Failed: a device with name '%s' already exists.\n""" % new_name)
-            return
-        if not re.match('^[a-zA-Z][a-zA-Z0-9-]*$', new_name):
-            requester.stderr.write(NEW_NAME_ERROR_AND_GUIDELINES)
+        if not self.validate_device_name(requester, new_name):
             return
         # all is fine, let's update it
         self.db.update("devices", 'mac', mac = device_info.mac, name = new_name)

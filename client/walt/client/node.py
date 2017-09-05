@@ -85,6 +85,14 @@ class WalTNodeShow(cli.Application):
     def all(self):
         self._all = True
 
+@WalTNode.subcommand("create")
+class WalTNodeCreate(cli.Application):
+    """create a virtual WalT node"""
+    def main(self, node_name):
+        with ClientToServerLink() as server:
+            if not server.create_vnode(node_name):
+                return  # issue already reported
+
 @WalTNode.subcommand("blink")
 class WalTNodeBlink(cli.Application):
     """make a node blink for a given number of seconds"""

@@ -1,4 +1,4 @@
-import socket
+import socket, random
 from collections import defaultdict
 from snimpy import snmp
 from walt.common.tcp import Requests
@@ -9,6 +9,7 @@ from walt.server.threads.main.nodes.register import handle_registration_request
 from walt.server.threads.main.nodes.show import show
 from walt.server.threads.main.nodes.wait import WaitInfo
 from walt.server.threads.main.transfer import validate_cp
+from walt.server.threads.main.network.tools import ip, get_walt_subnet
 from walt.server.tools import merge_named_tuples
 
 NODE_CONNECTION_TIMEOUT = 1
@@ -129,6 +130,27 @@ class NodesManager(object):
 
     def show(self, requester, show_all):
         return show(self.db, requester, show_all)
+
+    def generate_vnode_info(self):
+        # random mac address generation
+        while True:
+            free_mac = "52:54:00:%02x:%02x:%02x" % (
+                random.randint(0, 255),
+                random.randint(0, 255),
+                random.randint(0, 255),
+            )
+            if self.db.select_unique('devices', mac = free_mac) is None:
+                break   # ok, mac is free
+        # find a free ip
+        subnet = get_walt_subnet()
+        free_ips = list(subnet.hosts())
+        for item in self.db.execute(\
+                'SELECT ip FROM devices WHERE ip IS NOT NULL').fetchall():
+            device_ip = ip(item.ip)
+            if device_ip in subnet:
+                free_ips.remove(device_ip)
+        free_ip = str(free_ips[0])
+        return free_mac, free_ip, 'pc-x86-64'
 
     def get_node_info(self, requester, node_name):
         device_info = self.devices.get_device_info(requester, node_name)
