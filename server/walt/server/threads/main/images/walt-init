@@ -33,7 +33,7 @@ trap reboot_or_sh EXIT
 do_mounts()
 {
     [ -e "/proc/self" ] || $MOUNT -t proc none /proc
-    #$MOUNT -o remount,ro,noatime,nodiratime /
+    [ -e "/dev/null" ] || $MOUNT -t devtmpfs none /dev
     $MOUNT -t tmpfs none /tmp
 }
 
@@ -108,7 +108,7 @@ mount_union()
 
 update_mounts()
 {
-    $MOUNT -o move /dev $ROOTFS/mnt/fs_union/dev
+    $MOUNT -o bind /dev $ROOTFS/mnt/fs_union/dev
     $UMOUNT /proc
 }
 
@@ -125,10 +125,10 @@ echo "*** Preparing rootfs...           ***"
 prepare_rootfs
 echo "*** Mounting filesystem union...  ***"
 mount_union
-echo "*** Starting bg processes...      ***"
-start_background_processes
 echo "*** Re-mounting over the union... ***"
 update_mounts
+echo "*** Starting bg processes...      ***"
+start_background_processes
 echo "*** Starting walt image init...   ***"
 run_real_init
 
