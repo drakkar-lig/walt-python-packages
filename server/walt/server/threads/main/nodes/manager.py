@@ -46,6 +46,8 @@ MSG_POE_REBOOT_FAILED = """\
 FAILED to turn node %(node_name)s %(state)s using PoE: SNMP request to %(sw_name)s (%(sw_ip)s) failed.
 """
 
+MSG_NOT_VIRTUAL = "WARNING: %s is not a virtual node. IGNORED.\n"
+
 FS_CMD_PATTERN = SSH_COMMAND + ' root@%(node_ip)s %%(prog)s %%(prog_args)s'
 
 CMD_START_VNODE = "kvm -display none -hda %(usb_image)s -m 512 -name %(name)s \
@@ -113,6 +115,9 @@ class NodesManager(object):
                 os.kill(pid, signal.SIGTERM)
             except OSError:
                 pass
+
+    def as_node_set(self, names):
+        return ','.join(sorted(names))
 
     def register_node(self, mac, model):
         handle_registration_request(
@@ -304,7 +309,7 @@ class NodesManager(object):
                 '%s was(were) powered ' + s_state + '.' ,
                 [n.name for n in nodes_really_ok]) + '\n')
             # return successful nodes as a node_set
-            return ','.join(n.name for n in nodes_really_ok)
+            return self.as_node_set(n.name for n in nodes_really_ok)
         else:
             return None
 
@@ -337,7 +342,39 @@ class NodesManager(object):
             requester.stdout.write(format_sentence_about_nodes(
                 '%s was(were) rebooted.' , nodes_ok) + '\n')
         # return nodes OK and KO in node_set form
-        return ','.join(sorted(nodes_ok)), ','.join(sorted(nodes_ko))
+        return self.as_node_set(nodes_ok), self.as_node_set(nodes_ko)
+
+    def virtual_or_physical(self, requester, node_set):
+        nodes = self.parse_node_set(requester, node_set)
+        if nodes == None:
+            return None # error already reported
+        vnodes, pnodes = [], []
+        for node in nodes:
+            if node.virtual:
+                vnodes.append(node.name)
+            else:
+                pnodes.append(node.name)
+        # return the 2 sets in node_set form
+        return self.as_node_set(vnodes), self.as_node_set(pnodes)
+
+    def hard_reboot_vnodes(self, requester, node_set):
+        nodes = self.parse_node_set(requester, node_set)
+        if nodes == None:
+            return None # error already reported
+        nodes_ok = []
+        for node in nodes:
+            if not node.virtual:
+                requester.stderr.write(MSG_NOT_VIRTUAL % node.name)
+                continue
+            # terminate VM
+            vm_pid = self.vnodes_pid[node.mac]
+            os.kill(vm_pid, signal.SIGTERM)
+            # restart VM
+            self.start_vnode(node.mac, node.name)
+            nodes_ok.append(node.name)
+        if len(nodes_ok) > 0:
+            requester.stdout.write(format_sentence_about_nodes(
+                '%s was(were) rebooted.' , nodes_ok) + '\n')
 
     def parse_node_set(self, requester, node_set):
         username = requester.get_username()
@@ -373,7 +410,7 @@ class NodesManager(object):
         nodes = self.parse_node_set(requester, node_set)
         if nodes == None:
             return None
-        return ','.join(n.name for n in nodes)
+        return self.as_node_set(n.name for n in nodes)
 
     def includes_nodes_not_owned(self, requester, node_set, warn):
         username = requester.get_username()

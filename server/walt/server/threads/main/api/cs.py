@@ -77,6 +77,14 @@ class CSAPI(APISession):
         return context.nodes.softreboot(context.requester.sync, node_set)
 
     @api_expose_method
+    def virtual_or_physical(self, context, node_set):
+        return context.nodes.virtual_or_physical(context.requester.sync, node_set)
+
+    @api_expose_method
+    def hard_reboot_vnodes(self, context, node_set):
+        return context.nodes.hard_reboot_vnodes(context.requester.sync, node_set)
+
+    @api_expose_method
     def validate_node_cp(self, context, src, dst):
         return context.nodes.validate_cp(context.requester.sync, src, dst)
 

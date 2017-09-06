@@ -133,13 +133,20 @@ def reboot_nodes(server, node_set, hard=False):
     if hard:
         print('Trying soft-reboot...')
     nodes_ok, nodes_ko = server.softreboot(node_set)
-        # if it fails, try to power-cycle using PoE
+    # if it fails and --hard was specified,
+    # try to power-cycle physical nodes using PoE and restart VM of
+    # virtual nodes
     if len(nodes_ko) > 0:
         if hard:
-            print('Trying hard-reboot (PoE)...')
-            with PoETemporarilyOff(server, nodes_ko) as really_off:
-                if really_off:
-                    time.sleep(POE_REBOOT_DELAY)
+            virtnodes, physnodes = server.virtual_or_physical(nodes_ko)
+            if len(virtnodes) > 0:
+                print('Hard-rebooting virtual nodes...')
+                server.hard_reboot_vnodes(virtnodes)
+            if len(physnodes) > 0:
+                print('Trying hard-reboot (PoE)...')
+                with PoETemporarilyOff(server, physnodes) as really_off:
+                    if really_off:
+                        time.sleep(POE_REBOOT_DELAY)
         else:
             print(format_sentence_about_nodes(
                     MSG_SOFT_REBOOT_FAILED,
