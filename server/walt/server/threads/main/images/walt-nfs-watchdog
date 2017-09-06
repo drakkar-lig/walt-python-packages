@@ -3,17 +3,17 @@
 set -e
 on_exit()
 {
-    echo "walt-nfs-watchdog exited! What happened?? Let's reboot!"
+    echo "[bg] walt-nfs-watchdog exited! What happened?? Let's reboot!"
     reboot -f
 }
 
 trap on_exit EXIT
-echo "walt-nfs-watchdog started."
+echo "[bg] walt-nfs-watchdog started."
 
 while [ 1 ]
 do
     timeout -t 2 ls -l mnt/nfsroot/bin/walt-init >/dev/null || {
-        echo "NFS share was lost! Will reboot."
+        echo "[bg] NFS share was lost! Will reboot."
         sleep 5
         reboot -f
     }

@@ -45,7 +45,7 @@ run_bgscript_in_rootfs()
     shift; args="$@"
     cp -p "$script_path_src" "$script_path_dst"
     chroot . bin/sh $script_path_dst $args &
-    cd -
+    cd - >/dev/null
 }
 
 prepare_rootfs()
@@ -61,7 +61,7 @@ prepare_rootfs()
     # make the NFS mount and /dev visible in the rootfs
     $MOUNT -o bind,ro /     mnt/nfsroot
     $MOUNT -o bind    /dev  dev
-    cd -
+    cd - >/dev/null
 }
 
 # we will start 2 background processes in a chroot rooted in memory
@@ -94,13 +94,16 @@ start_background_processes()
 mount_union()
 {
     cd $ROOTFS/mnt
+    # Overlay filesystem may be compiled in the kernel
+    # or provided as a module. Let's try to load it as
+    # a module and ignore errors.
+    modprobe overlay 2>/dev/null || modprobe overlayfs 2>/dev/null || true
 
     # creating the union
     # /: the nfs mount (that should remain read-only)
     # fs_rw: the place to hold the filesystem changes
     # fs_union: the mount point of the union
     mkdir fs_rw fs_work fs_union
-    modprobe overlay || modprobe overlayfs || true
     $MOUNT -t overlay -o upperdir=fs_rw,lowerdir=/,workdir=fs_work \
                         union fs_union 2>/dev/null || \
     $MOUNT -t overlayfs -o upperdir=fs_rw,lowerdir=/ union fs_union

@@ -7,13 +7,13 @@ final_root="$1"
 
 on_exit()
 {
-    echo "walt-net-service exited! What happened?? Let's reboot!"
+    echo "[bg] walt-net-service exited! What happened?? Let's reboot!"
     sleep 5
     reboot -f
 }
 
 trap on_exit EXIT
-echo "walt-net-service started."
+echo "[bg] walt-net-service started."
 
 # create fifos to communicate with the nc process
 fifo_in=$(mktemp -u); mkfifo $fifo_in
