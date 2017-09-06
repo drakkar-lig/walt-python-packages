@@ -169,6 +169,8 @@ class DevicesManager(object):
             # generate a name for this device
             if 'name' not in args_data:
                 args_data['name'] = self.generate_device_name(**args_data)
+            if 'reachable' not in args_data:
+                args_data['reachable'] = 0
             print 'Device: %s is new, adding (%s, %s)' % (args_data['name'], args_data['ip'], args_data['type'])
             self.db.insert("devices", **args_data)
             modified = True
