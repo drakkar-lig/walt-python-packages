@@ -48,6 +48,8 @@ class Server(object):
     def prepare(self):
         self.tcp_server.join_event_loop(self.ev_loop)
         self.db.plan_auto_commit(self.ev_loop)
+        self.images.prepare()
+        self.nodes.prepare()
 
     def update(self):
         self.ui.task_start('Scanning walt devices and images...')
@@ -73,6 +75,7 @@ class Server(object):
     def cleanup(self):
         APISession.cleanup_all()
         self.images.cleanup()
+        self.nodes.cleanup()
 
     def set_image(self, requester, node_set, image_tag):
         nodes = self.nodes.parse_node_set(requester, node_set)
@@ -127,4 +130,6 @@ class Server(object):
         # bootstrap the registration procedure (possibly involving
         # the download of a default image...)
         self.register_device(vci, '', ip, mac, name = name, virtual = True)
+        # start background vm
+        self.nodes.start_vnode(mac, name)
         return True

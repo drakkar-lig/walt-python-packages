@@ -1,4 +1,4 @@
-import socket, random
+import socket, random, subprocess, shlex, signal, os
 from collections import defaultdict
 from snimpy import snmp
 from walt.common.tcp import Requests
@@ -48,6 +48,9 @@ FAILED to turn node %(node_name)s %(state)s using PoE: SNMP request to %(sw_name
 
 FS_CMD_PATTERN = SSH_COMMAND + ' root@%(node_ip)s %%(prog)s %%(prog_args)s'
 
+CMD_START_VNODE = "kvm -display none -hda %(usb_image)s -m 512 -name %(name)s \
+                        -net nic,macaddr=%(mac)s -net bridge,br=walt-net"
+
 class ServerToNodeLink:
     def __init__(self, ip_address):
         self.node_ip = ip_address
@@ -94,6 +97,22 @@ class NodesManager(object):
         self.topology = topology
         self.other_kwargs = kwargs
         self.wait_info = WaitInfo()
+        self.vnodes_pid = {}
+
+    def prepare(self):
+        # start virtual nodes
+        for vnode in self.db.select('devices', type = 'node', virtual = True):
+            self.start_vnode(vnode.mac, vnode.name)
+
+    def cleanup(self):
+        # stop virtual nodes
+        # note: kvm processes may already have ended because they are subprocesses
+        # and they may have also received the signal that caused us to be there.
+        for pid in self.vnodes_pid.values():
+            try:
+                os.kill(pid, signal.SIGTERM)
+            except OSError:
+                pass
 
     def register_node(self, mac, model):
         handle_registration_request(
@@ -151,6 +170,15 @@ class NodesManager(object):
                 free_ips.remove(device_ip)
         free_ip = str(free_ips[0])
         return free_mac, free_ip, 'pc-x86-64'
+
+    def start_vnode(self, mac, name):
+        cmd = CMD_START_VNODE % dict(
+            usb_image = '/var/lib/walt/boot/pc-usb.dd',
+            mac = mac,
+            name = name
+        )
+        pid = subprocess.Popen(shlex.split(cmd)).pid
+        self.vnodes_pid[mac] = pid
 
     def get_node_info(self, requester, node_name):
         device_info = self.devices.get_device_info(requester, node_name)
