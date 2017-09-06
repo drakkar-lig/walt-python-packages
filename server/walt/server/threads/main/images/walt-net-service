@@ -8,6 +8,7 @@ final_root="$1"
 on_exit()
 {
     echo "walt-net-service exited! What happened?? Let's reboot!"
+    sleep 5
     reboot -f
 }
 
