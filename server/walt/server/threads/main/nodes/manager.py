@@ -2,7 +2,7 @@ import socket, random, subprocess, shlex, signal, os
 from collections import defaultdict
 from snimpy import snmp
 from walt.common.tcp import Requests
-from walt.common.tools import format_sentence_about_nodes
+from walt.common.tools import do, format_sentence_about_nodes
 from walt.server.const import SSH_COMMAND, WALT_NODE_NET_SERVICE_PORT
 from walt.server.threads.main.filesystem import Filesystem
 from walt.server.threads.main.nodes.register import handle_registration_request
@@ -52,6 +52,8 @@ FS_CMD_PATTERN = SSH_COMMAND + ' root@%(node_ip)s %%(prog)s %%(prog_args)s'
 
 CMD_START_VNODE = "kvm -display none -hda %(usb_image)s -m 512 -name %(name)s \
                         -net nic,macaddr=%(mac)s -net bridge,br=walt-net"
+CMD_ADD_SSH_KNOWN_HOST = "  mkdir -p /root/.ssh && ssh-keygen -F %(ip)s || \
+                            ssh-keyscan -t ecdsa %(ip)s >> /root/.ssh/known_hosts"
 
 class ServerToNodeLink:
     def __init__(self, ip_address):
@@ -228,6 +230,17 @@ class NodesManager(object):
         if nodes == None:
             return () # error already reported
         return tuple(node.ip for node in nodes)
+
+    def prepare_ssh_access_for_ip(self, ip):
+        cmd = CMD_ADD_SSH_KNOWN_HOST % dict(ip = ip)
+        do(cmd)
+
+    def prepare_ssh_access(self, requester, node_set):
+        nodes = self.parse_node_set(requester, node_set)
+        if nodes == None:
+            return
+        for node in nodes:
+            self.prepare_ssh_access_for_ip(node.ip)
 
     def filter_poe_rebootable(self, requester, nodes,
                 warn_unknown_connectivity, warn_poe_forbidden):
@@ -439,6 +452,7 @@ class NodesManager(object):
 
     def get_cp_entity_filesystem(self, requester, node_name):
         node_ip = self.get_node_ip(requester, node_name)
+        self.prepare_ssh_access_for_ip(node_ip)
         return Filesystem(FS_CMD_PATTERN % dict(node_ip = node_ip))
 
     def get_cp_entity_attrs(self, requester, node_name):

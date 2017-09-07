@@ -126,7 +126,7 @@ def docker_wrap_cmd(cmd, input_needed = False):
     ''' % dict(cmd = cmd, input_opt = input_opt)
 
 def ssh_wrap_cmd(cmd):
-    return SSH_COMMAND + ' -q root@%(node_ip)s "' + cmd + '"'
+    return SSH_COMMAND + ' root@%(node_ip)s "' + cmd + '"'
 
 TarSendCommand='''\
         cd %(src_dir)s && ln -s %(src_name)s %(tmp_name)s && \

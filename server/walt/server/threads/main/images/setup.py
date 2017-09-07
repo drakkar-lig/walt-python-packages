@@ -37,19 +37,27 @@ TEMPLATE_ENV = dict(
 # thus, when mounting an image, we will overwrite its
 # authentication key with the following one, which will
 # remain constant.
-NODE_ECDSA_KEYPAIR = dict(
-    private_key = """\
+# CAUTION: although they are stored in a different format,
+# dropbear and sshd host keys must be the same.
+# The dropbear key below was obtained by converting the sshd
+# one using:
+# $ dropbearconvert openssh dropbear \
+#   /etc/ssh/ssh_host_ecdsa_key /etc/dropbear/dropbear_ecdsa_host_key
+NODE_HOST_ECDSA_KEYPAIR = dict(
+    sshd_priv_key = """\
 -----BEGIN EC PRIVATE KEY-----
 MHcCAQEEIDWsENxcRUkFkTi/gqNog7XbEUgJqXto4LBmR912mESMoAoGCCqGSM49
 AwEHoUQDQgAE219o+OBl5qGa6iYOkHlCBbdPZs20vvIQf+bp0kIwI4Lmdq79bTTz
 REHbx9/LKRGRn8z2QMq3EY9V/stQpHc68w==
 -----END EC PRIVATE KEY-----
 """,
-    private_key_path = '/etc/ssh/ssh_host_ecdsa_key',
-    public_key = """\
+    sshd_pub_key = """\
 ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBNtfaPjgZeahmuomDpB5QgW3T2bNtL7yEH/m6dJCMCOC5nau/W0080RB28ffyykRkZ/M9kDKtxGPVf7LUKR3OvM= root@rpi_ED
 """,
-    public_key_path = '/etc/ssh/ssh_host_ecdsa_key.pub'
+    sshd_priv_key_path = '/etc/ssh/ssh_host_ecdsa_key',
+    sshd_pub_key_path = '/etc/ssh/ssh_host_ecdsa_key.pub',
+    dropbear_key = '\x00\x00\x00\x13ecdsa-sha2-nistp256\x00\x00\x00\x08nistp256\x00\x00\x00A\x04\xdb_h\xf8\xe0e\xe6\xa1\x9a\xea&\x0e\x90yB\x05\xb7Of\xcd\xb4\xbe\xf2\x10\x7f\xe6\xe9\xd2B0#\x82\xe6v\xae\xfdm4\xf3DA\xdb\xc7\xdf\xcb)\x11\x91\x9f\xcc\xf6@\xca\xb7\x11\x8fU\xfe\xcbP\xa4w:\xf3\x00\x00\x00 5\xac\x10\xdc\\EI\x05\x918\xbf\x82\xa3h\x83\xb5\xdb\x11H\t\xa9{h\xe0\xb0fG\xddv\x98D\x8c',
+    dropbear_key_path = '/etc/dropbear/dropbear_ecdsa_host_key'
 )
 
 AUTHORIZED_KEYS_PATH = '/root/.ssh/authorized_keys'
@@ -68,12 +76,24 @@ def ensure_root_key_exists():
 
 def setup(image):
     mount_path = image.mount_path
+    sshd_priv = mount_path + NODE_HOST_ECDSA_KEYPAIR['sshd_priv_key_path']
+    sshd_pub = mount_path + NODE_HOST_ECDSA_KEYPAIR['sshd_pub_key_path']
+    dropbear_key = mount_path + NODE_HOST_ECDSA_KEYPAIR['dropbear_key_path']
+    # set node host key (openssh)
     failsafe_makedirs(mount_path + '/etc/ssh')
-    # set node pub and priv key
-    with open(mount_path + NODE_ECDSA_KEYPAIR['private_key_path'], 'w') as f:
-        f.write(NODE_ECDSA_KEYPAIR['private_key'])
-    with open(mount_path + NODE_ECDSA_KEYPAIR['public_key_path'], 'w') as f:
-        f.write(NODE_ECDSA_KEYPAIR['public_key'])
+    with open(sshd_priv, 'w') as f:
+        f.write(NODE_HOST_ECDSA_KEYPAIR['sshd_priv_key'])
+    with open(sshd_pub, 'w') as f:
+        f.write(NODE_HOST_ECDSA_KEYPAIR['sshd_pub_key'])
+    # set node host key (dropbear)
+    dropbear_conf = mount_path + '/etc/dropbear'
+    #   /etc/dropbear is a link to /var/run/dropbear on buildroot images.
+    #   we do not want the conf to be cleared on startup...
+    if os.path.islink(dropbear_conf):
+        os.remove(dropbear_conf)
+    failsafe_makedirs(dropbear_conf)
+    with open(dropbear_key, 'w') as f:
+        f.write(NODE_HOST_ECDSA_KEYPAIR['dropbear_key'])
     # authorize server pub key
     ensure_root_key_exists()
     failsafe_makedirs(mount_path + os.path.dirname(AUTHORIZED_KEYS_PATH))
