@@ -43,8 +43,20 @@ In this case you can specify either:
 * a coma separated list of nodes (e.g "rpi1,rpi2" or just "rpi1")
 """)
 
+WAIT_NODES_BUSY_LABEL='\
+Node bootup notification still pending (press ctrl-C to proceed anyway)'
+
 class WalTNode(cli.Application):
     """WalT node management sub-commands"""
+    @staticmethod
+    def wait_for_nodes(server, node_set, busy_label = WAIT_NODES_BUSY_LABEL):
+        server.set_busy_label(busy_label)
+        try:
+            server.wait_for_nodes(node_set)
+        except KeyboardInterrupt:
+            print
+        server.set_default_busy_label()
+
     @staticmethod
     def confirm_nodes_not_owned(server, node_set):
         not_owned = server.includes_nodes_not_owned(node_set, warn=True)
@@ -69,6 +81,7 @@ class WalTNode(cli.Application):
                 sys.stderr.write(
                     'Error: this command must target 1 node only.\n')
                 return
+            WalTNode.wait_for_nodes(server, node_set)
             server.prepare_ssh_access(node_set)
         if nodes_ip:
             for ip in nodes_ip:
@@ -106,6 +119,7 @@ class WalTNodeBlink(cli.Application):
                 '<duration> must be an integer (number of seconds).\n')
         else:
             with ClientToServerLink() as server:
+                WalTNode.wait_for_nodes(server, node_name)
                 if server.blink(node_name, True):
                     print 'blinking for %ds... ' % seconds
                     try:
@@ -131,6 +145,8 @@ class PoETemporarilyOff:
                 self.node_set_off, warn_poe_issues=True)
 
 def reboot_nodes(server, node_set, hard=False):
+    if not hard:
+        WalTNode.wait_for_nodes(server, node_set)
     server.set_busy_label('Trying soft-reboot')
     nodes_ok, nodes_ko = server.softreboot(node_set, hard)
     # if it fails and --hard was specified,
@@ -222,6 +238,8 @@ class WalTNodeCp(cli.Application):
                 return
             if not info['node_owned'] and not confirm():
                 return
+            node_name = info['node_name']
+            WalTNode.wait_for_nodes(server, node_name)
             try:
                 run_transfer_with_node(**info)
             except (KeyboardInterrupt, EOFError):
@@ -230,12 +248,9 @@ class WalTNodeCp(cli.Application):
 
 @WalTNode.subcommand("wait")
 class WalTNodeWait(cli.Application):
-    """wait for a node (or a set of nodes) to be ready"""
+    """wait for bootup notification of a node (or set of nodes)"""
     def main(self, node_set):
-        try:
-            with ClientToServerLink() as server_link:
-                server_link.set_busy_label('Waiting')
-                server_link.wait_for_nodes(node_set)
-        except KeyboardInterrupt:
-            print 'Aborted.'
+        with ClientToServerLink() as server_link:
+            busy_label = 'Node bootup notification pending'
+            WalTNode.wait_for_nodes(server_link, node_set, busy_label)
 

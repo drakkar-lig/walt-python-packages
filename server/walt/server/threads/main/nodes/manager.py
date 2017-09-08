@@ -441,5 +441,6 @@ class NodesManager(object):
     def get_cp_entity_attrs(self, requester, node_name):
         owned = not self.includes_nodes_not_owned(requester, node_name, True)
         ip = self.get_node_ip(requester, node_name)
-        return dict(node_ip = ip,
+        return dict(node_name = node_name,
+                    node_ip = ip,
                     node_owned = owned)
