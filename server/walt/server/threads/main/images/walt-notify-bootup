@@ -3,6 +3,17 @@
 # get walt-related env variables
 . walt-env
 
+# When the server receives our notification
+# it considers we are ready, thus it may
+# immediately try to connect through ssh.
+# Let's wait for sshd to be really ready...
+while [ 1 ]
+do
+    echo | nc 127.0.0.1 22 && break
+    sleep 0.1
+done
+
+# connect to server and send notification
 nc $walt_server_ip $walt_server_rpc_port >/dev/null << EOF
 REQ_API_SESSION
 NSAPI
