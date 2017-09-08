@@ -222,6 +222,8 @@ class WalTNodeCp(cli.Application):
             info = server.validate_node_cp(src, dst)
             if info == None:
                 return
+            if not info['node_owned'] and not confirm():
+                return
             try:
                 run_transfer_with_node(**info)
             except (KeyboardInterrupt, EOFError):

@@ -456,4 +456,7 @@ class NodesManager(object):
         return Filesystem(FS_CMD_PATTERN % dict(node_ip = node_ip))
 
     def get_cp_entity_attrs(self, requester, node_name):
-        return dict(node_ip = self.get_node_ip(requester, node_name))
+        owned = not self.includes_nodes_not_owned(requester, node_name, True)
+        ip = self.get_node_ip(requester, node_name)
+        return dict(node_ip = ip,
+                    node_owned = owned)
