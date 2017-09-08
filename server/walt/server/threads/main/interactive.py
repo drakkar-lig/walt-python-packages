@@ -3,8 +3,6 @@ from walt.common.tcp import Requests
 from walt.server.threads.main.parallel import ParallelProcessSocketListener
 from walt.server.const import SSH_COMMAND
 
-INTERACTIVE_SSH_COMMAND = SSH_COMMAND + ' -t'
-
 # when running walt image shell, run bash if available, sh otherwise.
 DOCKER_SH_PATTERN = """\
 docker run -it --entrypoint /bin/sh -h %(hostname)s     \
@@ -35,14 +33,17 @@ class DockerPromptSocketListener(PromptSocketListener):
 
 class NodeCmdSocketListener(PromptSocketListener):
     REQ_ID = Requests.REQ_NODE_CMD
-    def get_command(self, node_ip, cmdargs, **kwargs):
+    def get_command(self, node_ip, cmdargs, ssh_tty, **kwargs):
         cmd = ' '.join(cmdargs)
         if cmd == '':
             quoted_cmd = ''
         else:
             quoted_cmd = "'" + "'\"'\"'".join(cmd.split("'")) + "'"
+        ssh_cmd = SSH_COMMAND
+        if ssh_tty:
+            ssh_cmd += ' -t'
         return '%(ssh)s root@%(ip)s %(cmd)s' % dict(
-            ssh = INTERACTIVE_SSH_COMMAND,
+            ssh = ssh_cmd,
             ip = node_ip,
             cmd = quoted_cmd
         )

@@ -56,7 +56,8 @@ class WalTNode(cli.Application):
         return True
 
     @staticmethod
-    def run_cmd(node_set, several_nodes_allowed, cmdargs, startup_msg=None):
+    def run_cmd(node_set, several_nodes_allowed, cmdargs,
+                startup_msg = None, tty = False):
         nodes_ip = None
         with ClientToServerLink() as server:
             if not WalTNode.confirm_nodes_not_owned(server, node_set):
@@ -73,7 +74,7 @@ class WalTNode(cli.Application):
             for ip in nodes_ip:
                 if startup_msg:
                     print startup_msg
-                run_node_cmd(ip, cmdargs)
+                run_node_cmd(ip, cmdargs, tty)
 
 @WalTNode.subcommand("show")
 class WalTNodeShow(cli.Application):
@@ -200,13 +201,18 @@ class WalTNodeShell(cli.Application):
     """run an interactive shell connected to the node"""
     def main(self, node_name):
         WalTNode.run_cmd(   node_name, False, [ ],
-                            startup_msg=NODE_SHELL_MESSAGE)
+                            startup_msg = NODE_SHELL_MESSAGE,
+                            tty = True)
 
 @WalTNode.subcommand("run")
 class WalTNodeRun(cli.Application):
     """run a command on a (set of) node(s)"""
+    _term = False # default
     def main(self, node_set, *cmdargs):
-        WalTNode.run_cmd(node_set, True, cmdargs)
+        WalTNode.run_cmd(node_set, True, cmdargs, tty = self._term)
+    @cli.autoswitch(help='run command in a pseudo-terminal')
+    def term(self):
+        self._term = True
 
 @WalTNode.subcommand("cp")
 class WalTNodeCp(cli.Application):

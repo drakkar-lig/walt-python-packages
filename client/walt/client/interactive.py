@@ -142,10 +142,11 @@ def run_image_shell_prompt(image_fullname, container_name):
                 image_fullname = image_fullname,
                 container_name = container_name).run()
 
-def run_node_cmd(node_ip, cmdargs):
+def run_node_cmd(node_ip, cmdargs, ssh_tty):
     PromptClient(Requests.REQ_NODE_CMD,
                 node_ip=node_ip,
-                cmdargs=tuple(cmdargs)).run()
+                cmdargs=tuple(cmdargs),
+                ssh_tty=ssh_tty).run()
 
 def run_device_ping(device_ip):
     PromptClient(Requests.REQ_DEVICE_PING, device_ip=device_ip).run()
