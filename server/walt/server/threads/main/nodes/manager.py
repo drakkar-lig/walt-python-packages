@@ -129,7 +129,7 @@ class NodesManager(object):
                 **self.other_kwargs
         )
 
-    def connect(self, requester, node_name):
+    def connect(self, requester, node_name, hide_issues = False):
         nodes_ip = self.get_nodes_ip(
                         requester, node_name)
         if len(nodes_ip) == 0:
@@ -137,7 +137,8 @@ class NodesManager(object):
         link = ServerToNodeLink(nodes_ip[0])
         connect_status = link.connect()
         if not connect_status[0]:
-            requester.stderr.write('Error connecting to %s: %s\n' % \
+            if not hide_issues:
+                requester.stderr.write('Error connecting to %s: %s\n' % \
                     (node_name, connect_status[1]))
             return None
         return link
@@ -326,7 +327,7 @@ class NodesManager(object):
         else:
             return None
 
-    def softreboot(self, requester, node_set):
+    def softreboot(self, requester, node_set, hide_issues):
         nodes = self.parse_node_set(requester, node_set)
         if nodes == None:
             return None # error already reported
@@ -339,14 +340,15 @@ class NodesManager(object):
         self.db.commit()
         nodes_ko, nodes_ok = [], []
         for node in nodes:
-            link = self.connect(requester, node.name)
+            link = self.connect(requester, node.name, hide_issues)
             if link == None:
                 nodes_ko.append(node.name)
                 continue
             res = link.request('REBOOT')
             del link
             if not res[0]:
-                requester.stderr.write('Soft-reboot request to %s failed: %s\n' % \
+                if not hide_issues:
+                    requester.stderr.write('Soft-reboot request to %s failed: %s\n' % \
                         (node.name, res[1]))
                 nodes_ko.append(node.name)
                 continue

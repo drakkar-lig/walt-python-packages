@@ -77,8 +77,8 @@ class CSAPI(APISession):
         return context.nodes.setpower(context.requester.sync, node_set, True, warn_poe_issues)
 
     @api_expose_method
-    def softreboot(self, context, node_set):
-        return context.nodes.softreboot(context.requester.sync, node_set)
+    def softreboot(self, context, node_set, hide_issues):
+        return context.nodes.softreboot(context.requester.sync, node_set, hide_issues)
 
     @api_expose_method
     def virtual_or_physical(self, context, node_set):

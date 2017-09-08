@@ -131,10 +131,8 @@ class PoETemporarilyOff:
                 self.node_set_off, warn_poe_issues=True)
 
 def reboot_nodes(server, node_set, hard=False):
-    # try to soft-reboot
-    if hard:
-        print('Trying soft-reboot...')
-    nodes_ok, nodes_ko = server.softreboot(node_set)
+    server.set_busy_label('Trying soft-reboot')
+    nodes_ok, nodes_ko = server.softreboot(node_set, hard)
     # if it fails and --hard was specified,
     # try to power-cycle physical nodes using PoE and restart VM of
     # virtual nodes
@@ -142,10 +140,10 @@ def reboot_nodes(server, node_set, hard=False):
         if hard:
             virtnodes, physnodes = server.virtual_or_physical(nodes_ko)
             if len(virtnodes) > 0:
-                print('Hard-rebooting virtual nodes...')
+                server.set_busy_label('Hard-rebooting virtual nodes')
                 server.hard_reboot_vnodes(virtnodes)
             if len(physnodes) > 0:
-                print('Trying hard-reboot (PoE)...')
+                server.set_busy_label('Trying hard-reboot (PoE)')
                 with PoETemporarilyOff(server, physnodes) as really_off:
                     if really_off:
                         time.sleep(POE_REBOOT_DELAY)
