@@ -17,17 +17,17 @@ MSG_USING_NO_NODES = """\
 You are currently using no nodes. (tip: walt --help-about node-terminology)"""
 
 MSG_RERUN_WITH_ALL = """\
-Re-run with --all to see all deployable nodes."""
+Re-run with --all to see all available nodes."""
 
 TITLE_NODE_SHOW_FREE_NODES_PART = """\
-The following nodes are free (a default image is deployed on them):"""
+The following nodes are free (they boot a default image):"""
 
 TITLE_NODE_SHOW_USER_NODES_PART = """\
 The following nodes are running one of your images:"""
 
 TITLE_NODE_SHOW_OTHER_NODES_PART = """\
 The following nodes are likely to be used by other users, since you do
-not own the image deployed on them."""
+not own the image they boot."""
 
 TITLE_NODE_SHOW_NOT_READY_NODES_PART = """\
 The following nodes were detected but are not available for now:

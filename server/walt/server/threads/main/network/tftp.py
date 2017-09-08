@@ -10,7 +10,7 @@ def update(db):
     # list existing links, in case some of them are obsolete
     invalid_links = set(f for f in os.listdir(TFTP_PATH))
     # each node must have a link from the tftp dir to
-    # the walt image deployed on it. The name of this
+    # the walt image it will boot. The name of this
     # link is the mac address of the node.
     # For compatibility with different network bootloaders
     # we actually provide 2 links, corresponding to 2 different

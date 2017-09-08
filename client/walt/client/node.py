@@ -19,21 +19,21 @@ Retry 'walt node reboot %(nodes_ko)s' in a moment (and add option --hard if it s
 myhelp.register_topic('node-terminology', """
 * 'owning' a node
 * ---------------
-In WalT terminology, if node <N> is deployed with an image created by user <U>,
+In WalT terminology, if node <N> boots an image created by user <U>,
 we consider that "<U> owns <N>".
 
-Thus, if you just started using WalT, "you do not own any node" until you deploy
-an image on one of them (use 'walt node deploy <node(s)> <image>' for this).
+Thus, if you just started using WalT, "you do not own any node" until you boot
+an image on one of them (use 'walt node boot <node(s)> <image>' for this).
 
-A good practice is, once you are done with your experiment, to deploy the default
-image on them (use 'walt node deploy my-nodes default' for this), in order to
+A good practice is, once you are done with your experiment, to boot the default
+image on them (use 'walt node boot my-nodes default' for this), in order to
 release your 'ownership' on these nodes.
 After you run this, these nodes will appear as 'free' to other WalT users.
 
 * specifying a set of nodes 
 * -------------------------
 Some commands accept a "set of nodes":
-- walt node deploy
+- walt node boot
 - walt node reboot
 - walt log show         (see option '--nodes')
 
@@ -88,6 +88,22 @@ class WalTNode(cli.Application):
                 if startup_msg:
                     print startup_msg
                 run_node_cmd(ip, cmdargs, tty)
+
+    @staticmethod
+    def boot_nodes(node_set, image_name_or_default):
+        with ClientToServerLink() as server:
+            if server.has_image(image_name_or_default):
+                # the list of nodes the keyword "my-nodes" refers to
+                # may be altered by the server.set_image() call, thus
+                # we have to get a real list of nodes before starting
+                # anything.
+                node_set = server.develop_node_set(node_set)
+                if node_set is None:
+                    return
+                if not WalTNode.confirm_nodes_not_owned(server, node_set):
+                    return
+                server.set_image(node_set, image_name_or_default)
+                reboot_nodes(server, node_set)
 
 @WalTNode.subcommand("show")
 class WalTNodeShow(cli.Application):
@@ -182,23 +198,17 @@ class WalTNodeReboot(cli.Application):
     def hard(self):
         self._hard = True
 
+@WalTNode.subcommand("boot")
+class WalTNodeBoot(cli.Application):
+    """let a (set of) node(s) boot an operating system image"""
+    def main(self, node_set, image_name_or_default):
+        return WalTNode.boot_nodes(node_set, image_name_or_default)
+
 @WalTNode.subcommand("deploy")
 class WalTNodeDeploy(cli.Application):
-    """deploy an operating system image on a (set of) node(s)"""
+    """alias to 'boot' subcommand"""
     def main(self, node_set, image_name_or_default):
-        with ClientToServerLink() as server:
-            if server.has_image(image_name_or_default):
-                # the list of nodes the keyword "my-nodes" refers to
-                # may be altered by the server.set_image() call, thus
-                # we have to get a real list of nodes before starting
-                # anything.
-                node_set = server.develop_node_set(node_set)
-                if node_set is None:
-                    return
-                if not WalTNode.confirm_nodes_not_owned(server, node_set):
-                    return
-                server.set_image(node_set, image_name_or_default)
-                reboot_nodes(server, node_set)
+        return WalTNode.boot_nodes(node_set, image_name_or_default)
 
 @WalTNode.subcommand("ping")
 class WalTNodePing(cli.Application):

@@ -70,7 +70,7 @@ class NodeImageManager(object):
             image_fullnames = { node.mac: image.fullname for node in nodes }
         else:
             image_fullnames = {}
-            # since the 'default' keyword was specified, we might have to deploy
+            # since the 'default' keyword was specified, we might have to associate
             # different images depending on the type of each WalT node.
             # we compute the appropriate image fullname here.
             for node in nodes:
