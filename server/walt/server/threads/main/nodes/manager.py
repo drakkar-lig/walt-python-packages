@@ -199,25 +199,6 @@ class NodesManager(object):
             return None
         return self.devices.get_complete_device_info(device_info.mac)
 
-    def get_reachable_node_info(self, requester, node_name):
-        node_info = self.get_node_info(requester, node_name)
-        if node_info == None:
-            return None # error already reported
-        if node_info.reachable == 0:
-            link = ServerToNodeLink(node_info.ip)
-            res = link.connect()
-            del link
-            if not res[0]:
-                requester.stderr.write(
-                        'Connot reach %s. The node seems dead or disconnected.\n' % \
-                                    node_name)
-                return None
-            else:
-                # Could connect. Node should be marked as reachable.
-                self.db.update('devices', 'mac', mac=node_info.mac, reachable=1)
-                node_info = self.get_node_info(requester, node_name)
-        return node_info
-
     def get_node_ip(self, requester, node_name):
         node_info = self.get_node_info(requester, node_name)
         if node_info == None:
@@ -450,7 +431,7 @@ class NodesManager(object):
         return validate_cp("node", self, requester, src, dst)
 
     def validate_cp_entity(self, requester, node_name):
-        return self.get_reachable_node_info(requester, node_name) != None
+        return self.get_node_info(requester, node_name) != None
 
     def get_cp_entity_filesystem(self, requester, node_name):
         node_ip = self.get_node_ip(requester, node_name)
