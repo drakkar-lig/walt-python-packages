@@ -92,6 +92,7 @@ PROGRESS_INDICATOR_PERIOD = timedelta(seconds=1.0)
 
 class BusyIndicator(object):
     def __init__(self, label):
+        self.default_label = label
         self.label = label
         self.last_time = None
         self.next_time = None
@@ -123,6 +124,8 @@ class BusyIndicator(object):
         self.label = label
         if self.last_time != None:
             self.reset()
+    def set_default_label(self):
+        self.set_label(self.default_label)
 
 def fd_copy(fd_src, fd_dst, size):
     try:

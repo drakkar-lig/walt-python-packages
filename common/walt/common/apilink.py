@@ -86,9 +86,13 @@ class Fake(object):
         return lambda: None
     def set_label(self, label):
         pass
+    def set_default_label(self):
+        pass
 
 class LinkException(Exception):
     pass
+
+DEFAULT_BUSY_LABEL = 'Server is working'
 
 @reusable
 class ServerAPIConnection(object):
@@ -104,7 +108,7 @@ class ServerAPIConnection(object):
         self.client_proxy = AttrCallAggregator(self.handle_client_call)
         self.local_api_handler = AttrCallRunner(local_service)
         if is_interactive:
-            self.indicator = BusyIndicator('Server is working')
+            self.indicator = BusyIndicator(DEFAULT_BUSY_LABEL)
         else:
             self.indicator = Fake()
         self.connected = False
@@ -118,6 +122,8 @@ class ServerAPIConnection(object):
             self.connected = True
     def set_busy_label(self, label):
         self.indicator.set_label(label)
+    def set_default_busy_label(self):
+        self.indicator.set_default_label()
     def get_api_version(self):
         return self.remote_api_version
     def handle_client_call(self, path, args, kwargs):
