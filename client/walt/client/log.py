@@ -166,22 +166,23 @@ class WalTLogShow(cli.Application):
         except Exception as e:
             return MALFORMED
 
-    def main(self):
+    def main(self, logline_regexp = None):
         if self.realtime == False and self.history_range == 'none':
             print 'You must specify at least 1 of the options --realtime and --history.'
             print "See 'walt --help-about log-realtime' and 'walt --help-about log-history' for more info."
             return
+        for regexp in (self.streams, logline_regexp):
+            if regexp is None:
+                continue
+            try:
+                re.compile(regexp)
+            except:
+                print 'Invalid regular expression: %s.' % regexp
+                return
         with ClientToServerLink() as server:
             senders = server.parse_set_of_nodes(self.set_of_nodes)
             if senders == None:
                 return
-            if self.streams != None:
-                # try to validate the regular expression.
-                try:
-                    re.compile(self.streams)
-                except:
-                    print 'Invalid regular expression: %s.' % self.streams
-                    return
             server_time = pickle.loads(server.get_pickled_time())
             range_analysis = self.analyse_history_range(server, server_time)
             if not range_analysis[0]:
@@ -198,7 +199,8 @@ class WalTLogShow(cli.Application):
         conn.request_log_dump(  history = history_range,
                                 realtime = self.realtime,
                                 senders = senders,
-                                streams = self.streams)
+                                streams = self.streams,
+                                logline_regexp = logline_regexp)
         while True:
             try:
                 record = conn.read_log_record()

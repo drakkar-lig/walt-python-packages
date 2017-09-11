@@ -165,11 +165,15 @@ class LogsToSocketHandler(object):
             if not senders_filtered:
                 if stream_info['sender'] not in self.params['senders']:
                     return  # filter out
-            # matching the streams is always done here, otherwise there
-            # may be inconsistencies between the regexp format in the postgresql
-            # database and in python
+            # matching the streams or the logline is always done here, otherwise
+            # there may be inconsistencies between the regexp format in the
+            # postgresql database and in python
             if self.streams_regexp:
                 matches = self.streams_regexp.findall(stream_info['stream'])
+                if len(matches) == 0:
+                    return  # filter out
+            if self.logline_regexp:
+                matches = self.logline_regexp.findall(record['line'])
                 if len(matches) == 0:
                     return  # filter out
             d = {}
@@ -187,7 +191,7 @@ class LogsToSocketHandler(object):
     def fileno(self):
         return self.sock_file_r.fileno()
     # this is what we will do depending on the client request params
-    def handle_params(self, history, realtime, senders, streams):
+    def handle_params(self, history, realtime, senders, streams, logline_regexp):
         if history:
             # unpickle the elements of the history range
             history = tuple(pickle.loads(e) if e else None for e in history)
@@ -195,6 +199,10 @@ class LogsToSocketHandler(object):
             self.streams_regexp = re.compile(streams)
         else:
             self.streams_regexp = None
+        if logline_regexp:
+            self.logline_regexp = re.compile(logline_regexp)
+        else:
+            self.logline_regexp = None
         self.params = dict( history = history,
                             realtime = realtime,
                             senders = senders)
