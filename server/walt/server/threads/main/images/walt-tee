@@ -22,8 +22,17 @@ seconds since 1970), as obtained with 'date +%s.%N'.
 ts_mode=0
 if [ "$1" = "--ts" ]
 then
+    # timestamps provided in input
     ts_mode=1
     shift
+else
+    # check if date command can provide sub-second granularity
+    if [ "$(date +%N)" = '%N' ]
+    then
+        # cannot get sub-second granularity
+        # we will let the server timestamp traces
+        ts_mode=2
+    fi
 fi
 
 # get stream name as first arg
@@ -43,23 +52,40 @@ exec 6<&1
 {
     echo REQ_NEW_INCOMING_LOGS
     echo "$stream"
-    if [ "$ts_mode" = "1" ]
+    if [ "$ts_mode" = "2" ]
     then
-        while read ts line
+        # let the server know we will not send timestamps
+        # (thus server should set timestamps itself)
+        echo "NO_TIMESTAMPS"
+        while read line
         do
             # send log line through pipe
-            echo "$ts $line"
+            echo "$line"
             # also print it to stdout
             echo "$line" >&6
         done
     else
-        while read line
-        do
-            # send log line through pipe
-            echo "$(date +%s.%N) $line"
-            # also print it to stdout
-            echo "$line" >&6
-        done
+        # let the server know we will send timestamps
+        # (as 1st column)
+        echo "TIMESTAMPS_INSIDE"
+        if [ "$ts_mode" = "1" ]
+        then
+            while read ts line
+            do
+                # send log line through pipe
+                echo "$ts $line"
+                # also print it to stdout
+                echo "$line" >&6
+            done
+        else
+            while read line
+            do
+                # send log line through pipe
+                echo "$(date +%s.%N) $line"
+                # also print it to stdout
+                echo "$line" >&6
+            done
+        fi
     fi
     # this "CLOSE" message is not formatted as a
     # log line, thus the server will close the
