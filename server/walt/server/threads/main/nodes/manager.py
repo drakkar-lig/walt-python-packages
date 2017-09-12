@@ -10,7 +10,7 @@ from walt.server.threads.main.nodes.show import show
 from walt.server.threads.main.nodes.wait import WaitInfo
 from walt.server.threads.main.transfer import validate_cp
 from walt.server.threads.main.network.tools import ip, get_walt_subnet
-from walt.server.tools import merge_named_tuples
+from walt.server.tools import to_named_tuple
 
 NODE_CONNECTION_TIMEOUT = 1
 
@@ -110,15 +110,22 @@ class NodesManager(object):
         for vnode in self.db.select('devices', type = 'node', virtual = True):
             self.start_vnode(vnode.mac, vnode.name)
 
-    def cleanup(self):
-        # stop virtual nodes
+    def try_kill(self, pid):
         # note: kvm processes may already have ended because they are subprocesses
         # and they may have also received the signal that caused us to be there.
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except OSError:
+            pass
+
+    def cleanup(self):
+        # stop virtual nodes
         for pid in self.vnodes_pid.values():
-            try:
-                os.kill(pid, signal.SIGTERM)
-            except OSError:
-                pass
+            self.try_kill(pid)
+
+    def forget_vnode(self, node_mac):
+        pid = self.vnodes_pid.pop(node_mac)
+        self.try_kill(pid)
 
     def as_node_set(self, names):
         return ','.join(sorted(names))
@@ -200,6 +207,16 @@ class NodesManager(object):
                                     (node_name, device_type))
             return None
         return self.devices.get_complete_device_info(device_info.mac)
+
+    def get_virtual_node_info(self, requester, node_name):
+        node = self.get_node_info(requester, node_name)
+        if node is None:
+            return None     # error already reported
+        if not node.virtual:
+            requester.stderr.write(\
+                'FAILED: %s is a real node (not virtual).\n' % node_name)
+            return None
+        return node
 
     def get_node_ip(self, requester, node_name):
         node_info = self.get_node_info(requester, node_name)
@@ -366,7 +383,7 @@ class NodesManager(object):
                 continue
             # terminate VM
             vm_pid = self.vnodes_pid[node.mac]
-            os.kill(vm_pid, signal.SIGTERM)
+            self.try_kill(vm_pid)
             # restart VM
             self.start_vnode(node.mac, node.name)
             nodes_ok.append(node.name)

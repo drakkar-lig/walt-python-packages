@@ -121,8 +121,16 @@ class WalTNodeCreate(cli.Application):
     """create a virtual WalT node"""
     def main(self, node_name):
         with ClientToServerLink() as server:
-            if not server.create_vnode(node_name):
-                return  # issue already reported
+            server.create_vnode(node_name)
+
+@WalTNode.subcommand("remove")
+class WalTNodeRemove(cli.Application):
+    """remove a virtual WalT node"""
+    def main(self, node_name):
+        with ClientToServerLink() as server:
+            if not WalTNode.confirm_nodes_not_owned(server, node_name):
+                return
+            server.remove_vnode(node_name)
 
 @WalTNode.subcommand("blink")
 class WalTNodeBlink(cli.Application):

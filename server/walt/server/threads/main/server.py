@@ -133,3 +133,10 @@ class Server(object):
         # start background vm
         self.nodes.start_vnode(mac, name)
         return True
+
+    def remove_vnode(self, requester, name):
+        info = self.nodes.get_virtual_node_info(requester, name)
+        if info is None:
+            return  # error already reported
+        self.nodes.forget_vnode(info.mac)
+        self.forget_device(name)

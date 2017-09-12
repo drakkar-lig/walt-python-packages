@@ -2,6 +2,7 @@ from plumbum import cli
 from walt.client.link import ClientToServerLink
 from walt.client.interactive import run_device_ping
 from walt.client.device.admin import WalTDeviceAdmin
+from walt.common.tools import deserialize_ordered_dict
 
 class WalTDevice(cli.Application):
     """management of WalT platform devices"""
@@ -50,6 +51,9 @@ This would delete any information about %s, including %s log \
 lines.
 If this is what you want, run 'walt device forget --force %s'."""
 
+MSG_USE_WALT_NODE_REMOVE = """\
+%(node)s is a virtual node. Use 'walt node remove %(node)s' instead."""
+
 @WalTDevice.subcommand("forget")
 class WalTDeviceForget(cli.Application):
     """let the WalT system forget about an obsolete device"""
@@ -60,6 +64,10 @@ class WalTDeviceForget(cli.Application):
             device_info = server.get_device_info(device_name)
             if device_info == None:
                 return  # issue already reported
+            device_info = deserialize_ordered_dict(device_info)
+            if device_info['type'] == 'node' and device_info['virtual']:
+                print MSG_USE_WALT_NODE_REMOVE % dict(node = device_name)
+                return
             if not self._force:
                 logs_cnt = server.count_logs(
                         history = (None, None),

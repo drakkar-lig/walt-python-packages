@@ -33,6 +33,10 @@ class CSAPI(APISession):
         return context.server.create_vnode(context.requester.sync, node_name)
 
     @api_expose_method
+    def remove_vnode(self, context, node_name):
+        return context.server.remove_vnode(context.requester.sync, node_name)
+
+    @api_expose_method
     def prepare_ssh_access(self, context, node_set):
         return context.nodes.prepare_ssh_access(context.requester.sync, node_set)
 
