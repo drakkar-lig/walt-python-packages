@@ -109,10 +109,6 @@ class CSAPI(APISession):
         context.server.set_image(context.requester.sync, node_set, image_tag)
 
     @api_expose_method
-    def is_device_reachable(self, context, device_name):
-        return context.devices.is_reachable(context.requester.sync, device_name)
-
-    @api_expose_method
     def count_logs(self, context, history, **kwargs):
         unpickled_history = (pickle.loads(e) if e else None for e in history)
         return context.server.db.count_logs(history = unpickled_history, **kwargs)

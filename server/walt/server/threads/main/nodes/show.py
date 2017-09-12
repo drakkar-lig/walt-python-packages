@@ -6,7 +6,7 @@ NODE_SHOW_QUERY = """
         split_part(n.image, ':', 2) as image_tag,
         i.ready as image_ready,
         d.ip as ip,
-        (case when d.reachable = 1 then 'yes' else 'NO' end) as reachable
+        (case when n.booted then 'yes' else 'NO' end) as booted
     FROM devices d, nodes n, images i
     WHERE   d.type = 'node'
     AND     d.mac = n.mac
@@ -64,9 +64,9 @@ def show(db, requester, show_all):
         if not show_all and len(res_free) == 0:
             footnote = MSG_RERUN_WITH_ALL
         table = [ (record.name, record.model,
-                   record.image_tag, record.ip, record.reachable) \
+                   record.image_tag, record.ip, record.booted) \
                     for record in res_user ]
-        header = [ 'name', 'model', 'image', 'ip', 'reachable' ]
+        header = [ 'name', 'model', 'image', 'ip', 'booted' ]
         result_msg += format_paragraph(
                         TITLE_NODE_SHOW_USER_NODES_PART,
                         columnate(table, header=header),
@@ -76,9 +76,9 @@ def show(db, requester, show_all):
         footnote = None
         if not show_all:
             footnote = MSG_RERUN_WITH_ALL
-        table = [ (record.name, record.model, record.ip, record.reachable) \
+        table = [ (record.name, record.model, record.ip, record.booted) \
                     for record in res_free ]
-        header = [ 'name', 'model', 'ip', 'reachable' ]
+        header = [ 'name', 'model', 'ip', 'booted' ]
         result_msg += format_paragraph(
                         TITLE_NODE_SHOW_FREE_NODES_PART,
                         columnate(table, header=header),
@@ -94,9 +94,9 @@ def show(db, requester, show_all):
             # display nodes of other users
             table = [  (record.name, record.model, record.image_owner,
                         'server:%s/%s' % (record.image_owner, record.image_tag),
-                        record.ip, record.reachable) \
+                        record.ip, record.booted) \
                             for record in res_other ]
-            header = [ 'name', 'model', 'image_owner', 'clonable_image_link', 'ip', 'reachable' ]
+            header = [ 'name', 'model', 'image_owner', 'clonable_image_link', 'ip', 'booted' ]
             result_msg += format_paragraph(
                         TITLE_NODE_SHOW_OTHER_NODES_PART,
                         columnate(table, header=header))

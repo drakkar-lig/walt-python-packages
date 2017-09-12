@@ -9,7 +9,6 @@ class NSAPI(APISession):
 
     @api_expose_method
     def node_bootup_event(self, context):
-        context.devices.node_bootup_event(context.remote_ip)
         node_name = context.devices.get_name_from_ip(context.remote_ip)
         context.nodes.node_bootup_event(node_name)
 

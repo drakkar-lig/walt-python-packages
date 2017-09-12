@@ -9,14 +9,14 @@ class WaitInfo(object):
     def wait(self, requester, task, nodes):
         if nodes == None:
             return         # unblock the client
-        unreachable_nodes = [ node for node in nodes if node.reachable == 0 ]
-        if len(unreachable_nodes) == 0:
+        not_booted = [ node for node in nodes if not node.booted ]
+        if len(not_booted) == 0:
             return         # unblock the client
         # ok, the client will really have to wait
         task.set_async()   # result will be available later
         tid = id(task)
         self.tasks[tid] = task
-        for node in unreachable_nodes:
+        for node in not_booted:
             self.mac_to_tids[node.mac].add(tid)
             self.tid_to_macs[tid].add(node.mac)
 

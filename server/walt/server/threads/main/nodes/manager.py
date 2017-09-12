@@ -104,6 +104,8 @@ class NodesManager(object):
         self.vnodes_pid = {}
 
     def prepare(self):
+        # set booted flag of all nodes to False for now
+        self.db.execute('UPDATE nodes SET booted = false;')
         # start virtual nodes
         for vnode in self.db.select('devices', type = 'node', virtual = True):
             self.start_vnode(vnode.mac, vnode.name)
@@ -312,12 +314,12 @@ class NodesManager(object):
         nodes = self.parse_node_set(requester, node_set)
         if nodes == None:
             return None # error already reported
-        # first, we pass all nodes to unreachable
+        # first, we pass the 'booted' flag of all nodes to false
         # (if we manage to reboot them, they will be unreachable
         #  for a little time; if we do not manage to reboot them,
-        #  this means there are already unreachable...)
+        #  this probably means they are down, thus not booted...)
         for node in nodes:
-            self.db.update('devices', 'mac', mac = node.mac, reachable = 0);
+            self.db.update('nodes', 'mac', mac = node.mac, booted = False);
         self.db.commit()
         nodes_ko, nodes_ok = [], []
         for node in nodes:
@@ -400,6 +402,10 @@ class NodesManager(object):
 
     def node_bootup_event(self, node_name):
         node_info = self.get_node_info(None, node_name)
+        # update booted flag in db
+        self.db.update('nodes', 'mac', mac=node_info.mac, booted=True)
+        self.db.commit()
+        # unblock any related "walt node wait" command.
         self.wait_info.node_bootup_event(node_info)
 
     def develop_node_set(self, requester, node_set):

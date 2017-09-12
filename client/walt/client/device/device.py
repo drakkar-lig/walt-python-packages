@@ -50,22 +50,16 @@ This would delete any information about %s, including %s log \
 lines.
 If this is what you want, run 'walt device forget --force %s'."""
 
-MSG_REACHABLE_CANNOT_FORGET = """\
-Failed: %s is reachable on the WalT network (thus supposedly in use).
-You can use 'walt device rescan' to update this.
-"""
 @WalTDevice.subcommand("forget")
 class WalTDeviceForget(cli.Application):
     """let the WalT system forget about an obsolete device"""
     _force = False # default
     def main(self, device_name):
         with ClientToServerLink() as server:
-            reachable = server.is_device_reachable(device_name)
-            if reachable == None:
+            # check if server knows this device
+            device_info = server.get_device_info(device_name)
+            if device_info == None:
                 return  # issue already reported
-            if reachable:
-                print MSG_REACHABLE_CANNOT_FORGET % device_name
-                return
             if not self._force:
                 logs_cnt = server.count_logs(
                         history = (None, None),

@@ -266,14 +266,6 @@ class TopologyManager(object):
         self.devices.add_or_update(
                 mac = server_mac, ip = str(get_server_ip()),
                 type = 'server')
-        reachable_filters = [ "type = 'server'" ]
-        # if the client is connected on the walt network, set it as reachable
-        if remote_ip:
-            reachable_filters.append("ip = '%s'" % remote_ip)
-        # initialize all devices to unreachable except selected ones
-        self.db.execute("UPDATE devices SET reachable = 0;")
-        self.db.execute("UPDATE devices SET reachable = 1 WHERE %s;" % \
-                            " OR ".join(reachable_filters))
         # explore the network
         new_topology = Topology()
         self.collect_connected_devices(ui, new_topology, "localhost", 0, server_mac, set())
@@ -330,9 +322,9 @@ class TopologyManager(object):
         switch_info, switch_port = self.get_connectivity_info(device_mac)
         if not switch_info:
             return False
-        # if powering off, the device will be unreachable
+        # if powering off and device is a node, we must reset the booted flag
         if not poweron:
-            self.db.update('devices', 'mac', mac=device_mac, reachable=0)
+            self.db.update('nodes', 'mac', mac=device_mac, booted=False)
             self.db.commit()
         # let's request the switch to enable or disable the PoE
         snmp_conf = json.loads(switch_info.snmp_conf)

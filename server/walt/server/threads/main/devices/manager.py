@@ -16,7 +16,7 @@ The 1st character must be an alphabet letter.
 """
 
 DEVICES_QUERY = """\
-SELECT name, ip, mac, type, reachable from devices
+SELECT name, ip, mac, type from devices
 WHERE type %(unknown_op)s 'unknown'
 ORDER BY type, name;"""
 
@@ -169,8 +169,6 @@ class DevicesManager(object):
             # generate a name for this device
             if 'name' not in args_data:
                 args_data['name'] = self.generate_device_name(**args_data)
-            if 'reachable' not in args_data:
-                args_data['reachable'] = 0
             print 'Device: %s is new, adding (%s, %s)' % (args_data['name'], args_data['ip'], args_data['type'])
             self.db.insert("devices", **args_data)
             modified = True
@@ -190,17 +188,6 @@ class DevicesManager(object):
         if modified:
             self.db.commit()
         return new_equipment
-
-    def is_reachable(self, requester, device_name):
-        res = self.get_device_info(requester, device_name)
-        if res == None:
-            return
-        return res.reachable != 0
-
-    def node_bootup_event(self, node_ip):
-        # if we got this event, then the node is reachable
-        self.db.update('devices', 'ip', ip=node_ip, reachable=1)
-        self.db.commit()
 
     def show(self):
         q = DEVICES_QUERY % dict(unknown_op = '!=')

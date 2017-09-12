@@ -15,7 +15,6 @@ class ServerDB(PostgresDB):
                     mac TEXT PRIMARY KEY,
                     ip TEXT UNIQUE,
                     name TEXT UNIQUE,
-                    reachable INTEGER DEFAULT 0,
                     type TEXT,
                     virtual BOOLEAN DEFAULT FALSE);""")
         self.execute("""CREATE TABLE IF NOT EXISTS topology (
@@ -30,7 +29,8 @@ class ServerDB(PostgresDB):
         self.execute("""CREATE TABLE IF NOT EXISTS nodes (
                     mac TEXT REFERENCES devices(mac),
                     image TEXT REFERENCES images(fullname),
-                    model TEXT);""")
+                    model TEXT,
+                    booted BOOLEAN DEFAULT FALSE);""")
         self.execute("""CREATE TABLE IF NOT EXISTS switches (
                     mac TEXT REFERENCES devices(mac),
                     model TEXT,
