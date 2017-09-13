@@ -5,15 +5,21 @@ set walt_init /bin/walt-init
 
 # compute kernel url
 set kernel_url /nodes/${mac:hexhyp}/${node_model}/kernel
+set initrd_url /nodes/${mac:hexhyp}/${node_model}/initrd
 
 # compute kernel command line args
 set nfs_root ${next-server}:/var/lib/walt/nodes/${mac}
 set nfs_bootargs root=/dev/nfs nfsroot=${nfs_root},nfsvers=3
 set walt_bootargs walt.node.model=${node_model} walt.server.ip=${next-server}
-set other_bootargs init=${walt_init} ip=dhcp panic=30
+# BOOTIF is set by pxelinux to the MAC address of the interface used to boot,
+# and is understood by Debian's initrd scripts.  Use the same syntax as pxelinux
+# to be compatible.
+set other_bootargs init=${walt_init} panic=30 ip=dhcp BOOTIF=01-${mac:hexhyp}
 set bootargs ${nfs_bootargs} ${walt_bootargs} ${other_bootargs}
 
 echo server script
+
+initrd ${initrd_url} || echo No initrd found
 
 # boot
 echo Please boot... ${bootargs}
