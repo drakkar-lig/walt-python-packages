@@ -78,12 +78,27 @@ class ServerDB(PostgresDB):
         sql, args = self.format_logs_query('count(*)', **kwargs)
         return self.execute(sql, args).fetchall()[0][0]
 
+    def get_logstream_ids(self, senders):
+        if senders == None:
+            return self.select_no_fetch('logstreams')
+        else:
+            sender_names = '''('%s')''' % "','".join(senders)
+            sql = """   SELECT s.*
+                        FROM logstreams s, devices d
+                        WHERE s.sender_mac = d.mac AND d.name IN %s;""" % sender_names
+            return self.execute(sql)
+
     def format_logs_query(self, projections, ordering=None, \
-                    senders=None, history=(None,None), **kwargs):
+                    senders=None, history=(None,None), stream_ids=None, **kwargs):
         args = []
         constraints = [ 's.sender_mac = d.mac', 'l.stream_id = s.id' ]
+        if stream_ids:
+            stream_ids_sql = '''(%s)''' % ",".join(
+                str(stream_id) for stream_id in stream_ids)
+            constraints.append('s.id IN %s' % stream_ids_sql)
         if senders:
-            constraints.append('''d.name IN ('%s') ''' % "','".join(senders))
+            sender_names = '''('%s')''' % "','".join(senders)
+            constraints.append('d.name IN %s' % sender_names)
         start, end = history
         if start:
             constraints.append('l.timestamp > %s')

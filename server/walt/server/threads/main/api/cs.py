@@ -113,9 +113,8 @@ class CSAPI(APISession):
         context.server.set_image(context.requester.sync, node_set, image_tag)
 
     @api_expose_method
-    def count_logs(self, context, history, **kwargs):
-        unpickled_history = (pickle.loads(e) if e else None for e in history)
-        return context.server.db.count_logs(history = unpickled_history, **kwargs)
+    def count_logs(self, context, **kwargs):
+        return context.server.count_logs(**kwargs)
 
     @api_expose_method
     def forget(self, context, device_name):

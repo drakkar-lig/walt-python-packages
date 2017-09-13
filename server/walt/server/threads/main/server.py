@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-
+import re
 from walt.common.constants import WALT_SERVER_TCP_PORT
 from walt.common.devices.registry import get_device_cls_from_vci_and_mac
 from walt.common.tcp import TCPServer
@@ -140,3 +140,25 @@ class Server(object):
             return  # error already reported
         self.nodes.forget_vnode(info.mac)
         self.forget_device(name)
+
+    def count_logs(self, history, streams = None, senders = None, **kwargs):
+        unpickled_history = (pickle.loads(e) if e else None for e in history)
+        if streams:
+            # compute streams ids whose name match the regular expression
+            stream_ids = []
+            streams_re = re.compile(streams)
+            for row in self.db.get_logstream_ids(senders):
+                matches = streams_re.findall(row.name)
+                if len(matches) > 0:
+                    stream_ids.append(str(row.id))
+            if len(stream_ids) == 0:
+                return 0    # no streams => no logs
+            # we can release the constraint on senders since we restrict to
+            # their logstreams (cf. stream_ids variable we just computed)
+            senders = None
+        else:
+            stream_ids = None
+        return self.db.count_logs(history = unpickled_history,
+                                  senders = senders,
+                                  stream_ids = stream_ids,
+                                  **kwargs)

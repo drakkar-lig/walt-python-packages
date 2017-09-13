@@ -139,14 +139,17 @@ class PostgresDB():
                     values)
         return self.c.rowcount  # number of rows updated
 
-    # allow statements like:
-    # mem_db.select("network", ip=ip)
-    def select(self, table, **kwargs):
+    def select_no_fetch(self, table, **kwargs):
         cols, values = self.get_cols_and_values(table, kwargs)
         where_clause = self.get_where_clause_pattern(cols)
         sql = "SELECT * FROM %s %s;" % (table, where_clause)
         self.c.execute(sql, values)
-        return self.c.fetchall()
+        return self.c
+
+    # allow statements like:
+    # mem_db.select("network", ip=ip)
+    def select(self, table, **kwargs):
+        return self.select_no_fetch(table, **kwargs).fetchall()
 
     # same as above but expect only one matching record
     # and return it.

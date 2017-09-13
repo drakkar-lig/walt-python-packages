@@ -100,6 +100,9 @@ received from all the specified experiment nodes.
 SECONDS_PER_UNIT = {'s':1, 'm':60, 'h':3600, 'd':86400}
 NUM_LOGS_CONFIRM_TRESHOLD = 1000
 
+def isatty():
+    return sys.stdout.isatty() and sys.stdin.isatty()
+
 def validate_checkpoint_name(name):
     return re.match('^[a-zA-Z0-9]+[a-zA-Z0-9\-]+$', name)
 
@@ -248,8 +251,11 @@ class WalTLogShow(WalTLogShowOrWait):
                 print '''Invalid HISTORY_RANGE. See 'walt --help-about log-history' for more info.'''
                 return
             history_range = range_analysis[1]
-            if history_range:
-                num_logs = server.count_logs(history = history_range, senders = senders)
+            # Note : if a regular expression is specified, we do not bother computing the number
+            # of log records, because this computation would be too expensive, and the number of
+            # matching lines is probably low.
+            if history_range and logline_regexp is None and isatty():
+                num_logs = server.count_logs(history = history_range, senders = senders, streams = self.streams)
                 if num_logs > NUM_LOGS_CONFIRM_TRESHOLD:
                     print 'This will display approximately %d log records from history.' % num_logs
                     if not confirm():
