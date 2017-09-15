@@ -576,8 +576,13 @@ _walt_node_boot() {
 		COMPREPLY=( $( compgen -W "$main_options_with_args" -- "$cur" ) )
 		;;
 	*)
-		__walt_node_name_all
-		#__walt_image_name_all
+		if [ "$COMP_CWORD" = 3 ]
+		then
+			__walt_node_name_all
+		elif [ "$COMP_CWORD" = 4 ]
+		then
+			__walt_image_name_all
+		fi
 		;;
 	esac
 }
