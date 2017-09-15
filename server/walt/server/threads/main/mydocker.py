@@ -5,7 +5,7 @@ from walt.server import const
 from docker import Client, errors
 from datetime import datetime
 from plumbum.cmd import mount
-import sys, requests, shlex, json
+import sys, requests, shlex, json, itertools
 
 DOCKER_TIMEOUT=None
 AUFS_BR_LIMIT=127
@@ -72,7 +72,16 @@ class DockerClient(object):
     def untag(self, fullname):
         self.rmi(fullname)
     def search(self, term):
-        return self.c.search(term=term)
+        results = []
+        for page in itertools.count(1):
+            url = 'https://index.docker.io/v1/search?q=%(term)s&n=100&page=%(page)s' % \
+                    dict(   term = term,
+                            page = page)
+            page_info = requests.get(url).json()
+            results += page_info['results']
+            if page_info['num_pages'] == page:
+                break
+        return results
     def lookup_remote_tags(self, image_name):
         url = const.DOCKER_HUB_GET_TAGS_URL % dict(image_name = image_name)
         for elem in requests.get(url, timeout=DOCKER_TIMEOUT).json():
