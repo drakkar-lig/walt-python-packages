@@ -631,6 +631,17 @@ _walt_node_reboot() {
 	esac
 }
 ## Done
+_walt_node_remove() {
+	case "$cur" in
+	-*)
+		COMPREPLY=( $( compgen -W "$main_options_with_args" -- "$cur" ) )
+		;;
+	*)
+		__walt_node_name_all
+		;;
+	esac
+}
+## Done
 _walt_node_run() {
 	case "$cur" in
 	-*)
@@ -692,6 +703,7 @@ _walt_node() {
 		deploy
 		ping
 		reboot
+		remove
 		run
 		shell
 		show
