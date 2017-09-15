@@ -570,6 +570,18 @@ _walt_node_blink() {
 	esac
 }
 ## -Done
+_walt_node_boot() {
+	case "$cur" in
+	-*)
+		COMPREPLY=( $( compgen -W "$main_options_with_args" -- "$cur" ) )
+		;;
+	*)
+		__walt_node_name_all
+		#__walt_image_name_all
+		;;
+	esac
+}
+## -Done
 _walt_node_cp() {
 	case "$cur" in
 	-*)
@@ -588,18 +600,6 @@ _walt_node_create() {
 		;;
 	*)
 		__walt_show_nothing
-		;;
-	esac
-}
-## -Done
-_walt_node_deploy() {
-	case "$cur" in
-	-*)
-		COMPREPLY=( $( compgen -W "$main_options_with_args" -- "$cur" ) )
-		;;
-	*)
-		__walt_node_name_all
-		#__walt_image_name_all
 		;;
 	esac
 }
@@ -698,9 +698,9 @@ _walt_node() {
 
 	local commands=(
 		blink
+		boot
 		cp
-        create
-		deploy
+		create
 		ping
 		reboot
 		remove
