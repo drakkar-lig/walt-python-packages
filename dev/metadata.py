@@ -19,7 +19,10 @@ PACKAGE_SPECIFIC_INFO = {
                 'console_scripts': [
                     'walt = walt.client.client:run'
                 ]
-            }
+            },
+            data_files = [
+                ('/etc/bash_completion.d', ['bash_completion/walt'])
+            ]
         )
     ),
     "walt-node": dict(

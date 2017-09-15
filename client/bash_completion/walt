@@ -1,0 +1,808 @@
+#!/bin/bash
+#
+# bash completion file for core walt commands
+#
+# This script provides completion of:
+#  - commands and their options
+#  - device names, image names, node names
+#
+# To enable the completions either:
+#  - place this file in /etc/bash_completion.d
+#  or
+#  - copy this file to e.g. ~/.walt-completion.sh and add the line
+#    below to your .bashrc after bash completion features are loaded
+#    . ~/.walt-completion.sh
+#
+# Note for developers:
+# Please arrange options sorted alphabetically by long name with the short 
+# options immediately following their corresponding long form.
+# This order should be applied to lists, alternatives and code blocks.
+
+#################################################################
+############################walt utils###########################
+
+__walt_device_name_all() {
+	local names=`walt device show | grep -e [0-9a-f][0-9a-f]:[0-9a-f][0-9a-f]:[0-9a-f][0-9a-f]:[0-9a-f][0-9a-f]:[0-9a-f][0-9a-f]:[0-9a-f][0-9a-f] | cut -d ' ' -f 1`
+	COMPREPLY=( $(compgen -W "${names[*]}" -- "$cur") )
+}
+
+
+__walt_image_name_all() {
+	local names=`walt image show | grep -e "[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] [0-9][0-9]:[0-9][0-9]:[0-9][0-9]" | cut -d ' ' -f 1`
+	COMPREPLY=( $(compgen -W "${names[*]}" -- "$cur") )
+}
+
+__walt_node_name_all() {
+	local names=`walt node show --all | grep -e rpi-b -e rpi-b-plus -e rpi-2-b -e rpi-3-b -e pc-x86-64 | cut -d ' ' -f 1`
+	COMPREPLY=( $(compgen -W "${names[*]}" -- "$cur") )
+}
+
+__walt_show_nothing() {
+	COMPREPLY=( $(compgen -W "" -- "$cur") )
+}
+
+# Transforms a multiline list of strings into a single line string
+# with the words separated by "|".
+__walt_to_alternatives() {
+	local parts=( $1 )
+	local IFS='|'
+	echo "${parts[*]}"
+}
+
+# Transforms a multiline list of options into an extglob pattern
+# suitable for use in case statements.
+__walt_to_extglob() {
+	local extglob=$( __walt_to_alternatives "$1" )
+	echo "@($extglob)"
+}
+
+############################walt utils###########################
+#################################################################
+
+
+#################################################################
+##########################walt advanced##########################
+## Done
+_walt_advanced_fix-image-owner() {
+
+	local boolean_options="
+		--yes-i-know-do-it-please
+	"	
+
+	case "$cur" in
+	-*)
+		COMPREPLY=( $( compgen -W "$boolean_options $main_options_with_args" -- "$cur" ) )
+		;;
+	*)
+		__walt_show_nothing
+		;;
+	esac
+}
+## Done
+_walt_advanced_sql() {
+	case "$cur" in
+	-*)
+		COMPREPLY=( $( compgen -W "$boolean_options $main_options_with_args" -- "$cur" ) )
+		;;
+	*)
+		__walt_show_nothing
+		;;
+	esac
+}
+
+_walt_advanced() {
+
+	local previous_extglob_setting=$(shopt -p extglob)
+	shopt -s extglob
+
+	local commands=(
+		fix-image-owner
+		sql
+	)
+
+	case "$cur" in
+		-*)
+			COMPREPLY=( $( compgen -W "$boolean_options $main_options_with_args" -- "$cur" ) )
+			;;
+		*)
+			COMPREPLY=( $( compgen -W "${commands[*]} help" -- "$cur" ) )
+			;;
+	esac
+
+	local main_options_with_args_glob=$(__walt_to_extglob "$main_options_with_args")
+
+	local cur prev words cword
+	_get_comp_words_by_ref -n : cur prev words cword
+
+	local command='advanced' cpos=1
+	local counter=2
+	while [ $counter -lt $cword ]; do
+		case "${words[$counter]}" in
+			$main_options_with_args_glob )
+				(( counter++ ))
+				;;
+			-*)
+				;;
+			*)
+				command="${words[$counter]}"
+				cpos=$counter
+				(( cpos++ ))
+				break
+				;;
+		esac
+		(( counter++ ))
+	done
+
+	local completions_func=_walt_advanced_${command}
+	declare -F $completions_func >/dev/null && $completions_func
+
+}
+##########################walt advanced##########################
+#################################################################
+
+
+#################################################################
+###########################walt device###########################
+## Done
+_walt_image_admin() {
+	case "$cur" in
+	-*)
+		COMPREPLY=( $( compgen -W "$main_options_with_args" -- "$cur" ) )
+		;;
+	*)
+		__walt_device_name_all
+		;;
+	esac
+}
+## Done
+_walt_device_forget() {
+	local boolean_options="
+		--force
+	"	
+
+	case "$cur" in
+	-*)
+		COMPREPLY=( $( compgen -W "$boolean_options $main_options_with_args" -- "$cur" ) )
+		;;
+	*)
+		__walt_device_name_all
+		;;
+	esac
+}
+## Done
+_walt_device_ping() {
+	case "$cur" in
+	-*)
+		COMPREPLY=( $( compgen -W "$main_options_with_args" -- "$cur" ) )
+		;;
+	*)
+		__walt_device_name_all
+		;;
+	esac
+}
+## Done
+_walt_device_rename() {
+	case "$cur" in
+	-*)
+		COMPREPLY=( $( compgen -W "$main_options_with_args" -- "$cur" ) )
+		;;
+	*)
+		__walt_device_name_all
+		;;
+	esac
+}
+## Done
+_walt_device_rescan() {
+	case "$cur" in
+	-*)
+		COMPREPLY=( $( compgen -W "$main_options_with_args" -- "$cur" ) )
+		;;
+	*)
+		__walt_show_nothing
+		;;
+	esac
+}
+## Done
+_walt_device_show() {
+	case "$cur" in
+	-*)
+		COMPREPLY=( $( compgen -W "$main_options_with_args" -- "$cur" ) )
+		;;
+	*)
+		__walt_show_nothing
+		;;
+	esac
+}
+## Done
+_walt_device_tree() {
+	case "$cur" in
+	-*)
+		COMPREPLY=( $( compgen -W "$main_options_with_args" -- "$cur" ) )
+		;;
+	*)
+		__walt_show_nothing
+		;;
+	esac
+}
+
+_walt_device() {
+
+	local previous_extglob_setting=$(shopt -p extglob)
+	shopt -s extglob
+
+	local commands=(
+		admin
+		forget
+		ping
+		rename
+		rescan
+		show
+		tree
+	)
+
+	case "$cur" in
+		-*)
+			COMPREPLY=( $( compgen -W "$boolean_options $main_options_with_args" -- "$cur" ) )
+			;;
+		*)
+			COMPREPLY=( $( compgen -W "${commands[*]} help" -- "$cur" ) )
+			;;
+	esac
+
+	local main_options_with_args_glob=$(__walt_to_extglob "$main_options_with_args")
+
+	local cur prev words cword
+	_get_comp_words_by_ref -n : cur prev words cword
+
+	local command='device' cpos=1
+	local counter=2
+	while [ $counter -lt $cword ]; do
+		case "${words[$counter]}" in
+			$main_options_with_args_glob )
+				(( counter++ ))
+				;;
+			-*)
+				;;
+			*)
+				command="${words[$counter]}"
+				cpos=$counter
+				(( cpos++ ))
+				break
+				;;
+		esac
+		(( counter++ ))
+	done
+
+	local completions_func=_walt_device_${command}
+	declare -F $completions_func >/dev/null && $completions_func
+
+}
+###########################walt device###########################
+#################################################################
+
+
+#################################################################
+############################walt image###########################
+## -Done
+_walt_image_clone() {
+	local boolean_options="
+		--force
+	"	
+
+	case "$cur" in
+	-*)
+		COMPREPLY=( $( compgen -W "$boolean_options $main_options_with_args" -- "$cur" ) )
+		;;
+	*)
+		__walt_show_nothing
+		;;
+	esac
+}
+## -Done
+_walt_image_cp() {
+	case "$cur" in
+	-*)
+		COMPREPLY=( $( compgen -W "$main_options_with_args" -- "$cur" ) )
+		;;
+	*)
+		__walt_show_nothing
+		#__walt_device_name_all
+		;;
+	esac
+}
+## Done
+_walt_image_duplicate() {
+	case "$cur" in
+	-*)
+		COMPREPLY=( $( compgen -W "$main_options_with_args" -- "$cur" ) )
+		;;
+	*)
+		__walt_image_name_all
+		;;
+	esac
+}
+## Done
+_walt_image_publish() {
+	case "$cur" in
+	-*)
+		COMPREPLY=( $( compgen -W "$main_options_with_args" -- "$cur" ) )
+		;;
+	*)
+		__walt_image_name_all
+		;;
+	esac
+}
+## Done
+_walt_image_remove() {
+	case "$cur" in
+	-*)
+		COMPREPLY=( $( compgen -W "$main_options_with_args" -- "$cur" ) )
+		;;
+	*)
+		__walt_image_name_all
+		;;
+	esac
+}
+## Done
+_walt_image_rename() {
+	case "$cur" in
+	-*)
+		COMPREPLY=( $( compgen -W "$main_options_with_args" -- "$cur" ) )
+		;;
+	*)
+		__walt_image_name_all
+		;;
+	esac
+}
+## Done
+_walt_image_search() {
+	case "$cur" in
+	-*)
+		COMPREPLY=( $( compgen -W "$main_options_with_args" -- "$cur" ) )
+		;;
+	*)
+		__walt_image_name_all
+		;;
+	esac
+}
+## Done
+_walt_image_shell() {
+	case "$cur" in
+	-*)
+		COMPREPLY=( $( compgen -W "$main_options_with_args" -- "$cur" ) )
+		;;
+	*)
+		__walt_image_name_all
+		;;
+	esac
+}
+## -Done
+_walt_image_show() {
+	case "$cur" in
+	-*)
+		COMPREPLY=( $( compgen -W "$main_options_with_args" -- "$cur" ) )
+		;;
+	*)
+		__walt_show_nothing
+		;;
+	esac
+}
+
+_walt_image() {
+
+	local previous_extglob_setting=$(shopt -p extglob)
+	shopt -s extglob
+
+	local commands=(
+		clone
+		cp
+		duplicate
+		publish
+		remove
+		rename
+		search
+		shell
+		show
+	)
+
+	case "$cur" in
+		-*)
+			COMPREPLY=( $( compgen -W "$boolean_options $main_options_with_args" -- "$cur" ) )
+			;;
+		*)
+			COMPREPLY=( $( compgen -W "${commands[*]} help" -- "$cur" ) )
+			;;
+	esac
+
+	local main_options_with_args_glob=$(__walt_to_extglob "$main_options_with_args")
+
+	local cur prev words cword
+	_get_comp_words_by_ref -n : cur prev words cword
+
+	local command='image' cpos=1
+	local counter=2
+	while [ $counter -lt $cword ]; do
+		case "${words[$counter]}" in
+			$main_options_with_args_glob )
+				(( counter++ ))
+				;;
+			-*)
+				;;
+			*)
+				command="${words[$counter]}"
+				cpos=$counter
+				(( cpos++ ))
+				break
+				;;
+		esac
+		(( counter++ ))
+	done
+
+	local completions_func=_walt_image_${command}
+	declare -F $completions_func >/dev/null && $completions_func
+
+}
+############################walt image###########################
+#################################################################
+
+
+#################################################################
+############################walt log#############################
+## Done
+_walt_log_add-checkpoint() {
+	local boolean_options="
+		--date
+	"	
+
+	case "$cur" in
+	-*)
+		COMPREPLY=( $( compgen -W "$boolean_options $main_options_with_args" -- "$cur" ) )
+		;;
+	*)
+		__walt_show_nothing
+		;;
+	esac
+}
+## Done
+_walt_log_list-checkpoints() {
+	case "$cur" in
+	-*)
+		COMPREPLY=( $( compgen -W "$main_options_with_args" -- "$cur" ) )
+		;;
+	*)
+		__walt_show_nothing
+		;;
+	esac
+}
+## Done
+_walt_log_remove-checkpoint() {
+	case "$cur" in
+	-*)
+		COMPREPLY=( $( compgen -W "$main_options_with_args" -- "$cur" ) )
+		;;
+	*)
+		__walt_show_nothing
+		;;
+	esac
+}
+## Done
+_walt_log_show() {
+	
+	local boolean_options="
+		--format --history --nodes --realtime --streams
+	"	
+
+	case "$cur" in
+	-*)
+		COMPREPLY=( $( compgen -W "$boolean_options $main_options_with_args" -- "$cur" ) )
+		;;
+	*)
+		__walt_show_nothing
+		;;
+	esac
+}
+
+_walt_log() {
+
+	local previous_extglob_setting=$(shopt -p extglob)
+	shopt -s extglob
+
+	local commands=(
+		add-checkpoint
+		list-checkpoints
+		remove-checkpoint
+		show
+	)
+
+	case "$cur" in
+		-*)
+			COMPREPLY=( $( compgen -W "$boolean_options $main_options_with_args" -- "$cur" ) )
+			;;
+		*)
+			COMPREPLY=( $( compgen -W "${commands[*]} help" -- "$cur" ) )
+			;;
+	esac
+
+	local main_options_with_args_glob=$(__walt_to_extglob "$main_options_with_args")
+
+	local cur prev words cword
+	_get_comp_words_by_ref -n : cur prev words cword
+
+	local command='log' cpos=1
+	local counter=2
+	while [ $counter -lt $cword ]; do
+		case "${words[$counter]}" in
+			$main_options_with_args_glob )
+				(( counter++ ))
+				;;
+			-*)
+				;;
+			*)
+				command="${words[$counter]}"
+				cpos=$counter
+				(( cpos++ ))
+				break
+				;;
+		esac
+		(( counter++ ))
+	done
+
+	local completions_func=_walt_log_${command}
+	declare -F $completions_func >/dev/null && $completions_func
+
+}
+############################walt log#############################
+#################################################################
+
+
+#################################################################
+############################walt node############################
+
+## Done
+_walt_node_blink() {
+	case "$cur" in
+	-*)
+		COMPREPLY=( $( compgen -W "$main_options_with_args" -- "$cur" ) )
+		;;
+	*)
+		__walt_node_name_all
+		;;
+	esac
+}
+## -Done
+_walt_node_cp() {
+	case "$cur" in
+	-*)
+		COMPREPLY=( $( compgen -W "$main_options_with_args" -- "$cur" ) )
+		;;
+	*)
+		__walt_show_nothing
+		;;
+	esac
+}
+## -Done
+_walt_node_create() {
+	case "$cur" in
+	-*)
+		COMPREPLY=( $( compgen -W "$main_options_with_args" -- "$cur" ) )
+		;;
+	*)
+		__walt_show_nothing
+		;;
+	esac
+}
+## -Done
+_walt_node_deploy() {
+	case "$cur" in
+	-*)
+		COMPREPLY=( $( compgen -W "$main_options_with_args" -- "$cur" ) )
+		;;
+	*)
+		__walt_node_name_all
+		#__walt_image_name_all
+		;;
+	esac
+}
+## Done
+_walt_node_ping() {
+	case "$cur" in
+	-*)
+		COMPREPLY=( $( compgen -W "$main_options_with_args" -- "$cur" ) )
+		;;
+	*)
+		__walt_node_name_all
+		;;
+	esac
+}
+## Done
+_walt_node_reboot() {
+	
+	local boolean_options="
+		--hard
+	"	
+
+	case "$cur" in
+	-*)
+		COMPREPLY=( $( compgen -W "$boolean_options $main_options_with_args" -- "$cur" ) )
+		;;
+	*)
+		__walt_node_name_all
+		;;
+	esac
+}
+## Done
+_walt_node_run() {
+	case "$cur" in
+	-*)
+		COMPREPLY=( $( compgen -W "$main_options_with_args" -- "$cur" ) )
+		;;
+	*)
+		__walt_node_name_all
+		;;
+	esac
+}
+## Done
+_walt_node_shell() {
+	case "$cur" in
+	-*)
+		COMPREPLY=( $( compgen -W "$main_options_with_args" -- "$cur" ) )
+		;;
+	*)
+		__walt_node_name_all
+		;;
+	esac
+}
+## Done
+_walt_node_show() {
+	
+	local boolean_options="
+		--all
+	"	
+
+	case "$cur" in
+	-*)
+		COMPREPLY=( $( compgen -W "$boolean_options $main_options_with_args" -- "$cur" ) )
+		;;
+	*)
+		__walt_show_nothing
+		;;
+	esac
+}
+## Done
+_walt_node_wait() {
+	case "$cur" in
+	-*)
+		COMPREPLY=( $( compgen -W "$main_options_with_args" -- "$cur" ) )
+		;;
+	*)
+		__walt_node_name_all
+		;;
+	esac
+}
+
+_walt_node() {
+
+	local previous_extglob_setting=$(shopt -p extglob)
+	shopt -s extglob
+
+	local commands=(
+		blink
+		cp
+        create
+		deploy
+		ping
+		reboot
+		run
+		shell
+		show
+		wait
+	)
+
+	case "$cur" in
+		-*)
+			COMPREPLY=( $( compgen -W "$boolean_options $main_options_with_args" -- "$cur" ) )
+			;;
+		*)
+			COMPREPLY=( $( compgen -W "${commands[*]} help" -- "$cur" ) )
+			;;
+	esac
+
+	local main_options_with_args_glob=$(__walt_to_extglob "$main_options_with_args")
+
+	local cur prev words cword
+	_get_comp_words_by_ref -n : cur prev words cword
+
+	local command='node' cpos=1
+	local counter=2
+	while [ $counter -lt $cword ]; do
+		case "${words[$counter]}" in
+			$main_options_with_args_glob )
+				(( counter++ ))
+				;;
+			-*)
+				;;
+			*)
+				command="${words[$counter]}"
+				cpos=$counter
+				(( cpos++ ))
+				break
+				;;
+		esac
+		(( counter++ ))
+	done
+
+	local completions_func=_walt_node_${command}
+	declare -F $completions_func >/dev/null && $completions_func
+
+}
+############################walt node############################
+#################################################################
+
+_walt_walt() {
+	
+	local boolean_options="
+		--help-about -z
+	"
+
+	case "$cur" in
+		-*)
+			COMPREPLY=( $( compgen -W "$boolean_options $main_options_with_args" -- "$cur" ) )
+			;;
+		*)
+			COMPREPLY=( $( compgen -W "${commands[*]} help" -- "$cur" ) )
+			;;
+	esac
+
+}
+
+_walt() {
+	local previous_extglob_setting=$(shopt -p extglob)
+	shopt -s extglob
+
+	local commands=(
+		advanced
+		device
+		image
+		log
+		node
+	)
+
+	local main_options_with_args="
+		--help -h
+		--help-all
+		--version -v
+	"
+
+	local main_options_with_args_glob=$(__walt_to_extglob "$main_options_with_args")
+
+	COMPREPLY=()
+	local cur prev words cword
+	_get_comp_words_by_ref -n : cur prev words cword
+
+	local command='walt' cpos=0
+	local counter=1
+	while [ $counter -lt $cword ]; do
+		case "${words[$counter]}" in
+			$main_options_with_args_glob )
+				(( counter++ ))
+				;;
+			-*)
+				;;
+			*)
+				command="${words[$counter]}"
+				cpos=$counter
+				(( cpos++ ))
+				break
+				;;
+		esac
+		(( counter++ ))
+	done
+
+	local completions_func=_walt_${command}
+	declare -F $completions_func >/dev/null && $completions_func
+
+	eval "$previous_extglob_setting"
+	return 0
+}
+
+complete -F _walt walt
