@@ -1,7 +1,9 @@
 import re, cPickle as pickle
 from datetime import datetime
+from walt.common.constants import WALT_SERVER_NETCONSOLE_PORT
 from walt.common.tcp import read_pickle, write_pickle, \
                             Requests
+from walt.common.udp import udp_server_socket
 
 class LogsToDBHandler(object):
     def __init__(self, db):
@@ -105,6 +107,53 @@ class LogsStreamListener(object):
         return True
     def close(self):
         self.sock_file.close()
+
+class NetconsoleListener(object):
+    """Listens for netconsole messages sent by nodes over UDP, and store
+    them as regular logs."""
+    def __init__(self, db, hub, port, **kwargs):
+        self.db = db
+        self.hub = hub
+        self.s = udp_server_socket(port)
+
+    def join_event_loop(self, ev_loop):
+        self.ev_loop = ev_loop
+        ev_loop.register_listener(self)
+
+    # let the event loop know what we are reading on
+    def fileno(self):
+        return self.s.fileno()
+
+    def handle_event(self, ts):
+        # TODO: we should decode the extended format and handle continuation messages.
+        # https://www.kernel.org/doc/Documentation/ABI/testing/dev-kmsg
+        (msg, addrinfo) = self.s.recvfrom(9000)
+        msg = msg.strip()
+        sender_ip, sender_port = addrinfo
+        sender_info = self.db.select_unique('devices', ip=sender_ip)
+        if sender_info == None:
+            sender_mac = None
+        else:
+            sender_mac = sender_info.mac
+        stream_info = self.db.select_unique('logstreams', sender_mac=sender_mac,
+                                            name='netconsole')
+        if stream_info:
+            # found existing stream
+            stream_id = stream_info.id
+        else:
+            # register new stream
+            stream_id = self.db.insert('logstreams', returning='id',
+                                       sender_mac=sender_mac, name='netconsole')
+
+        timestamp = ts
+        if not isinstance(timestamp, datetime):
+            timestamp = datetime.fromtimestamp(timestamp)
+        record = dict(timestamp=timestamp, line=msg, stream_id=stream_id)
+        self.hub.log(**record)
+        return True
+
+    def close(self):
+        self.s.close()
 
 PHASE_WAIT_FOR_BLCK_THREAD = 0
 PHASE_RETRIEVING_FROM_DB = 1
@@ -225,7 +274,7 @@ class LogsToSocketHandler(object):
         self.sock_file_w.close()
 
 class LogsManager(object):
-    def __init__(self, db, tcp_server, blocking):
+    def __init__(self, db, tcp_server, blocking, ev_loop):
         self.db = db
         self.blocking = blocking
         self.hub = LogsHub()
@@ -241,6 +290,8 @@ class LogsManager(object):
                     cls = LogsStreamListener,
                     db = self.db,
                     hub = self.hub)
+        self.netconsole = NetconsoleListener(self.db, self.hub, WALT_SERVER_NETCONSOLE_PORT)
+        self.netconsole.join_event_loop(ev_loop)
 
     # Look for a checkpoint. Return a tuple.
     # If the result conforms to 'expected', return (True, <checkpoint_found_or_none>)

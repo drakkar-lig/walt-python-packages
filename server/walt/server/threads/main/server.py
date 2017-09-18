@@ -33,7 +33,7 @@ class Server(object):
         self.dhcpd = DHCPServer(self.db)
         self.images = NodeImageManager(self.db, self.blocking, self.dhcpd, self.docker)
         self.tcp_server = TCPServer(WALT_SERVER_TCP_PORT)
-        self.logs = LogsManager(self.db, self.tcp_server, self.blocking)
+        self.logs = LogsManager(self.db, self.tcp_server, self.blocking, self.ev_loop)
         self.interaction = InteractionManager(\
                         self.tcp_server, self.ev_loop)
         self.transfer = TransferManager(\
