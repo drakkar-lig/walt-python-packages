@@ -42,9 +42,13 @@ class WalTImagePublish(cli.Application):
 @WalTImage.subcommand("show")
 class WalTImageShow(cli.Application):
     """display your working set of walt images"""
+    _refresh = False # default
     def main(self):
         with ClientToServerLink() as server:
-            print server.show_images()
+            print server.show_images(self._refresh)
+    @cli.autoswitch(help='resync image list from Docker daemon.')
+    def refresh(self):
+        self._refresh = True
 
 @WalTImage.subcommand("shell")
 class WalTImageShell(cli.Application):

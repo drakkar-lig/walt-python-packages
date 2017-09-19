@@ -171,11 +171,11 @@ class CSAPI(APISession):
         return context.server.docker.login(dh_peer, auth_conf, context.requester.sync)
 
     @api_expose_method
-    def show_images(self, context):
+    def show_images(self, context, refresh):
         username = context.requester.sync.get_username()
         if not username:
             return None     # client already disconnected, give up
-        return context.images.show(username)
+        return context.images.show(username, refresh)
 
     @api_expose_method
     def create_image_shell_session(self, context, image_tag, task_label):
