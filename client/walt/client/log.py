@@ -54,7 +54,7 @@ In this mode, 'walt log show' will wait for incoming log records and
 display them.
 
 Note that you may combine --realtime and --history options, e.g.:
-$ walt log show --history -2min: --realtime
+$ walt log show --history '-2m:' --realtime
 This will display the logs from 2 minutes in the past to now and then
 continue listening for new incoming logs.
 """)
