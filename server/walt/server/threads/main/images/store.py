@@ -31,6 +31,11 @@ class NodeImageStore(object):
         db_images = { db_img.fullname: db_img.ready \
                         for db_img in self.db.select('images') }
         docker_images = self.docker.get_local_images()
+        # import new images from docker into the database
+        for fullname in docker_images:
+            if '/walt-node' in fullname and fullname not in db_images:
+                self.db.insert('images', fullname=fullname, ready=True)
+                db_images[fullname] = True
         # add missing images
         for db_fullname in db_images:
             db_ready = db_images[db_fullname]
@@ -60,11 +65,13 @@ class NodeImageStore(object):
         self.db.insert('images', fullname=image_fullname, ready=is_ready)
         self.db.commit()
         self.refresh()
+    # Make sure to rename the image in docker *before* calling this.
     def rename(self, old_fullname, new_fullname):
         self.db.execute('update images set fullname = %(new_fullname)s where fullname = %(old_fullname)s',
                             dict(old_fullname = old_fullname, new_fullname = new_fullname))
         self.db.commit()
         self.refresh()
+    # Make sure to remove the image from docker *before* calling this.
     def remove(self, image_fullname):
         self.db.delete('images', fullname=image_fullname)
         self.db.commit()
@@ -74,6 +81,10 @@ class NodeImageStore(object):
         self.db.commit()
         self.refresh()
     def __getitem__(self, image_fullname):
+        if image_fullname not in self.images:
+            # image was probably downloaded using docker commands,
+            # walt does not know it yet
+            self.refresh()
         return self.images[image_fullname]
     def __iter__(self):
         return self.images.iterkeys()
