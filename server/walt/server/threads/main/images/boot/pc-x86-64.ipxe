@@ -1,12 +1,18 @@
 #!ipxe
 
 set node_model pc-x86-64
+# This is provided by iPXE, extracted from BIOS information.
+set node_submodel ${manufacturer}/${product}
 echo Walt node model: ${node_model}
+echo Walt node submodel: ${node_submodel}
 
-# Compute url for kernel, initrd, and custom ipxe script
-set kernel_url /nodes/${mac:hexhyp}/${node_model}/kernel
-set initrd_url /nodes/${mac:hexhyp}/${node_model}/initrd
+# Compute url for kernel, initrd, and custom ipxe scripts
+set kernel_url /nodes/${mac:hexhyp}/${node_model}/${node_submodel}/kernel
+set kernel_fallback_url /nodes/${mac:hexhyp}/${node_model}/kernel
+set initrd_url /nodes/${mac:hexhyp}/${node_model}/${node_submodel}/initrd
+set initrd_fallback_url /nodes/${mac:hexhyp}/${node_model}/initrd
 set ipxe_script /nodes/${mac:hexhyp}/${node_model}/boot-params.ipxe
+set ipxe_script_submodel /nodes/${mac:hexhyp}/${node_model}/${node_submodel}/boot-params.ipxe
 
 # Default value for variables (may be overriden by custom ipxe script)
 set walt_init /bin/walt-init
@@ -15,10 +21,11 @@ set netconsole_iface eth0
 # Custom kernel parameters directly passed to the kernel command line (useful for serial console)
 set additional_kernel_params
 
-# Load custom ipxe script.
-echo Loading custom ipxe script from Walt image
+# Load custom ipxe scripts: model, then submodel.
+echo Loading custom ipxe scripts from Walt image
 # imgfree is necessary, otherwise the loaded ipxe script corrupts the memory of the initrd.
 chain /nodes/${mac:hexhyp}/${node_model}/boot-params.ipxe && imgfree boot-params.ipxe ||
+chain /nodes/${mac:hexhyp}/${node_model}/${node_submodel}/boot-params.ipxe && imgfree boot-params.ipxe ||
 
 # Compute kernel command line args
 set nfs_root ${next-server}:/var/lib/walt/nodes/${mac}
@@ -52,8 +59,8 @@ set other_bootargs init=${walt_init} panic=30 ip=dhcp BOOTIF=01-${mac:hexhyp}
 set bootargs ${nfs_bootargs} ${walt_bootargs} ${console_bootargs} ${other_bootargs} ${additional_kernel_params}
 
 echo Loading optional initrd...
-initrd ${initrd_url} || echo No initrd found
+initrd ${initrd_url} || initrd ${initrd_fallback_url} || echo No initrd found
 
 # boot
 echo Booting kernel with parameters: ${bootargs}
-boot ${kernel_url} ${bootargs} || reboot
+boot ${kernel_url} ${bootargs} || boot ${kernel_fallback_url} ${bootargs} || reboot
