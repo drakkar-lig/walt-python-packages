@@ -56,4 +56,4 @@ initrd ${initrd_url} || echo No initrd found
 
 # boot
 echo Booting kernel with parameters: ${bootargs}
-boot ${kernel_url} ${bootargs}
+boot ${kernel_url} ${bootargs} || reboot
