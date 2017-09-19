@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import re
+import pickle
 from walt.common.constants import WALT_SERVER_TCP_PORT
 from walt.common.devices.registry import get_device_cls_from_vci_and_mac
 from walt.common.tcp import TCPServer
