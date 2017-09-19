@@ -115,6 +115,9 @@ class NetconsoleListener(object):
         self.db = db
         self.hub = hub
         self.s = udp_server_socket(port)
+        # Cache IP -> stream ID association, to avoid hitting the
+        # database for each received netconsole message.
+        self.cache = dict()
 
     def join_event_loop(self, ev_loop):
         self.ev_loop = ev_loop
@@ -130,20 +133,24 @@ class NetconsoleListener(object):
         (msg, addrinfo) = self.s.recvfrom(9000)
         msg = msg.strip()
         sender_ip, sender_port = addrinfo
-        sender_info = self.db.select_unique('devices', ip=sender_ip)
-        if sender_info == None:
-            sender_mac = None
+        if sender_ip in self.cache:
+            stream_id = self.cache[sender_ip]
         else:
-            sender_mac = sender_info.mac
-        stream_info = self.db.select_unique('logstreams', sender_mac=sender_mac,
-                                            name='netconsole')
-        if stream_info:
-            # found existing stream
-            stream_id = stream_info.id
-        else:
-            # register new stream
-            stream_id = self.db.insert('logstreams', returning='id',
-                                       sender_mac=sender_mac, name='netconsole')
+            sender_info = self.db.select_unique('devices', ip=sender_ip)
+            if sender_info == None:
+                sender_mac = None
+            else:
+                sender_mac = sender_info.mac
+                stream_info = self.db.select_unique('logstreams', sender_mac=sender_mac,
+                                                    name='netconsole')
+            if stream_info:
+                # found existing stream
+                stream_id = stream_info.id
+            else:
+                # register new stream
+                stream_id = self.db.insert('logstreams', returning='id',
+                                           sender_mac=sender_mac, name='netconsole')
+            self.cache[sender_ip] = stream_id
 
         timestamp = ts
         if not isinstance(timestamp, datetime):
