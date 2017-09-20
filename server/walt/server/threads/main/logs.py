@@ -115,9 +115,7 @@ class NetconsoleListener(object):
         self.db = db
         self.hub = hub
         self.s = udp_server_socket(port)
-        # Cache IP -> stream ID association, to avoid hitting the
-        # database for each received netconsole message.
-        self.cache = dict()
+        self.sender_info = dict()
 
     def join_event_loop(self, ev_loop):
         self.ev_loop = ev_loop
@@ -131,11 +129,10 @@ class NetconsoleListener(object):
         # TODO: we should decode the extended format and handle continuation messages.
         # https://www.kernel.org/doc/Documentation/ABI/testing/dev-kmsg
         (msg, addrinfo) = self.s.recvfrom(9000)
-        msg = msg.strip()
         sender_ip, sender_port = addrinfo
-        if sender_ip in self.cache:
-            stream_id = self.cache[sender_ip]
-        else:
+        if sender_ip not in self.sender_info:
+            # Cache IP -> stream ID association, to avoid hitting the
+            # database for each received netconsole message.
             sender_info = self.db.select_unique('devices', ip=sender_ip)
             if sender_info == None:
                 sender_mac = None
@@ -151,13 +148,24 @@ class NetconsoleListener(object):
                 # register new stream
                 stream_id = self.db.insert('logstreams', returning='id',
                                            sender_mac=sender_mac, name='netconsole')
-            self.cache[sender_ip] = stream_id
-
-        timestamp = ts
-        if not isinstance(timestamp, datetime):
-            timestamp = datetime.fromtimestamp(timestamp)
-        record = dict(timestamp=timestamp, line=msg, stream_id=stream_id)
-        self.hub.log(**record)
+            # Second list element is the current pending message for this sender
+            # (in some cases we may receive a line in multiple parts before getting
+            # the end-of-line char)
+            self.sender_info[sender_ip] = [stream_id, '']
+        stream_id, cur_msg = self.sender_info[sender_ip]
+        cur_msg += msg
+        # log terminated lines
+        lines = cur_msg.split('\n')
+        if len(lines) > 1:
+            timestamp = ts
+            if not isinstance(timestamp, datetime):
+                timestamp = datetime.fromtimestamp(timestamp)
+            for line in lines[:-1]: # terminated lines
+                record = dict(timestamp=timestamp, line=line, stream_id=stream_id)
+                self.hub.log(**record)
+        # update current message of this sender
+        cur_msg = lines[-1] # last line (unterminated one)
+        self.sender_info[sender_ip][1] = cur_msg
         return True
 
     def close(self):
