@@ -16,7 +16,7 @@ def update_bootfiles():
     for file_name in FILES:
         file_src = resource_filename(__name__, file_name)
         file_dst = os.path.join(BOOTFILES_DIR, file_name)
-        if not filecmp.cmp(file_src, file_dst):
+        if not os.path.exists(file_dst) or not filecmp.cmp(file_src, file_dst):
             # files differ
             shutil.copy2(file_src, file_dst)
     # update server-params.ipxe if needed.
