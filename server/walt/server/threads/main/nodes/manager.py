@@ -189,6 +189,9 @@ class NodesManager(object):
         return free_mac, free_ip, 'pc-x86-64'
 
     def start_vnode(self, mac, name):
+        if not os.path.exists('/etc/qemu/bridge.conf'):
+            with open('/etc/qemu/bridge.conf', 'w') as f:
+                f.write('allow walt-net\n')
         cmd = CMD_START_VNODE % dict(
             usb_image = '/var/lib/walt/boot/pc-usb.dd',
             mac = mac,
