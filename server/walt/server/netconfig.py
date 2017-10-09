@@ -54,6 +54,11 @@ def setup_native_conf(raw_iface, iface, state_file):
     # packets cross the bridge and reach our interface.
     filter_out_8021q(raw_iface, iface)
 
+def setup_vlan_conf(raw_iface, vlan, iface, state_file):
+    vlan_iface = raw_iface + '.' + str(vlan)
+    create_vlan_iface(raw_iface, vlan, vlan_iface, state_file)
+    create_bridge_iface(iface, (vlan_iface,), state_file)
+
 def setup_ip_conf(iface, ip_conf):
     if ip_conf == 'dhcp':
         do('dhclient %s' % iface)
@@ -69,7 +74,7 @@ def up(iface, network_conf):
             set_iface_up(raw_iface)
             vlan = get_vlan(iface_conf)
             if vlan:
-                create_vlan_iface(raw_iface, vlan, iface, state_file)
+                setup_vlan_conf(raw_iface, vlan, iface, state_file)
             else:
                 setup_native_conf(raw_iface, iface, state_file)
             if 'ip' in iface_conf:
