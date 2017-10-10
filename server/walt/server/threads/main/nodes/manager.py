@@ -48,7 +48,7 @@ FAILED to turn node %(node_name)s %(state)s using PoE: SNMP request to %(sw_name
 
 MSG_NOT_VIRTUAL = "WARNING: %s is not a virtual node. IGNORED.\n"
 
-FS_CMD_PATTERN = SSH_COMMAND + ' root@%(node_ip)s %%(prog)s %%(prog_args)s'
+FS_CMD_PATTERN = SSH_COMMAND + ' root@%(node_ip)s "%%(prog)s %%(prog_args)s"'
 
 CMD_START_VNODE = "kvm -display none -hda %(usb_image)s -m 512 -name %(name)s \
                         -net nic,macaddr=%(mac)s -net bridge,br=walt-net"
