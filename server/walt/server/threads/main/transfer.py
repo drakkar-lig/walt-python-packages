@@ -133,7 +133,9 @@ TarSendCommand='''\
         tar c -h %(tmp_name)s && rm %(tmp_name)s '''
 
 TarReceiveCommand='''\
-        cd %(dst_dir)s && tar x && mv %(tmp_name)s %(dst_name)s '''
+        cd %(dst_dir)s && tar x && \
+        chown -Rh root:root %(tmp_name)s && \
+        mv %(tmp_name)s %(dst_name)s '''
 
 class ImageTarSender(ParallelProcessSocketListener):
     REQ_ID = Requests.REQ_TAR_FROM_IMAGE
