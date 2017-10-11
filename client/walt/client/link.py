@@ -21,6 +21,12 @@ class ExposedStream(object):
     @api_expose_method
     def flush(self):
         self.stream.flush()
+    @api_expose_method
+    def get_encoding(self):
+        if hasattr(self.stream, 'encoding'):
+            return self.stream.encoding
+        else:
+            return None
 
 # most of the functionality is provided at the server,
 # of course.

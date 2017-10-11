@@ -169,8 +169,8 @@ class Topology(object):
             if mac2 == mac:
                 yield port2, mac1, port1, confirmed
 
-    def printed_tree(self, root_mac, device_labels, device_types):
-        t = Tree()
+    def printed_tree(self, stdout_encoding, root_mac, device_labels, device_types):
+        t = Tree(stdout_encoding)
         # compute confirmed / unconfirmed nodes
         confirmed_macs = set()
         all_macs = set()
@@ -305,7 +305,7 @@ class TopologyManager(object):
                     break
         return root_mac
 
-    def tree(self):
+    def tree(self, requester):
         db_topology = Topology()
         db_topology.load_from_db(self.db)
         root_mac = self.get_tree_root_mac(db_topology)
@@ -315,7 +315,9 @@ class TopologyManager(object):
         device_labels = { d.mac: d.name for d in self.db.select('devices') }
         device_types = { d.mac: d.type for d in self.db.select('devices') }
         # compute and return the topology tree
-        return db_topology.printed_tree(root_mac, device_labels, device_types)
+        stdout_encoding = requester.stdout.get_encoding()
+        return db_topology.printed_tree(stdout_encoding,
+                       root_mac, device_labels, device_types)
 
     def setpower(self, device_mac, poweron):
         # we have to know on which PoE switch port the node is

@@ -18,7 +18,7 @@ class CSAPI(APISession):
 
     @api_expose_method
     def device_tree(self, context):
-        return context.topology.tree()
+        return context.topology.tree(context.requester.sync)
 
     @api_expose_method
     def device_show(self, context):

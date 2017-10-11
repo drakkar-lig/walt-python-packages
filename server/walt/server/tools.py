@@ -91,3 +91,12 @@ def update_template(path, template_env):
             f.seek(0)
             f.write(file_content)
             f.truncate()
+
+def try_encode(s, encoding):
+    if encoding is None:
+        return False
+    try:
+        s.encode(encoding)
+        return True
+    except UnicodeError:
+        return False

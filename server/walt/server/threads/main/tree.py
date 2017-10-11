@@ -1,19 +1,37 @@
 #!/usr/bin/env python
 
 from collections import OrderedDict
+from walt.server.tools import try_encode
 
-# special characters used to display the tree
-WHOLE_V = u'\u2502'         # whole vertical bar
-WHOLE_V_RIGHT_H = u'\u251c' # whole vertical + right horizontal bars
-WHOLE_H = u'\u2500'         # whole horizontal bar
-UPPER_V_RIGHT_H = u'\u2514' # upper vertical + right horizontal bars
-SPACE = u' '
+# special characters used to display the tree (if possible)
+class UNICODE_CHARSET:
+    WHOLE_V = u'\u2502'         # whole vertical bar
+    WHOLE_V_RIGHT_H = u'\u251c' # whole vertical + right horizontal bars
+    WHOLE_H = u'\u2500'         # whole horizontal bar
+    UPPER_V_RIGHT_H = u'\u2514' # upper vertical + right horizontal bars
+    SPACE = u' '
+
+SPECIAL_CHARS = ''.join(
+        v for k, v in UNICODE_CHARSET.__dict__.items() \
+                if isinstance(v, unicode))
+
+# simpler characters (fallback)
+class ASCII_CHARSET:
+    WHOLE_V = '|'
+    WHOLE_V_RIGHT_H = '|'
+    WHOLE_H = '-'
+    UPPER_V_RIGHT_H = '|'
+    SPACE = ' '
 
 class Tree(object):
     """Class allowing to display an object graph as a tree."""
-    def __init__(self):
+    def __init__(self, stdout_encoding):
         self.nodes = OrderedDict()
         self.up_to_date = False
+        if try_encode(SPECIAL_CHARS, stdout_encoding):
+            self.charset = UNICODE_CHARSET
+        else:
+            self.charset = ASCII_CHARSET
     def add_node(self, key, label):
         self.nodes[key] = dict(
             key=key,
@@ -41,7 +59,7 @@ class Tree(object):
             output = "%s\n" % label
             # align to 2nd letter of the name
             subtree_offset = 1
-            prefix += (SPACE * subtree_offset)
+            prefix += (self.charset.SPACE * subtree_offset)
         else:
             if key in seen:
                 label = '[back to %s]' % label
@@ -52,14 +70,14 @@ class Tree(object):
                 # align to 2nd letter of the name
                 subtree_offset = len("%d" % child_pos) + 2
             if last_child:
-                sep_char_item = UPPER_V_RIGHT_H
-                sep_char_child = SPACE
+                sep_char_item = self.charset.UPPER_V_RIGHT_H
+                sep_char_child = self.charset.SPACE
             else:
-                sep_char_item = WHOLE_V_RIGHT_H
-                sep_char_child = WHOLE_V
+                sep_char_item = self.charset.WHOLE_V_RIGHT_H
+                sep_char_child = self.charset.WHOLE_V
             output = "%s%s%s%s\n" % \
-                    (prefix, sep_char_item, WHOLE_H, label)
-            prefix += sep_char_child + (SPACE * (subtree_offset+1))
+                    (prefix, sep_char_item, self.charset.WHOLE_H, label)
+            prefix += sep_char_child + (self.charset.SPACE * (subtree_offset+1))
         if key not in seen:
             seen.add(key)
             num_children = len(children)
