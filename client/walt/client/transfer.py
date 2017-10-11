@@ -47,7 +47,7 @@ def run_transfer(req_id, dst_dir, dst_name, src_dir, src_name, tmp_name,
     with ProgressMessageThread('Transfering...'):
         if client_operand_index == 0:
             # client is sending
-            with tarfile.open(mode='w|', fileobj=f) as archive:
+            with tarfile.open(mode='w|', fileobj=f, dereference=True) as archive:
                 archive.add(os.path.join(src_dir, src_name), arcname=tmp_name)
         else:
             # client is receiving
