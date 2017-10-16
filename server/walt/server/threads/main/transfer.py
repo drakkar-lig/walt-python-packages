@@ -130,12 +130,13 @@ def ssh_wrap_cmd(cmd):
 
 TarSendCommand='''\
         cd %(src_dir)s && ln -s %(src_name)s %(tmp_name)s && \
-        tar c -h %(tmp_name)s && rm %(tmp_name)s '''
+        tar c -h %(tmp_name)s || rm -rf %(tmp_name)s '''
 
 TarReceiveCommand='''\
         cd %(dst_dir)s && tar x && \
         chown -Rh root:root %(tmp_name)s && \
-        mv %(tmp_name)s %(dst_name)s '''
+        mv %(tmp_name)s %(dst_name)s || \
+        rm -rf %(tmp_name)s '''
 
 class ImageTarSender(ParallelProcessSocketListener):
     REQ_ID = Requests.REQ_TAR_FROM_IMAGE
