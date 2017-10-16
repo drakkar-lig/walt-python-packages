@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import os, pty, shlex, fcntl, termios, sys, threading
+import os, pty, shlex, fcntl, termios, sys, threading, socket
 from subprocess import Popen, STDOUT
 
 from walt.common.io import SmartBufferingFileReader, \
@@ -34,9 +34,10 @@ class ForkPtyProcessListener(object):
         self.slave_w.close()
 
 class ParallelProcessSocketListener(object):
-    def __init__(self, ev_loop, sock_file, **kwargs):
+    def __init__(self, ev_loop, sock, sock_file, **kwargs):
         self.ev_loop = ev_loop
         self.params = None
+        self.sock = sock
         self.sock_file = sock_file
         # provide read_available() method on the socket
         self.sock_reader = SmartBufferingFileReader(self.sock_file)
@@ -88,13 +89,15 @@ class ParallelProcessSocketListener(object):
     # when the popen object exits, close its output in order
     # to notify the end of transmission to the client.
     def popen_set_finalize_callback(self):
-        def monitor_popen(popen, sock_file):
+        def monitor_popen(popen, sock, sock_file):
             popen.wait()
+            # let the other end know we are closing all
+            sock.shutdown(socket.SHUT_RDWR)
             sock_file.close()
             return
         self.popen.monitor_thread = threading.Thread(
                                 target=monitor_popen,
-                                args=(self.popen,self.sock_file))
+                                args=(self.popen, self.sock, self.sock_file))
         self.popen.monitor_thread.start()
     # let the event loop know what we are reading on
     def fileno(self):

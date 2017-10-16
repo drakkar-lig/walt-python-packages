@@ -40,8 +40,9 @@ class ProgressMessageThread(Process):
         self.queue = Queue()
     def __enter__(self):
         self.start()
+        return self
     def __exit__(self, type, value, traceback):
-        self.queue.put(0)
+        self.queue.put((0,))
         self.join()
     def print_status(self, status, termination='\r'):
         sys.stdout.write("%s %s%s" % (self.message, status, termination))
@@ -53,15 +54,23 @@ class ProgressMessageThread(Process):
                 self.print_status("\\|/-"[idx])
                 idx = (idx+1) % 4
                 try:
-                    self.queue.get(block = True, timeout = 0.2)
+                    req = self.queue.get(block = True, timeout = 0.2)
                 except Empty:
                     continue
-                # there is input in the queue, we should notify that we
-                # are done and stop
-                self.print_status("done", '\n')
+                # there is input in the queue
+                if req[0] == 0:
+                    # regular end: we should notify that we
+                    # are done and stop
+                    self.print_status("done", '\n')
+                else:
+                    # interruption: stop and print the provided msg.
+                    sys.stdout.write("%s\n" % req[1])
+                    sys.stdout.flush()
                 break
         except KeyboardInterrupt:
             self.queue.put(0)
+    def interrupt(self, msg):
+        self.queue.put((1, msg))
 
 def restart():
     os.execvp(sys.argv[0], sys.argv)

@@ -48,6 +48,8 @@ class SmartBufferingFileReader(object):
         return ''.join(chars[:i+1])
     def readline(self):
         return self.in_file.readline()
+    def read(self, size):
+        return self.in_file.read(size)
 
 # Copy what's available from a SmartBufferingFileReader
 # to an output stream
