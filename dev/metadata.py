@@ -44,7 +44,7 @@ PACKAGE_SPECIFIC_INFO = {
     ),
     "walt-server": dict(
         subdir = 'server',
-        requires = [    'plumbum>=1.4.2',
+        requires = [    'plumbum>=1.4.2', 'snimpy>=0.8.3',
                         'ipaddress>=1.0.7','requests>=2.3.0',
                         'docker-py>=1.2.2','sdnotify>=0.3.0',
                         'walt-common==%(upload)s'],
