@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import os, sys
 from select import select
-from socket import socket
+from socket import socket, error as SocketError
 from walt.common.constants import WALT_SERVER_DAEMON_PORT
 from walt.common.reusable import reusable
 from walt.common.tools import BusyIndicator
@@ -21,7 +21,7 @@ class APIChannel(object):
             return None
         try:
             return eval(self.sock_file.readline())
-        except (EOFError, SyntaxError):
+        except (EOFError, SyntaxError, OSError, SocketError):
             return None
     def fileno(self):
         return self.sock_file.fileno()
