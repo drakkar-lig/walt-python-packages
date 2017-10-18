@@ -5,7 +5,7 @@ from walt.server import const
 from docker import Client, errors
 from datetime import datetime
 from plumbum.cmd import mount
-import sys, requests, shlex, json, itertools
+import os, sys, requests, shlex, json, itertools
 
 DOCKER_TIMEOUT=None
 AUFS_BR_LIMIT=127
@@ -91,12 +91,14 @@ class DockerClient(object):
         return { tag: i for tag, i in self.iter_local_images() }
     def iter_local_images(self):
         for i in self.c.images():
+            if i['RepoTags'] is None:
+                continue
             for tag in i['RepoTags']:
                 yield (tag, i)
     def get_creation_time(self, image_fullname):
-        for i in self.c.images():
-            if image_fullname in i['RepoTags']:
-                return datetime.fromtimestamp(i['Created'])
+        for fullname, info in self.iter_local_images():
+            if image_fullname == fullname:
+                return datetime.fromtimestamp(info['Created'])
     def list_running_containers(self):
         return [ name.lstrip('/') for name in
                     sum([ cont['Names'] for cont in
@@ -130,22 +132,41 @@ class DockerClient(object):
                 tag=tag,
                 message=msg)
     def get_top_layer_id(self, image_fullname):
-        image_repo, image_tag = image_fullname.split(':')
-        with open('/var/lib/docker/repositories-aufs') as conf_file:
-            info = json.load(conf_file)
-        return info['Repositories'][image_repo][image_tag]
+        image_id = None
+        for tag, info in self.iter_local_images():
+            if tag == image_fullname:
+                image_id = info['Id']
+        if image_id.startswith("sha256:"):
+            # new format, this will be complicated...
+            # (there are several levels of IDs...)
+            image_id = image_id.split(':')[1]
+            # 1- get info about top level layer from image info file
+            with open('/var/lib/docker/image/aufs/imagedb/content/sha256/%s' % \
+                            image_id) as image_conf_file:
+                image_info = json.load(image_conf_file)
+            top_layer = image_info['rootfs']['diff_ids'][-1]
+            # 2- find a file
+            # '/var/lib/docker/image/aufs/layerdb/sha256/<id>/diff'
+            # refering to this top layer
+            layerdb = '/var/lib/docker/image/aufs/layerdb/sha256'
+            for layer in os.listdir(layerdb):
+                with open(layerdb + '/' + layer + '/diff') as layer_diff_file:
+                    if layer_diff_file.read() == top_layer:
+                        # 2- return the id written in
+                        # '/var/lib/docker/image/aufs/layerdb/sha256/<id>/cache-id'
+                        with open(layerdb + '/' + layer + '/cache-id') as \
+                                    layer_cache_id_file:
+                            return layer_cache_id_file.read()
+        else:
+            return image_id
     def get_image_layers(self, image_fullname):
         image_id = self.get_top_layer_id(image_fullname)
-        br = []
-        while True:
-            br.append('/var/lib/docker/aufs/diff/%s' % image_id)
-            with open('/var/lib/docker/graph/%s/json' % image_id) as conf_file:
-                info = json.load(conf_file)
-            if 'parent' not in info:
-                break
-            else:
-                image_id = info['parent']
-        return br
+        # concatenate this layer id + its ancestors listed in
+        # /var/lib/docker/aufs/layers/<layer-id>
+        branches = [ image_id ]
+        with open('/var/lib/docker/aufs/layers/%s' % image_id) as layers_file:
+            branches += layers_file.read().strip().split('\n')
+        return [ '/var/lib/docker/aufs/diff/%s' % br for br in branches ]
     def get_container_name(self, cid):
         try:
             container = self.c.inspect_container(cid)
