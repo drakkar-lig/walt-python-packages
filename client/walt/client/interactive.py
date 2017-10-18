@@ -119,7 +119,7 @@ class PromptClient(object):
         try:
             while True:
                 rlist, wlist, elist = select(*select_args)
-                if len(elist) > 0:
+                if len(elist) > 0 or len(rlist) == 0:
                     break
                 fd = rlist[0].fileno()
                 if fd == self.socket_r.fileno():

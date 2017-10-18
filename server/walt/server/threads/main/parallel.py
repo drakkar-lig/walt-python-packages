@@ -9,7 +9,8 @@ from walt.common.tty import set_tty_size_raw
 
 
 class ForkPtyProcessListener(object):
-    def __init__(self, slave_r, slave_w, sock_file):
+    def __init__(self, sock, slave_r, slave_w, sock_file):
+        self.sock = sock
         self.slave_r = slave_r
         self.slave_w = slave_w
         self.sock_file = sock_file
@@ -24,6 +25,8 @@ class ForkPtyProcessListener(object):
         return read_and_copy(
                 self.slave_reader, self.sock_file)
     def close(self):
+        # let the client know we are closing all
+        self.sock.shutdown(socket.SHUT_RDWR)
         # note: if we close, we want the other listener
         # (ParallelProcessSocketListener) to close too.
         # that's why we kept a reference to sock_file_r
@@ -75,7 +78,7 @@ class ParallelProcessSocketListener(object):
         # create a new listener on the event loop for reading
         # what the slave process outputs
         process_listener = ForkPtyProcessListener(
-                    self.slave_r, self.slave_w,
+                    self.sock, self.slave_r, self.slave_w,
                     self.sock_file)
         self.ev_loop.register_listener(process_listener)
     def start_popen(self, cmd_args, env):
