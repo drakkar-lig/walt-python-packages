@@ -50,7 +50,7 @@ MSG_NOT_VIRTUAL = "WARNING: %s is not a virtual node. IGNORED.\n"
 
 FS_CMD_PATTERN = SSH_COMMAND + ' root@%(node_ip)s "%%(prog)s %%(prog_args)s"'
 
-CMD_START_VNODE = "kvm -display none -hda %(usb_image)s -m 512 -name %(name)s \
+CMD_START_VNODE = "kvm -display none -drive file=%(usb_image)s,format=raw -m 512 -name %(name)s \
                         -net nic,macaddr=%(mac)s -net bridge,br=walt-net"
 CMD_ADD_SSH_KNOWN_HOST = "  mkdir -p /root/.ssh && ssh-keygen -F %(ip)s || \
                             ssh-keyscan -t ecdsa %(ip)s >> /root/.ssh/known_hosts"
