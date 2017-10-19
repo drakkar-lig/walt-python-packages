@@ -2,7 +2,7 @@ import socket, random, subprocess, shlex, signal, os
 from collections import defaultdict
 from snimpy import snmp
 from walt.common.tcp import Requests
-from walt.common.tools import do, format_sentence_about_nodes
+from walt.common.tools import do, format_sentence_about_nodes, failsafe_makedirs
 from walt.server.const import SSH_COMMAND, WALT_NODE_NET_SERVICE_PORT
 from walt.server.threads.main.filesystem import Filesystem
 from walt.server.threads.main.nodes.register import handle_registration_request
@@ -190,6 +190,7 @@ class NodesManager(object):
 
     def start_vnode(self, mac, name):
         if not os.path.exists('/etc/qemu/bridge.conf'):
+            failsafe_makedirs('/etc/qemu')
             with open('/etc/qemu/bridge.conf', 'w') as f:
                 f.write('allow walt-net\n')
         cmd = CMD_START_VNODE % dict(
