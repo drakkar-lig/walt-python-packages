@@ -165,7 +165,9 @@ class DockerClient(object):
         # /var/lib/docker/aufs/layers/<layer-id>
         branches = [ image_id ]
         with open('/var/lib/docker/aufs/layers/%s' % image_id) as layers_file:
-            branches += layers_file.read().strip().split('\n')
+            content = layers_file.read().strip()
+            if content != '':
+                branches += content.split('\n')
         return [ '/var/lib/docker/aufs/diff/%s' % br for br in branches ]
     def get_container_name(self, cid):
         try:
