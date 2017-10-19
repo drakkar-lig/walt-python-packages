@@ -23,6 +23,7 @@ class DockerClient(object):
     def __init__(self):
         self.c = Client(base_url='unix://var/run/docker.sock', version='auto',
                 timeout=DOCKER_TIMEOUT)
+        self.layer_id_cache = {}
     def self_test(self):
         try:
             self.c.search(term='walt-node')
@@ -132,33 +133,34 @@ class DockerClient(object):
                 tag=tag,
                 message=msg)
     def get_top_layer_id(self, image_fullname):
-        image_id = None
-        for tag, info in self.iter_local_images():
-            if tag == image_fullname:
-                image_id = info['Id']
+        image_info = self.c.inspect_image(image_fullname)
+        image_id = image_info['Id']
         if image_id.startswith("sha256:"):
             # new format, this will be complicated...
             # (there are several levels of IDs...)
             image_id = image_id.split(':')[1]
-            # 1- get info about top level layer from image info file
-            with open('/var/lib/docker/image/aufs/imagedb/content/sha256/%s' % \
-                            image_id) as image_conf_file:
-                image_info = json.load(image_conf_file)
-            top_layer = image_info['rootfs']['diff_ids'][-1]
-            # 2- find a file
-            # '/var/lib/docker/image/aufs/layerdb/sha256/<id>/diff'
-            # refering to this top layer
-            layerdb = '/var/lib/docker/image/aufs/layerdb/sha256'
-            for layer in os.listdir(layerdb):
-                with open(layerdb + '/' + layer + '/diff') as layer_diff_file:
-                    if layer_diff_file.read() == top_layer:
-                        # 2- return the id written in
-                        # '/var/lib/docker/image/aufs/layerdb/sha256/<id>/cache-id'
-                        with open(layerdb + '/' + layer + '/cache-id') as \
-                                    layer_cache_id_file:
-                            return layer_cache_id_file.read()
+            # 1- get info about top level layer
+            top_layer_diff = image_info['RootFS']['Layers'][-1]
+            # 2- get associated layer ID
+            layer_id = self.layer_id_cache.get(top_layer_diff, None)
+            if layer_id is None:
+                self.update_layer_id_cache()
+                layer_id = self.layer_id_cache.get(top_layer_diff)
+            return layer_id
         else:
             return image_id
+    def update_layer_id_cache(self):
+        # for each dir '/var/lib/docker/image/aufs/layerdb/sha256/<id>'
+        # associate the diff ID written in file 'diff' with the layer ID
+        # written in 'cache-id' file.
+        self.layer_id_cache = {}
+        layerdb = '/var/lib/docker/image/aufs/layerdb/sha256'
+        for layer in os.listdir(layerdb):
+            with open(layerdb + '/' + layer + '/diff') as layer_diff_file:
+                diff_id = layer_diff_file.read()
+            with open(layerdb + '/' + layer + '/cache-id') as layer_cache_id_file:
+                layer_id = layer_cache_id_file.read()
+            self.layer_id_cache[diff_id] = layer_id
     def get_image_layers(self, image_fullname):
         image_id = self.get_top_layer_id(image_fullname)
         # concatenate this layer id + its ancestors listed in
