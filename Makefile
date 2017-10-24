@@ -47,7 +47,7 @@ node.%: common.%
 
 %.install: %.info
 	@$(MAKE) $*.uninstall
-	@cd $*; pwd; sudo pip install . >/dev/null 2>&1 || sudo pip install .
+	@cd $*; pwd; sudo -H pip install . >/dev/null 2>&1 || sudo -H pip install .
 
 %.info:
 	@$(MAKE) $*/walt/$*/info.py
@@ -60,12 +60,12 @@ clean:
 	find . -name \*.pyc -delete
 
 %.uninstall:
-	@pip show walt-$* >/dev/null && sudo pip uninstall -y walt-$* || true
+	@pip show walt-$* >/dev/null && sudo -H pip uninstall -y walt-$* || true
 
 upload:
 	@./dev/upload.sh $(ALL_PACKAGES)
 
 %.pull:
 	@$(MAKE) $*.uninstall
-	@sudo ./dev/pull.sh $*
+	@sudo -H ./dev/pull.sh $*
 
