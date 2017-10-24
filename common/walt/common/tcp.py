@@ -27,7 +27,10 @@ class Requests(object):
                 return None
     @staticmethod
     def read_id(stream):
-        return Requests.get_id(stream.readline().strip())
+        try:
+            return Requests.get_id(stream.readline().strip())
+        except:
+            return None
     @staticmethod
     def send_id(stream, req_id):
         stream.write('%d\n' % req_id)
@@ -84,7 +87,7 @@ class TCPServer(object):
         conn_s, addr = self.s.accept()
         sock_file = conn_s.makefile('r+', 0)
         req_id = Requests.read_id(sock_file)
-        if req_id not in self.listener_classes:
+        if req_id is None or req_id not in self.listener_classes:
             print 'Invalid request.'
             sock_file.close()
             conn_s.close()
