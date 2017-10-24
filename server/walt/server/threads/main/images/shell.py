@@ -55,6 +55,8 @@ class ImageShellSession(object):
         # we have to ensure here that the container was run and completed its job.
         while True:
             event = self.docker_events.next()
+            if 'status' not in event:
+                continue
             if event['status'] == 'die' and \
                     self.docker.get_container_name(event['id']) == self.container_name:
                 break
