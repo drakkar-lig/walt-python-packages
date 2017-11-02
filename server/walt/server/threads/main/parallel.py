@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import os, pty, shlex, fcntl, termios, sys, threading, socket
+import os, pty, shlex, fcntl, termios, sys, threading, socket, signal
 from subprocess import Popen, STDOUT
 
 from walt.common.io import SmartBufferingFileReader, \
@@ -9,7 +9,8 @@ from walt.common.tty import set_tty_size_raw
 
 
 class ForkPtyProcessListener(object):
-    def __init__(self, sock, slave_r, slave_w, sock_file):
+    def __init__(self, slave_pid, sock, slave_r, slave_w, sock_file):
+        self.slave_pid = slave_pid
         self.sock = sock
         self.slave_r = slave_r
         self.slave_w = slave_w
@@ -24,7 +25,14 @@ class ForkPtyProcessListener(object):
     def handle_event(self, ts):
         return read_and_copy(
                 self.slave_reader, self.sock_file)
+    def end_child(self):
+        try:
+            os.kill(self.slave_pid, signal.SIGTERM)
+        except OSError:
+            pass
+        os.wait()   # wait for child's end
     def close(self):
+        self.end_child()
         # let the client know we are closing all
         self.sock.shutdown(socket.SHUT_RDWR)
         # note: if we close, we want the other listener
@@ -78,6 +86,7 @@ class ParallelProcessSocketListener(object):
         # create a new listener on the event loop for reading
         # what the slave process outputs
         process_listener = ForkPtyProcessListener(
+                    slave_pid,
                     self.sock, self.slave_r, self.slave_w,
                     self.sock_file)
         self.ev_loop.register_listener(process_listener)
