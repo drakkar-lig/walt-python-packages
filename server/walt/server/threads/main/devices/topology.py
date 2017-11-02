@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
-import json, re
+import json, re, time
+from dateutil.relativedelta import relativedelta
 
 from walt.common.tools import get_mac_address
 from walt.server import const
@@ -10,19 +11,45 @@ from walt.server.threads.main.network.tools import \
 from walt.server.threads.main.tree import Tree
 
 
-MSG_DEVICE_TREE_EXPLAIN_UNREACHABLE = """\
-note: devices marked with parentheses were not detected at last scan.
-"""
+NOTE_EXPLAIN_UNREACHABLE = "devices marked with parentheses were not detected at last scan"
+NOTE_EXPLAIN_UNKNOWN = "type of devices marked with <? ... ?> is unknown"
 
-MSG_DEVICE_TREE_MORE_DETAILS = """
-tips:
-- use 'walt device rescan' to update
-- use 'walt device show' for device details
-"""
+TIP_ADD_FLAG_ALL = "use 'walt device tree --all' to see all devices detected"
+TIP_DEVICE_SHOW = "use 'walt device show' for device details"
+TIP_DEVICE_RESCAN = "use 'walt device rescan' to update"
+TIP_DEVICE_ADMIN_1 = "use 'walt device admin <device>' to let WalT know a given device is a switch"
+TIP_DEVICE_ADMIN_2 = "use 'walt device admin <switch>' to let WalT explore forbidden switches"
+TIPS_MIN = (TIP_DEVICE_SHOW, TIP_DEVICE_ADMIN_2, TIP_DEVICE_RESCAN)
+
+NOTE_LAST_NETWORK_SCAN = "\
+this view comes from last network scan, issued %s ago (use 'walt device rescan' to update)"
 
 MSG_NO_NEIGHBORS = """\
 WalT Server did not detect any neighbor!
 """
+
+def format_explanation(item_type, items):
+    if len(items) == 0:
+        return ''
+    if len(items) == 1:
+        return item_type + ': ' + items[0] + '.\n'
+    return item_type + 's:' + ''.join('\n- ' + item for item in items) + '\n'
+
+attrs = ['years', 'months', 'days', 'hours', 'minutes', 'seconds']
+def human_readable_delay(seconds):
+    if seconds < 1:
+        seconds = 1
+    delta = relativedelta(seconds=seconds)
+    items = []
+    for attr in attrs:
+        attr_val = getattr(delta, attr)
+        if attr_val == 0:
+            continue
+        plur_or_sing_attr = attr if attr_val > 1 else attr[:-1]
+        items.append('%d %s' % (attr_val, plur_or_sing_attr))
+    # keep only 2 items max, this is enough granularity for a human.
+    items = items[:2]
+    return ' and '.join(items)
 
 class Topology(object):
     def __init__(self):
@@ -169,7 +196,8 @@ class Topology(object):
             if mac2 == mac:
                 yield port2, mac1, port1, confirmed
 
-    def printed_tree(self, stdout_encoding, root_mac, device_labels, device_types):
+    def printed_tree(self, last_scan, stdout_encoding, root_mac, device_labels,
+                        device_types, lldp_forbidden, show_all):
         t = Tree(stdout_encoding)
         # compute confirmed / unconfirmed nodes
         confirmed_macs = set()
@@ -181,27 +209,66 @@ class Topology(object):
                 confirmed_macs.add(mac1)
                 confirmed_macs.add(mac2)
         # declare nodes
-        for mac in confirmed_macs:
-            t.add_node(mac, device_labels[mac])
-        for mac in all_macs - confirmed_macs:   # not confirmed
-            t.add_node(mac, '(%s)' % device_labels[mac])
+        for mac in all_macs:
+            label = device_labels[mac]
+            if device_types[mac] == 'switch':
+                label = '-- %s --' % label
+            elif device_types[mac] == 'unknown':
+                label = '<? %s ?>' % label
+            if mac not in confirmed_macs:
+                label = '(%s)' % label
+            t.add_node(mac, label)
         # declare children
         for mac1, mac2, port1, port2, confirmed in self:
             for node_mac, parent_mac, parent_port in \
                     ((mac1, mac2, port2), (mac2, mac1, port1)):
                 if device_types[parent_mac] == 'switch':
-                    t.add_child(parent_mac, parent_port, node_mac)
+                    if show_all or device_types[node_mac] != 'unknown':
+                        t.add_child(parent_mac, parent_port, node_mac)
+        # prune parts of the tree
+        self.prune(t, root_mac, device_types, lldp_forbidden, show_all)
         # print tree and associated messages
-        note = MSG_DEVICE_TREE_MORE_DETAILS
+        delay = time.time() - last_scan
+        note_last_scan = NOTE_LAST_NETWORK_SCAN % human_readable_delay(delay)
+        tips = TIPS_MIN
+        notes = (note_last_scan,)
         if len(all_macs - confirmed_macs) > 0:
-            note += MSG_DEVICE_TREE_EXPLAIN_UNREACHABLE
-        return "\n%s%s" % (t.printed(root=root_mac), note)
+            notes = notes + (NOTE_EXPLAIN_UNREACHABLE,)
+        if show_all:
+            tips = (TIP_DEVICE_ADMIN_1,) + tips
+            notes = notes + (NOTE_EXPLAIN_UNKNOWN,)
+        else:
+            tips = (TIP_ADD_FLAG_ALL,) + tips
+        footer = format_explanation('note', notes) + '\n' + format_explanation('tip', tips)
+        return "\n%s\n%s" % (t.printed(root=root_mac), footer)
+
+    def prune(self, t, root_mac, device_types, lldp_forbidden, show_all):
+        if not show_all:
+            # prune parts of the tree with no node
+            seen = set()
+            def node_count_prune(mac):
+                seen.add(mac)
+                if device_types[mac] == 'node':
+                    count = 1
+                else:
+                    count = sum(node_count_prune(child_mac) for child_mac in t.children(mac) \
+                                       if child_mac not in seen)
+                if device_types[mac] == 'switch' and count == 0:
+                    t.prune(mac, '[...] ~> no nodes there')
+                return count
+            node_count_prune(root_mac)
+        # prune subtrees where LLDP exploration is not allowed
+        # (those subtrees where already ignored when scanning,
+        # but this will display an appropriate message to the user)
+        for sw_mac in lldp_forbidden:
+            t.prune(sw_mac, '[...] ~> forbidden (cf. walt device admin)')
 
 class TopologyManager(object):
 
     def __init__(self, devices):
         self.devices = devices
         self.db = devices.db
+        self.last_scan = None
 
     def get_snmp_conf(self, switch_mac):
         switch_info = self.db.select_unique('switches', mac = switch_mac)
@@ -261,6 +328,7 @@ class TopologyManager(object):
                                         mac, processed_switches)
 
     def rescan(self, requester=None, remote_ip=None, ui=None):
+        self.last_scan = time.time()
         # register the server in the device list, if missing
         server_mac = get_mac_address(const.WALT_INTF)
         self.devices.add_or_update(
@@ -305,19 +373,20 @@ class TopologyManager(object):
                     break
         return root_mac
 
-    def tree(self, requester):
+    def tree(self, requester, show_all):
         db_topology = Topology()
         db_topology.load_from_db(self.db)
         root_mac = self.get_tree_root_mac(db_topology)
         if root_mac == None:
-            return MSG_NO_NEIGHBORS + MSG_DEVICE_TREE_MORE_DETAILS
+            return MSG_NO_NEIGHBORS + format_explanation('tip', TIPS_MIN)
         # compute device mac to label and type associations
         device_labels = { d.mac: d.name for d in self.db.select('devices') }
         device_types = { d.mac: d.type for d in self.db.select('devices') }
+        lldp_forbidden = set(d.mac for d in self.db.select('switches', lldp_explore = False))
         # compute and return the topology tree
         stdout_encoding = requester.stdout.get_encoding()
-        return db_topology.printed_tree(stdout_encoding,
-                       root_mac, device_labels, device_types)
+        return db_topology.printed_tree(self.last_scan, stdout_encoding,
+                       root_mac, device_labels, device_types, lldp_forbidden, show_all)
 
     def setpower(self, device_mac, poweron):
         # we have to know on which PoE switch port the node is

@@ -11,9 +11,13 @@ class WalTDevice(cli.Application):
 @WalTDevice.subcommand("tree")
 class WalTDeviceTree(cli.Application):
     """print the network structure of the platform"""
+    _all = False # default
     def main(self):
         with ClientToServerLink() as server:
-            print server.device_tree()
+            print server.device_tree(self._all)
+    @cli.autoswitch(help='show all devices detected')
+    def all(self):
+        self._all = True
 
 @WalTDevice.subcommand("show")
 class WalTDeviceShow(cli.Application):

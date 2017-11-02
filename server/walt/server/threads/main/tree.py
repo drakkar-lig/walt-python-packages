@@ -36,25 +36,32 @@ class Tree(object):
         self.nodes[key] = dict(
             key=key,
             label=label,
-            children=[])
+            children=[],
+            prune=None)
         self.up_to_date = False
     def add_child(self, node_key, child_pos, child_key):
         self.nodes[node_key]['children'].append((child_pos, child_key))
+    def prune(self, node_key, msg):
+        if node_key in self.nodes:
+            self.nodes[node_key]['prune'] = msg
     def sort_children(self):
-        # sort children by child_pos
-        for node in self.nodes.values():
-            node['children'] = sorted(node['children'])
+        if not self.up_to_date:
+            # sort children by child_pos
+            for node in self.nodes.values():
+                node['children'] = sorted(node['children'])
+            self.up_to_date = True
     def printed(self, root):
         self.root_node = self.nodes[root]
-        if self.up_to_date == False:
-            self.sort_children()
-            self.up_to_date = True
+        self.sort_children()
         return self.print_elem(**self.root_node)
-    def print_elem(self, key, label, children,
+    def print_elem(self, key, label, children, prune,
                         child_pos = None, prefix = '',
                         last_child = False, seen = None, **kwargs):
         if seen == None:
             seen = set()
+        if key in seen and child_pos == None:
+            # there is not much we can print here
+            return ''
         if self.root_node['key'] == key and key not in seen:  # root element
             output = "%s\n" % label
             # align to 2nd letter of the name
@@ -62,7 +69,7 @@ class Tree(object):
             prefix += (self.charset.SPACE * subtree_offset)
         else:
             if key in seen:
-                label = '[back to %s]' % label
+                label = '~> back to %s' % label
             if child_pos == None:
                 subtree_offset = 1
             else:
@@ -80,16 +87,25 @@ class Tree(object):
             prefix += sep_char_child + (self.charset.SPACE * (subtree_offset+1))
         if key not in seen:
             seen.add(key)
-            num_children = len(children)
-            for idx, child in enumerate(children):
-                    child_pos, child_key = child
-                    last_child = (idx == num_children-1)
-                    child = self.nodes[child_key]
-                    output += self.print_elem(
-                                    child_pos = child_pos,
-                                    prefix = prefix,
-                                    last_child = last_child,
-                                    seen = seen,
-                                    **child)
+            if prune is None:
+                num_children = len(children)
+                for idx, child in enumerate(children):
+                        child_pos, child_key = child
+                        last_child = (idx == num_children-1)
+                        child = self.nodes[child_key]
+                        output += self.print_elem(
+                                        child_pos = child_pos,
+                                        prefix = prefix,
+                                        last_child = last_child,
+                                        seen = seen,
+                                        **child)
+            else:
+                # prune: display the message as a fake child
+                output += "%s%s%s%s\n" % \
+                    (prefix, self.charset.UPPER_V_RIGHT_H, self.charset.WHOLE_H, prune)
         return output
+    def children(self, key):
+        self.sort_children()
+        return [child[1] for child in self.nodes[key]['children']]
+
 
