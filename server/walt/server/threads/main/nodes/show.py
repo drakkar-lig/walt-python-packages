@@ -56,12 +56,12 @@ def show(db, requester, show_all):
             else:
                 res_other.append(record)
     result_msg = ''
-    if len(res_user) + len(res_free) == 0 and not show_all:
+    if len(res_user) == 0 and not show_all:
         return MSG_USING_NO_NODES + '\n' + MSG_RERUN_WITH_ALL
     if len(res_user) > 0:
         # display nodes of requester
         footnote = None
-        if not show_all and len(res_free) == 0:
+        if not show_all:
             footnote = MSG_RERUN_WITH_ALL
         table = [ (record.name, record.model,
                    record.image_tag, record.ip, record.booted) \
@@ -71,11 +71,11 @@ def show(db, requester, show_all):
                         TITLE_NODE_SHOW_USER_NODES_PART,
                         columnate(table, header=header),
                         footnote)
+    if not show_all:
+        return result_msg
     if len(res_free) > 0:
         # display free nodes
         footnote = None
-        if not show_all:
-            footnote = MSG_RERUN_WITH_ALL
         table = [ (record.name, record.model, record.ip, record.booted) \
                     for record in res_free ]
         header = [ 'name', 'model', 'ip', 'booted' ]
@@ -83,11 +83,9 @@ def show(db, requester, show_all):
                         TITLE_NODE_SHOW_FREE_NODES_PART,
                         columnate(table, header=header),
                         footnote)
-    if not show_all:
-        return result_msg
     if len(res_other) + len(res_user) + len(res_free) + len(res_not_ready) == 0:
         return MSG_NO_NODES + '\n'
-    if len(res_other) + len(res_not_ready) == 0:
+    if len(res_free) + len(res_other) + len(res_not_ready) == 0:
         result_msg += MSG_NO_OTHER_NODES + '\n'
     else:
         if len(res_other) > 0:
