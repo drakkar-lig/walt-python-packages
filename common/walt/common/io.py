@@ -50,6 +50,10 @@ class SmartBufferingFileReader(object):
         return self.in_file.readline()
     def read(self, size):
         return self.in_file.read(size)
+    def close(self):
+        return self.in_file.close()
+    def fileno(self):
+        return self.in_file.fileno()
 
 # Copy what's available from a SmartBufferingFileReader
 # to an output stream

@@ -38,7 +38,9 @@ class Server(object):
                         self.tcp_server, self.ev_loop)
         self.transfer = TransferManager(\
                         self.tcp_server, self.ev_loop)
-        self.nodes = NodesManager(  db = self.db,
+        self.nodes = NodesManager(  tcp_server = self.tcp_server,
+                                    ev_loop = self.ev_loop,
+                                    db = self.db,
                                     blocking = self.blocking,
                                     images = self.images.store,
                                     dhcpd = self.dhcpd,

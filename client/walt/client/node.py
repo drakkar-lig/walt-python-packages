@@ -8,6 +8,7 @@ from walt.client.interactive import run_node_cmd, \
                                     run_device_ping, \
                                     NODE_SHELL_MESSAGE
 from walt.client.transfer import run_transfer_with_node
+from walt.client.expose import TCPExposer
 
 POE_REBOOT_DELAY            = 2  # seconds
 
@@ -271,4 +272,20 @@ class WalTNodeWait(cli.Application):
         with ClientToServerLink() as server_link:
             busy_label = 'Node bootup notification pending'
             WalTNode.wait_for_nodes(server_link, node_set, busy_label)
+
+@WalTNode.subcommand("expose")
+class WalTNodeWait(cli.Application):
+    """expose a network port of a node on the local machine"""
+    @cli.positional(str, int, int)
+    def main(self, node_name, node_port, local_port):
+        node_ip = None
+        with ClientToServerLink() as server_link:
+            node_ip = server_link.get_node_ip(node_name)
+            if not node_ip:
+                return
+            WalTNode.wait_for_nodes(server_link, node_name)
+            print 'Listening on TCP port %d and redirecting connections to %s:%d.' % \
+                            (local_port, node_name, node_port)
+            exposer = TCPExposer(local_port, node_ip, node_port)
+            exposer.run()
 

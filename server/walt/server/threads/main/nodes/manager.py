@@ -8,6 +8,7 @@ from walt.server.threads.main.filesystem import Filesystem
 from walt.server.threads.main.nodes.register import handle_registration_request
 from walt.server.threads.main.nodes.show import show
 from walt.server.threads.main.nodes.wait import WaitInfo
+from walt.server.threads.main.nodes.expose import ExposeManager
 from walt.server.threads.main.transfer import validate_cp
 from walt.server.threads.main.network.tools import ip, get_walt_subnet
 from walt.server.tools import to_named_tuple
@@ -95,13 +96,14 @@ class ServerToNodeLink:
             self.conn.close()
 
 class NodesManager(object):
-    def __init__(self, db, devices, topology, **kwargs):
+    def __init__(self, tcp_server, ev_loop, db, devices, topology, **kwargs):
         self.db = db
         self.devices = devices
         self.topology = topology
         self.other_kwargs = kwargs
         self.wait_info = WaitInfo()
         self.vnodes_pid = {}
+        self.expose_manager = ExposeManager(tcp_server, ev_loop)
 
     def prepare(self):
         # set booted flag of all nodes to False for now
