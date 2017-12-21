@@ -2,6 +2,7 @@ import subprocess, os, sys, json, re, fcntl, signal
 from plumbum.cmd import cat
 from collections import OrderedDict
 from datetime import datetime, timedelta
+from fcntl import fcntl, F_GETFD, F_SETFD, FD_CLOEXEC
 
 DEVNULL = open(os.devnull, 'w')
 
@@ -205,4 +206,12 @@ def deserialize_ordered_dict(t):
             v = deserialize_ordered_dict(v)
         d[k] = v
     return d
+
+def set_close_on_exec(fd, close_on_exec):
+    val = fcntl(fd, F_GETFD)
+    if close_on_exec:
+        val |= FD_CLOEXEC
+    else:
+        val &= ~FD_CLOEXEC
+    fcntl(fd, F_SETFD, val)
 

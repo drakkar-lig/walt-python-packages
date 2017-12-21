@@ -1,5 +1,5 @@
 import socket, cPickle as pickle
-from fcntl import fcntl, F_GETFD, F_SETFD, FD_CLOEXEC
+from walt.common.tools import set_close_on_exec
 
 class Requests(object):
     REQ_NEW_INCOMING_LOGS = 0
@@ -48,6 +48,8 @@ def write_pickle(obj, stream):
 
 def client_socket(host, port):
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    # set close-on-exec flag (subprocesses should not inherit it)
+    set_close_on_exec(s, True)
     s.connect((host, port))
     return s
 
@@ -55,7 +57,7 @@ def server_socket(port):
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     # set close-on-exec flag (subprocesses should not inherit it)
-    fcntl(s.fileno(), F_SETFD, fcntl(s.fileno(), F_GETFD) | FD_CLOEXEC)
+    set_close_on_exec(s, True)
     s.bind(('', port))
     s.listen(1)
     return s
