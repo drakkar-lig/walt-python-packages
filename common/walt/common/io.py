@@ -54,9 +54,12 @@ class SmartBufferingFileReader(object):
 # Copy what's available from a SmartBufferingFileReader
 # to an output stream
 def read_and_copy(in_reader, out):
-    buf = in_reader.read_available()
-    if buf == '':
+    try:
+        buf = in_reader.read_available()
+        if buf == '':
+            return False    # close
+        out.write(buf)
+        out.flush()
+    except socket.error:
         return False    # close
-    out.write(buf)
-    out.flush()
 
