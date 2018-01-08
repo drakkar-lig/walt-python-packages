@@ -42,14 +42,7 @@ class EventLoop(object):
         self.poller.register(fd, events)
 
     def register_listener(self, listener, events=POLL_OPS_READ):
-        fd = None
-        try:
-            fd = listener.fileno()
-        except:
-            pass
-        if fd == None:
-            print 'FAILED to get file-descriptor of listener', listener
-            return  # registration aborted
+        fd = listener.fileno()
         self.listeners[fd] = listener
         self.poller.register(fd, events)
         #print 'new listener:', listener
