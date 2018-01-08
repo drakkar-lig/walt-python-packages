@@ -5,13 +5,13 @@ from walt.common.apilink import APIChannel, AttrCallAggregator
 class APISessionManager(object):
     REQ_ID = Requests.REQ_API_SESSION
     REQUESTER_API_IGNORED = (EOFError,)
-    def __init__(self, thread, sock, sock_file, **kwargs):
+    def __init__(self, thread, sock_file, **kwargs):
         self.thread = thread
         self.main = thread.main
         self.sock_file = sock_file
         self.target_api = None
         self.api_channel = APIChannel(sock_file)
-        self.remote_ip, remote_port = sock.getpeername()
+        self.remote_ip, remote_port = sock_file.getpeername()
         self.session_id = None
         self.requester = AttrCallAggregator(self.forward_requester_request)
         self.rpc_session = self.main.local_service(self.requester)

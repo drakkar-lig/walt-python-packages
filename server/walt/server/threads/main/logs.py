@@ -34,10 +34,9 @@ class LogsHub(object):
             self.handlers.remove(handler)
 
 class LogsStreamListener(object):
-    def __init__(self, db, hub, sock, sock_file, **kwargs):
+    def __init__(self, db, hub, sock_file, **kwargs):
         self.db = db
         self.hub = hub
-        self.sock = sock
         self.sock_file = sock_file
         self.stream_id = None
         self.server_timestamps = None
@@ -46,7 +45,7 @@ class LogsStreamListener(object):
         name = self.sock_file.readline().strip()
         timestamps_mode = self.sock_file.readline().strip()
         self.server_timestamps = (timestamps_mode == 'NO_TIMESTAMPS')
-        sender_ip, sender_port = self.sock.getpeername()
+        sender_ip, sender_port = self.sock_file.getpeername()
         sender_info = self.db.select_unique('devices', ip = sender_ip)
         if sender_info == None:
             sender_mac = None
@@ -63,7 +62,6 @@ class LogsStreamListener(object):
                             sender_mac = sender_mac, name = name)
         # these are not needed anymore
         self.db = None
-        self.sock = None
         return stream_id
 
     # let the event loop know what we are reading on
@@ -175,10 +173,9 @@ PHASE_WAIT_FOR_BLCK_THREAD = 0
 PHASE_RETRIEVING_FROM_DB = 1
 PHASE_SENDING_TO_CLIENT = 2
 class LogsToSocketHandler(object):
-    def __init__(self, db, hub, sock, sock_file, blocking, **kwargs):
+    def __init__(self, db, hub, sock_file, blocking, **kwargs):
         self.db = db
-        self.sock_file_r = sock_file
-        self.sock_file_w = sock.makefile('w', 0)
+        self.sock_file = sock_file
         self.cache = {}
         self.params = None
         self.hub = hub
@@ -244,9 +241,9 @@ class LogsToSocketHandler(object):
             d = {}
             d.update(record)
             d.update(stream_info)
-            if self.sock_file_w.closed:
+            if self.sock_file.closed:
                 raise IOError()
-            write_pickle(d, self.sock_file_w)
+            write_pickle(d, self.sock_file)
         except IOError as e:
             # the socket was supposedly closed.
             print "client log connection closing"
@@ -254,7 +251,7 @@ class LogsToSocketHandler(object):
             return False
     # let the event loop know what we are reading on
     def fileno(self):
-        return self.sock_file_r.fileno()
+        return self.sock_file.fileno()
     # this is what we will do depending on the client request params
     def handle_params(self, history, realtime, senders, streams, logline_regexp):
         if history:
@@ -281,13 +278,12 @@ class LogsToSocketHandler(object):
     # this is what we do when the event loop detects an event for us
     def handle_event(self, ts):
         if self.params == None:
-            params = read_pickle(self.sock_file_r)
+            params = read_pickle(self.sock_file)
             self.handle_params(**params)
         else:
             return False    # no more communication is expected this way
     def close(self):
-        self.sock_file_r.close()
-        self.sock_file_w.close()
+        self.sock_file.close()
 
 class LogsManager(object):
     def __init__(self, db, tcp_server, blocking, ev_loop):

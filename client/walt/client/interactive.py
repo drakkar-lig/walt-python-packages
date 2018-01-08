@@ -4,9 +4,9 @@ from walt.client.config import conf
 from sys import stdin, stdout
 from select import select
 from walt.common.constants import WALT_SERVER_TCP_PORT
-from walt.common.io import SmartBufferingFileReader, \
+from walt.common.io import SmartFile, \
                             unbuffered, read_and_copy
-from walt.common.tcp import Requests, write_pickle, client_socket
+from walt.common.tcp import Requests, write_pickle, client_sock_file
 from walt.client import myhelp
 
 SQL_SHELL_MESSAGE = """\
@@ -83,22 +83,18 @@ class PromptClient(object):
         params.update(client_tty = self.client_tty)
         # connect
         server_host = conf['server']
-        s = client_socket(server_host, WALT_SERVER_TCP_PORT)
-        # use unbuffered communication
-        self.socket_r = s.makefile('r', 0)
-        self.socket_w = s.makefile('w', 0)
+        self.sock_file = client_sock_file(server_host, WALT_SERVER_TCP_PORT)
         # write request id
-        Requests.send_id(self.socket_w, req_id)
+        Requests.send_id(self.sock_file, req_id)
         # wait for the READY message from the server
-        self.socket_r.readline()
-        write_pickle(params, self.socket_w)
+        self.sock_file.readline()
+        write_pickle(params, self.sock_file)
         # provide read_available() method
-        self.stdin_reader = SmartBufferingFileReader(unbuffered(stdin, 'r'))
-        self.socket_reader = SmartBufferingFileReader(self.socket_r)
+        self.stdin_reader = SmartFile(unbuffered(stdin, 'r'))
 
     def run(self):
         # we will wait on 2 file descriptors
-        select_args = [ [ stdin, self.socket_r ], [], [ stdin, self.socket_r ] ]
+        select_args = [ [ stdin, self.sock_file ], [], [ stdin, self.sock_file ] ]
 
         # this is the main trick when trying to provide a virtual
         # terminal remotely: the client should set its own terminal
@@ -122,11 +118,11 @@ class PromptClient(object):
                 if len(elist) > 0 or len(rlist) == 0:
                     break
                 fd = rlist[0].fileno()
-                if fd == self.socket_r.fileno():
-                    if read_and_copy(self.socket_reader, stdout) == False:
+                if fd == self.sock_file.fileno():
+                    if read_and_copy(self.sock_file, stdout) == False:
                         break
                 else:
-                    if read_and_copy(self.stdin_reader, self.socket_w) == False:
+                    if read_and_copy(self.stdin_reader, self.sock_file) == False:
                         break
         finally:
             if self.client_tty:

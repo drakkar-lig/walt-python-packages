@@ -1,7 +1,7 @@
 import sys, re, datetime, cPickle as pickle
 from plumbum import cli
 from walt.common.constants import WALT_SERVER_TCP_PORT
-from walt.common.tcp import read_pickle, write_pickle, client_socket, \
+from walt.common.tcp import read_pickle, write_pickle, client_sock_file, \
                             Requests
 from walt.client.config import conf
 from walt.client.link import ClientToServerLink
@@ -108,17 +108,14 @@ def validate_checkpoint_name(name):
 
 class LogsFlowFromServer(object):
     def __init__(self, walt_server_host):
-        s = client_socket(walt_server_host, WALT_SERVER_TCP_PORT)
-        self.f_read = s.makefile('r', 0)
-        self.f_write = s.makefile('w', 0)
+        self.f = client_sock_file(walt_server_host, WALT_SERVER_TCP_PORT)
     def read_log_record(self):
-        return read_pickle(self.f_read)
+        return read_pickle(self.f)
     def request_log_dump(self, **kwargs):
-        Requests.send_id(self.f_write, Requests.REQ_DUMP_LOGS)
-        write_pickle(kwargs, self.f_write)
+        Requests.send_id(self.f, Requests.REQ_DUMP_LOGS)
+        write_pickle(kwargs, self.f)
     def close(self):
-        self.f_read.close()
-        self.f_write.close()
+        self.f.close()
 
 class WalTLog(cli.Application):
     """management of logs"""

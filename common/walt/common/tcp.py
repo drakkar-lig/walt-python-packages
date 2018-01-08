@@ -1,5 +1,6 @@
 import socket, cPickle as pickle
 from walt.common.tools import set_close_on_exec
+from walt.common.io import SmartFile
 
 class Requests(object):
     REQ_NEW_INCOMING_LOGS = 0
@@ -47,12 +48,39 @@ def write_pickle(obj, stream):
     pickle.dump(obj, stream, pickle.HIGHEST_PROTOCOL)
     stream.flush()
 
-def client_socket(host, port):
+class SmartSocketFile(SmartFile):
+    def __init__(self, sock):
+        self.sock = sock
+        sock_r = sock.makefile('r', 0)
+        sock_w = sock.makefile('w', 0)
+        SmartFile.__init__(self, sock_r, sock_w)
+    def shutdown(self, mode):
+        return self.sock.shutdown(mode)
+    def close(self):
+        if self.sock is not None:
+            self.sock.close()
+            self.sock = None
+            SmartFile.close(self)
+    def getpeername(self):
+        return self.sock.getpeername()
+
+def client_sock_file(host, port):
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     # set close-on-exec flag (subprocesses should not inherit it)
     set_close_on_exec(s, True)
     s.connect((host, port))
-    return s
+    return SmartSocketFile(s)
+
+class ServerSocketWrapper:
+    def __init__(self, s):
+        self.s = s
+    def accept(self):
+        s_conn, address = self.s.accept()
+        # set close-on-exec flag (subprocesses should not inherit it)
+        set_close_on_exec(s_conn, True)
+        return s_conn, address
+    def __getattr__(self, attr):
+        return getattr(self.s, attr)
 
 def server_socket(port):
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -61,7 +89,7 @@ def server_socket(port):
     set_close_on_exec(s, True)
     s.bind(('', port))
     s.listen(1)
-    return s
+    return ServerSocketWrapper(s)
 
 class TCPServer(object):
     def __init__(self, port):
@@ -88,19 +116,17 @@ class TCPServer(object):
     # and register this listener in the event loop.
     def handle_event(self, ts):
         conn_s, addr = self.s.accept()
-        sock_file = conn_s.makefile('r+', 0)
+        sock_file = SmartSocketFile(conn_s)
         req_id = Requests.read_id(sock_file)
         if req_id is None or req_id not in self.listener_classes:
             print 'Invalid request.'
             sock_file.close()
-            conn_s.close()
             return
         # create the appropriate listener given the req_id
         listener_info = self.listener_classes[req_id]
         cls = listener_info['cls']
         ctor_args = listener_info['ctor_args'].copy()
         ctor_args.update(dict(
-                    sock = conn_s,
                     sock_file = sock_file))
         listener = cls(**ctor_args)
         self.ev_loop.register_listener(listener)

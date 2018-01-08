@@ -1,30 +1,24 @@
 #!/usr/bin/env python
 import os, pty, shlex, fcntl, termios, sys, threading, socket, signal
 from subprocess import Popen, STDOUT
-
-from walt.common.io import SmartBufferingFileReader, \
-                            read_and_copy
+from walt.common.io import SmartFile, read_and_copy
 from walt.common.tcp import read_pickle
 from walt.common.tty import set_tty_size_raw
-
+from walt.common.tools import set_close_on_exec
 
 class ForkPtyProcessListener(object):
-    def __init__(self, slave_pid, sock, slave_r, slave_w, sock_file):
+    def __init__(self, slave_pid, env):
         self.slave_pid = slave_pid
-        self.sock = sock
-        self.slave_r = slave_r
-        self.slave_w = slave_w
-        self.sock_file = sock_file
-        self.slave_reader = SmartBufferingFileReader(slave_r)
+        self.env = env
     # let the event loop know what we are reading on
     def fileno(self):
-        return self.slave_r.fileno()
+        return self.env.slave_sock_file.fileno()
     # when the event loop detects an event for us, this means
     # the slave proces wrote something on its output
     # we just have to copy this to the user socket
     def handle_event(self, ts):
         return read_and_copy(
-                self.slave_reader, self.sock_file)
+                self.env.slave_sock_file, self.env.client_sock_file)
     def end_child(self):
         try:
             os.kill(self.slave_pid, signal.SIGTERM)
@@ -33,28 +27,15 @@ class ForkPtyProcessListener(object):
         os.wait()   # wait for child's end
     def close(self):
         self.end_child()
-        # let the client know we are closing all
-        self.sock.shutdown(socket.SHUT_RDWR)
-        # note: if we close, we want the other listener
-        # (ParallelProcessSocketListener) to close too.
-        # that's why we kept a reference to sock_file_r
-        # and slave_w, closing them should achieve what
-        # we want.
-        self.sock_file.close()
-        self.slave_r.close()
-        self.slave_w.close()
+        self.env.close()
 
 class ParallelProcessSocketListener(object):
-    def __init__(self, ev_loop, sock, sock_file, **kwargs):
+    def __init__(self, ev_loop, sock_file, **kwargs):
         self.ev_loop = ev_loop
         self.params = None
-        self.sock = sock
-        self.sock_file = sock_file
-        # provide read_available() method on the socket
-        self.sock_reader = SmartBufferingFileReader(self.sock_file)
-        self.slave_r = None
-        self.slave_w = None
-        self.sock_file.write('READY\n')
+        self.client_sock_file = sock_file
+        self.slave_sock_file = None
+        self.client_sock_file.write('READY\n')
     def update_params(self):
         pass  # override in subclasses if needed
     def get_command(self, **params):
@@ -81,50 +62,48 @@ class ParallelProcessSocketListener(object):
             os.execvpe(cmd_args[0], cmd_args, env)
         # the parent should communicate.
         # use unbuffered communication with the slave process
-        self.slave_r = os.fdopen(os.dup(fd_slave), 'r', 0)
-        self.slave_w = os.fdopen(os.dup(fd_slave), 'w', 0)
+        slave_r = os.fdopen(os.dup(fd_slave), 'r', 0)
+        slave_w = os.fdopen(os.dup(fd_slave), 'w', 0)
+        self.slave_sock_file = SmartFile(slave_r, slave_w)
         # create a new listener on the event loop for reading
         # what the slave process outputs
-        process_listener = ForkPtyProcessListener(
-                    slave_pid,
-                    self.sock, self.slave_r, self.slave_w,
-                    self.sock_file)
+        process_listener = ForkPtyProcessListener(slave_pid, self)
         self.ev_loop.register_listener(process_listener)
     def start_popen(self, cmd_args, env):
         # For efficiency, we let the popen object read directly from the socket.
         # Thus the ev_loop should not longer detect input data on this socket,
         # it should only detect errors, that is why we call update_listener() below.
+        set_close_on_exec(self.client_sock_file, False)
         self.popen = Popen(cmd_args, env=env, bufsize=1024*1024,
-                        stdin=self.sock_file, stdout=self.sock_file, stderr=STDOUT)
+                        stdin=self.client_sock_file, stdout=self.client_sock_file, stderr=STDOUT)
+        set_close_on_exec(self.client_sock_file, True)
         self.ev_loop.update_listener(self, 0)
         self.popen_set_finalize_callback()
     # when the popen object exits, close its output in order
     # to notify the end of transmission to the client.
     def popen_set_finalize_callback(self):
-        def monitor_popen(popen, sock, sock_file):
+        def monitor_popen(popen, client_sock_file):
             popen.wait()
-            # let the other end know we are closing all
-            sock.shutdown(socket.SHUT_RDWR)
-            sock_file.close()
+            client_sock_file.close()
             return
         self.popen.monitor_thread = threading.Thread(
                                 target=monitor_popen,
-                                args=(self.popen, self.sock, self.sock_file))
+                                args=(self.popen, self.client_sock_file))
         self.popen.monitor_thread.start()
     # let the event loop know what we are reading on
     def fileno(self):
-        if self.sock_file.closed:
+        if self.client_sock_file.closed:
             return None
-        return self.sock_file.fileno()
+        return self.client_sock_file.fileno()
     # handle_event() will be called when the event loop detects
     # new input data for us.
     def handle_event(self, ts):
         if self.params == None:
             # we did not get the parameters yet, let's do it
-            self.params = read_pickle(self.sock_file)
+            self.params = read_pickle(self.client_sock_file)
             if self.params == None:
                 self.close()    # issue
-                return
+                return False
             self.update_params()
             self.params['cmd'] = self.get_command(**self.params)
             # we now have all info to start the child process
@@ -134,11 +113,12 @@ class ParallelProcessSocketListener(object):
             # the user wrote something on the prompt (i.e. the socket)
             # we just have to copy this to the slave process input
             return read_and_copy(
-                self.sock_reader, self.slave_w)
+                self.client_sock_file, self.slave_sock_file)
     def close(self):
-        self.sock_file.close()
-        if self.slave_r:
-            self.slave_r.close()
-        if self.slave_w:
-            self.slave_w.close()
+        if self.client_sock_file:
+            self.client_sock_file.close()
+            self.client_sock_file = None
+        if self.slave_sock_file:
+            self.slave_sock_file.close()
+            self.slave_sock_file = None
 
