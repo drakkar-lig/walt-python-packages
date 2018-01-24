@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/busybox sh
 set -e
 
 MOUNT='busybox mount'
@@ -25,7 +25,7 @@ reboot_or_sh()
 {
     echo '>>> Issue detected!               <<<'
     echo 'Will reboot... (or press <ENTER> now for a shell)'
-    busybox timeout -t 5 head -n 1 && admin_sh || reboot -f
+    busybox timeout -t 5 busybox head -n 1 && admin_sh || busybox reboot -f
 }
 
 trap reboot_or_sh EXIT
@@ -44,7 +44,7 @@ run_bgscript_in_rootfs()
     script_path_dst="bin/$1"
     shift; args="$@"
     cp -p "$script_path_src" "$script_path_dst"
-    chroot . bin/sh $script_path_dst $args &
+    busybox chroot . bin/sh $script_path_dst $args &
     cd - >/dev/null
 }
 
