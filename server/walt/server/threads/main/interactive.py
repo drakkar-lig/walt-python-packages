@@ -8,7 +8,7 @@ DOCKER_SH_PATTERN = """\
 docker run -it --entrypoint /bin/sh -h %(hostname)s     \
         --name %(container_name)s                       \
         %(image_fullname)s                              \
-        -c 'if [ -e /bin/bash ]; then exec bash; else exec sh; fi' """
+        -c 'if [ -e /bin/bash ]; then exec /bin/bash; else exec /bin/sh; fi' """
 
 class PromptSocketListener(ParallelProcessSocketListener):
     def update_params(self):
