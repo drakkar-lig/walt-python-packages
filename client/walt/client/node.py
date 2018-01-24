@@ -274,7 +274,7 @@ class WalTNodeWait(cli.Application):
             WalTNode.wait_for_nodes(server_link, node_set, busy_label)
 
 @WalTNode.subcommand("expose")
-class WalTNodeWait(cli.Application):
+class WalTNodeExpose(cli.Application):
     """expose a network port of a node on the local machine"""
     @cli.positional(str, int, int)
     def main(self, node_name, node_port, local_port):
