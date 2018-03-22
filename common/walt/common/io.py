@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import os, sys
+import os, sys, socket
 from select import select
 
 # This function allows to disable buffering
