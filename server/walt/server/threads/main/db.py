@@ -30,7 +30,8 @@ class ServerDB(PostgresDB):
                     mac TEXT REFERENCES devices(mac),
                     image TEXT REFERENCES images(fullname),
                     model TEXT,
-                    booted BOOLEAN DEFAULT FALSE);""")
+                    booted BOOLEAN DEFAULT FALSE,
+                    netsetup INTEGER DEFAULT 0);""")
         self.execute("""CREATE TABLE IF NOT EXISTS switches (
                     mac TEXT REFERENCES devices(mac),
                     model TEXT,

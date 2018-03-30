@@ -89,3 +89,25 @@ def ip_in_walt_adm_network(input_ip):
     else:
         return ip(input_ip) in subnet
 
+def get_dns_servers():
+    local_server_is_dns_server = False
+    dns_list = []
+    with open('/etc/resolv.conf', 'r') as f:
+        for line in f:
+            line = line.strip()
+            if line[0] == '#':
+                continue
+            if line.startswith('nameserver'):
+                for dns_ip in line.split(' ')[1:]:
+                    if dns_ip.startswith('127.'):
+                        local_server_is_dns_server = True
+                        continue
+                    dns_list.append(dns_ip)
+    # If walt server is a DNS server, and no other DNS is available, let the
+    # walt nodes use it (but not with its localhost address!)
+    if local_server_is_dns_server and len(dns_list) == 0:
+        dns_list.append(get_server_ip())
+    # Still no DNS server...  Hope that this one is reachable
+    if len(dns_list) == 0:
+        dns_list.append('8.8.8.8')
+    return dns_list
