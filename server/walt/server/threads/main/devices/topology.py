@@ -360,17 +360,21 @@ class TopologyManager(object):
         # - if we find one, we return it
         # - if we find several ones, we favor the ones in
         #   walt-net or walt-adm (thus we discard neighbors found from walt-out)
+        # - if we still find several ones, we favor the ones which type is known
+        #   as a switch
         server_mac = get_mac_address(const.WALT_INTF)
         root_mac = None
         for port, neighbor_mac, neighbor_port, confirmed in \
                 db_topology.get_neighbors(server_mac):
             root_mac = neighbor_mac
             info = self.devices.get_complete_device_info(neighbor_mac)
-            if info.ip is not None:
-                if ip_in_walt_network(info.ip):
-                    break
-                if ip_in_walt_adm_network(info.ip):
-                    break
+            if info.ip is None:
+                continue  # Throw this node
+            if info.type != "switch":
+                continue  # Throw this node
+            if not (ip_in_walt_network(info.ip) or ip_in_walt_adm_network(info.ip)):
+                continue  # Throw this node
+            break  # Found it!
         return root_mac
 
     def tree(self, requester, show_all):
