@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 from walt.server import const
-from walt.server.threads.main.network.tools import ip, net, get_walt_subnet
+from walt.server.threads.main.network.netsetup import NetSetup
+from walt.server.threads.main.network.tools import ip, net, get_walt_subnet, get_dns_servers
 from operator import itemgetter
 from itertools import groupby
 from walt.server.threads.main.images.image import get_mount_path
@@ -68,24 +69,53 @@ subnet %(subnet_ip)s netmask %(subnet_netmask)s {
 }
 
 # walt registered devices
-%(walt_registered_devices_conf)s
+
+# switches
+group {
+%(walt_registered_switches_conf)s
+}
+
+# nodes with netsetup = "LAN"
+group {
+%(walt_registered_lan_nodes_conf)s
+}
+
+# nodes with netsetup = "NAT"
+group {
+    option routers %(walt_server_ip)s;
+    option domain-name-servers %(dns_servers)s;
+
+%(walt_registered_nat_nodes_conf)s
+}
+
+# unknown devices
+group {
+%(walt_registered_unknowns_conf)s
+}
 """
 
 RANGE_CONF_PATTERN = "    range %(first)s %(last)s;"
 
 NODE_CONF_PATTERN = """\
-host %(hostname)s {
-    hardware ethernet %(mac)s;
-    fixed-address %(ip)s;
-    option host-name "%(hostname)s";
-}
+    host %(hostname)s {
+        hardware ethernet %(mac)s;
+        fixed-address %(ip)s;
+        option host-name "%(hostname)s";
+    }
 """
 
 SWITCH_CONF_PATTERN = """\
-host %(hostname)s {
-    hardware ethernet %(mac)s;
-    fixed-address %(ip)s;
-}
+    host %(hostname)s {
+        hardware ethernet %(mac)s;
+        fixed-address %(ip)s;
+    }
+"""
+
+UNKNOWNS_CONF_PATTERN = """\
+    host %(hostname)s {
+        hardware ethernet %(mac)s;
+        fixed-address %(ip)s;
+    }
 """
 
 # see http://stackoverflow.com/questions/2154249/identify-groups-of-continuous-numbers-in-a-list
@@ -97,20 +127,30 @@ def get_contiguous_ranges(ips):
     return ranges
 
 def generate_dhcpd_conf(subnet, devices):
-    devices_confs = []
+    switches_confs = []
+    lan_nodes_confs = []
+    nat_nodes_confs = []
+    unknowns_confs = []
     free_ips = list(subnet.hosts())
     server_ip = free_ips.pop(0)
     for device_info in devices:
         if device_info['type'] == 'switch':
-            conf_pattern = SWITCH_CONF_PATTERN
+            switches_confs.append(SWITCH_CONF_PATTERN % device_info)
+        elif device_info['type'] == 'node':
+            conf = NODE_CONF_PATTERN % device_info
+            if device_info['netsetup'] == NetSetup.LAN:
+                lan_nodes_confs.append(conf)
+            else:
+                nat_nodes_confs.append(conf)
+        elif device_info['type'] == 'unknown':
+            unknowns_confs.append(UNKNOWNS_CONF_PATTERN % device_info)
         else:
-            conf_pattern = NODE_CONF_PATTERN
-        devices_confs.append(conf_pattern % device_info)
+            raise NotImplementedError("Unexpected type '%s' in dhcpd.conf" % device_info['type'])
         free_ips.remove(device_info['ip'])
     range_confs = []
     for r in get_contiguous_ranges(free_ips):
         first, last = r
-        range_confs.append(\
+        range_confs.append(
             RANGE_CONF_PATTERN % dict(
                     first=first,
                     last=last
@@ -120,13 +160,19 @@ def generate_dhcpd_conf(subnet, devices):
         subnet_ip=subnet.network_address,
         subnet_broadcast=subnet.broadcast_address,
         subnet_netmask=subnet.netmask,
-        walt_registered_devices_conf='\n'.join(devices_confs),
+        dns_servers=", ".join(get_dns_servers()),
+        walt_registered_switches_conf='\n'.join(switches_confs),
+        walt_registered_lan_nodes_conf='\n'.join(lan_nodes_confs),
+        walt_registered_nat_nodes_conf='\n'.join(nat_nodes_confs),
+        walt_registered_unknowns_conf='\n'.join(unknowns_confs),
         walt_unallocated_ranges_conf='\n'.join(range_confs)
     )
     return CONF_PATTERN % infos
 
 QUERY_DEVICES_WITH_IP="""
-    SELECT * FROM devices WHERE ip IS NOT NULL ORDER BY mac;
+    SELECT devices.mac, ip, name, type, netsetup
+    FROM devices LEFT JOIN nodes ON devices.mac = nodes.mac
+    WHERE ip IS NOT NULL ORDER BY devices.mac;
 """
 
 class DHCPServer(object):
@@ -140,14 +186,13 @@ class DHCPServer(object):
             device_ip = ip(item.ip)
             if device_ip not in subnet:
                 continue
-            device_type = item.type
-            device_mac = item.mac
-            if device_type != 'server':
+            if item.type != 'server':
                 devices.append(dict(
-                    type=device_type,
+                    type=item.type,
                     hostname=item.name,
                     ip=device_ip,
-                    mac=device_mac))
+                    mac=item.mac,
+                    netsetup=item.netsetup))
         conf = generate_dhcpd_conf(subnet, devices)
         with open(DHCPD_CONF_FILE, 'r') as conf_file:
             old_conf = conf_file.read()

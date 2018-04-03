@@ -5,7 +5,7 @@ from walt.common.constants import \
 from walt.server.const import WALT_NODE_NET_SERVICE_PORT
 from walt.server.threads.main.images import spec
 from walt.server.tools import update_template
-from walt.server.threads.main.network.tools import get_server_ip
+from walt.server.threads.main.network.tools import get_server_ip, get_dns_servers
 from pkg_resources import resource_filename
 
 # List scripts to be installed on the node and indicate
@@ -74,6 +74,10 @@ ff02::1     ip6-allnodes
 ff02::2     ip6-allrouters
 """
 
+RESOLV_CONF_CONTENT_PATTERN = """\
+nameserver %(dns_servers)s
+"""
+
 def ensure_root_key_exists():
     if not os.path.isfile(SERVER_KEY_PATH):
         do("ssh-keygen -q -t rsa -f %s -N ''" % SERVER_KEY_PATH)
@@ -104,6 +108,11 @@ def setup(image):
         failsafe_makedirs(mount_path + os.path.dirname(path))
         with open(mount_path + path, 'w') as f:
             f.write(content)
+    # set node DNS servers
+    if os.path.exists(mount_path + '/etc/resolv.conf'):
+        os.rename(mount_path + '/etc/resolv.conf', mount_path + '/etc/resolv.conf.saved')
+    with open(mount_path + '/etc/resolv.conf', 'w') as f:
+        f.write(RESOLV_CONF_CONTENT_PATTERN % dict(dns_servers=" ".join(get_dns_servers())))
     # copy walt scripts in <image>/bin, update template parameters
     image_bindir = mount_path + '/bin/'
     for script_name, template in NODE_SCRIPTS.items():

@@ -5,6 +5,7 @@ from walt.common.tcp import Requests
 from walt.common.tools import do, format_sentence_about_nodes, failsafe_makedirs
 from walt.server.const import SSH_COMMAND, WALT_NODE_NET_SERVICE_PORT
 from walt.server.threads.main.filesystem import Filesystem
+from walt.server.threads.main.network.netsetup import NetSetup
 from walt.server.threads.main.nodes.register import handle_registration_request
 from walt.server.threads.main.nodes.show import show
 from walt.server.threads.main.nodes.wait import WaitInfo
@@ -111,6 +112,37 @@ class NodesManager(object):
         # start virtual nodes
         for vnode in self.db.select('devices', type = 'node', virtual = True):
             self.start_vnode(vnode.mac, vnode.name)
+        # prepare the network setup for NAT support
+        self.prepare_netsetup()
+
+    def prepare_netsetup(self):
+        # force-create the chain WALT and assert it is empty
+        do("iptables --new-chain WALT")
+        do("iptables --flush WALT")
+        do("iptables --append WALT --jump DROP")
+        # allow traffic on the bridge (virtual <-> physical nodes)
+        do("iptables --append FORWARD "
+           "--in-interface walt-net --out-interface walt-net "
+           "--jump ACCEPT")
+        # allow connections back to WalT
+        do("iptables --append FORWARD "
+           "--out-interface walt-net --match state --state RELATED,ESTABLISHED "
+           "--jump ACCEPT")
+        # jump to WALT chain for other traffic
+        do("iptables --append FORWARD "
+           "--in-interface walt-net "
+           "--jump WALT")
+        # NAT nodes traffic that is allowed to go outside
+        do("iptables --table nat --append POSTROUTING "
+           "! --out-interface walt-net --source %s "
+           "--jump MASQUERADE" % str(get_walt_subnet()))
+        # Set the configuration of all NAT-ed nodes
+        for node_ip in self.db.execute("""\
+                SELECT ip FROM nodes
+                INNER JOIN devices ON devices.mac = nodes.mac
+                WHERE netsetup = %d;
+                """ % NetSetup.NAT):
+            do("iptables --insert WALT --source '%s' --jump ACCEPT" % node_ip)
 
     def try_kill(self, pid):
         # note: kvm processes may already have ended because they are subprocesses
@@ -124,6 +156,24 @@ class NodesManager(object):
         # stop virtual nodes
         for pid in self.vnodes_pid.values():
             self.try_kill(pid)
+        self.cleanup_netsetup()
+
+    def cleanup_netsetup(self):
+        # drop rules set by prepare_netsetup
+        do("iptables --table nat --delete POSTROUTING "
+           "! --out-interface walt-net --source %s "
+           "--jump MASQUERADE" % str(get_walt_subnet()))
+        do("iptables --delete FORWARD "
+           "--in-interface walt-net "
+           "--jump WALT")
+        do("iptables --delete FORWARD "
+           "--out-interface walt-net --match state --state RELATED,ESTABLISHED "
+           "--jump ACCEPT")
+        do("iptables --delete FORWARD "
+           "--in-interface walt-net --out-interface walt-net "
+           "--jump ACCEPT")
+        do("iptables --flush WALT")
+        do("iptables --delete-chain WALT")
 
     def forget_vnode(self, node_mac):
         pid = self.vnodes_pid.pop(node_mac)
@@ -473,3 +523,18 @@ class NodesManager(object):
         return dict(node_name = node_name,
                     node_ip = ip,
                     node_owned = owned)
+
+    def netsetup_configure(self, requester, node_set, netsetup_value):
+        new_netsetup_state = NetSetup(netsetup_value)
+        for node_info in self.parse_node_set(requester, node_set):
+            if node_info.netsetup == new_netsetup_state:
+                # skip this node: already configured
+                continue
+            # Update the database
+            self.db.update("nodes", "mac", mac=node_info.mac, netsetup=new_netsetup_state)
+            # Update iptables
+            do("iptables %(action)s WALT --source '%(ip)s' --jump ACCEPT" %
+               dict(ip=node_info.ip,
+                    action="--insert" if new_netsetup_state == NetSetup.NAT else "--delete"))
+            # Validate the modifications
+            self.db.commit()
