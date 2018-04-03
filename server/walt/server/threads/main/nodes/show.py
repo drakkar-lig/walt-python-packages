@@ -1,3 +1,4 @@
+from walt.server.threads.main.network.netsetup import NetSetup
 from walt.server.tools import format_paragraph, columnate
 
 NODE_SHOW_QUERY = """
@@ -5,7 +6,7 @@ NODE_SHOW_QUERY = """
         split_part(n.image, '/', 1) as image_owner,
         split_part(n.image, ':', 2) as image_tag,
         i.ready as image_ready,
-        d.ip as ip,
+        d.ip as ip, n.netsetup as netsetup,
         (case when n.booted then 'yes' else 'NO' end) as booted
     FROM devices d, nodes n, images i
     WHERE   d.type = 'node'
@@ -63,10 +64,10 @@ def show(db, requester, show_all):
         footnote = None
         if not show_all:
             footnote = MSG_RERUN_WITH_ALL
-        table = [ (record.name, record.model,
-                   record.image_tag, record.ip, record.booted) \
-                    for record in res_user ]
-        header = [ 'name', 'model', 'image', 'ip', 'booted' ]
+        table = [(record.name, record.model, record.image_tag, record.ip,
+                  NetSetup(record.netsetup).readable_string(), record.booted)
+                 for record in res_user]
+        header = ['name', 'model', 'image', 'ip', 'netsetup', 'booted']
         result_msg += format_paragraph(
                         TITLE_NODE_SHOW_USER_NODES_PART,
                         columnate(table, header=header),
@@ -76,9 +77,10 @@ def show(db, requester, show_all):
     if len(res_free) > 0:
         # display free nodes
         footnote = None
-        table = [ (record.name, record.model, record.ip, record.booted) \
-                    for record in res_free ]
-        header = [ 'name', 'model', 'ip', 'booted' ]
+        table = [(record.name, record.model, record.ip,
+                  NetSetup(record.netsetup).readable_string(), record.booted)
+                 for record in res_free]
+        header = ['name', 'model', 'ip', 'netsetup', 'booted']
         result_msg += format_paragraph(
                         TITLE_NODE_SHOW_FREE_NODES_PART,
                         columnate(table, header=header),
@@ -90,19 +92,21 @@ def show(db, requester, show_all):
     else:
         if len(res_other) > 0:
             # display nodes of other users
-            table = [  (record.name, record.model, record.image_owner,
-                        'server:%s/%s' % (record.image_owner, record.image_tag),
-                        record.ip, record.booted) \
-                            for record in res_other ]
-            header = [ 'name', 'model', 'image_owner', 'clonable_image_link', 'ip', 'booted' ]
+            table = [(record.name, record.model, record.image_owner,
+                      'server:%s/%s' % (record.image_owner, record.image_tag),
+                      record.ip, NetSetup(record.netsetup).readable_string(),
+                      record.booted)
+                     for record in res_other]
+            header = ['name', 'model', 'image_owner', 'clonable_image_link', 'ip', 'netsetup', 'booted']
             result_msg += format_paragraph(
                         TITLE_NODE_SHOW_OTHER_NODES_PART,
                         columnate(table, header=header))
         if len(res_not_ready) > 0:
             # display nodes whose image is currently being downloaded
-            table = [  (record.name, record.model, record.ip) \
-                            for record in res_not_ready ]
-            header = [ 'name', 'model', 'ip' ]
+            table = [(record.name, record.model, record.ip,
+                      NetSetup(record.netsetup).readable_string())
+                     for record in res_not_ready]
+            header = ['name', 'model', 'ip', 'netsetup']
             result_msg += format_paragraph(
                         TITLE_NODE_SHOW_NOT_READY_NODES_PART,
                         columnate(table, header=header))
