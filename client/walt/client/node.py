@@ -289,3 +289,14 @@ class WalTNodeExpose(cli.Application):
             exposer = TCPExposer(local_port, node_ip, node_port)
             exposer.run()
 
+@WalTNode.subcommand("netsetup")
+class WalTNodeNetsetup(cli.Application):
+    def main(self, node_set, netsetup_value):
+        if netsetup_value.lower() in ("lan", "nat"):
+            with ClientToServerLink() as server:
+                node_set = server.develop_node_set(node_set)
+                if node_set is None:
+                    return
+                if not WalTNode.confirm_nodes_not_owned(server, node_set):
+                    return
+                server.netsetup_configure(node_set, netsetup_value)

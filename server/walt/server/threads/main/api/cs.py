@@ -231,3 +231,6 @@ class CSAPI(APISession):
     def get_pickled_checkpoint_time(self, context, cp_name):
         return context.logs.get_pickled_checkpoint_time(context.requester.sync, cp_name)
 
+    @api_expose_method
+    def netsetup_configure(self, context, nodes_set, netsetup_value):
+        return context.nodes.netsetup_configure(context.requester.sync, nodes_set, netsetup_value)
