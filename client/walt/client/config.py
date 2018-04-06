@@ -44,7 +44,7 @@ def decode(coded_value):
     return xor(binascii.unhexlify(coded_value))
 
 def get_config_file():
-    return expanduser('~/walt.conf')
+    return expanduser('~/.waltrc')
 
 def get_config_from_file(coded_items):
     config_file = get_config_file()
