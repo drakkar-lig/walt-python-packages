@@ -118,7 +118,7 @@ update_mounts()
 run_real_init()
 {
     cd $ROOTFS/mnt/fs_union
-    exec chroot . sbin/init
+    exec busybox chroot . sbin/init $@
 }
 
 # let's go
