@@ -37,6 +37,12 @@ fi
 # retrieve the kernel
 tftp ${kernel_addr_r} ${serverip}:nodes/${ethaddr}/${node_model}/kernel || reset
 
+# execute optional image script if any
+if tftp ${scriptaddr} ${serverip}:nodes/${ethaddr}/${node_model}/boot-params.uboot
+then
+    source ${scriptaddr} || reset
+fi
+
 # compute kernel command line args
 setenv nfs_root "${serverip}:/var/lib/walt/nodes/${ethaddr}"
 setenv nfs_bootargs "root=/dev/nfs nfsroot=${nfs_root},nfsvers=3,acregmax=5"
@@ -45,7 +51,7 @@ setenv rpi_bootargs "smsc95xx.macaddr=${ethaddr}"
 setenv walt_bootargs "walt.node.model=${node_model} walt.server.ip=${serverip}"
 setenv other_bootargs "init=${walt_init} ip=dhcp panic=15"
 setenv bootargs "$nfs_bootargs $console_bootargs\
- $rpi_bootargs $walt_bootargs $other_bootargs"
+ $rpi_bootargs $walt_bootargs $other_bootargs $additional_kernel_params"
 
 # boot
 if test ${has_dtb} = '0'
