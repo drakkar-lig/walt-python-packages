@@ -1,4 +1,5 @@
 import os, shutil, os.path
+from collections import OrderedDict
 from walt.common.tools import failsafe_makedirs, do
 from walt.common.constants import \
         WALT_SERVER_DAEMON_PORT, WALT_SERVER_TCP_PORT
@@ -86,6 +87,33 @@ def remove_if_link(path):
     if os.path.islink(path):
         os.remove(path)
 
+def fix_ptp(mount_path):
+    changed = False
+    if not os.path.exists(mount_path + '/etc/ptpd.conf'):
+        return
+    with open(mount_path + '/etc/ptpd.conf') as ptpfile:
+        ptpconf = ptpfile.read()
+    if 'ptpengine:' not in ptpconf:
+        return  # probably not the PTP implementation we know
+    conf = OrderedDict()
+    for confline in ptpconf.splitlines():
+        confname, confval = confline.split('=')
+        conf[confname.strip()] = confval.strip()
+    if 'ptpengine:ip_mode' not in conf or \
+            conf['ptpengine:ip_mode'] != 'hybrid':
+        print 'Forcing hybrid ip_mode in ptp configuration.'
+        conf['ptpengine:ip_mode'] = 'hybrid'
+        changed = True
+    if 'ptpengine:log_delayreq_interval' not in conf or \
+            int(conf['ptpengine:log_delayreq_interval']) < 3:
+        print 'Setting delayreq_interval to 8s in ptp configuration.'
+        conf['ptpengine:log_delayreq_interval'] = '3'
+        changed = True
+    if changed:
+        with open(mount_path + '/etc/ptpd.conf', 'w') as ptpfile:
+            for confname, confval in conf.items():
+                ptpfile.write('%s=%s\n' % (confname, confval))
+
 def setup(image):
     mount_path = image.mount_path
     # ensure FILES var is completely defined
@@ -129,3 +157,5 @@ def setup(image):
         spec.enable_matching_features(image, image_spec)
     # copy server spec file, just in case
     spec.copy_server_spec_file(mount_path)
+    # fix PTP conf regarding unicast default mode too verbose on LAN
+    fix_ptp(mount_path)
