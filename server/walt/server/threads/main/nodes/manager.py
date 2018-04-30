@@ -232,10 +232,11 @@ class NodesManager(object):
         # find a free ip
         subnet = get_walt_subnet()
         free_ips = list(subnet.hosts())
+        free_ips.pop(0)     # first IP is for WalT server
         for item in self.db.execute(\
                 'SELECT ip FROM devices WHERE ip IS NOT NULL').fetchall():
             device_ip = ip(item.ip)
-            if device_ip in subnet:
+            if device_ip in subnet and device_ip in free_ips:
                 free_ips.remove(device_ip)
         free_ip = str(free_ips[0])
         return free_mac, free_ip, 'pc-x86-64'

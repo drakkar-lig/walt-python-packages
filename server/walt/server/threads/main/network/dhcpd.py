@@ -146,7 +146,8 @@ def generate_dhcpd_conf(subnet, devices):
             unknowns_confs.append(UNKNOWNS_CONF_PATTERN % device_info)
         else:
             raise NotImplementedError("Unexpected type '%s' in dhcpd.conf" % device_info['type'])
-        free_ips.remove(device_info['ip'])
+        if device_info['ip'] in free_ips:
+            free_ips.remove(device_info['ip'])
     range_confs = []
     for r in get_contiguous_ranges(free_ips):
         first, last = r
