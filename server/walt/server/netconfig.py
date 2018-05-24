@@ -10,7 +10,7 @@ ebtables -t filter -A FORWARD -p 802_1Q \
     -i %(src)s -o %(dst)s -j DROP'''
 
 def generate_random_mac():
-    return [ 0x00, 0x50, 0x56,
+    return [ 0x52, 0x54, 0x00,
             random.randint(0x00, 0x7f),
             random.randint(0x00, 0xff),
             random.randint(0x00, 0xff) ]
@@ -61,6 +61,7 @@ def create_vlan_iface(raw_iface, vlan, vlan_iface, state_file):
 
 def create_bridge_iface(br_iface, interfaces, state_file):
     do('ip link add %s type bridge' % br_iface)
+    do('brctl stp %s on' % br_iface)
     if os.path.exists(get_mac_file(br_iface)):
         with open_mac_file(br_iface, 'r') as mac_file:
             mac = mac_file.readline()
