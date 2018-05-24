@@ -1,11 +1,22 @@
-import os, sys
+import os, sys, os.path
+import random
 from walt.common.tools import do
 from walt.server import conf
 
 IFACE_STATE_FILE='/var/lib/walt/.%(iface)s.state'
+IFACE_MAC_FILE='/var/lib/walt/.%(iface)s.mac'
 DOT1Q_FILTER='''\
 ebtables -t filter -A FORWARD -p 802_1Q \
     -i %(src)s -o %(dst)s -j DROP'''
+
+def generate_random_mac():
+    return [ 0x00, 0x50, 0x56,
+            random.randint(0x00, 0x7f),
+            random.randint(0x00, 0xff),
+            random.randint(0x00, 0xff) ]
+
+def get_random_mac():
+    return ':'.join(map(lambda x: "%02x" % x, generate_random_mac()))
 
 def filter_out_8021q(iface_src, iface_dst):
     do(DOT1Q_FILTER % dict(src=iface_src, dst=iface_dst))
@@ -18,6 +29,15 @@ def open_state_file(iface, mode):
 
 def remove_state_file(iface):
     os.remove(get_state_file(iface))
+
+def get_mac_file(iface):
+    return IFACE_MAC_FILE % dict(iface=iface)
+
+def open_mac_file(iface, mode):
+    return open(get_mac_file(iface),mode)
+
+def remove_mac_file(iface):
+    os.remove(get_mac_file(iface))
 
 def get_vlan(iface_conf):
     if 'vlan' in iface_conf:
@@ -41,6 +61,15 @@ def create_vlan_iface(raw_iface, vlan, vlan_iface, state_file):
 
 def create_bridge_iface(br_iface, interfaces, state_file):
     do('ip link add %s type bridge' % br_iface)
+    if os.path.exists(get_mac_file(br_iface)):
+        with open_mac_file(br_iface, 'r') as mac_file:
+            mac = mac_file.readline()
+    else:
+        mac = get_random_mac()
+        with open_mac_file(br_iface, 'w') as mac_file:
+            mac_file.write(mac + '\n')
+            mac_file.flush()
+    do('ip link set dev %s address %s' % (br_iface, mac))
     for iface in interfaces:
         do('ip link set dev %s master %s' % (iface, br_iface))
     set_iface_up(br_iface)
