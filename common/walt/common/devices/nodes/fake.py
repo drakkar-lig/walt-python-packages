@@ -6,12 +6,6 @@ class Fake(object):
     @staticmethod
     def is_such_a_device(vci, mac):
         return False
-    @staticmethod
-    def blink(bool):
-        if bool:
-            print "Starting to blink."
-        else:
-            print "Stopped blinking."
 
 def get_device_classes():
     return (Fake,)
