@@ -71,9 +71,9 @@ def check_docker(ui):
     ui.task_done()
 
 def setup(ui):
-    check_docker(ui)
+    #check_docker(ui)
     wait_companion_services(ui)
-    wait_for_main_switch(ui, MSG_DETECTING_MAIN_SWITCH)
+    #wait_for_main_switch(ui, MSG_DETECTING_MAIN_SWITCH)
 
 def wait_for_main_switch(ui, msg, explain = None, todo = None):
     ui.task_start(msg, explain=explain, todo=todo)
