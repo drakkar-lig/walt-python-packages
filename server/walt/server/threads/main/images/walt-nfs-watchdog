@@ -12,7 +12,7 @@ echo "[bg] walt-nfs-watchdog started."
 
 while [ 1 ]
 do
-    timeout -t 2 ls -l mnt/nfsroot/bin/walt-init >/dev/null || {
+    timeout -t 20 ls -l mnt/nfsroot/bin/walt-init >/dev/null || {
         echo "[bg] NFS share was lost! Will reboot."
         sleep 5
         reboot -f
