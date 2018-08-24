@@ -57,6 +57,7 @@ def indicate_progress(stdout, label, stream, checker = None):
         display_transient_label(stdout, full_label)
     hide_transient_label(stdout, full_label)
     stdout.write('%s... done.\n' % label)
+    stdout.flush()
 
 def format_paragraph(title, content, footnote=None):
     if footnote:
