@@ -16,7 +16,6 @@ class ServerMainThread(EvThread):
         self.server.prepare()
         self.register_listener(self.hub)
         self.register_listener(self.blocking)
-        self.server.dhcpd.update(force=True)
         setup(self.ui)
         self.notify_systemd()
         self.server.ui.set_status('Ready.')

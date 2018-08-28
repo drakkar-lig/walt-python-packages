@@ -51,18 +51,17 @@ class Server(object):
     def prepare(self):
         self.tcp_server.join_event_loop(self.ev_loop)
         self.db.plan_auto_commit(self.ev_loop)
-        self.images.prepare()
-        self.nodes.prepare()
-
-    def update(self):
-        self.ui.task_start('Scanning walt devices and images...')
-        self.ui.task_running()
         # ensure the dhcp server is running,
         # otherwise the switches may have ip addresses
         # outside the WalT network, and we will not be able
         # to communicate with them when trying to update
         # the topology.
         self.dhcpd.update(force=True)
+        self.images.prepare()
+        self.nodes.prepare()
+
+    def update(self):
+        self.ui.task_start('Scanning walt devices and images...')
         self.ui.task_running()
         # topology exploration
         self.topology.rescan(ui=self.ui)
@@ -73,6 +72,8 @@ class Server(object):
         self.ui.task_running()
         # mount images needed
         self.images.update(startup = True)
+        # restores nodes setup
+        self.nodes.restore()
         self.ui.task_done()
 
     def cleanup(self):

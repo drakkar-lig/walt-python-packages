@@ -109,11 +109,13 @@ class NodesManager(object):
     def prepare(self):
         # set booted flag of all nodes to False for now
         self.db.execute('UPDATE nodes SET booted = false;')
+        # prepare the network setup for NAT support
+        self.prepare_netsetup()
+
+    def restore(self):
         # start virtual nodes
         for vnode in self.db.select('devices', type = 'node', virtual = True):
             self.start_vnode(vnode.mac, vnode.name)
-        # prepare the network setup for NAT support
-        self.prepare_netsetup()
 
     def prepare_netsetup(self):
         # force-create the chain WALT and assert it is empty
