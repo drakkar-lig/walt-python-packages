@@ -138,6 +138,9 @@ def setup(image):
     with open(mount_path + '/etc/resolv.conf', 'w') as f:
         for resolver in get_dns_servers():
             f.write("nameserver {}\n".format(resolver))
+    if os.path.isfile(mount_path + '/etc/hostname') and \
+            not os.path.islink(mount_path + '/etc/hostname'):
+        os.remove(mount_path + '/etc/hostname')     # probably a residual of image build
     # copy walt scripts in <image>/bin, update template parameters
     image_bindir = mount_path + '/bin/'
     for script_name, template in NODE_SCRIPTS.items():
