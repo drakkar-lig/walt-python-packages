@@ -15,7 +15,7 @@ from pkg_resources import resource_filename
 NODE_SCRIPTS = {'walt-env': True,
                 'walt-cat': False,
                 'walt-tee': False,
-                'walt-notify-bootup': False,
+                'walt-notify-bootup': True,
                 'walt-init': False,
                 'walt-nfs-watchdog': False,
                 'walt-net-service': True}

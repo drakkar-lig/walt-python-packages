@@ -83,6 +83,7 @@ start_background_processes()
 {
     run_bgscript_in_rootfs walt-nfs-watchdog
     run_bgscript_in_rootfs walt-net-service mnt/fs_union
+    run_bgscript_in_rootfs walt-notify-bootup
 }
 
 # since we share the NFS export across all rpi nodes,
