@@ -52,8 +52,9 @@ MSG_NOT_VIRTUAL = "WARNING: %s is not a virtual node. IGNORED.\n"
 
 FS_CMD_PATTERN = SSH_COMMAND + ' root@%(node_ip)s "%%(prog)s %%(prog_args)s"'
 
-CMD_START_VNODE = "kvm -display none -drive file=%(usb_image)s,format=raw -m 512 -name %(name)s \
-                        -net nic,macaddr=%(mac)s -net bridge,br=walt-net"
+CMD_START_VNODE = "screen -S walt.node.%(name)s -d -m   \
+                   kvm -display none -drive file=%(usb_image)s,format=raw -m 512 -name %(name)s \
+                        -net nic,macaddr=%(mac)s -net bridge,br=walt-net -serial mon:stdio"
 CMD_ADD_SSH_KNOWN_HOST = "  mkdir -p /root/.ssh && ssh-keygen -F %(ip)s || \
                             ssh-keyscan -t ecdsa %(ip)s >> /root/.ssh/known_hosts"
 
@@ -103,7 +104,6 @@ class NodesManager(object):
         self.topology = topology
         self.other_kwargs = kwargs
         self.wait_info = WaitInfo()
-        self.vnodes_pid = {}
         self.expose_manager = ExposeManager(tcp_server, ev_loop)
 
     def prepare(self):
@@ -144,18 +144,15 @@ class NodesManager(object):
                 """ % NetSetup.NAT):
             do("iptables --insert WALT --source '%s' --jump ACCEPT" % node_ip)
 
-    def try_kill(self, pid):
+    def try_kill_vnode(self, node_name):
         # note: kvm processes may already have ended because they are subprocesses
         # and they may have also received the signal that caused us to be there.
-        try:
-            os.kill(pid, signal.SIGTERM)
-        except OSError:
-            pass
+        do("screen -S walt.node.%(name)s -X quit" % dict(name = node_name))
 
     def cleanup(self):
         # stop virtual nodes
-        for pid in self.vnodes_pid.values():
-            self.try_kill(pid)
+        for vnode in self.db.select('devices', type = 'node', virtual = True):
+            self.try_kill_vnode(vnode.name)
         self.cleanup_netsetup()
 
     def cleanup_netsetup(self):
@@ -175,9 +172,8 @@ class NodesManager(object):
         do("iptables --flush WALT")
         do("iptables --delete-chain WALT")
 
-    def forget_vnode(self, node_mac):
-        pid = self.vnodes_pid.pop(node_mac)
-        self.try_kill(pid)
+    def forget_vnode(self, node_name):
+        self.try_kill_vnode(node_name)
 
     def as_node_set(self, names):
         return ','.join(sorted(names))
@@ -251,8 +247,7 @@ class NodesManager(object):
             mac = mac,
             name = name
         )
-        pid = subprocess.Popen(shlex.split(cmd)).pid
-        self.vnodes_pid[mac] = pid
+        subprocess.Popen(shlex.split(cmd))
 
     def get_node_info(self, requester, node_name):
         device_info = self.devices.get_device_info(requester, node_name)
@@ -438,9 +433,8 @@ class NodesManager(object):
             if not node.virtual:
                 requester.stderr.write(MSG_NOT_VIRTUAL % node.name)
                 continue
-            # terminate VM
-            vm_pid = self.vnodes_pid[node.mac]
-            self.try_kill(vm_pid)
+            # terminate VM by quitting screen session
+            self.try_kill_vnode(node.name)
             # restart VM
             self.start_vnode(node.mac, node.name)
             nodes_ok.append(node.name)
