@@ -1,9 +1,9 @@
 import os, shutil, os.path
 from collections import OrderedDict
-from walt.common.tools import failsafe_makedirs, do
+from walt.common.tools import failsafe_makedirs, do, get_mac_address
 from walt.common.constants import \
         WALT_SERVER_DAEMON_PORT, WALT_SERVER_TCP_PORT
-from walt.server.const import WALT_NODE_NET_SERVICE_PORT
+from walt.server.const import WALT_NODE_NET_SERVICE_PORT, WALT_INTF
 from walt.server.threads.main.images import spec
 from walt.server.tools import update_template
 from walt.server.threads.main.network.tools import get_server_ip, get_dns_servers
@@ -21,6 +21,7 @@ NODE_SCRIPTS = {'walt-env': True,
                 'walt-net-service': True}
 
 TEMPLATE_ENV = dict(
+    server_mac = get_mac_address(WALT_INTF),
     server_ip = str(get_server_ip()),
     walt_server_rpc_port = WALT_SERVER_DAEMON_PORT,
     walt_server_logs_port = WALT_SERVER_TCP_PORT,
