@@ -57,7 +57,8 @@ PACKAGE_SPECIFIC_INFO = {
                     'walt-server-daemon = walt.server.daemon:run',
                     'walt-server-console = walt.server.ui.console:run',
                     'walt-dhcp-event = walt.server.dhcpevent:run',
-                    'walt-net-config = walt.server.netconfig:run'
+                    'walt-net-config = walt.server.netconfig:run',
+                    'walt-fake-ipxe-node = walt.server.fakeipxenode:run'
                 ]
             },
             include_package_data = True

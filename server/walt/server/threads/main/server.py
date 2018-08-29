@@ -135,7 +135,8 @@ class Server(object):
         # the download of a default image...)
         self.register_device(vci, '', ip, mac, name = name, virtual = True)
         # start background vm
-        self.nodes.start_vnode(mac, name)
+        node = self.devices.get_complete_device_info(mac)
+        self.nodes.start_vnode(node)
         return True
 
     def remove_vnode(self, requester, name):

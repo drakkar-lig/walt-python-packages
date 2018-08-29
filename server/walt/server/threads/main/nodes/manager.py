@@ -11,7 +11,7 @@ from walt.server.threads.main.nodes.show import show
 from walt.server.threads.main.nodes.wait import WaitInfo
 from walt.server.threads.main.nodes.expose import ExposeManager
 from walt.server.threads.main.transfer import validate_cp
-from walt.server.threads.main.network.tools import ip, get_walt_subnet
+from walt.server.threads.main.network.tools import ip, get_walt_subnet, get_server_ip
 from walt.server.tools import to_named_tuple
 
 NODE_CONNECTION_TIMEOUT = 1
@@ -53,8 +53,7 @@ MSG_NOT_VIRTUAL = "WARNING: %s is not a virtual node. IGNORED.\n"
 FS_CMD_PATTERN = SSH_COMMAND + ' root@%(node_ip)s "%%(prog)s %%(prog_args)s"'
 
 CMD_START_VNODE = "screen -S walt.node.%(name)s -d -m   \
-                   kvm -smp 4 -display none -drive file=%(usb_image)s,format=raw -m 512 -name %(name)s \
-                        -net nic,macaddr=%(mac)s -net bridge,br=walt-net -serial mon:stdio"
+                   walt-fake-ipxe-node %(mac)s %(ip)s %(name)s %(server_ip)s"
 CMD_ADD_SSH_KNOWN_HOST = "  mkdir -p /root/.ssh && ssh-keygen -F %(ip)s || \
                             ssh-keyscan -t ecdsa %(ip)s >> /root/.ssh/known_hosts"
 
@@ -115,7 +114,8 @@ class NodesManager(object):
     def restore(self):
         # start virtual nodes
         for vnode in self.db.select('devices', type = 'node', virtual = True):
-            self.start_vnode(vnode.mac, vnode.name)
+            node = self.devices.get_complete_device_info(vnode.mac)
+            self.start_vnode(node)
 
     def prepare_netsetup(self):
         # force-create the chain WALT and assert it is empty
@@ -239,15 +239,16 @@ class NodesManager(object):
         free_ip = str(free_ips[0])
         return free_mac, free_ip, 'pc-x86-64'
 
-    def start_vnode(self, mac, name):
+    def start_vnode(self, node):
         if not os.path.exists('/etc/qemu/bridge.conf'):
             failsafe_makedirs('/etc/qemu')
             with open('/etc/qemu/bridge.conf', 'w') as f:
                 f.write('allow walt-net\n')
         cmd = CMD_START_VNODE % dict(
-            usb_image = '/var/lib/walt/boot/pc-usb.dd',
-            mac = mac,
-            name = name
+            mac = node.mac,
+            ip = node.ip,
+            name = node.name,
+            server_ip = get_server_ip()
         )
         subprocess.Popen(shlex.split(cmd))
 
@@ -438,7 +439,7 @@ class NodesManager(object):
             # terminate VM by quitting screen session
             self.try_kill_vnode(node.name)
             # restart VM
-            self.start_vnode(node.mac, node.name)
+            self.start_vnode(node)
             nodes_ok.append(node.name)
         if len(nodes_ok) > 0:
             requester.stdout.write(format_sentence_about_nodes(
