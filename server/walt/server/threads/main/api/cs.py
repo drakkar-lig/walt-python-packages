@@ -233,4 +233,5 @@ class CSAPI(APISession):
 
     @api_expose_method
     def netsetup_configure(self, context, nodes_set, netsetup_value):
-        return context.nodes.netsetup_configure(context.requester.sync, nodes_set, netsetup_value)
+        context.nodes.netsetup_configure(context.requester.sync, nodes_set, netsetup_value)
+        context.server.dhcpd.update()
