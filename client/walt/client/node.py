@@ -291,6 +291,7 @@ class WalTNodeExpose(cli.Application):
 
 @WalTNode.subcommand("netsetup")
 class WalTNodeNetsetup(cli.Application):
+    """assign LAN or NAT network setup to a node (or set of nodes)"""
     def main(self, node_set, netsetup_value):
         if netsetup_value.lower() in ("lan", "nat"):
             with ClientToServerLink() as server:
