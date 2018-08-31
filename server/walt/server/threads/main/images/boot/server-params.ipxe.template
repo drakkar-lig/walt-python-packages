@@ -1,4 +1,0 @@
-#!ipxe
-
-# Server mac address (useful for netconsole setup on nodes)
-set server_mac %(server_mac)s

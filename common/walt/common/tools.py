@@ -19,6 +19,9 @@ def succeeds(cmd):
     return do(cmd) == 0
 
 def failsafe_makedirs(path):
+    # remove if not a dir
+    if os.path.lexists(path) and not os.path.isdir(path):
+        os.remove(path)
     # create only if missing
     if not os.path.exists(path):
         os.makedirs(path)

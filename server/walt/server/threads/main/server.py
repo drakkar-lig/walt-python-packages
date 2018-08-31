@@ -68,7 +68,6 @@ class Server(object):
         self.ui.task_running()
         # re-update dhcp with any new device discovered
         self.dhcpd.update()
-        tftp.update(self.db)
         self.ui.task_running()
         # mount images needed
         self.images.update(startup = True)
@@ -114,6 +113,7 @@ class Server(object):
     def rename_device(self, requester, old_name, new_name):
         self.devices.rename(requester, old_name, new_name)
         self.dhcpd.update()
+        tftp.update(self.db)
 
     def device_rescan(self, requester, remote_ip = None):
         self.topology.rescan(requester=requester, remote_ip = remote_ip)
@@ -123,7 +123,6 @@ class Server(object):
     def forget_device(self, device_name):
         self.db.forget_device(device_name)
         self.dhcpd.update()
-        tftp.update(self.db)
 
     def create_vnode(self, requester, name):
         if not self.devices.validate_device_name(requester, name):

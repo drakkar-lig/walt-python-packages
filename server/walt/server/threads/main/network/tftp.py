@@ -1,33 +1,46 @@
-import os
+import os, shutil
 from walt.common.tools import failsafe_makedirs, failsafe_symlink
 from walt.server.threads.main.images.image import get_mount_path
 
-TFTP_PATH='/var/lib/walt/nodes/'
+NODES_PATH='/var/lib/walt/nodes/'
 
 def update(db):
     # create dir if it does not exist yet
-    failsafe_makedirs(TFTP_PATH)
-    # list existing links, in case some of them are obsolete
-    invalid_links = set(f for f in os.listdir(TFTP_PATH))
-    # each node must have a link from the tftp dir to
-    # the walt image it will boot. The name of this
-    # link is the mac address of the node.
+    failsafe_makedirs(NODES_PATH)
+    # list existing entries, in case some of them are obsolete
+    invalid_entries = set(f for f in os.listdir(NODES_PATH))
+    # each node has a directory entry with:
+    # - a link called "fs" to the image filesystem root
+    # - a link called "tftp" to a directory of boot files stored per-model in the image
+    # The name of this dir is the mac address of the node,
+    # written <hh>:<hh>:<hh>:<hh>:<hh>:<hh>.
     # For compatibility with different network bootloaders
-    # we actually provide 2 links, corresponding to 2 different
-    # ways to specify the mac address:
-    # <hh>:<hh>:<hh>:<hh>:<hh>:<hh>
-    # and
-    # <hh>-<hh>-<hh>-<hh>-<hh>-<hh>
+    # we also provide 3 links to this directory:
+    # - mac address written <hh>-<hh>-<hh>-<hh>-<hh>-<hh>
+    # - ipv4 address (dotted quad notation)
+    # - walt node name
     for db_node in db.select('nodes'):
         if db_node.image is not None:
             image_path = get_mount_path(db_node.image)
-            mac_orig = db_node.mac
-            mac_dash = mac_orig.replace(':', '-')
-            for mac in (mac_orig, mac_dash):
-                failsafe_symlink(image_path, TFTP_PATH + mac, force_relative=True)
-                # this link is valid
-                invalid_links.discard(mac)
-    # if there are still values in variable invalid_links,
-    # we can remove the corresponding link
-    for l in invalid_links:
-        os.remove(TFTP_PATH + l)
+            mac = db_node.mac
+            model = db_node.model
+            mac_dash = mac.replace(':', '-')
+            device = db.select_unique('devices', mac=mac)
+            failsafe_makedirs(NODES_PATH + mac)
+            failsafe_symlink(image_path, NODES_PATH + mac + '/fs', force_relative=True)
+            # link to boot files stored inside the image
+            failsafe_symlink(image_path + '/boot/' + model,
+                            NODES_PATH + mac + '/tftp', force_relative=True)
+            for ln_name in (mac_dash, device.ip, device.name):
+                failsafe_symlink(NODES_PATH + mac, NODES_PATH + ln_name, force_relative=True)
+                # this entry is valid
+                invalid_entries.discard(ln_name)
+            invalid_entries.discard(mac)
+    # if there are still values in variable invalid_entries,
+    # we can remove the corresponding entry
+    for entry in invalid_entries:
+        entry = NODES_PATH + entry
+        if os.path.isdir(entry) and not os.path.islink(entry):
+            shutil.rmtree(entry)
+        else:
+            os.remove(entry)
