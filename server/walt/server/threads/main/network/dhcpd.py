@@ -22,6 +22,13 @@ authoritative; # allow sending DHCP NAKs
 next-server %(walt_server_ip)s;
 option broadcast-address %(subnet_broadcast)s;
 
+class "rpi-pxe" {
+    match if ((binary-to-ascii(16,8,":",substring(hardware, 1, 3)) = "b8:27:eb") and
+              (option vendor-class-identifier = "PXEClient:Arch:00000:UNDI:002001"));
+    option vendor-class-identifier "PXEClient";
+    option vendor-encapsulated-options "Raspberry Pi Boot";
+}
+
 # walt unregistered devices
 subnet %(subnet_ip)s netmask %(subnet_netmask)s {
     # declare ranges of unallocated addresses
