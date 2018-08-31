@@ -1,35 +1,40 @@
 #!/usr/bin/env python
 import sys, subprocess, tempfile, shutil, shlex, time, random
 
-MANUFACTURER="QEMU"
-PRODUCT="Standard PC (i440FX + PIIX, 1996)"
-TFTP_ROOT="/var/lib/walt/nodes/%(mac)s/tftp"
+MANUFACTURER = "QEMU"
+PRODUCT = "Standard PC (i440FX + PIIX, 1996)"
+TFTP_ROOT = "/var/lib/walt/nodes/%(mac)s/tftp"
+KVM_RAM = 512
+KVM_CORES = 4
 
-if len(sys.argv) != 5:
-    print('Usage: %(prog)s <node_mac> <node_ip> <node_name> <server_ip>' % \
+if len(sys.argv) != 7:
+    print('Usage: %(prog)s <node_mac> <node_ip> <node_netmask> <node_gw> <node_name> <server_ip>' % \
                 dict(prog = sys.argv[0]))
     sys.exit()
 
-mac=sys.argv[1]
-ip=sys.argv[2]
-name=sys.argv[3]
-server_ip=sys.argv[4]
+mac, ip, netmask, gateway, name, server_ip = sys.argv[1:]
 
-env = {
+KVM_ARGS = "kvm -m " + str(KVM_RAM) + "\
+                -name %(name)s \
+                -smp " + str(KVM_CORES) + "\
+                -display none \
+                -net nic,macaddr=%(mac)s,model=virtio \
+                -net bridge,br=walt-net \
+                -serial mon:stdio \
+                -no-reboot"
+
+env_start = {
     "mac": mac,
     "ip": ip,
+    "netmask": netmask,
+    "gateway": gateway,
     "name": name,
+    "hostname": name,
     "mac:hexhyp": mac.replace(":","-"),
     "manufacturer": MANUFACTURER,
     "product": PRODUCT,
     "next-server": server_ip,
-    "kvm-args": "kvm -m 512 -name %(name)s \
-                    -smp 4 \
-                    -display none \
-                    -net nic,macaddr=%(mac)s \
-                    -net bridge,br=walt-net \
-                    -serial mon:stdio \
-                    -no-reboot"
+    "kvm-args": ' '.join(KVM_ARGS.split())
 }
 
 def execute_line(line):
@@ -138,8 +143,10 @@ try:
         # virtual nodes
         time.sleep(random.random()*10)
         # start
+        env = env_start.copy()
         print("Starting...")
         execute_line("chain /start.ipxe")
 except NotImplementedError as e:
     print(str(e))
+    time.sleep(120)
 shutil.rmtree(TMPDIR)
