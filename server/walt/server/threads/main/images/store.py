@@ -1,7 +1,7 @@
 import sys
 from datetime import datetime
 
-from walt.server.threads.main.images.image import NodeImage
+from walt.server.threads.main.images.image import NodeImage, format_image_fullname
 from walt.server.threads.main.network import nfs
 
 
@@ -30,16 +30,28 @@ class NodeImageStore(object):
     def refresh(self, startup = False):
         db_images = { db_img.fullname: db_img.ready \
                         for db_img in self.db.select('images') }
-        docker_images = self.docker.local.get_images()
+        docker_images = {}
+        # gather local images
+        for image in self.docker.local.get_images():
+            # restrict to images with a label 'walt.node.models'
+            if image['Labels'] is None:
+                continue
+            if 'walt.node.models' not in image['Labels']:
+                continue
+            if image['RepoTags'] is None:   # dangling image
+                continue
+            for fullname in image['RepoTags']:
+                if '/' in fullname:         # discard dangling images
+                    docker_images[fullname] = image
         # import new images from docker into the database
         for fullname in docker_images:
-            if '/walt-node' in fullname and fullname not in db_images:
+            if fullname not in db_images:
                 self.db.insert('images', fullname=fullname, ready=True)
                 db_images[fullname] = True
         # add missing images
         for db_fullname in db_images:
             db_ready = db_images[db_fullname]
-            if '/walt-node' in db_fullname and db_fullname not in self.images:
+            if db_fullname not in self.images:
                 if db_fullname in docker_images:
                     created_at = datetime.fromtimestamp(
                             docker_images[db_fullname]['Created'])
@@ -104,28 +116,29 @@ class NodeImageStore(object):
     # or if both options are ok (expected = None).
     # If expected is True or False and the result does not match expectation,
     # an error message will be printed.
-    def get_user_image_from_tag(self, requester, image_tag, expected = True, ready_only = True):
+    def get_user_image_from_name(self, requester, image_name, expected = True, ready_only = True):
         username = requester.get_username()
         if not username:
             return None    # client already disconnected, give up
         found = None
+        fullname = format_image_fullname(username, image_name)
         for image in self.images.values():
-            if image.tag == image_tag and image.user == username:
+            if image.fullname == fullname:
                 found = image
         if expected == True and found is None:
             requester.stderr.write(
-                "Error: No such image '%s'. (tip: walt image show)\n" % image_tag)
+                "Error: No such image '%s'. (tip: walt image show)\n" % image_name)
         if expected == False and found is not None:
             requester.stderr.write(
-                "Error: Image '%s' already exists.\n" % image_tag)
+                "Error: Image '%s' already exists.\n" % image_name)
         if expected == True and found is not None:
             if ready_only and found.ready == False:
                 requester.stderr.write(
-                    "Error: Image '%s' is not ready.\n" % image_tag)
+                    "Error: Image '%s' is not ready.\n" % image_name)
                 found = None
         return found
-    def get_user_unmounted_image_from_tag(self, requester, image_tag):
-        image = self.get_user_image_from_tag(requester, image_tag)
+    def get_user_unmounted_image_from_name(self, requester, image_name):
+        image = self.get_user_image_from_name(requester, image_name)
         if image:   # otherwise issue is already reported
             if image.mounted:
                 requester.stderr.write('Sorry, cannot proceed because the image is mounted.\n')
@@ -165,8 +178,8 @@ class NodeImageStore(object):
             self.db.execute("""
                 SELECT DISTINCT image FROM nodes""").fetchall()])
         return res
-    def get_default_image(self, node_model):
-        return 'waltplatform/walt-node:%s-default' % node_model
+    def get_default_image_fullname(self, node_model):
+        return 'waltplatform/%s-default:latest' % node_model
     def umount_used_image(self, image):
         images = self.get_images_in_use()
         images.remove(image.fullname)

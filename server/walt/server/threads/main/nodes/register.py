@@ -20,7 +20,7 @@ def update_images_and_finalize(images, image_fullname, **kwargs):
 def handle_registration_request(
                 db, blocking, mac, images, model, \
                 **kwargs):
-    image_fullname = images.get_default_image(model)
+    image_fullname = images.get_default_image_fullname(model)
     image_is_new = image_fullname not in images
     # if image is new, register it before the node
     # (cf db integrity constraint)

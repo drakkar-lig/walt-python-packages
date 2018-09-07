@@ -24,6 +24,9 @@ class BlockingTasksManager(RPCThreadConnector):
     def publish_image(self, requester, result_cb, *args, **kwargs):
         self.session(requester).async.publish_image(*args, **kwargs).then(result_cb)
 
+    def update_hub_metadata(self, requester, result_cb, *args, **kwargs):
+        self.session(requester).async.update_hub_metadata(*args, **kwargs).then(result_cb)
+
     def pull_image(self, image_fullname, result_cb):
         self.async.pull_image(image_fullname).then(result_cb)
 

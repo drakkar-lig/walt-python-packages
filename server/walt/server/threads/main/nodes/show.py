@@ -4,7 +4,7 @@ from walt.server.tools import format_paragraph, columnate
 NODE_SHOW_QUERY = """
     SELECT  d.name as name, n.model as model,
         split_part(n.image, '/', 1) as image_owner,
-        split_part(n.image, ':', 2) as image_tag,
+        split_part(n.image, '/', 2) as image_name,
         i.ready as image_ready,
         d.ip as ip, n.netsetup as netsetup,
         (case when n.booted then 'yes' else 'NO' end) as booted
@@ -40,6 +40,11 @@ No nodes detected!"""
 MSG_NO_OTHER_NODES = """\
 No other nodes were detected (apart from the ones listed above)."""
 
+def short_image_name(image_name):
+    if image_name.endswith(':latest'):
+        image_name = image_name[:-7]
+    return image_name
+
 def show(db, requester, show_all):
     username = requester.get_username()
     if not username:
@@ -64,7 +69,8 @@ def show(db, requester, show_all):
         footnote = None
         if not show_all:
             footnote = MSG_RERUN_WITH_ALL
-        table = [(record.name, record.model, record.image_tag, record.ip,
+        table = [(record.name, record.model,
+                  short_image_name(record.image_name), record.ip,
                   NetSetup(record.netsetup).readable_string(), record.booted)
                  for record in res_user]
         header = ['name', 'model', 'image', 'ip', 'netsetup', 'booted']
@@ -93,7 +99,8 @@ def show(db, requester, show_all):
         if len(res_other) > 0:
             # display nodes of other users
             table = [(record.name, record.model, record.image_owner,
-                      'server:%s/%s' % (record.image_owner, record.image_tag),
+                      'server:%s/%s' % \
+                        (record.image_owner, short_image_name(record.image_name)),
                       record.ip, NetSetup(record.netsetup).readable_string(),
                       record.booted)
                      for record in res_other]

@@ -1,6 +1,7 @@
 from walt.common.thread import EvThread, RPCThreadConnector
 from walt.server.threads.blocking.images.clone import clone
 from walt.server.threads.blocking.images.publish import publish
+from walt.server.threads.blocking.images.metadata import update_hub_metadata
 from walt.server.threads.blocking.images.search import search
 from walt.server.threads.blocking.logs import stream_db_logs
 
@@ -18,6 +19,10 @@ class BlockingTasksService(object):
 
     def publish_image(self, context, *args, **kwargs):
         res = publish(context.requester.sync, self.server, *args, **kwargs)
+        context.task.return_result(res)
+
+    def update_hub_metadata(self, context, *args, **kwargs):
+        res = update_hub_metadata(context.requester.sync, self.server, *args, **kwargs)
         context.task.return_result(res)
 
     def stream_db_logs(self, context, **params):

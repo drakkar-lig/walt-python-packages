@@ -1,5 +1,4 @@
 from walt.common.crypto.blowfish import BlowFish
-from walt.server.threads.main.images.image import parse_image_fullname
 from walt.server.tools import indicate_progress
 from walt.server import const
 from docker import Client, errors
@@ -11,6 +10,9 @@ DOCKER_TIMEOUT=None
 AUFS_BR_LIMIT=127
 AUFS_BR_MOUNT_LIMIT=42
 REGISTRY='https://index.docker.io/v1/'
+LOGIN_PULL_TEMPLATE = "https://auth.docker.io/token?service=registry.docker.io&scope=repository:{repository}:pull"
+GET_MANIFEST_TEMPLATE = "https://registry.hub.docker.com/v2/{repository}/manifests/{tag}"
+
 
 def docker_command_split(cmd):
     args = shlex.split(cmd)
@@ -24,8 +26,8 @@ class DockerLocalClient:
         self.c = c
         self.layer_id_cache = {}
     def tag(self, old_fullname, new_fullname):
-        dummy1, new_name, dummy2, dummy3, new_tag = parse_image_fullname(new_fullname)
-        self.c.tag(image=old_fullname, repository=new_name, tag=new_tag)
+        reponame, tag = new_fullname.split(':')
+        self.c.tag(image=old_fullname, repository=reponame, tag=tag)
     def rmi(self, fullname):
         self.c.remove_image(image=fullname, force=True)
     def untag(self, fullname):
@@ -68,10 +70,10 @@ class DockerLocalClient:
         except:
             pass
     def commit(self, cid_or_cname, dest_fullname, msg):
-        fullname, name, repo, user, tag = parse_image_fullname(dest_fullname)
+        reponame, tag = dest_fullname.split(':')
         self.c.commit(
                 container=cid_or_cname,
-                repository=name,
+                repository=reponame,
                 tag=tag,
                 message=msg)
     def get_top_layer_id(self, image_fullname):
@@ -134,6 +136,14 @@ class DockerLocalClient:
             # append others one by one
             for branch in branches[AUFS_BR_MOUNT_LIMIT:]:
                 mount('-o', 'remount,append=' + branch, mount_path)
+    def build(self, *args, **kwargs):
+        return self.c.build(*args, **kwargs)
+    def get_labels(self, image_fullname):
+        image_info = self.c.inspect_image(image_fullname)
+        config = image_info['Config']
+        if 'Labels' not in config:
+            return {}
+        return config['Labels']
 
 class DockerHubClient:
     def __init__(self, c):
@@ -185,20 +195,39 @@ class DockerHubClient:
                 break
         return results
     def list_user_repos(self, user):
-        results = []
         url = 'https://hub.docker.com/v2/repositories/%(user)s/?page_size=100' % \
                     dict(user = user)
         while url is not None:
             page_info = requests.get(url).json()
-            results += page_info['results']['name']
+            for res in page_info['results']:
+                yield res['name']
             url = page_info['next']
-        return results
     def list_image_tags(self, image_name):
         url = 'https://registry.hub.docker.com/v1/repositories/%(image_name)s/tags' % \
                     dict(image_name = image_name)
         for elem in requests.get(url, timeout=DOCKER_TIMEOUT).json():
             tag = requests.utils.unquote(elem['name'])
             yield tag
+    def get_manifest(self, fullname):
+        print('retrieving manifest from hub: ' + fullname)
+        reponame, tag = fullname.split(':')
+        token = requests.get(LOGIN_PULL_TEMPLATE.format(repository=reponame), json=True).json()["token"]
+        result = requests.get(
+            GET_MANIFEST_TEMPLATE.format(repository=reponame, tag=tag),
+            headers={"Authorization": "Bearer {}".format(token) },
+            json=True
+        ).json()
+        if 'errors' in result:
+            raise Exception('Downloading manifest failed.')
+        return result
+    def get_labels(self, fullname):
+        manifest = self.get_manifest(fullname)
+        v1Compatibility_field = json.loads(manifest['history'][0]["v1Compatibility"])
+        labels = v1Compatibility_field["config"]["Labels"]
+        if labels is None:
+            return {}
+        else:
+            return labels
 
 class DockerClient(object):
     def __init__(self):

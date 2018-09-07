@@ -9,24 +9,28 @@ from walt.common.versions import API_VERSIONING, UPLOAD
 
 # IMPORTANT TERMINOLOGY NOTES:
 #
-# In the client side source code
-# ------------------------------
-# we follow the *walt user point of view*:
-# the 'name' of an image is actually the docker <tag> only.
-#
 # In the server side source code
 # ------------------------------
 # we follow the *docker terminology*
 #
 # <user>/<repository>:<tag>
-# <-- name --------->
+# <-- reponame ----->
+#        <-- name -------->
 # <-- fullname ----------->
 #
-# note: all walt images have <repository>='walt-node',
-# which allows to find them. (1)
-# As a result of (1), all docker images that walt manages
-# have a fullname with the following format:
-# <username>/walt-node:<tag>
+# notes:
+# * similarly to docker, the <tag> part may be omitted in
+#   <name>. In this case <tag> equals 'latest'.
+# * walt knows whether or not a docker image is a walt
+#   image by checking if it has a builtin label
+#   'walt-image="true"'.
+#   (cf. LABEL instruction of Dockerfile)
+#
+# In the client side source code
+# ------------------------------
+# we follow the *walt user point of view*:
+# the 'name' of an image is actually the <name>
+# described above.
 #
 # About clonable images
 # ---------------------
@@ -44,30 +48,45 @@ from walt.common.versions import API_VERSIONING, UPLOAD
 # In order to clone an image, the user must specify
 # a 'clonable image link' as an argument to 'walt image clone'.
 # Such a clonable link is formatted as follows:
-# [server|hub]:<user>/<image_tag>
+# [server|hub]:<user>/<name>
 
 IMAGE_MOUNT_PATH='/var/lib/walt/images/%s/fs'
 IMAGE_DIFF_PATH='/var/lib/walt/images/%s/diff'
+ERROR_BAD_IMAGE_NAME='''\
+Bad name: expected format is <name> or <name>:<tag>.
+Only alnum and dash(-) characters are allowed in <name> and <tag>.
+'''
 
 def get_mount_path(image_fullname):
     mount_path, dummy = get_mount_info(image_fullname)
     return mount_path
 
 def get_mount_info(image_fullname):
-    sub_path = re.sub('[^a-zA-Z0-9/-]+', '_', re.sub(':', '/', image_fullname))
+    sub_path = re.sub('[^a-zA-Z0-9/-]+', '_', image_fullname)
     return IMAGE_MOUNT_PATH % sub_path, IMAGE_DIFF_PATH % sub_path
 
 def parse_image_fullname(image_fullname):
-    image_name, image_tag = image_fullname.split(':')
-    image_user, image_repo = image_name.split('/')
-    return image_fullname, image_name, image_repo, image_user, image_tag
+    image_user, image_name = image_fullname.split('/')
+    if image_name.endswith(':latest'):
+        image_name = image_name[:-7]
+    return image_fullname, image_user, image_name
 
-def validate_image_tag(requester, image_tag):
-    is_ok = re.match('^[a-zA-Z0-9\-]+$', image_tag)
-    if not is_ok:
-        requester.stderr.write(\
-                'Bad name: Only alnum and dash(-) characters are allowed.\n')
-    return is_ok
+def format_image_fullname(user, image_name):
+    if ':' in image_name:
+        repo, tag = image_name.split(':')
+    else:
+        repo, tag = image_name, 'latest'
+    return user + '/' + repo + ':' + tag
+
+def check_alnum_dash(token):
+    return re.match('^[a-zA-Z0-9\-]+$', token)
+
+def validate_image_name(requester, image_name):
+    if  image_name.count(':') in (0,1) and \
+        re.match('^[a-zA-Z0-9\-]+$', image_name.replace(':', '')):
+        return True     # ok
+    requester.stderr.write(ERROR_BAD_IMAGE_NAME)
+    return False
 
 FS_CMD_PATTERN = 'docker run --rm --entrypoint %%(prog)s %(image)s %%(prog_args)s'
 
@@ -84,8 +103,7 @@ class NodeImage(object):
         self.filesystem = Filesystem(FS_CMD_PATTERN % dict(image = self.fullname))
         self.task_label = None
     def rename(self, fullname):
-        self.fullname, self.name, dummy, self.user, self.tag = \
-            parse_image_fullname(fullname)
+        self.fullname, self.user, self.name = parse_image_fullname(fullname)
     def set_ready(self, is_ready):
         self.ready = is_ready
         if is_ready:

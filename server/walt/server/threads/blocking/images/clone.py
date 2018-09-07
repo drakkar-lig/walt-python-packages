@@ -32,7 +32,7 @@ $ walt image clone --force %s
 """
 MSG_INVALID_CLONABLE_LINK = """\
 Invalid clonable image link. Format must be:
-[server|hub]:<user>/<image_name>
+[server|hub]:<user>/<image_name>[:<tag>]
 (tip: walt image search [<keyword>])
 """
 
@@ -40,7 +40,7 @@ Invalid clonable image link. Format must be:
 # -----------
 def parse_clonable_link(requester, clonable_link):
     bad = False
-    parts = clonable_link.split(':')
+    parts = clonable_link.split(':', 1)
     if len(parts) != 2:
         bad = True
     if not bad:
@@ -52,15 +52,20 @@ def parse_clonable_link(requester, clonable_link):
         if len(parts) != 2:
             bad = True
     if not bad:
-        return (LOCATION_PER_LABEL[location],
-                parts[0],
-                parts[1])
+        user, image_name = parts
+        parts = image_name.split(':')
+        if len(parts) == 1:
+            image_name += ':latest'
+        elif len(parts) != 2:
+            bad = True
+    if not bad:
+        return (LOCATION_PER_LABEL[location], user, image_name)
     if bad:
         requester.stderr.write(MSG_INVALID_CLONABLE_LINK)
         return None, None, None
 
 def get_temp_image_fullname():
-    return 'clone-temp/walt-node:' + str(uuid.uuid4()).split('-')[0]
+    return 'clone-temp/walt-image:' + str(uuid.uuid4()).split('-')[0]
 
 # workflow functions
 # ------------------
@@ -189,28 +194,29 @@ def perform_clone(requester, docker, clonable_link, image_store, force):
     username = requester.get_username()
     if not username:
         return # client already disconnected, give up
-    remote_location, remote_user, remote_tag = parse_clonable_link(
+    remote_location, remote_user, remote_image_name = parse_clonable_link(
                                                 requester, clonable_link)
     if remote_location == None:
         return # error already reported
-    # actually we should validate the 3 components (user, tag and location), but
-    # let's get a larger set of information (especially about other existing
-    # images with the same tag, because we should take care not to overwrite
-    # them)
-    def validate(user, tag, location):
-        return tag == remote_tag
+    # actually we should validate the 3 components (user, image_name and location),
+    # but let's get a larger set of information (especially about other existing
+    # images with the same name, because we should take care not to overwrite them)
+    def validate(image_name, user, location):
+        return image_name == remote_image_name
     # search
-    result = Search(docker, requester).search(validate)
+    result = Search(docker, image_store, requester).search(validate)
     # check that the requested image is in the resultset
-    if remote_location not in result[remote_tag][remote_user]:
+    # note: since result is made of "defaultdicts", no need to
+    # check existence of entries for remote_image_name and remote_user...
+    if remote_location not in result[remote_image_name][remote_user]:
         requester.stderr.write(
             'No such remote image. Use walt image search <keyword>.\n')
         return
 
     # compute the workflow
     # --------------------
-    existing_server_image = (LOCATION_WALT_SERVER in result[remote_tag][remote_user])
-    existing_ws_image = (LOCATION_WALT_SERVER in result[remote_tag][username])
+    existing_server_image = (LOCATION_WALT_SERVER in result[remote_image_name][remote_user])
+    existing_ws_image = (LOCATION_WALT_SERVER in result[remote_image_name][username])
     same_user = (username == remote_user)
     # obvious facts:
     # * if remote_location is LOCATION_WALT_SERVER, existing_server_image is True
@@ -258,8 +264,8 @@ def perform_clone(requester, docker, clonable_link, image_store, force):
     # -------
     context = dict(
         username = username,
-        ws_image_fullname = "%s/walt-node:%s" % (username, remote_tag),
-        remote_image_fullname = "%s/walt-node:%s" % (remote_user, remote_tag),
+        ws_image_fullname = "%s/%s" % (username, remote_image_name),
+        remote_image_fullname = "%s/%s" % (remote_user, remote_image_name),
         existing_server_image = existing_server_image,
         existing_ws_image = existing_ws_image,
         image_store = image_store,

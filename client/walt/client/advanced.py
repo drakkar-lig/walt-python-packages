@@ -1,6 +1,7 @@
 from plumbum import cli
 from walt.client.link import ClientToServerLink
 from walt.client.interactive import run_sql_prompt
+from walt.client.auth import get_auth_conf
 
 class WalTAdvanced(cli.Application):
     """advanced sub-commands"""
@@ -32,3 +33,14 @@ walt advanced fix-image-owner --yes-i-know-do-it-please %s
     def yes_i_know_do_it_please(self):
         self._force = True
 
+@WalTAdvanced.subcommand("update-hub-meta")
+class WalTUpdateHubMeta(cli.Application):
+    """update hub metadata (docker images pushed without walt)"""
+    _waltplatform_user = False # default
+    def main(self):
+        with ClientToServerLink() as server:
+            auth_conf = get_auth_conf(server)
+            server.update_hub_metadata(auth_conf, self._waltplatform_user)
+    @cli.autoswitch(help='update waltplatform user (walt devs only)')
+    def waltplatform_user(self):
+        self._waltplatform_user = True

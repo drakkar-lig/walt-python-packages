@@ -35,7 +35,7 @@ def fix_owner(images, docker, requester, other_user):
     for image in images.values():
         if image.user == other_user:
             if image.mounted:
-                mounted.add(image.tag)
+                mounted.add(image.name)
             else:
                 candidates.add(image)
     if len(mounted) > 0:
@@ -44,9 +44,9 @@ def fix_owner(images, docker, requester, other_user):
         return
     problematic = set()
     for image in candidates:
-        if images.get_user_image_from_tag(requester, image.tag,
+        if images.get_user_image_from_name(requester, image.name,
                                     expected = None, ready_only = False):
-            problematic.add(image.tag)
+            problematic.add(image.name)
     if len(problematic) > 0:
         requester.stderr.write(MSG_OVERWRITING % \
                 (other_user, ', '.join(problematic)))
@@ -58,10 +58,10 @@ def fix_owner(images, docker, requester, other_user):
     for image in candidates:
         # rename the docker image
         old_fullname = image.fullname
-        new_fullname = "%s/walt-node:%s" % (username, image.tag)
+        new_fullname = username + old_fullname.split('/')[1]
         docker.local.tag(old_fullname, new_fullname)
         docker.local.rmi(old_fullname)
         # update the store
         images.rename(old_fullname, new_fullname)
-        requester.stdout.write(MSG_CHANGED_OWNER % image.tag)
+        requester.stdout.write(MSG_CHANGED_OWNER % image.name)
 

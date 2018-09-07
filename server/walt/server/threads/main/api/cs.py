@@ -105,12 +105,12 @@ class CSAPI(APISession):
         context.server.rename_device(context.requester.sync, old_name, new_name)
 
     @api_expose_method
-    def has_image(self, context, image_tag):
-        return context.images.has_image(context.requester.sync, image_tag)
+    def has_image(self, context, image_name):
+        return context.images.has_image(context.requester.sync, image_name)
 
     @api_expose_method
-    def set_image(self, context, node_set, image_tag):
-        context.server.set_image(context.requester.sync, node_set, image_tag)
+    def set_image(self, context, node_set, image_name):
+        context.server.set_image(context.requester.sync, node_set, image_name)
 
     @api_expose_method
     def count_logs(self, context, **kwargs):
@@ -157,13 +157,13 @@ class CSAPI(APISession):
         dh_peer.establish_session(client_pub_key)
 
     @api_expose_method
-    def publish_image(self, context, auth_conf, image_tag):
+    def publish_image(self, context, auth_conf, image_name):
         dh_peer = self.get_session_object(auth_conf['dh_peer_id'])
         context.images.publish(requester = context.requester.sync,
                           task = context.task,
                           dh_peer = dh_peer,
                           auth_conf = auth_conf,
-                          image_tag = image_tag)
+                          image_name = image_name)
 
     @api_expose_method
     def docker_login(self, context, auth_conf):
@@ -178,9 +178,9 @@ class CSAPI(APISession):
         return context.images.show(username, refresh)
 
     @api_expose_method
-    def create_image_shell_session(self, context, image_tag, task_label):
+    def create_image_shell_session(self, context, image_name, task_label):
         session = context.images.create_shell_session(
-                    context.requester.sync, image_tag, task_label)
+                    context.requester.sync, image_name, task_label)
         if session == None:
             return None
         session_id = self.register_session_object(session)
@@ -193,16 +193,16 @@ class CSAPI(APISession):
         return session.save(context.requester.sync, new_name, name_confirmed)
 
     @api_expose_method
-    def remove_image(self, context, image_tag):
-        context.images.remove(context.requester.sync, image_tag)
+    def remove_image(self, context, image_name):
+        context.images.remove(context.requester.sync, image_name)
 
     @api_expose_method
-    def rename_image(self, context, image_tag, new_tag):
-        context.images.rename(context.requester.sync, image_tag, new_tag)
+    def rename_image(self, context, image_name, new_name):
+        context.images.rename(context.requester.sync, image_name, new_name)
 
     @api_expose_method
-    def duplicate_image(self, context, image_tag, new_tag):
-        context.images.duplicate(context.requester.sync, image_tag, new_tag)
+    def duplicate_image(self, context, image_name, new_name):
+        context.images.duplicate(context.requester.sync, image_name, new_name)
 
     @api_expose_method
     def validate_image_cp(self, context, src, dst):
@@ -235,3 +235,8 @@ class CSAPI(APISession):
     def netsetup_configure(self, context, nodes_set, netsetup_value):
         context.nodes.netsetup_configure(context.requester.sync, nodes_set, netsetup_value)
         context.server.dhcpd.update()
+
+    @api_expose_method
+    def update_hub_metadata(self, context, auth_conf, waltplatform_user):
+        dh_peer = self.get_session_object(auth_conf['dh_peer_id'])
+        context.images.update_hub_metadata(context, auth_conf, dh_peer, waltplatform_user)

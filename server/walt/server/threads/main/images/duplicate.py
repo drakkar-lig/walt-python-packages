@@ -1,18 +1,17 @@
-from walt.server.threads.main.images.image import validate_image_tag
+from walt.server.threads.main.images.image import validate_image_name, format_image_fullname
 
-def do_duplicate(images, docker, old_fullname, new_tag):
-    name = old_fullname.split(':')[0]
-    new_fullname = "%s:%s" % (name, new_tag)
+def do_duplicate(images, docker, image, new_name):
+    new_fullname = format_image_fullname(image.user, new_name)
     # add a tag to the docker image
-    docker.local.tag(old_fullname, new_fullname)
+    docker.local.tag(image.fullname, new_fullname)
     # update the store
     images.register_image(new_fullname, True)
 
-def duplicate(images, docker, requester, image_tag, new_tag):
-    if not validate_image_tag(requester, new_tag):
+def duplicate(images, docker, requester, image_name, new_name):
+    if not validate_image_name(requester, new_name):
         return
-    image = images.get_user_image_from_tag(requester, image_tag)
+    image = images.get_user_image_from_name(requester, image_name)
     if image:   # otherwise issue is already reported
-        if not images.get_user_image_from_tag(requester, new_tag, expected=False):
-            do_duplicate(images, docker, image.fullname, new_tag)
+        if not images.get_user_image_from_name(requester, new_name, expected=False):
+            do_duplicate(images, docker, image, new_name)
 

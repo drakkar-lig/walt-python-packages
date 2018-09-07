@@ -1,5 +1,5 @@
-def publish(store, blocking, requester, task, image_tag, **kwargs):
-    image = store.get_user_image_from_tag(requester, image_tag)
+def publish(store, blocking, requester, task, image_name, **kwargs):
+    image = store.get_user_image_from_name(requester, image_name)
     if image == None:
         # issue already reported, return to unblock the client
         return False

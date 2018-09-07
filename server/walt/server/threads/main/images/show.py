@@ -15,7 +15,7 @@ def show(images, username):
             continue
         created_at = image.get_created_at()
         tabular_data.append([
-                    image.tag,
+                    image.name,
                     str(image.mounted),
                     created_at if created_at else 'N/A',
                     str(image.ready) ])

@@ -1,19 +1,18 @@
-from walt.server.threads.main.images.image import validate_image_tag
+from walt.server.threads.main.images.image import validate_image_name, format_image_fullname
 
-def do_rename(images, docker, old_fullname, new_tag):
-    name = old_fullname.split(':')[0]
-    new_fullname = "%s:%s" % (name, new_tag)
+def do_rename(images, docker, image, new_name):
+    new_fullname = format_image_fullname(image.user, new_name)
     # rename the docker image
-    docker.local.tag(old_fullname, new_fullname)
-    docker.local.rmi(old_fullname)
+    docker.local.tag(image.fullname, new_fullname)
+    docker.local.rmi(image.fullname)
     # update the store
-    images.rename(old_fullname, new_fullname)
+    images.rename(image.fullname, new_fullname)
 
-def rename(images, docker, requester, image_tag, new_tag):
-    if not validate_image_tag(requester, new_tag):
+def rename(images, docker, requester, image_name, new_name):
+    if not validate_image_name(requester, new_name):
         return
-    image = images.get_user_unmounted_image_from_tag(requester, image_tag)
+    image = images.get_user_unmounted_image_from_name(requester, image_name)
     if image:   # otherwise issue is already reported
-        if not images.get_user_image_from_tag(requester, new_tag, expected=False):
-            do_rename(images, docker, image.fullname, new_tag)
+        if not images.get_user_image_from_name(requester, new_name, expected=False):
+            do_rename(images, docker, image, new_name)
 
