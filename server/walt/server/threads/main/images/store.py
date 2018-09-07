@@ -30,7 +30,7 @@ class NodeImageStore(object):
     def refresh(self, startup = False):
         db_images = { db_img.fullname: db_img.ready \
                         for db_img in self.db.select('images') }
-        docker_images = self.docker.get_local_images()
+        docker_images = self.docker.local.get_images()
         # import new images from docker into the database
         for fullname in docker_images:
             if '/walt-node' in fullname and fullname not in db_images:

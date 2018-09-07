@@ -25,7 +25,7 @@ class BlockingTasksService(object):
         context.task.return_result(res)
 
     def pull_image(self, context, image_fullname):
-        res = self.server.docker.pull(image_fullname)
+        res = self.server.docker.hub.pull(image_fullname)
         context.task.return_result(res)
 
 class ServerBlockingThread(EvThread):

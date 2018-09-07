@@ -81,7 +81,7 @@ def save_initial_images(images_to_be_removed, saved_images,
             initial_image_fullnames.add(fullname)
     for image_fullname in initial_image_fullnames:
         image_backup = get_temp_image_fullname()
-        docker.tag(image_fullname, image_backup)
+        docker.local.tag(image_fullname, image_backup)
         saved_images[image_fullname] = image_backup
         images_to_be_removed.add(image_backup)  # after the workflow is done
 
@@ -112,38 +112,38 @@ def verify_compatibility_issue(image_store, requester, clonable_link,
     # we use a new docker tag pointing to this image, in order to
     # avoid interfering with an existing image.
     tmp_image_fullname = get_temp_image_fullname()
-    docker.tag(remote_image_fullname, tmp_image_fullname)
+    docker.local.tag(remote_image_fullname, tmp_image_fullname)
     image_store.register_image(tmp_image_fullname, True)
     tmp_image = image_store[tmp_image_fullname]
     compatible = True   # for now
     image_store.remove(tmp_image_fullname)
-    docker.untag(tmp_image_fullname)
+    docker.local.untag(tmp_image_fullname)
     if not compatible:
         pass # do something
         return False
 
 def remove_ws_image(docker, ws_image_fullname, **args):
-    docker.untag(ws_image_fullname)
+    docker.local.untag(ws_image_fullname)
 
 def remove_server_image(docker, remote_image_fullname, **args):
-    docker.untag(remote_image_fullname)
+    docker.local.untag(remote_image_fullname)
 
 def restore_initial_ws_image(docker, ws_image_fullname,
                                 saved_images, **args):
     ws_image_backup = saved_images[ws_image_fullname]
-    docker.tag(ws_image_backup, ws_image_fullname)
+    docker.local.tag(ws_image_backup, ws_image_fullname)
 
 def restore_initial_server_image(docker, remote_image_fullname,
                                 saved_images, **args):
     server_image_backup = saved_images[remote_image_fullname]
-    docker.tag(server_image_backup, remote_image_fullname)
+    docker.local.tag(server_image_backup, remote_image_fullname)
 
 def tag_server_image_to_requester(docker,
                 ws_image_fullname, remote_image_fullname, **args):
-    docker.tag(remote_image_fullname, ws_image_fullname)
+    docker.local.tag(remote_image_fullname, ws_image_fullname)
 
 def pull_hub_image(docker, requester, remote_image_fullname, **args):
-    docker.pull(remote_image_fullname, requester)
+    docker.hub.pull(remote_image_fullname, requester)
 
 def update_walt_image(image_store, ws_image_fullname, **args):
     if ws_image_fullname in image_store:
@@ -162,7 +162,7 @@ def update_walt_image(image_store, ws_image_fullname, **args):
 
 def cleanup(docker, images_to_be_removed, **args):
     while len(images_to_be_removed) > 0:
-        docker.untag(images_to_be_removed.pop())
+        docker.local.untag(images_to_be_removed.pop())
 
 # workflow management functions
 # -----------------------------

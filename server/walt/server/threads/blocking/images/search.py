@@ -30,12 +30,13 @@ class Search(object):
             def validate(user, tag, location):
                 return True
         # look up for candidates on the docker hub
-        for result in self.docker.search('walt'):
+        for result in self.hub.docker.search('walt'):
             if '/walt-node' in result['name']:
-                for user, tag in self.docker.lookup_remote_tags(result['name']):
+                for tag in self.docker.hub.list_image_tags(result['name']):
+                    user = result['name'].split('/')[0]
                     candidates.append((user, tag, LOCATION_DOCKER_HUB))
         # look up for candidates locally on the server
-        for fullname in self.docker.get_local_images():
+        for fullname in self.docker.local.get_images():
             if '/walt-node' in fullname:
                 user, tag = fullname.split('/walt-node:')
                 candidates.append((user, tag, LOCATION_WALT_SERVER))

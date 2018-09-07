@@ -18,7 +18,7 @@ def update_images_and_finalize(images, image_fullname, **kwargs):
     finalize_registration(images = images, **kwargs)
 
 def handle_registration_request(
-                db, docker, blocking, mac, images, model, \
+                db, blocking, mac, images, model, \
                 **kwargs):
     image_fullname = images.get_default_image(model)
     image_is_new = image_fullname not in images

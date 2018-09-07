@@ -10,7 +10,7 @@ class ImageShellSession(object):
         self.image_fullname, dummy1, dummy2, dummy3, self.image_tag = \
             parse_image_fullname(image_fullname)
         self.container_name = str(uuid.uuid4())
-        self.docker_events = self.docker.events()
+        self.docker_events = self.docker.local.events()
         self.images[image_fullname].task_label = task_label
 
     def get_parameters(self):
@@ -58,10 +58,10 @@ class ImageShellSession(object):
             if 'status' not in event:
                 continue
             if event['status'] == 'die' and \
-                    self.docker.get_container_name(event['id']) == self.container_name:
+                    self.docker.local.get_container_name(event['id']) == self.container_name:
                 break
         print 'committing %s...' % self.container_name
-        self.docker.commit(self.container_name, image_fullname,
+        self.docker.local.commit(self.container_name, image_fullname,
                 'Image modified using walt image [cp|shell]')
         if self.image_tag == new_image_tag:
             # same name, we are modifying the image
@@ -87,6 +87,6 @@ class ImageShellSession(object):
         return 'OK_SAVED'
 
     def cleanup(self):
-        self.docker.stop_container(self.container_name)
+        self.docker.local.stop_container(self.container_name)
         self.images[self.image_fullname].task_label = None
 

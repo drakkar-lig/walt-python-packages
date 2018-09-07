@@ -95,14 +95,14 @@ class NodeImage(object):
             return None
         top_layer_id = self.get_top_layer_id()
         if self.last_created_at == None or self.last_top_layer_id != top_layer_id:
-            self.last_created_at = self.docker.get_creation_time(self.fullname)
+            self.last_created_at = self.docker.local.get_creation_time(self.fullname)
         self.last_top_layer_id = top_layer_id
         return self.last_created_at
     def get_top_layer_id(self):
         assert (self.ready), \
             'Tried to get top layer id of image %s which is not ready.' % \
             self.fullname
-        return self.docker.get_top_layer_id(self.fullname)
+        return self.docker.local.get_top_layer_id(self.fullname)
     def __del__(self):
         if self.mounted:
             self.unmount()
@@ -128,7 +128,7 @@ class NodeImage(object):
         self.mount_path, self.diff_path = self.get_mount_info()
         failsafe_makedirs(self.mount_path)
         failsafe_makedirs(self.diff_path)
-        self.docker.image_mount(self.fullname, self.diff_path, self.mount_path)
+        self.docker.local.image_mount(self.fullname, self.diff_path, self.mount_path)
         self.mounted = True
     def mount(self, requester = None):
         print 'Mounting %s...' % self.fullname

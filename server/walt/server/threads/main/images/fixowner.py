@@ -59,8 +59,8 @@ def fix_owner(images, docker, requester, other_user):
         # rename the docker image
         old_fullname = image.fullname
         new_fullname = "%s/walt-node:%s" % (username, image.tag)
-        docker.tag(old_fullname, new_fullname)
-        docker.rmi(old_fullname)
+        docker.local.tag(old_fullname, new_fullname)
+        docker.local.rmi(old_fullname)
         # update the store
         images.rename(old_fullname, new_fullname)
         requester.stdout.write(MSG_CHANGED_OWNER % image.tag)

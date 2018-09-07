@@ -4,7 +4,7 @@ def do_duplicate(images, docker, old_fullname, new_tag):
     name = old_fullname.split(':')[0]
     new_fullname = "%s:%s" % (name, new_tag)
     # add a tag to the docker image
-    docker.tag(old_fullname, new_fullname)
+    docker.local.tag(old_fullname, new_fullname)
     # update the store
     images.register_image(new_fullname, True)
 

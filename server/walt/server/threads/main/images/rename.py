@@ -4,8 +4,8 @@ def do_rename(images, docker, old_fullname, new_tag):
     name = old_fullname.split(':')[0]
     new_fullname = "%s:%s" % (name, new_tag)
     # rename the docker image
-    docker.tag(old_fullname, new_fullname)
-    docker.rmi(old_fullname)
+    docker.local.tag(old_fullname, new_fullname)
+    docker.local.rmi(old_fullname)
     # update the store
     images.rename(old_fullname, new_fullname)
 
