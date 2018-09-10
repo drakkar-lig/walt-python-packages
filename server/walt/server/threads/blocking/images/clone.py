@@ -1,8 +1,9 @@
 import requests, uuid
 from walt.server.threads.blocking.images.search import \
-        Search, \
         LOCATION_WALT_SERVER, LOCATION_DOCKER_HUB, \
         LOCATION_LABEL, LOCATION_PER_LABEL
+from walt.server.threads.blocking.images.metadata import \
+            pull_user_metadata
 
 # About terminology: See comment about it in image.py.
 
@@ -66,6 +67,14 @@ def parse_clonable_link(requester, clonable_link):
 
 def get_temp_image_fullname():
     return 'clone-temp/walt-image:' + str(uuid.uuid4()).split('-')[0]
+
+def image_exists(docker, image_store, location, fullname):
+    if location == LOCATION_WALT_SERVER:
+        return fullname in image_store
+    else:   # Hub
+        user = fullname.split('/')[0]
+        user_metadata = pull_user_metadata(docker, user)
+        return fullname in user_metadata['walt.user.images']
 
 # workflow functions
 # ------------------
@@ -198,36 +207,26 @@ def perform_clone(requester, docker, clonable_link, image_store, force):
                                                 requester, clonable_link)
     if remote_location == None:
         return # error already reported
-    # actually we should validate the 3 components (user, image_name and location),
-    # but let's get a larger set of information (especially about other existing
-    # images with the same name, because we should take care not to overwrite them)
-    def validate(image_name, user, location):
-        return image_name == remote_image_name
 
-    # search
-    results = Search(docker, image_store, requester, validate).search()
-
-    # analyse
-    existing_target_image = False
-    existing_server_image = False
-    existing_ws_image = False
-    for res in results:
-        if res == (remote_user, remote_image_name, remote_location):
-            existing_target_image = True
-        if res == (remote_user, remote_image_name, LOCATION_WALT_SERVER):
-            existing_server_image = True
-        if res == (username, remote_image_name, LOCATION_WALT_SERVER):
-            existing_ws_image = True
+    ws_image_fullname = "%s/%s" % (username, remote_image_name)
+    remote_image_fullname = "%s/%s" % (remote_user, remote_image_name)
 
     # check that the requested image really exists
-    if not existing_target_image:
+    if not image_exists(
+            docker, image_store, remote_location, remote_image_fullname):
         requester.stderr.write(
             'No such remote image. Use walt image search <keyword>.\n')
         return
 
+    # analyse our context
+    existing_server_image = image_exists(
+            docker, image_store, LOCATION_WALT_SERVER, remote_image_fullname)
+    existing_ws_image = image_exists(
+            docker, image_store, LOCATION_WALT_SERVER, ws_image_fullname)
+    same_user = (username == remote_user)
+
     # compute the workflow
     # --------------------
-    same_user = (username == remote_user)
     # obvious facts:
     # * if remote_location is LOCATION_WALT_SERVER, existing_server_image is True
     # * if same_user is True, existing_server_image == existing_ws_image
@@ -274,8 +273,8 @@ def perform_clone(requester, docker, clonable_link, image_store, force):
     # -------
     context = dict(
         username = username,
-        ws_image_fullname = "%s/%s" % (username, remote_image_name),
-        remote_image_fullname = "%s/%s" % (remote_user, remote_image_name),
+        ws_image_fullname = ws_image_fullname,
+        remote_image_fullname = remote_image_fullname,
         existing_server_image = existing_server_image,
         existing_ws_image = existing_ws_image,
         image_store = image_store,
