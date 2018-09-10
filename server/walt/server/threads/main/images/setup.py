@@ -75,10 +75,6 @@ ff02::1     ip6-allnodes
 ff02::2     ip6-allrouters
 """
 
-RESOLV_CONF_CONTENT_PATTERN = """\
-nameserver %(dns_servers)s
-"""
-
 def ensure_root_key_exists():
     if not os.path.isfile(SERVER_KEY_PATH):
         do("ssh-keygen -q -t rsa -f %s -N ''" % SERVER_KEY_PATH)
@@ -140,7 +136,8 @@ def setup(image):
     if os.path.exists(mount_path + '/etc/resolv.conf'):
         os.rename(mount_path + '/etc/resolv.conf', mount_path + '/etc/resolv.conf.saved')
     with open(mount_path + '/etc/resolv.conf', 'w') as f:
-        f.write(RESOLV_CONF_CONTENT_PATTERN % dict(dns_servers=" ".join(get_dns_servers())))
+        for resolver in get_dns_servers():
+            f.write("nameserver {}\n".format(resolver))
     # copy walt scripts in <image>/bin, update template parameters
     image_bindir = mount_path + '/bin/'
     for script_name, template in NODE_SCRIPTS.items():
