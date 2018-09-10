@@ -203,20 +203,30 @@ def perform_clone(requester, docker, clonable_link, image_store, force):
     # images with the same name, because we should take care not to overwrite them)
     def validate(image_name, user, location):
         return image_name == remote_image_name
+
     # search
-    result = Search(docker, image_store, requester).search(validate)
-    # check that the requested image is in the resultset
-    # note: since result is made of "defaultdicts", no need to
-    # check existence of entries for remote_image_name and remote_user...
-    if remote_location not in result[remote_image_name][remote_user]:
+    results = Search(docker, image_store, requester, validate).search()
+
+    # analyse
+    existing_target_image = False
+    existing_server_image = False
+    existing_ws_image = False
+    for res in results:
+        if res == (remote_user, remote_image_name, remote_location):
+            existing_target_image = True
+        if res == (remote_user, remote_image_name, LOCATION_WALT_SERVER):
+            existing_server_image = True
+        if res == (username, remote_image_name, LOCATION_WALT_SERVER):
+            existing_ws_image = True
+
+    # check that the requested image really exists
+    if not existing_target_image:
         requester.stderr.write(
             'No such remote image. Use walt image search <keyword>.\n')
         return
 
     # compute the workflow
     # --------------------
-    existing_server_image = (LOCATION_WALT_SERVER in result[remote_image_name][remote_user])
-    existing_ws_image = (LOCATION_WALT_SERVER in result[remote_image_name][username])
     same_user = (username == remote_user)
     # obvious facts:
     # * if remote_location is LOCATION_WALT_SERVER, existing_server_image is True

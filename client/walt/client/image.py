@@ -16,7 +16,7 @@ class WalTImageSearch(cli.Application):
     def main(self, keyword=None):
         with ClientToServerLink() as server_link:
             server_link.set_busy_label('Searching')
-            print server_link.search_images(keyword)
+            server_link.search_images(keyword)
 
 @WalTImage.subcommand("clone")
 class WalTImageClone(cli.Application):

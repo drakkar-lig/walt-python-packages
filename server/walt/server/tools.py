@@ -20,23 +20,42 @@ def as_string(item):
     else:
         return str(item)
 
-def columnate(tabular_data, header = None):
+def header_underline(colwidths):
+    return [ '-' * w for w in colwidths ]
+
+def columnate_sanitize(tabular_data, header = None):
     # stringify all (and work on a copy)
     tabular_data_copy = [ [as_string(s) for s in i] for i in tabular_data ]
-    # if header is specified, add it
-    # and replace underscores with spaces
+    # if header is specified, replace underscores with spaces
     if header != None:
-        tabular_data_copy.insert(0, [ i.replace('_', ' ') for i in header ])
+        header = [ i.replace('_', ' ') for i in header ]
+    return tabular_data_copy, header
+
+def get_columnate_format(tabular_data, header = None):
     # compute the max length of elements in each column
-    colwidths = [ max([ len(s) for s in i ]) for i in zip(*tabular_data_copy) ]
-    # if header, underline it 
-    if header != None:
-        tabular_data_copy.insert(1, [ '-' * w for w in colwidths ])
+    colwidths = [ max([ len(s) for s in i ]) for i in zip(header, *tabular_data) ]
     # compute a format that should be applied to each record
-    formating = "".join([ '%-' + str(w + COLUMNATE_SPACING) + 's' \
+    str_format = "".join([ '%-' + str(w + COLUMNATE_SPACING) + 's' \
                             for w in colwidths ])
-    # format and return
-    return '\n'.join(formating % tuple(record) for record in tabular_data_copy)
+    return str_format, colwidths
+
+def columnate_iterate(tabular_data, str_format, colwidths, header = None):
+    # yield data
+    first = True
+    for record in tabular_data:
+        if first:
+            # if header, yield it
+            if header is not None:
+                yield str_format % tuple(header)
+                yield str_format % tuple(header_underline(colwidths))
+            first = False
+        yield str_format % tuple(record)
+
+def columnate(tabular_data, header = None):
+    tabular_data, header = columnate_sanitize(tabular_data, header)
+    str_format, colwidths = get_columnate_format(tabular_data, header)
+    it = columnate_iterate(tabular_data, str_format, colwidths, header)
+    return '\n'.join(it)
 
 def display_transient_label(stdout, label):
     stdout.write('\r' + label + ' ')

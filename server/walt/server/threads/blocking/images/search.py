@@ -1,11 +1,13 @@
 import requests
 from collections import defaultdict
-from walt.server.tools import columnate
+from walt.server.tools import get_columnate_format, columnate_iterate
 from walt.server.threads.blocking.images.metadata import \
             pull_user_metadata
 
 # About terminology: See comment about it in image.py.
 
+SEARCH_HEADER = ['User', 'Image name', 'Location', 'Clonable link']
+MSG_SEARCH_NO_MATCH = "Sorry, no image could match your request.\n"
 LOCATION_WALT_SERVER = 0
 LOCATION_DOCKER_HUB = 1
 LOCATION_LABEL = {
@@ -25,81 +27,119 @@ LOCATION_PER_LABEL = {v: k for k, v in LOCATION_LABEL.items()}
 # is published with "walt image publish".
 
 class Search(object):
-    def __init__(self, docker, image_store, requester):
+    def __init__(self, docker, image_store, requester, validate = None):
         self.docker = docker
         self.image_store = image_store
         self.requester = requester
-        self.result = defaultdict(lambda : defaultdict(set))
-    # search returns a dictionary with the following format:
-    # { <image_name> -> { <user> -> <location> } }
-    def search(self, validate = None):
-        candidates = []
-        if not validate:
+        if validate is None:
             def validate(user, name, location):
                 return True
-        # look up for candidates remotely on the hub
-        # detect walt users by their 'walt_metadata' dummy image
+        self.validate = validate
+    def validate_fullname(self, fullname, location):
+        user, image_name = fullname.split('/')
+        return self.validate(image_name, user, location)
+    # search yields results in the form (<user>, <image_name>, <location>),
+    # sorted by <user>, then <image_name>, and <location>.
+    # since this can take time, we compute all results for one user,
+    # then yield them for immediate display.
+    def search(self):
+        users = defaultdict(set)
+        # search for local users
+        for fullname in self.image_store:
+            if self.validate_fullname(fullname, LOCATION_WALT_SERVER):
+                users[fullname.split('/')[0]].add(LOCATION_WALT_SERVER)
+        # search for hub users
+        # (detect walt users by their 'walt_metadata' dummy image)
         for waltuser_info in self.docker.hub.search('walt_metadata'):
             if '/walt_metadata' in waltuser_info['name']:
                 user = waltuser_info['name'].split('/')[0]
+                users[user].add(LOCATION_DOCKER_HUB)
+        # search images of each user
+        for user in sorted(users):
+            locations = users[user]
+            images = defaultdict(set)
+            # search on docker hub
+            if LOCATION_DOCKER_HUB in locations:
                 # read metadata to detect walt images of this user
                 user_metadata = pull_user_metadata(self.docker, user)
                 for fullname, info in user_metadata['walt.user.images'].items():
-                    user, image_name = fullname.split('/')
-                    candidates.append((image_name, user, LOCATION_DOCKER_HUB))
-        # look up for candidates locally on the server
+                    if self.validate_fullname(fullname, LOCATION_DOCKER_HUB):
+                        images[fullname.split('/')[1]].add(LOCATION_DOCKER_HUB)
+            # search on local server
+            if LOCATION_WALT_SERVER in locations:
+                for fullname in self.image_store:
+                    image_user, image_name = fullname.split('/')
+                    if image_user != user:
+                        continue
+                    if self.validate_fullname(fullname, LOCATION_WALT_SERVER):
+                        images[fullname.split('/')[1]].add(LOCATION_WALT_SERVER)
+            # yield results
+            for image_name in sorted(images):
+                locations = sorted(images[image_name])
+                for location in locations:
+                    yield (user, image_name, location)
+    def local_unsorted_search(self):
         for fullname in self.image_store:
-            user, image_name = fullname.split('/')
-            candidates.append((image_name, user, LOCATION_WALT_SERVER))
-        # validate candidates
-        for candidate_info in candidates:
-            if validate(*candidate_info):
-                self.insert_result(*candidate_info)
-        return self.result
-    def insert_result(self, image_name, user, location):
-        self.result[image_name][user].add(location)
+            if self.validate_fullname(fullname, LOCATION_WALT_SERVER):
+                user, image_name = fullname.split('/')
+                yield (user, image_name, LOCATION_WALT_SERVER)
+
+def short_image_name(image_name):
+    if image_name.endswith(':latest'):
+        return image_name[:-7]
+    else:
+        return image_name
+
+def clonable_link(location, user, image_name):
+    return "%s:%s/%s" % (
+            LOCATION_LABEL[location],
+            user,
+            short_image_name(image_name)
+    )
+
+def discard_images_in_ws(it, username):
+    # images owned by the requester and present locally on
+    # the server are not considered "remote images".
+    # (they belong to the working set of the user, instead.)
+    for user, image_name, location in it:
+        if user != username or location == LOCATION_DOCKER_HUB:
+            yield user, image_name, location
+
+def format_result(it):
+    for user, image_name, location in it:
+        yield ( user,
+                short_image_name(image_name),
+                LOCATION_LONG_LABEL[location],
+                clonable_link(location, user, image_name))
 
 # this implements walt image search
 def perform_search(docker, image_store, requester, keyword):
     username = requester.get_username()
     if not username:
         return None    # client already disconnected, give up
-    # images owned by the requester and present locally on
-    # the server are not considered "remote images".
-    # (they belong to the working set of the user, instead.)
-    def validate_not_in_ws(image_name, user, location):
-        return user != username or \
-                location == LOCATION_DOCKER_HUB
     if keyword:
         def validate(image_name, user, location):
-            if not validate_not_in_ws(image_name, user, location):
-                return False
-            remote_name = "%s:%s/%s" % ( \
-                    LOCATION_LABEL[location], user, image_name)
-            return keyword in remote_name
+            return keyword in clonable_link(location, user, image_name)
     else:
-        validate = validate_not_in_ws
+        validate = None
     # search
-    result = Search(docker, image_store, requester).search(validate)
-    # print
-    records = []
-    for image_name in result:
-        if image_name.endswith(':latest'):
-            short_image_name = image_name[:-7]
-        else:
-            short_image_name = image_name
-        for user in result[image_name]:
-            for location in result[image_name][user]:
-                clonable_link = "%s:%s/%s" % (\
-                    LOCATION_LABEL[location],
-                    user,
-                    short_image_name
-                )
-                records.append([
-                    user, short_image_name, LOCATION_LONG_LABEL[location], clonable_link
-                ])
-    return columnate(sorted(records), \
-               ['User', 'Image name', 'Location', 'Clonable link'])
+    search = Search(docker, image_store, requester, validate)
+    # estimate output format (column sizes)
+    # based on results of a cheaper and fast local-only query
+    it = search.local_unsorted_search()
+    it = discard_images_in_ws(it, username)
+    it = format_result(it)
+    str_format, colwidths = get_columnate_format(it, SEARCH_HEADER)
+    # preform the real search and print results
+    it = search.search()
+    it = discard_images_in_ws(it, username)
+    it = format_result(it)
+    found = False
+    for s in columnate_iterate(it, str_format, colwidths, SEARCH_HEADER):
+        found = True
+        requester.stdout.write(s + '\n')
+    if not found:
+        requester.stderr.write(MSG_SEARCH_NO_MATCH)
 
 # this implements walt image search
 def search(requester, server, keyword):
