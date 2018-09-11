@@ -172,10 +172,7 @@ class CSAPI(APISession):
 
     @api_expose_method
     def show_images(self, context, refresh):
-        username = context.requester.sync.get_username()
-        if not username:
-            return None     # client already disconnected, give up
-        return context.images.show(username, refresh)
+        return context.images.show(context.requester.sync, refresh)
 
     @api_expose_method
     def create_image_shell_session(self, context, image_name, task_label):

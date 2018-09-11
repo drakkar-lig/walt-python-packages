@@ -36,10 +36,8 @@ class NodeImageManager(object):
         return clone(self.blocking, requester, task, **kwargs)
     def publish(self, requester, task, image_name, **kwargs):
         return publish(self.store, self.blocking, requester, task, image_name, **kwargs)
-    def show(self, username, refresh):
-        if refresh:
-            self.store.refresh()
-        return show(self.store, username)
+    def show(self, requester, refresh):
+        return show(self.db, self.docker, self.store, requester, refresh)
     def rename(self, requester, image_name, new_name):
         rename(self.store, self.docker, requester, image_name, new_name)
     def remove(self, requester, image_name):
