@@ -77,22 +77,19 @@ class DockerLocalClient:
                 tag=tag,
                 message=msg)
     def get_top_layer_id(self, image_fullname):
+        return next(self.get_layer_ids(image_fullname))
+    def get_layer_ids(self, image_fullname):
         image_info = self.c.inspect_image(image_fullname)
-        image_id = image_info['Id']
-        if image_id.startswith("sha256:"):
-            # new format, this will be complicated...
-            # (there are several levels of IDs...)
-            image_id = image_id.split(':')[1]
-            # 1- get info about top level layer
-            top_layer_diff = image_info['RootFS']['Layers'][-1]
+        if not image_info['Id'].startswith("sha256:"):
+            raise Exception('Docker internal format not understood. Update docker?')
+        # 1- get info about layers
+        for layer_diff in image_info['RootFS']['Layers'][::-1]:
             # 2- get associated layer ID
-            layer_id = self.layer_id_cache.get(top_layer_diff, None)
+            layer_id = self.layer_id_cache.get(layer_diff, None)
             if layer_id is None:
                 self.update_layer_id_cache()
-                layer_id = self.layer_id_cache.get(top_layer_diff)
-            return layer_id
-        else:
-            return image_id
+                layer_id = self.layer_id_cache.get(layer_diff)
+            yield layer_id
     def update_layer_id_cache(self):
         # for each dir '/var/lib/docker/image/aufs/layerdb/sha256/<id>'
         # associate the diff ID written in file 'diff' with the layer ID
@@ -106,15 +103,11 @@ class DockerLocalClient:
                 layer_id = layer_cache_id_file.read()
             self.layer_id_cache[diff_id] = layer_id
     def get_image_layers(self, image_fullname):
-        image_id = self.get_top_layer_id(image_fullname)
-        # concatenate this layer id + its ancestors listed in
-        # /var/lib/docker/aufs/layers/<layer-id>
-        branches = [ image_id ]
-        with open('/var/lib/docker/aufs/layers/%s' % image_id) as layers_file:
-            content = layers_file.read().strip()
-            if content != '':
-                branches += content.split('\n')
-        return [ '/var/lib/docker/aufs/diff/%s' % br for br in branches ]
+        layer_ids = self.get_layer_ids(image_fullname)
+        for layer_id in layer_ids:
+            diff_dir = '/var/lib/docker/aufs/diff/' + layer_id
+            if len(os.listdir(diff_dir)) > 0:
+                yield diff_dir
     def get_container_name(self, cid):
         try:
             container = self.c.inspect_container(cid)
