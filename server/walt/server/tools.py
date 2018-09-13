@@ -1,4 +1,5 @@
 from collections import namedtuple
+from itertools import takewhile, izip
 import cPickle as pickle
 import re
 
@@ -120,3 +121,15 @@ def try_encode(s, encoding):
         return True
     except UnicodeError:
         return False
+
+def format_node_models_list(node_models):
+    if len(node_models) == 1:
+        return node_models[0]
+    prefix_len = len(tuple(takewhile(lambda s: len(set(s)) == 1, izip(*node_models))))
+    prefix = node_models[0][:prefix_len]
+    regex_result = prefix + '[' + '|'.join(m[prefix_len:] for m in node_models) + ']'
+    simple_result = ','.join(node_models)
+    if len(regex_result) < len(simple_result):
+        return regex_result
+    else:
+        return simple_result

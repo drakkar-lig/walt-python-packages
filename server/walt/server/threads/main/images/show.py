@@ -1,4 +1,4 @@
-from walt.server.tools import columnate
+from walt.server.tools import columnate, format_node_models_list
 
 MSG_WS_IS_EMPTY="""\
 Your working set is empty.
@@ -19,11 +19,13 @@ def show(db, docker, images, requester, refresh):
         if image.user != username:
             continue
         created_at = image.get_created_at()
+        node_models = image.get_node_models()
         tabular_data.append([
                     image.name,
                     str(image.mounted),
                     created_at if created_at else 'N/A',
-                    str(image.ready) ])
+                    str(image.ready),
+                    format_node_models_list(node_models)])
     if len(tabular_data) == 0:
         # new user, try to make his life easier by cloning
         # default images of node models present on the platform.
@@ -40,5 +42,5 @@ def show(db, docker, images, requester, refresh):
         requester.stdout.write('Done.\n')
         # restart the process
         return show(db, docker, images, requester, refresh)
-    header = [ 'Name', 'Mounted', 'Created', 'Ready' ]
+    header = [ 'Name', 'Mounted', 'Created', 'Ready', 'Compatibility' ]
     return columnate(tabular_data, header)

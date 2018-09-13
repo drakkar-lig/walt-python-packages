@@ -103,7 +103,8 @@ class WalTNode(cli.Application):
                     return
                 if not WalTNode.confirm_nodes_not_owned(server, node_set):
                     return
-                server.set_image(node_set, image_name_or_default)
+                if not server.set_image(node_set, image_name_or_default):
+                    return
                 reboot_nodes(server, node_set)
 
 @WalTNode.subcommand("show")

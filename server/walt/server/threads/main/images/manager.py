@@ -11,11 +11,14 @@ from walt.server.threads.main.transfer import validate_cp
 from walt.server.threads.main.images.fixowner import fix_owner
 from walt.server.threads.main.images.store import NodeImageStore
 from walt.server.threads.main.network import tftp
-from walt.common.tools import format_sentence_about_nodes
+from walt.common.tools import format_sentence, format_sentence_about_nodes
 
 # About terminology: See comment about it in image.py.
 MSG_BOOT_DEFAULT_IMAGE = """\
 %s will now boot its(their) default image (other users will see it(they) is(are) 'free')."""
+MSG_INCOMPATIBLE_MODELS = """\
+Sorry, this image is not compatible with %s.
+"""
 
 class NodeImageManager(object):
     def __init__(self, db, blocking_manager, dhcpd, docker):
@@ -67,6 +70,14 @@ class NodeImageManager(object):
         if image_name != 'default':
             image = self.store.get_user_image_from_name(requester, image_name)
             if image == None:
+                return False
+            image_compatible_models = set(image.get_node_models())
+            node_models = set(node.model for node in nodes)
+            incompatible_models = node_models - image_compatible_models
+            if len(incompatible_models) > 0:
+                sentence = format_sentence(MSG_INCOMPATIBLE_MODELS, incompatible_models,
+                                None, 'node model', 'node models')
+                requester.stderr.write(sentence)
                 return False
             image_fullnames = { node.mac: image.fullname for node in nodes }
         else:

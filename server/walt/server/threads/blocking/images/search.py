@@ -1,12 +1,13 @@
 import requests
 from collections import defaultdict
-from walt.server.tools import get_columnate_format, columnate_iterate
+from walt.server.tools import get_columnate_format, columnate_iterate, \
+                              format_node_models_list
 from walt.server.threads.blocking.images.metadata import \
             pull_user_metadata
 
 # About terminology: See comment about it in image.py.
 
-SEARCH_HEADER = ['User', 'Image name', 'Location', 'Clonable link']
+SEARCH_HEADER = ['User', 'Image name', 'Location', 'Compatibility', 'Clonable link']
 MSG_SEARCH_NO_MATCH = "Sorry, no image could match your request.\n"
 LOCATION_WALT_SERVER = 0
 LOCATION_DOCKER_HUB = 1
@@ -57,14 +58,15 @@ class Search(object):
         # search images of each user
         for user in sorted(users):
             locations = users[user]
-            images = defaultdict(set)
+            images_and_labels = defaultdict(dict)
             # search on docker hub
             if LOCATION_DOCKER_HUB in locations:
                 # read metadata to detect walt images of this user
                 user_metadata = pull_user_metadata(self.docker, user)
                 for fullname, info in user_metadata['walt.user.images'].items():
                     if self.validate_fullname(fullname, LOCATION_DOCKER_HUB):
-                        images[fullname.split('/')[1]].add(LOCATION_DOCKER_HUB)
+                        image_name = fullname.split('/')[1]
+                        images_and_labels[image_name][LOCATION_DOCKER_HUB] = info['labels']
             # search on local server
             if LOCATION_WALT_SERVER in locations:
                 for fullname in self.image_store:
@@ -72,17 +74,20 @@ class Search(object):
                     if image_user != user:
                         continue
                     if self.validate_fullname(fullname, LOCATION_WALT_SERVER):
-                        images[fullname.split('/')[1]].add(LOCATION_WALT_SERVER)
+                        images_and_labels[image_name][LOCATION_WALT_SERVER] = \
+                                            self.docker.local.get_labels(fullname)
             # yield results
-            for image_name in sorted(images):
-                locations = sorted(images[image_name])
+            for image_name in sorted(images_and_labels):
+                locations = sorted(images_and_labels[image_name])
                 for location in locations:
-                    yield (user, image_name, location)
+                    labels = images_and_labels[image_name][location]
+                    yield (user, image_name, location, labels)
     def local_unsorted_search(self):
         for fullname in self.image_store:
             if self.validate_fullname(fullname, LOCATION_WALT_SERVER):
                 user, image_name = fullname.split('/')
-                yield (user, image_name, LOCATION_WALT_SERVER)
+                yield (user, image_name, LOCATION_WALT_SERVER,
+                            self.docker.local.get_labels(fullname))
 
 def short_image_name(image_name):
     if image_name.endswith(':latest'):
@@ -101,15 +106,17 @@ def discard_images_in_ws(it, username):
     # images owned by the requester and present locally on
     # the server are not considered "remote images".
     # (they belong to the working set of the user, instead.)
-    for user, image_name, location in it:
+    for user, image_name, location, labels in it:
         if user != username or location == LOCATION_DOCKER_HUB:
-            yield user, image_name, location
+            yield user, image_name, location, labels
 
 def format_result(it):
-    for user, image_name, location in it:
+    for user, image_name, location, labels in it:
+        node_models = labels['walt.node.models'].split(',')
         yield ( user,
                 short_image_name(image_name),
                 LOCATION_LONG_LABEL[location],
+                format_node_models_list(node_models),
                 clonable_link(location, user, image_name))
 
 # this implements walt image search

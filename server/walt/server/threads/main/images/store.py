@@ -41,7 +41,9 @@ class NodeImageStore(object):
             if image['RepoTags'] is None:   # dangling image
                 continue
             for fullname in image['RepoTags']:
-                if '/' in fullname:         # discard dangling images
+                # discard dangling images and tags temporarily added
+                # for a 'clone' operation
+                if '/' in fullname and 'clone-temp/walt-image:' not in fullname:
                     docker_images[fullname] = image
         # import new images from docker into the database
         for fullname in docker_images:

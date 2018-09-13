@@ -30,8 +30,14 @@ class DockerLocalClient:
         self.c.tag(image=old_fullname, repository=reponame, tag=tag)
     def rmi(self, fullname):
         self.c.remove_image(image=fullname, force=True)
-    def untag(self, fullname):
-        self.rmi(fullname)
+    def untag(self, fullname, ignore_missing = False):
+        if ignore_missing:
+            try:
+                self.rmi(fullname)
+            except errors.NotFound:
+                pass
+        else:
+            self.rmi(fullname)
     def get_images(self):
         return self.c.images()
     def iter_images(self):

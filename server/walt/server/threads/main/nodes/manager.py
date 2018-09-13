@@ -292,6 +292,12 @@ class NodesManager(object):
             return () # error already reported
         return tuple(node.ip for node in nodes)
 
+    def get_nodes_using_image(self, image_fullname):
+        nodes = self.db.select('nodes', image = image_fullname)
+        return tuple(
+                self.devices.get_complete_device_info(n.mac)
+                for n in nodes)
+
     def prepare_ssh_access_for_ip(self, ip):
         cmd = CMD_ADD_SSH_KNOWN_HOST % dict(ip = ip)
         do(cmd)

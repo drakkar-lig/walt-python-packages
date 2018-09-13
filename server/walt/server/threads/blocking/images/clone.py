@@ -4,6 +4,7 @@ from walt.server.threads.blocking.images.search import \
         LOCATION_LABEL, LOCATION_PER_LABEL
 from walt.server.threads.blocking.images.metadata import \
             pull_user_metadata
+from walt.common.tools import format_sentence
 
 # About terminology: See comment about it in image.py.
 
@@ -35,6 +36,11 @@ MSG_INVALID_CLONABLE_LINK = """\
 Invalid clonable image link. Format must be:
 [server|hub]:<user>/<image_name>[:<tag>]
 (tip: walt image search [<keyword>])
+"""
+MSG_INCOMPATIBLE_MODELS = """\
+Sorry, cannot proceed. There is an image with the same name in your
+working set. Overriding it is not allowed because it is currently
+in use, and the target image is not compatible with %s.
 """
 
 # Subroutines
@@ -68,13 +74,9 @@ def parse_clonable_link(requester, clonable_link):
 def get_temp_image_fullname():
     return 'clone-temp/walt-image:' + str(uuid.uuid4()).split('-')[0]
 
-def image_exists(docker, image_store, location, fullname):
-    if location == LOCATION_WALT_SERVER:
-        return fullname in image_store
-    else:   # Hub
-        user = fullname.split('/')[0]
-        user_metadata = pull_user_metadata(docker, user)
-        return fullname in user_metadata['walt.user.images']
+def exit_no_such_image():
+    return requester.stderr.write(
+            'No such remote image. Use walt image search <keyword>.\n')
 
 # workflow functions
 # ------------------
@@ -84,7 +86,7 @@ def image_exists(docker, image_store, location, fullname):
 # would need to download them again (case of the overwrite of a server
 # image with its updated hub version)
 # * if we detect an issue late in the workflow, we can still restore them.
-def save_initial_images(images_to_be_removed, saved_images,
+def save_initial_images(saved_images,
                         ws_image_fullname, remote_image_fullname,
                         existing_server_image, existing_ws_image,
                         docker, **args):
@@ -97,7 +99,6 @@ def save_initial_images(images_to_be_removed, saved_images,
         image_backup = get_temp_image_fullname()
         docker.local.tag(image_fullname, image_backup)
         saved_images[image_fullname] = image_backup
-        images_to_be_removed.add(image_backup)  # after the workflow is done
 
 def error_image_belongs_to_ws(requester, username, **args):
     requester.stderr.write(
@@ -111,30 +112,24 @@ def verify_overwrite(image_store, requester, clonable_link,
         requester.stderr.write(MSG_USE_FORCE % clonable_link)
         return False
 
-# we should verify that the image is compatible with the node types
-# currently using it
+# check possible compatibility issue regarding node models
 def verify_compatibility_issue(image_store, requester, clonable_link,
                     ws_image_fullname, remote_image_fullname,
-                    docker, **args):
+                    docker, target_node_models, nodes_manager, **args):
     ws_image = image_store[ws_image_fullname]
     if not ws_image.mounted:
         return  # no problem
     # there is a risk of overwritting the mounted ws image with
     # a target image that is incompatible.
-    # we will have to mount the target image in order to check
-    # its compatibility.
-    # we use a new docker tag pointing to this image, in order to
-    # avoid interfering with an existing image.
-    tmp_image_fullname = get_temp_image_fullname()
-    docker.local.tag(remote_image_fullname, tmp_image_fullname)
-    image_store.register_image(tmp_image_fullname, True)
-    tmp_image = image_store[tmp_image_fullname]
-    compatible = True   # for now
-    image_store.remove(tmp_image_fullname)
-    docker.local.untag(tmp_image_fullname)
-    if not compatible:
-        pass # do something
-        return False
+    nodes = nodes_manager.get_nodes_using_image(ws_image_fullname)
+    needed_models = set(node.model for node in nodes)
+    image_compatible_models = set(target_node_models)
+    incompatible_models = needed_models - image_compatible_models
+    if len(incompatible_models) > 0:
+        sentence = format_sentence(MSG_INCOMPATIBLE_MODELS, incompatible_models,
+                        None, 'node model', 'node models')
+        requester.stderr.write(sentence)
+        return False    # give up
 
 def remove_ws_image(docker, ws_image_fullname, **args):
     docker.local.untag(ws_image_fullname)
@@ -174,9 +169,29 @@ def update_walt_image(image_store, ws_image_fullname, **args):
         # add this new image in the store
         image_store.register_image(ws_image_fullname, True)
 
-def cleanup(docker, images_to_be_removed, **args):
-    while len(images_to_be_removed) > 0:
-        docker.local.untag(images_to_be_removed.pop())
+class WorkflowCleaner:
+    def __init__(self, context):
+        self.context = context
+    def __enter__(self):
+        pass
+    def __exit__(self, exc_type, exc_value, traceback):
+        if exc_type is None:    # ok, no exception
+            self.cleanup(True, **self.context)
+        else:                   # not ok, an exception occured!
+            self.cleanup(False, **self.context)
+    def cleanup(self, ok, docker, saved_images,
+                ws_image_fullname, remote_image_fullname,
+                existing_server_image, existing_ws_image, **args):
+        if not ok:  # only if an exception occured
+            # remove any temporary images created there
+            docker.local.untag(ws_image_fullname, ignore_missing=True)
+            docker.local.untag(remote_image_fullname, ignore_missing=True)
+            # restore the backups
+            for image_fullname, backup_fullname in saved_images.items():
+                docker.local.tag(backup_fullname, image_fullname)
+        # in any case cleanup the backup tags
+        for backup_fullname in saved_images.values():
+            docker.local.untag(backup_fullname)
 
 # workflow management functions
 # -----------------------------
@@ -196,10 +211,11 @@ def workflow_run(workflow, **context):
         res = f(**context)
         if res == False:
             return False # issue, stop here
+    return True
 
 # walt image clone implementation
 # -------------------------------
-def perform_clone(requester, docker, clonable_link, image_store, force):
+def perform_clone(requester, docker, nodes_manager, clonable_link, image_store, force):
     username = requester.get_username()
     if not username:
         return # client already disconnected, give up
@@ -211,19 +227,23 @@ def perform_clone(requester, docker, clonable_link, image_store, force):
     ws_image_fullname = "%s/%s" % (username, remote_image_name)
     remote_image_fullname = "%s/%s" % (remote_user, remote_image_name)
 
-    # check that the requested image really exists
-    if not image_exists(
-            docker, image_store, remote_location, remote_image_fullname):
-        requester.stderr.write(
-            'No such remote image. Use walt image search <keyword>.\n')
-        return
-
     # analyse our context
-    existing_server_image = image_exists(
-            docker, image_store, LOCATION_WALT_SERVER, remote_image_fullname)
-    existing_ws_image = image_exists(
-            docker, image_store, LOCATION_WALT_SERVER, ws_image_fullname)
+    existing_server_image = remote_image_fullname in image_store
+    existing_ws_image = ws_image_fullname in image_store
     same_user = (username == remote_user)
+
+    # check that the requested image really exists,
+    # and fetch compatibility info
+    if remote_location == LOCATION_WALT_SERVER:
+        if remote_image_fullname not in image_store:
+            return exit_no_such_image()
+        target_node_models = image_store[remote_image_fullname].get_node_models()
+    if remote_location == LOCATION_DOCKER_HUB:
+        remote_user_metadata = pull_user_metadata(docker, remote_user)
+        if remote_image_fullname not in remote_user_metadata['walt.user.images']:
+            return exit_no_such_image()
+        image_info = remote_user_metadata['walt.user.images'][remote_image_fullname]
+        target_node_models = image_info['labels']['walt.node.models'].split(',')
 
     # compute the workflow
     # --------------------
@@ -234,35 +254,24 @@ def perform_clone(requester, docker, clonable_link, image_store, force):
     workflow_selector = {
         # remote_location, existing_server_image, existing_ws_image, same_user
         (LOCATION_WALT_SERVER, True, False, False): [ tag_server_image_to_requester ],
-        (LOCATION_WALT_SERVER, True, True, False):  [ verify_overwrite, verify_compatibility_issue,
+        (LOCATION_WALT_SERVER, True, True, False):  [ verify_compatibility_issue, verify_overwrite,
                                                         remove_ws_image, tag_server_image_to_requester ],
         (LOCATION_WALT_SERVER, True, True, True):   [ error_image_belongs_to_ws ],
 
         (LOCATION_DOCKER_HUB, False, False, False): [ pull_hub_image, tag_server_image_to_requester, remove_server_image ],
-        (LOCATION_DOCKER_HUB, False, True, False):  [ verify_overwrite, pull_hub_image, verify_compatibility_issue,
+        (LOCATION_DOCKER_HUB, False, True, False):  [ verify_compatibility_issue, verify_overwrite, pull_hub_image,
                                                         remove_ws_image, \
                                                         tag_server_image_to_requester, remove_server_image ],
         (LOCATION_DOCKER_HUB, True, False, False):  [ remove_server_image, pull_hub_image,
                                                         tag_server_image_to_requester, remove_server_image,
                                                         restore_initial_server_image ],
-        (LOCATION_DOCKER_HUB, True, True, False):   [ verify_overwrite,
+        (LOCATION_DOCKER_HUB, True, True, False):   [ verify_compatibility_issue, verify_overwrite,
                                                         remove_server_image, pull_hub_image,
-                                                        workflow_if(verify_compatibility_issue,
-                                                            # ok
-                                                            [ remove_ws_image, tag_server_image_to_requester,
-                                                              remove_server_image, restore_initial_server_image ],
-                                                            # compatibility issue with pulled image, restore things
-                                                            [ remove_server_image, restore_initial_server_image,
-                                                              workflow_exit ]) ],
+                                                        remove_ws_image, tag_server_image_to_requester,
+                                                        remove_server_image, restore_initial_server_image ],
         (LOCATION_DOCKER_HUB, False, False, True):  [ pull_hub_image ],
-        (LOCATION_DOCKER_HUB, True, True, True):    [ verify_overwrite, remove_ws_image,
-                                                        pull_hub_image,
-                                                        workflow_if(verify_compatibility_issue,
-                                                            # ok, we are all done
-                                                            [ ],
-                                                            # compatibility issue with pulled image, restore things
-                                                            [ remove_ws_image, restore_initial_ws_image,
-                                                              workflow_exit ]) ],
+        (LOCATION_DOCKER_HUB, True, True, True):    [ verify_compatibility_issue, verify_overwrite, remove_ws_image,
+                                                        pull_hub_image ],
     }
     workflow = [ save_initial_images ]     # this is always called first
     workflow += workflow_selector[(remote_location, existing_server_image, existing_ws_image, same_user)]
@@ -282,14 +291,18 @@ def perform_clone(requester, docker, clonable_link, image_store, force):
         requester = requester,
         force = force,
         saved_images = {},
-        images_to_be_removed = set(),
-        clonable_link = clonable_link
+        clonable_link = clonable_link,
+        target_node_models = target_node_models,
+        nodes_manager = nodes_manager
     )
 
-    res = workflow_run(workflow, **context)
-
-    # this is always called, even if an error occured in the workflow
-    cleanup(**context)
+    # we use a context manager ("with-construct") to ensure
+    # the WorkflowCleaner.cleanup function will be called,
+    # even in case of an exception.
+    # this fonction will remove any temporary docker image.
+    res = False
+    with WorkflowCleaner(context):
+        res = workflow_run(workflow, **context)
 
     if res:
         requester.stdout.write('Done.\n')
@@ -299,5 +312,6 @@ def clone(requester, server, **kwargs):
     perform_clone(  requester = requester,
                     docker = server.docker,
                     image_store = server.images.store,
+                    nodes_manager = server.nodes,
                     **kwargs)
 

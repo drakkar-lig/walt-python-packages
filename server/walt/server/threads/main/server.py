@@ -83,7 +83,7 @@ class Server(object):
     def set_image(self, requester, node_set, image_tag):
         nodes = self.nodes.parse_node_set(requester, node_set)
         if nodes == None:
-            return # error already reported
+            return False   # error already reported
         return self.images.set_image(requester, nodes, image_tag)
 
     def register_device(self, vci, uci, ip, mac, **kwargs):

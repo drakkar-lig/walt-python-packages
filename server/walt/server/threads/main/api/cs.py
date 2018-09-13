@@ -110,7 +110,7 @@ class CSAPI(APISession):
 
     @api_expose_method
     def set_image(self, context, node_set, image_name):
-        context.server.set_image(context.requester.sync, node_set, image_name)
+        return context.server.set_image(context.requester.sync, node_set, image_name)
 
     @api_expose_method
     def count_logs(self, context, **kwargs):

@@ -116,6 +116,9 @@ class NodeImage(object):
             self.last_created_at = self.docker.local.get_creation_time(self.fullname)
         self.last_top_layer_id = top_layer_id
         return self.last_created_at
+    def get_node_models(self):
+        labels = self.docker.local.get_labels(self.fullname)
+        return labels['walt.node.models'].split(',')
     def get_top_layer_id(self):
         assert (self.ready), \
             'Tried to get top layer id of image %s which is not ready.' % \
