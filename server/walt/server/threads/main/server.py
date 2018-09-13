@@ -123,6 +123,9 @@ class Server(object):
     def forget_device(self, device_name):
         self.db.forget_device(device_name)
         self.dhcpd.update()
+        # if it's a node and no other node uses its image,
+        # this image should be unmounted.
+        self.images.store.update_image_mounts()
 
     def create_vnode(self, requester, name):
         if not self.devices.validate_device_name(requester, name):
