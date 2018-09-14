@@ -1,15 +1,16 @@
 #!/usr/bin/env python
 
-import json, re, time
+import sys, json, re, time
 from dateutil.relativedelta import relativedelta
+from snimpy.snmp import SNMPException
 
 from walt.common.tools import get_mac_address
 from walt.server import const
 from walt.server.threads.main import snmp
+from walt.server.threads.main.devices.grouper import Grouper
 from walt.server.threads.main.network.tools import \
         ip_in_walt_network, ip_in_walt_adm_network, lldp_update, get_server_ip
 from walt.server.threads.main.tree import Tree
-
 
 NOTE_EXPLAIN_UNREACHABLE = "devices marked with parentheses were not detected at last scan"
 NOTE_EXPLAIN_UNKNOWN = "type of devices marked with <? ... ?> is unknown"
@@ -101,91 +102,114 @@ class Topology(object):
         for macs, info in self.links.iteritems():
             yield macs + info   # concatenate the tuples
 
+    def merge_links_info(self, confirmed, unconfirmed):
+        if confirmed[0] is None:
+            port1 = unconfirmed[0]
+        else:
+            port1 = confirmed[0]
+        if confirmed[1] is None:
+            port2 = unconfirmed[1]
+        else:
+            port2 = confirmed[1]
+        return port1, port2, True
+
     def merge_other(self, other):
         # build the union of 'self.links' and 'other.links';
-        # in case of conflict, keep the one which has the
-        # 'confirmed' flag set.
+        # in case of conflict, merge information.
         new_links = {}
         keys_self = set(self.links)
         keys_other = set(other.links)
         common_keys = keys_self & keys_other
         for k in common_keys:
-            # check which one is confirmed
             if self.links[k][2] < other.links[k][2]:
-                winner = other
+                confirmed, unconfirmed = other.links[k], self.links[k]
             else:
-                winner = self
-            new_links[k] = winner.links[k]
+                confirmed, unconfirmed = self.links[k], other.links[k]
+            new_links[k] = self.merge_links_info(confirmed, unconfirmed)
         for k in keys_self - keys_other:
             new_links[k] = self.links[k]
         for k in keys_other - keys_self:
             new_links[k] = other.links[k]
         # check if we have several links at the same location
-        # (mac, port), and in this case keep the one confirmed.
+        # (mac, non-null-port), and in this case keep the one confirmed.
         locations = {}
         for macs, info in new_links.copy().iteritems():
             mac1, mac2, port1, port2, confirmed = macs + info
-            conflicting_mac2 = locations.get((mac1, port1))
-            if conflicting_mac2 is not None:
-                if confirmed: # this one is confirmed, discard the old one
-                    new_links.pop((mac1, conflicting_mac2), None)
-                else:         # this one is not confirmed, discard it
-                    new_links.pop((mac1, mac2), None)
-            else:
-                locations[(mac1, port1)] = mac2
-            conflicting_mac1 = locations.get((mac2, port2))
-            if conflicting_mac1 is not None:
-                if confirmed: # this one is confirmed, discard the old one
-                    new_links.pop((conflicting_mac1, mac2), None)
-                else:         # this one is not confirmed, discard it
-                    new_links.pop((mac1, mac2), None)
-            else:
-                locations[(mac2, port2)] = mac1
+            if port1 is not None:
+                conflicting_mac2 = locations.get((mac1, port1))
+                if conflicting_mac2 is not None:
+                    if confirmed: # this one is confirmed, discard the old one
+                        new_links.pop((mac1, conflicting_mac2), None)
+                        locations[(mac1, port1)] = mac2
+                    else:         # this one is not confirmed, discard it
+                        new_links.pop((mac1, mac2), None)
+                else:
+                    locations[(mac1, port1)] = mac2
+            if port2 is not None:
+                conflicting_mac1 = locations.get((mac2, port2))
+                if conflicting_mac1 is not None:
+                    if confirmed: # this one is confirmed, discard the old one
+                        new_links.pop((conflicting_mac1, mac2), None)
+                        locations[(mac2, port2)] = mac1
+                    else:         # this one is not confirmed, discard it
+                        new_links.pop((mac1, mac2), None)
+                else:
+                    locations[(mac2, port2)] = mac1
         self.links = new_links
 
     def cleanup(self):
         # this will remove obsolete links from moved devices,
         # and ensure we have no loops.
-        # 1) we initialize a set of 'accepted' nodes using the
-        #    nodes that were detected during last scan, and
-        #    record the set of unconfirmed links
-        # 2) we drop unconfirmed links linking 2 nodes already accepted
-        # 3) we accept nodes linked to an accepted node
-        # 4) we return to 2, unless last loop did not alter anything.
+        # 1)  we initialize a set of 'accepted' connected groups of nodes,
+        #     using the links that were detected during last
+        #     scan, and record the set of unconfirmed links.
+        # 2a) we drop unconfirmed links between 2 nodes already in the
+        #     same connectivity group (otherwise it would create a loop).
+        # 2b) we accept links between 2 nodes in different connectivity
+        #     groups, and merge such a pair of connectivity groups into one.
+        # 3)  we accept links between an accepted node (belonging
+        #     to an accepted connectivity group) and a node not yet accepted.
+        #     This newly accepted node is inserted into the connectity group.
+        # 4)  As soon as the set of connectivity groups evolves (i.e. 2b or 3)
+        #     we loop again from step 2.
         # --
         # this is step 1
-        accepted_macs = set()
+        accepted_groups = Grouper()
         remaining_links = set()
         for mac1, mac2, port1, port2, confirmed in self:
             if confirmed:
-                accepted_macs.add(mac1)
-                accepted_macs.add(mac2)
+                accepted_groups.group_items(mac1, mac2)
             else:
                 remaining_links.add((mac1, mac2))
-        still_moving = True
-        while still_moving:
-            still_moving = False
+        while True:
             # this is step 2
-            to_be_dropped = []
-            for mac1, mac2 in remaining_links:
-                if mac1 in accepted_macs and mac2 in accepted_macs:
-                    to_be_dropped.append((mac1, mac2))
-            for k in to_be_dropped:
-                still_moving = True
-                self.links.pop(k)
-                remaining_links.remove(k)
+            still_moving = False
+            for mac1, mac2 in remaining_links.copy():
+                if mac1 in accepted_groups and mac2 in accepted_groups:
+                    # we will process this link
+                    remaining_links.remove((mac1, mac2))
+                    if accepted_groups.is_same_group(mac1, mac2):
+                        self.links.pop((mac1, mac2))                # 2a: discard
+                    else:
+                        accepted_groups.group_items(mac1, mac2)     # 2b: accept
+                        still_moving = True
+                        break
+            if still_moving:
+                continue
             # this is step 3
-            treated_at_step3 = []
-            for mac1, mac2 in remaining_links:
-                if mac1 in accepted_macs:
-                    accepted_macs.add(mac2)
-                    treated_at_step3.append((mac1, mac2))
-                elif mac2 in accepted_macs:
-                    accepted_macs.add(mac1)
-                    treated_at_step3.append((mac1, mac2))
-            for k in treated_at_step3:
-                still_moving = True
-                remaining_links.remove(k)
+            still_moving = False
+            for mac1, mac2 in remaining_links.copy():
+                # since we passed step 2, the following condition is
+                # implicitely an exclusive or
+                if mac1 in accepted_groups or mac2 in accepted_groups:
+                    # we will process this link
+                    remaining_links.remove((mac1, mac2))
+                    accepted_groups.group_items(mac1, mac2)         # accept
+                    still_moving = True
+                    break
+            if still_moving:
+                continue
+            break
 
     def get_neighbors(self, mac):
         for mac1, mac2 in self.links:
@@ -270,62 +294,57 @@ class TopologyManager(object):
         self.db = devices.db
         self.last_scan = None
 
-    def get_snmp_conf(self, switch_mac):
-        switch_info = self.db.select_unique('switches', mac = switch_mac)
-        return json.loads(switch_info.snmp_conf)
-
     def cleanup_sysname(self, sysname):
         return re.sub("[^a-z0-9-]", "-", sysname.split('.')[0])
 
-    def collect_connected_devices(self, ui, topology, host, host_depth,
-                            host_mac, processed_switches):
+    def print_message(self, requester, message):
+        if requester is not None:
+            requester.stdout.write(message + '\n')
+            requester.stdout.flush()
+        print(message)
 
-        print "collecting on %s %s" % (host, host_mac)
-        # avoid to loop forever...
-        if host_depth > 0:
-            processed_switches.add(host_mac)
-        neighbors_depth = host_depth + 1
+    def collect_devices(self, requester, topology, server_mac):
+        # collect neighbors of this walt server
+        self.collect_connected_devices(requester, topology,
+            "walt server", "localhost", server_mac, const.SERVER_SNMP_CONF)
+        # collect neighbors of switches where lldp exploration is allowed
+        for sw_info in self.db.select('switches', lldp_explore = True):
+            sw_info = self.devices.get_complete_device_info(sw_info.mac)
+            snmp_conf = json.loads(sw_info.snmp_conf)
+            self.collect_connected_devices(requester, topology,
+                sw_info.name, sw_info.ip, sw_info.mac, snmp_conf)
 
-        # get a SNMP proxy with LLDP feature
-        if host_depth == 0:
-            snmp_conf = const.SERVER_SNMP_CONF
-        else:
-            snmp_conf = self.get_snmp_conf(host_mac)
-        snmp_proxy = snmp.Proxy(host, snmp_conf, lldp=True)
-
-        # record neighbors and recurse
-        for port, neighbor_info in snmp_proxy.lldp.get_neighbors().items():
-            # ignore neighbors on port 1 of the main switch
-            # (port 1 is associated to VLAN walt-out)
-            if neighbors_depth == 2 and port < 2:
-                continue
+    def collect_connected_devices(self, requester, topology, host_name,
+                                    host_ip, host_mac, host_snmp_conf):
+        print "Querying %s..." % host_name
+        if host_ip is None:
+            self.print_message(requester, "Querying %-25s FAILED (unknown management IP!)" % host_name)
+            return
+        snmp_proxy = snmp.Proxy(host_ip, host_snmp_conf, lldp=True)
+        # get neighbors
+        try:
+            neighbors = snmp_proxy.lldp.get_neighbors().items()
+            self.print_message(requester, "Querying %-25s OK" % host_name)
+        except SNMPException:
+            self.print_message(requester, "Querying %-25s FAILED (SNMP issue)" % host_name)
+            return
+        # analyse
+        for port, neighbor_info in neighbors:
             ip, mac, sysname =  neighbor_info['ip'], neighbor_info['mac'], \
                                 neighbor_info['sysname']
             print '---- found on %s %s -- port %d: %s %s %s' % \
-                        (host, host_mac, port, ip, mac, sysname)
+                        (host_name, host_mac, port, ip, mac, sysname)
             topology.register_neighbor(host_mac, port, mac)
-            device_info = self.devices.get_complete_device_info(mac)
-            if device_info == None:
+            db_info = self.devices.get_complete_device_info(mac)
+            if db_info == None:
                 # unknown device
                 info = dict(mac = mac, ip = ip, type = 'unknown')
                 name = self.cleanup_sysname(sysname)
                 if len(name) > 2:   # name seems meaningful...
                     info.update(name = name)
                 self.devices.add_or_update(**info)
-            elif device_info.type == 'switch' and \
-                     mac not in processed_switches and \
-                     device_info.lldp_explore == True:
-                # if ip was not transmitted through LLDP but we have it in db,
-                # get it now.
-                if ip is None:
-                    ip = device_info.ip
-                if ip is None:
-                    print 'WARNING: cannot explore switch %s because LLDP did not give its management IP.' \
-                            % device_info.name
-                    continue
-                # recursively discover devices connected to this switch
-                self.collect_connected_devices(ui, topology, ip, neighbors_depth,
-                                        mac, processed_switches)
+            elif ip != db_info.ip:
+                self.devices.add_or_update(mac = mac, ip = ip)
 
     def rescan(self, requester=None, remote_ip=None, ui=None):
         self.last_scan = time.time()
@@ -334,9 +353,10 @@ class TopologyManager(object):
         self.devices.add_or_update(
                 mac = server_mac, ip = str(get_server_ip()),
                 type = 'server')
+
         # explore the network
         new_topology = Topology()
-        self.collect_connected_devices(ui, new_topology, "localhost", 0, server_mac, set())
+        self.collect_devices(requester, new_topology, server_mac)
 
         # retrieve past topology data from db
         db_topology = Topology()
@@ -349,10 +369,6 @@ class TopologyManager(object):
 
         # commit to db
         new_topology.save_to_db(self.db)
-
-        # notify the client
-        if requester != None:
-            requester.stdout.write('done.\n')
 
     def get_tree_root_mac(self, db_topology):
         # the root of the tree should be the main switch.

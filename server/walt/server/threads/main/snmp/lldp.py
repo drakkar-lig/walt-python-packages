@@ -14,13 +14,10 @@ class LLDPProxy(object):
         sysname_per_port = {}
 
         # perform SNMP requests
-        try:
-            chassis_types = dict(self.snmp.lldpRemChassisIdSubtype)
-            chassis_values = dict(self.snmp.lldpRemChassisId)
-            sys_names = dict(self.snmp.lldpRemSysName)
-            ip_info = set(self.snmp.lldpRemManAddrIfSubtype)
-        except Exception:
-            return {}
+        chassis_types = dict(self.snmp.lldpRemChassisIdSubtype)
+        chassis_values = dict(self.snmp.lldpRemChassisId)
+        sys_names = dict(self.snmp.lldpRemSysName)
+        ip_info = set(self.snmp.lldpRemManAddrIfSubtype)
 
         # retrieve mac address and sysname of neighbors
         for neighbor_key in chassis_types:

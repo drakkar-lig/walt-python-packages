@@ -80,12 +80,18 @@ def wait_for_main_switch(ui, msg, explain = None, todo = None):
     # retrieve info about the main switch by
     # using the local lldp & snmp daemons
     snmp_local = snmp.Proxy('localhost', SERVER_SNMP_CONF, lldp=True)
-    while len(snmp_local.lldp.get_neighbors()) == 0:
+    while True:
+        try:
+            neighbors = snmp_local.lldp.get_neighbors().values()
+        except SNMPException:
+            neighbors = []
+        if len(neighbors) > 0:
+            break
         ui.task_running()
         lldp_update()
         time.sleep(1)
     ui.task_done()
-    main_switch_info = snmp_local.lldp.get_neighbors().values()[0]
+    main_switch_info = neighbors[0]
     print 'main switch:', main_switch_info
     return main_switch_info
 

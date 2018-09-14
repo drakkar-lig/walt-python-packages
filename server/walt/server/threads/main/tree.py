@@ -71,7 +71,8 @@ class Tree(object):
             if key in seen:
                 label = '~> back to %s' % label
             if child_pos == None:
-                subtree_offset = 1
+                label = "?: %s" % label
+                subtree_offset = 3
             else:
                 label = "%d: %s" % (child_pos, label)
                 # align to 2nd letter of the name
