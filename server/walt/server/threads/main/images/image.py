@@ -91,12 +91,12 @@ def validate_image_name(requester, image_name):
 FS_CMD_PATTERN = 'docker run --rm --entrypoint %%(prog)s %(image)s %%(prog_args)s'
 
 class NodeImage(object):
-    def __init__(self, docker, fullname, is_ready, created_at = None):
+    def __init__(self, db, docker, fullname, created_at = None):
+        self.db = db
         self.docker = docker
         self.rename(fullname)
         self.last_created_at = created_at
         self.last_top_layer_id = None
-        self.ready = is_ready
         self.mount_path = None
         self.mounted = False
         self.server_ip = get_server_ip()
@@ -104,8 +104,13 @@ class NodeImage(object):
         self.task_label = None
     def rename(self, fullname):
         self.fullname, self.user, self.name = parse_image_fullname(fullname)
-    def set_ready(self, is_ready):
-        self.ready = is_ready
+    @property
+    def ready(self):
+        return self.db.select_unique('images', fullname=self.fullname).ready
+    @ready.setter
+    def ready(self, is_ready):
+        self.db.update('images', 'fullname', fullname=self.fullname, ready=is_ready)
+        self.db.commit()
         if is_ready:
             self.get_created_at()   # prepare created_at value
     def get_created_at(self):
