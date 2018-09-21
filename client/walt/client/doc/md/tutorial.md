@@ -1,0 +1,476 @@
+# Getting Started
+
+## Prerequisites
+
+You can use the walt client application on any Mac OS X or GNU/Linux machine.
+Since WalT interacts with the docker hub, you need an account there.
+If you do not have one already, please register at: https://hub.docker.com/
+
+## Install walt-client
+
+The Walt client is written in python and hosted on [PyPi](https://pypi.python.org/pypi), so it can be installed using pip:
+
+```console
+$ sudo pip install walt-client
+```
+
+Don’t forget to frequently check for updates:
+
+```console
+$ sudo pip install walt-client --upgrade
+```
+
+## The `walt` command
+
+`walt` is the client entry point of the walt platform management.
+
+On the very first launch, this command will prompt for a small set of parameters:
+* IP or hostname of the WalT server
+* your docker hub credentials
+
+You can get an overview of walt subcommands categories by just typing:
+```console
+$ walt
+No sub-command given
+------
+walt 0.1
+
+WalT (wireless testbed) control tool.
+
+Usage:
+    walt [SWITCHES] [SUBCOMMAND [SWITCHES]] args...
+
+Meta-switches
+    -h, --help                      Prints this help message and quits
+    --help-all                      Print help messages of all subcommands and
+                                    quit
+    -v, --version                   Prints the program's version and quits
+    -z, --help-about TOPIC:str      Prints help details about a given topic. Run
+                                    'walt --help-about help' to list them.
+
+Subcommands:
+    advanced                        advanced sub-commands; see 'walt advanced
+                                    --help' for more info
+    device                          management of WalT platform devices; see
+                                    'walt device --help' for more info
+    image                           management of WalT-nodes operating system
+                                    images; see 'walt image --help' for more
+                                    info
+    log                             management of logs; see 'walt log --help'
+                                    for more info
+    node                            WalT node management sub-commands; see 'walt
+                                    node --help' for more info
+$
+```
+You can get a list of subcommands for a category using:
+
+```console
+$ walt  -h
+```
+
+And get usage for a specific command by typing:
+
+```console
+$ walt <category> <command> -h
+```
+
+You can also get more detailed information about a set of topics, by using the `--help-about` option.
+The list of topics can be obtained by:
+
+```console
+$ walt --help-about help
+Available help topics are:
+log-checkpoint, log-format, log-history, log-realtime, node-terminology, shells
+$
+```
+
+Then, to get help about WalT “shells”, you can type:
+
+```console
+$ walt --help-about shells
+[...]
+$
+```
+
+We will now present a little overview of the “essential” commands.
+
+## Exploring the platform
+
+Tree form:
+
+```console
+$ walt device tree
+
+main-switch
+ ├─2: walt-server
+ ├─4: switch-D317-new
+ │     ├─3: rpi-D317-2
+ │     ├─7: (rpi-demo)
+ │     └─8: rpi-D317-1
+ ├─5: (rpi-D313-2)
+[...]
+ └─7: switch-2
+       ├─1: rpi-D322-1
+[...]
+       ├─5: (rpi-kfet-3)
+       └─7: switch-3
+             ├─1: rpi-D318-1
+[...]
+$
+```
+
+Table form:
+
+```console
+$ walt device show
+
+The WalT network contains the following devices:
+
+name         type    mac                ip            switch name  switch port
+-----------  ------  -----------------  ------------  -----------  -----------
+walt-server  server  00:0e:0c:09:94:4a  192.168.12.1  main-switch  2
+switch-D317  switch  6c:b0:ce:0b:33:2c  192.168.12.3  main-switch  4
+rpi-D313-2   rpi     b8:27:eb:2e:94:39  192.168.12.6  main-switch  5
+switch-D106  switch  28:c6:8e:05:87:5a  192.168.12.2  main-switch  6
+[...]
+
+The network position of the following devices is unknown (at least for now):
+
+name        type    mac                ip              reachable
+----------  ------  -----------------  --------------  ---------
+rpi-new-3   rpi     b8:27:eb:ae:ca:0b  192.168.12.240  NO
+rpi-D106-5  rpi     b8:27:eb:77:22:df  192.168.12.111  NO
+[...]
+$
+```
+
+For example, the line of device `rpi-D313-2` indicates it is a raspberry pi (`rpi`), it’s mac and ip address are specified, it is reachable and connected on port `5` of the `main-switch`.
+
+The Raspberry Pi devices listed above are the **nodes** of the platform.
+
+## Having a closer look at the nodes
+
+In order to view the nodes and what they are doing, you can type the following command:
+
+```console
+$ walt node show --all
+
+The following nodes are running one of your images:
+
+name           type  image            ip             reachable
+-------------  ----  ---------------  -------------  ---------
+rpi-D314-1     rpi   rpi-jessie       192.168.12.16  yes
+rpi-D314-jtag  rpi   rpi-jtag-target  192.168.12.2   yes
+[...]
+
+The following nodes are free (they have never been used):
+
+name           type  ip              reachable
+-------------  ----  --------------  ---------
+rpi-D106-5     rpi   192.168.12.111  NO
+rpi-D301B-4    rpi   192.168.12.164  yes
+
+The following nodes are likely to be used by other users, since you do
+not own the image they boot.
+
+name       type  image owner  clonable image link   ip             reachable
+---------  ----  -----------  --------------------  -------------  ---------
+rpi-D30-1  rpi   zyta         server:zyta/rpi-demo  192.168.12.21  yes
+rpi-D31-2  rpi   zyta         server:zyta/rpi-fix   192.168.12.18  NO
+[...]
+$
+```
+
+Three categories of nodes are listed:
+
+1. the nodes that you **own**: in WalT terminology, if node <N> boots an image created by user <U>, we consider that “<U> owns <N>”. Thus, if you just started using WalT, this category is empty for now.
+2. the nodes that are **free**: no user ever booted an image on these nodes. The server associated a default image to them.
+3. the nodes that are **owned by someone else**: the image they are running belongs to another user. If you want to use them, make sure this user is ok. This category is not shown unless you specify the `--all` option.
+
+For more information on this topic, you can type:
+
+```console
+$ walt --help-about node-terminology
+```
+
+## The images
+
+In the previous section we’ve seen that a Raspberry Pi was running an image named `rpi-jessie`. Let’s have a little explanation.
+An image is the operating system a device is running. For example `rpi-jessie` is a lightweight Debian Jessie built for Raspberry Pi.
+
+You can have a look at “your” images with the command:
+
+```console
+$ walt image show
+Name             Mounted  Created              Ready
+---------------  -------  -------------------  -----
+rpi-default      False    2016-02-25 17:57:56  True
+rpi-default-2    False    2016-04-11 11:01:03  True
+rpi-jessie-test  True     2016-02-25 17:57:56  True
+rpi-jessie       True     2016-02-29 10:35:02  True
+rpi-openocd      False    2016-03-23 18:06:03  True
+$
+```
+
+You can see the names of the different images, if they are currently used, their creation date, and whether they are ready (when downloading an image, you will see Ready = False until the download completes).
+
+If you just started using WalT, this list of images is empty.
+You will have to `clone` existing images in order to make them “yours”.
+
+You can `search` for images available for cloning as follows:
+
+```console
+$ walt image search jessie
+User          Image name       Location     Clonable link
+------------  ---------------  -----------  ----------------------------
+brunisholz    rpi-jessie       WalT server  server:brunisholz/rpi-jessie
+eduble        rpi-jessie-test  docker hub   hub:eduble/rpi-jessie-test
+onss          rpi-jessie       WalT server  server:onss/rpi-jessie
+waltplatform  rpi-jessie       docker hub   hub:waltplatform/rpi-jessie
+zyta          rpi-jessie       WalT server  server:zyta/rpi-jessie
+$
+```
+
+WalT images are internally packaged as [Docker](https://www.docker.com/whatisdocker) images.
+Thus they may be stored on the docker hub, or just locally on the server, as indicated by the prefix of the clonable link.
+
+Let’s choose one and clone it:
+
+```console
+$ walt image clone server:brunisholz/rpi-jessie
+[...]
+$
+```
+
+After this operation, **your** image `rpi-jessie` will be listed when you type `walt image show`.
+
+For now, your image `rpi-jessie` is just a clone of image `rpi-jessie` of WalT user `brunisholz`. But you can modify it, as we will show below.
+
+## Customizing your image
+
+*N.B. Operations on the raspberry pi images require ARM emulation on WalT server side. This leads to a slower behavior.*
+
+We will modify our image in order to allow two nodes to play a network ping pong.
+
+A powerful way to modify an image is to use a shell:
+
+```console
+$ walt image shell rpi-jessie
+```
+
+You should now be logged into the image as indicated by the prompt:
+
+```console
+root@image-shell:/#
+```
+
+Now install `avahi-daemon` in order to allow discovery through the devices and `netcat` to set up a lightweight client/server architecture.
+
+```console
+root@image-shell:/# apt-get install avahi-daemon netcat
+```
+
+Now go to the root directory, create and edit a file named pong.sh. It will be our master server:
+
+```console
+root@image-shell:/# cd root/
+root@image-shell:/# vim pong.sh
+```
+
+And copy the following script:
+
+```bash
+#!/bin/bash
+
+# This function is used by netcat to write the appropriate
+# response when receiving a specific message
+function nc_fct() {
+        while read line
+        do
+                # Here we check if the received message is a
+                # "ping" string. If so, we will respond by sending
+                # a "pong" message
+                if [ $line = "ping" ]
+                then
+                        # Sleep to avoid heavy useless load
+                        sleep 0.1
+                        # This actually write into the FIFO
+                        echo 'pong'
+                        # This is used to print on stderr in order to
+                        # monitor and be used with walt-monitor
+                        # in order to log the activity.
+                        >&2 echo 'pong'
+                fi
+        done
+}
+
+fifo="fifo";
+# Create fifo if not created
+# This will be used by netcat in order to listen/send messages
+[ -p $fifo ] || mkfifo $fifo;
+
+# Start a listening server on port 12345
+netcat -l -p 12345 < $fifo | nc_fct 1> $fifo &
+```
+
+Make the file executable:
+
+```console
+root@image-shell:~# chmod +x pong.sh
+```
+
+Now create and edit a file named ping.sh and put it the following code. This will be our client:
+```bash
+#!/bin/bash
+
+# This function is used by netcat to write the appropriate
+# response when receiving a specific message
+function nc_fct() {
+        while read line
+        do
+                # Here we check if the received message is a
+                # "pong" string. If so, we will respond by sending
+                # a "ping" message
+                if [ $line = "pong" ]
+                then
+                        # Sleep to avoid heavy useless load
+                        sleep 0.1
+                        # This actually write into the FIFO
+                        echo 'ping'
+                        # This is used to print on stderr in order to
+                        # monitor and be used with walt-monitor
+                        # in order to log the activity.
+                        >&2 echo 'ping'
+                fi
+        done
+}
+fifo="fifo";
+# Create fifo if not created
+# This will be used by netcat in order to listen/send messages
+[ -p $fifo ] || mkfifo $fifo;
+
+# Connect to the server using name resolution provided by avahi
+netcat rpi-sw3-3-pong.local 12345 < $fifo | nc_fct 1> $fifo &
+# Send the first ping to initialize the game
+echo 'ping' > $fifo
+# Print it on stderr in order to see it. We could have use stdout
+# on this one.
+>&2 echo 'ping'
+```
+Make the file executable:
+
+```console
+root@image-shell:~# chmod +x pong.sh
+```
+
+Now exit the container by pressing `CTRL + D` or by typing `exit` in the terminal.
+You will be asked for an image name. You can keep `rpi-jessie` or save this modified image with a new name.
+Let’s call it `rpi-entertainment` for example.
+
+Your freshly customized image should now appear if you type `walt image show`.
+
+## Deploying an image
+
+In order to make two of our Raspberry Pi play together, we will have to boot our new image on them.
+
+First, choose two Raspberry Pi we will use:
+
+```console
+$ walt node show
+[...]
+The following nodes are free (they have never been used):
+
+name       type  ip             reachable
+---------  ----  -------------  ---------
+rpi_sw3_3  rpi   192.168.12.16  yes
+rpi_sw3_2  rpi   192.168.12.56  yes
+
+[...]
+```
+
+We will boot our image on `rpi_sw3_3` and `rpi_sw3_2`, but first we will rename them:
+
+```console
+$ walt device rename rpi_sw3_3 rpi-sw3-3-pong
+$ walt device rename rpi_sw3_2 rpi-sw3-2-ping
+```
+
+> ***Naming Convention:*** *We propose the following naming convention inside the Drakkar Team:* \
+> `[shortenedDeviceType]-[geographicalLocation|switchLocation]-[freeSuffix]` \
+> *We prefer the geographical (i.e. office name) over switchLocation as it eases maintenance if needed.
+> For example a Raspberry Pi located in the D317 office could be named:* \
+> `rpi-D317-tutorial`
+
+Then we boot nodes:
+
+```console
+$ walt node boot rpi-sw3-3-pong rpi-entertainment
+rpi-sw3-3-pong was powered off.
+rpi-sw3-3-pong will now boot rpi-entertainment.
+rpi-sw3-3-pong was powered on.
+$ walt node boot rpi-sw3-2-ping rpi-entertainment
+rpi-sw3-2-ping was powered off.
+rpi-sw3-2-ping will now boot rpi-entertainment.
+rpi-sw3-2-ping was powered on.
+```
+
+Nodes are now booting the OS contained in our image.
+You could wait until they are fully booted by typing:
+```console
+$ walt node wait rpi-sw3-2-ping,rpi-sw3-3-pong
+```
+The command will return when nodes are ready.
+
+## Connecting to devices and monitoring experimentations
+
+Now that our image is running on two nodes, we can connect to them and start the ping pong game.
+
+```console
+$ walt node shell rpi-sw3-3-pong
+Caution: changes will be lost on next node reboot.
+Run 'walt --help-about shells' for more info.
+
+root@rpi-sw3-3-pong:~# ./pong.sh
+```
+
+On another terminal connect to the other Raspberry Pi and start the client side.
+
+```console
+$ walt node shell rpi-sw3-2-ping
+Caution: changes will be lost on next node reboot.
+Run 'walt --help-about shells' for more info.
+
+root@rpi-sw3-2-ping:~# ./ping.sh
+```
+
+They should start playing ping pong together!
+
+Now if you want to monitor the ping pong logs, you can use the `walt-monitor` command in order to send logs into the walt server.
+On the pong server:
+
+```console
+root@rpi-sw3-3-pong:~# walt-monitor ./pong.sh
+```
+
+On the ping client:
+
+```console
+root@rpi-sw3-2-ping:~# walt-monitor ./ping.sh
+```
+
+You can then see the logs by typing the `walt log show --realtime` command in another terminal.
+
+## Publishing your image
+
+If you are happy with your new `rpi-entertainment` image, you might want to publish it on the docker hub.
+This will allow researchers around the world to clone your image and replay your experiment.
+
+Publishing it is as simple as:
+
+```console
+$ walt image publish rpi-entertainment
+```
+
+## What’s next?
+
+Now you can start doing serious business using walt platform!

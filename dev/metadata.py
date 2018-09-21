@@ -22,7 +22,8 @@ PACKAGE_SPECIFIC_INFO = {
             },
             data_files = [
                 ('/etc/bash_completion.d', ['bash_completion/walt'])
-            ]
+            ],
+            include_package_data = True
         )
     ),
     "walt-node": dict(
