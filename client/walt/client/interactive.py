@@ -53,6 +53,7 @@ class TTYSettings(object):
         # save
         self.saved = termios.tcgetattr(self.tty_fd)
         self.win_size = self.get_win_size()
+        self.rows, self.cols = self.win_size[0], self.win_size[1]
     def set_raw_no_echo(self):
         # set raw mode
         tty.setraw(self.tty_fd, termios.TCSADRAIN)
