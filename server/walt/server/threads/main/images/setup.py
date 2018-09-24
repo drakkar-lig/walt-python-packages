@@ -1,6 +1,6 @@
 import os, shutil, os.path
 from collections import OrderedDict
-from walt.common.tools import failsafe_makedirs, do, get_mac_address
+from walt.common.tools import failsafe_makedirs, failsafe_symlink, do, get_mac_address
 from walt.common.constants import \
         WALT_SERVER_DAEMON_PORT, WALT_SERVER_TCP_PORT
 from walt.server.const import WALT_NODE_NET_SERVICE_PORT, WALT_INTF
@@ -111,6 +111,28 @@ def fix_ptp(mount_path):
             for confname, confval in conf.items():
                 ptpfile.write('%s=%s\n' % (confname, confval))
 
+# boot files (in directory /boot) are accessed using TFTP,
+# thus the root of absolute symlinks will be the TFTP root
+# (/var/lib/walt), not the root of the image.
+# Function fix_absolute_symlinks() replaces them with relative
+# symlinks targeting the expected file taking the image root
+# as reference.
+def fix_if_absolute_symlink(image_root, path):
+    if os.path.islink(path):
+        target = os.readlink(path)
+        if target.startswith('/'):
+            print('fixing ' + path + ' target (' + target + ')')
+            target = image_root + target
+            failsafe_symlink(target, path, force_relative = True)
+        # recursively fix the target if it is a symlink itself
+        fix_if_absolute_symlink(image_root, target)
+
+def fix_absolute_symlinks(image_root, dirpath):
+    for root, dirs, files in os.walk(dirpath):
+        for name in files:
+            path = os.path.join(root, name)
+            fix_if_absolute_symlink(image_root, path)
+
 def setup(image):
     mount_path = image.mount_path
     # ensure FILES var is completely defined
@@ -142,6 +164,8 @@ def setup(image):
     if os.path.isfile(mount_path + '/etc/hostname') and \
             not os.path.islink(mount_path + '/etc/hostname'):
         os.remove(mount_path + '/etc/hostname')     # probably a residual of image build
+    # fix absolute symlinks in /boot
+    fix_absolute_symlinks(mount_path, mount_path + '/boot')
     # copy walt scripts in <image>/bin, update template parameters
     image_bindir = mount_path + '/bin/'
     for script_name, template in NODE_SCRIPTS.items():
