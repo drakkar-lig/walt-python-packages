@@ -3,6 +3,9 @@ import sys
 from walt.client.doc.color import RE_ESC_COLOR
 from walt.client.interactive import TTYSettings
 
+SCROLL_HELP = '<up>/<down>, <page-up>/<page-down>: scroll'
+Q_HELP = '<q>: quit'
+
 class Pager:
     def __init__(self):
         self.tty = TTYSettings()
@@ -15,19 +18,22 @@ class Pager:
             lines = lines[:-1]  # remove last line
         num_lines = len(lines)
         page_height = self.tty.rows-2
-        # if the text is not long enough to fill the screen (last line reserved
-        # for the future prompt), we don't activate the pager itself, but we
-        # just dump all the text
-        if num_lines <= self.tty.rows - 1:
-            sys.stdout.write("\n".join(lines) + '\x1b[0m\n')
-            return
+        # if the text is not long enough to fill the pager screen, we had empty lines
+        if num_lines < page_height:
+            lines += [ '' ] * (page_height-num_lines)
+            num_lines = page_height
+        # adapt footer help
+        if num_lines > page_height:
+            help_keys = [ SCROLL_HELP, Q_HELP ]
+        else:
+            help_keys = [ Q_HELP ]
+        footer = u'\u2501' * self.tty.cols + \
+                 u'\r\n  ' + u' \u2502 '.join(help_keys) + '\r'
         # activate the pager
         try:
             self.tty.set_raw_no_echo()
             index = 0
             old_index = -1
-            footer = u'\u2501' * self.tty.cols + \
-                     u'\r\n  <up>/<down>, <page-up>/<page-down>: scroll \u2502 <q>: quit\r'
             while True:
                 if old_index != index:
                     # to avoid the terminal scrolls, we restart the drawing at
