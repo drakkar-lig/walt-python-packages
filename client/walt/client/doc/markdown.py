@@ -62,7 +62,10 @@ class MarkdownRenderer:
         for name in FORMAT_ATTRS:
             if getattr(new, name) != getattr(old, name):
                 codes.append(str(getattr(new, name)))
-        return '\x1b[' + ';'.join(codes) + 'm'
+        if len(codes) == 0:
+            return ''
+        else:
+            return '\x1b[' + ';'.join(codes) + 'm'
     def stack_context(self, **kwargs):
         curr_state = self.contexts[-1]
         new_state = curr_state.alter(**kwargs)
