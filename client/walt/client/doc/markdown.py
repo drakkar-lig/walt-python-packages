@@ -100,6 +100,7 @@ class MarkdownRenderer:
         else:
             self.buf = node.saved_buf + self.wrap_escaped(self.buf)
             self.cr()
+            self.cr()
     def block_quote(self, node, entering):
         if entering:
             node.saved_buf = self.buf
@@ -133,7 +134,6 @@ class MarkdownRenderer:
     def heading(self, node, entering):
         if entering:
             level = 1 if node.level is None else node.level
-            self.cr()
             self.cr()
             self.stack_context(fg_color = FG_COLOR_HEADING, bold = BOLD_ON)
             self.lit('#'*level + ' ')
@@ -190,7 +190,6 @@ class MarkdownRenderer:
         s2 += s[end:]
         return s2
     def code_block(self, node, entering):
-        self.cr()
         code_text = self.pre_format_code_block(node.literal)
         code_width = max(len(line) for line in code_text.split('\n')) + 1
         code_width = max(code_width, self.target_width)
@@ -222,6 +221,7 @@ class MarkdownRenderer:
                 self.list_numbering.append(1)
         else:
             self.list_numbering = self.list_numbering[:-1]
+            self.cr()
     def item(self, node, entering):
         if entering:
             node.saved_buf = self.buf
