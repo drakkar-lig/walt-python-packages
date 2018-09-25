@@ -14,4 +14,4 @@ Thus the range `:` is equivalent to using the keyword `full`.
 
 If specified, `<start>` and `<end>` boundaries must be either:
 - a relative offset to the current time, in the form `-<num><unit>`, such as `-40s`, `-5m`, `-1h`, `-10d` (resp. seconds, minutes, hours and days).
-- the name of a checkpoint (see `walt help show log-checkpoint`)
+- the name of a checkpoint (see [`walt help show log-checkpoint`](log-checkpoint.md))

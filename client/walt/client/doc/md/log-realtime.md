@@ -8,7 +8,7 @@ $ walt log show --realtime [other_options...]
 
 In this mode, `walt log show` will wait for incoming log records and display them.
 
-Note that you may combine `--realtime` and `--history` options, e.g.:
+Note that you may combine `--realtime` and [`--history`](log-history.md) options, e.g.:
 ```
 $ walt log show --history '-2m:' --realtime
 ```

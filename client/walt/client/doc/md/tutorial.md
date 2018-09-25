@@ -68,7 +68,7 @@ You can also get more detailed information about various aspects of WalT, by typ
 $ walt help show
 ```
 
-`walt help show` is actually a shortcut of `walt help show help-intro`, because `help-intro` is the default topic displayed.
+`walt help show` is actually a shortcut of `walt help show help-intro`, because [`help-intro`](help-intro.md) is the default topic displayed.
 While using WalT, commands will often print tips about unobvious features, and sometimes direct you to another help topic. For example, to get more information about WalT "shells", you can type:
 
 ```console

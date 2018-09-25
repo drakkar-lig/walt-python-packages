@@ -88,6 +88,9 @@ class MarkdownRenderer:
         if entering:
             pass
         else:
+            if node.destination.endswith('.md'):
+                # this is a link for the web browser, ignore here
+                return
             self.lit(' (')
             self.stack_context(fg_color = FG_COLOR_URL)
             self.lit(node.destination)
