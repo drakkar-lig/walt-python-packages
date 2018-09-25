@@ -1,16 +1,19 @@
-import sys
+from walt.client.doc.md import display_doc, display_topic_list
+from walt.client.application import WalTCategoryApplication, WalTApplication
 
-def register_topic(topic, message):
-    message_per_topic[topic] = message
-    message_per_topic['help'] = \
-        'Available help topics are:\n%s' % \
-        ', '.join(sorted(t for t in message_per_topic if t != 'help'))
+class WalTHelp(WalTCategoryApplication):
+    """help sub-commands"""
+    SUBCOMMAND_HELPMSG = False
 
-def get(topic):
-    if topic not in message_per_topic:
-        print 'No such help topic.'
-        return get('help')
-    return message_per_topic[topic]
+@WalTHelp.subcommand("show")
+class WalTHelpShow(WalTApplication):
+    """Displays help about a given topic"""
+    USAGE = 'walt help show [topic=help-intro]\n'
+    def main(self, topic = 'help-intro'):
+        display_doc(topic)
 
-message_per_topic = {}
-
+@WalTHelp.subcommand("list")
+class WalTHelpList(WalTApplication):
+    """Displays the list of help topics"""
+    def main(self):
+        display_topic_list()

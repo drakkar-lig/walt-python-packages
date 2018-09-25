@@ -5,7 +5,7 @@ from pygments.lexers import get_lexer_by_name
 from pygments.formatters import Terminal256Formatter
 from collections import namedtuple
 from walt.client.doc.color import *
-from walt.client.interactive import TTYSettings
+from walt.client.term import TTYSettings
 
 MAX_TARGET_WIDTH = 120
 FORMAT_ATTRS = ['bg_color', 'fg_color', 'underline', 'bold', 'dim']

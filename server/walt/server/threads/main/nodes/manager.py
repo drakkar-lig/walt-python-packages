@@ -474,7 +474,7 @@ class NodesManager(object):
         if None in nodes:
             return None
         if len(nodes) == 0:
-            requester.stderr.write('No matching nodes found! (tip: walt --help-about node-terminology)\n')
+            requester.stderr.write('No matching nodes found! (tip: walt help show node-terminology)\n')
             return None
         return sorted(nodes)
 

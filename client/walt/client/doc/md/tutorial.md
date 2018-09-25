@@ -33,61 +33,46 @@ You can get an overview of walt subcommands categories by just typing:
 $ walt
 No sub-command given
 ------
-walt 0.1
 
-WalT (wireless testbed) control tool.
+WalT platform control tool.
 
 Usage:
-    walt [SWITCHES] [SUBCOMMAND [SWITCHES]] args...
+    walt CATEGORY SUBCOMMAND [args...]
 
-Meta-switches
-    -h, --help                      Prints this help message and quits
-    --help-all                      Print help messages of all subcommands and
-                                    quit
-    -v, --version                   Prints the program's version and quits
-    -z, --help-about TOPIC:str      Prints help details about a given topic. Run
-                                    'walt --help-about help' to list them.
+Help about a given category or subcommand:
+    walt CATEGORY --help
+    walt CATEGORY SUBCOMMAND --help
 
-Subcommands:
-    advanced                        advanced sub-commands; see 'walt advanced
-                                    --help' for more info
-    device                          management of WalT platform devices; see
-                                    'walt device --help' for more info
-    image                           management of WalT-nodes operating system
-                                    images; see 'walt image --help' for more
-                                    info
-    log                             management of logs; see 'walt log --help'
-                                    for more info
-    node                            WalT node management sub-commands; see 'walt
-                                    node --help' for more info
+Help about WalT in general:
+    walt help show
+
+Categories:
+    advanced  advanced sub-commands
+    device    management of WalT platform devices
+    help      help sub-commands
+    image     management of WalT-nodes operating system images
+    log       management of logs
+    node      WalT node management sub-commands
 $
 ```
-You can get a list of subcommands for a category using:
+As indicated above, you can get help about a category or about a subcommand using:
 
 ```console
-$ walt  -h
+$ walt <category> --help
+$ walt <category> <command> --help
 ```
 
-And get usage for a specific command by typing:
+You can also get more detailed information about various aspects of WalT, by typing:
 
 ```console
-$ walt <category> <command> -h
+$ walt help show
 ```
 
-You can also get more detailed information about a set of topics, by using the `--help-about` option.
-The list of topics can be obtained by:
+`walt help show` is actually a shortcut of `walt help show help-intro`, because `help-intro` is the default topic displayed.
+While using WalT, commands will often print tips about unobvious features, and sometimes direct you to another help topic. For example, to get more information about WalT "shells", you can type:
 
 ```console
-$ walt --help-about help
-Available help topics are:
-log-checkpoint, log-format, log-history, log-realtime, node-terminology, shells
-$
-```
-
-Then, to get help about WalT “shells”, you can type:
-
-```console
-$ walt --help-about shells
+$ walt help show shells
 [...]
 $
 ```
@@ -190,7 +175,7 @@ Three categories of nodes are listed:
 For more information on this topic, you can type:
 
 ```console
-$ walt --help-about node-terminology
+$ walt help show node-terminology
 ```
 
 ## The images
@@ -428,7 +413,7 @@ Now that our image is running on two nodes, we can connect to them and start the
 ```console
 $ walt node shell rpi-sw3-3-pong
 Caution: changes will be lost on next node reboot.
-Run 'walt --help-about shells' for more info.
+Run 'walt help show shells' for more info.
 
 root@rpi-sw3-3-pong:~# ./pong.sh
 ```
@@ -438,7 +423,7 @@ On another terminal connect to the other Raspberry Pi and start the client side.
 ```console
 $ walt node shell rpi-sw3-2-ping
 Caution: changes will be lost on next node reboot.
-Run 'walt --help-about shells' for more info.
+Run 'walt help show shells' for more info.
 
 root@rpi-sw3-2-ping:~# ./ping.sh
 ```

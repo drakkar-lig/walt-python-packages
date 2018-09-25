@@ -1,8 +1,8 @@
-from plumbum import cli
 from collections import OrderedDict
 from walt.common.tools import serialize_ordered_dict, deserialize_ordered_dict
 from walt.client.link import ClientToServerLink
 from walt.client.tools import yes_or_no, choose, confirm
+from walt.client.application import WalTApplication
 
 MSG_NOT_APPLICABLE = """\
 %(device_name)s is a %(device_type)s.
@@ -101,7 +101,7 @@ def display_conf(conf, prefix = ''):
         else:
             print '%s%s: %s' % (prefix, k, str(v))
 
-class WalTDeviceAdmin(cli.Application):
+class WalTDeviceAdmin(WalTApplication):
     """configure WalT regarding network switches and unknown devices"""
     def main(self, device_name):
         with ClientToServerLink() as server:

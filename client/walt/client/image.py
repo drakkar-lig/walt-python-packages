@@ -5,13 +5,14 @@ from walt.client.tools import confirm
 from walt.client.interactive import run_image_shell_prompt
 from walt.client.transfer import run_transfer_with_image
 from walt.client.auth import get_auth_conf
+from walt.client.application import WalTCategoryApplication, WalTApplication
 
-class WalTImage(cli.Application):
+class WalTImage(WalTCategoryApplication):
     """management of WalT-nodes operating system images"""
     pass
 
 @WalTImage.subcommand("search")
-class WalTImageSearch(cli.Application):
+class WalTImageSearch(WalTApplication):
     """search for remote WalT node OS images"""
     def main(self, keyword=None):
         with ClientToServerLink() as server_link:
@@ -19,7 +20,7 @@ class WalTImageSearch(cli.Application):
             server_link.search_images(keyword)
 
 @WalTImage.subcommand("clone")
-class WalTImageClone(cli.Application):
+class WalTImageClone(WalTApplication):
     """clone a remote image into your working set"""
     _force = False # default
     def main(self, clonable_image_link):
@@ -31,7 +32,7 @@ class WalTImageClone(cli.Application):
         self._force = True
 
 @WalTImage.subcommand("publish")
-class WalTImagePublish(cli.Application):
+class WalTImagePublish(WalTApplication):
     """publish a WalT image on the docker hub"""
     def main(self, image_name):
         with ClientToServerLink() as server_link:
@@ -40,7 +41,7 @@ class WalTImagePublish(cli.Application):
             server_link.publish_image(auth_conf, image_name)
 
 @WalTImage.subcommand("show")
-class WalTImageShow(cli.Application):
+class WalTImageShow(WalTApplication):
     """display your working set of walt images"""
     _refresh = False # default
     def main(self):
@@ -51,7 +52,7 @@ class WalTImageShow(cli.Application):
         self._refresh = True
 
 @WalTImage.subcommand("shell")
-class WalTImageShell(cli.Application):
+class WalTImageShell(WalTApplication):
     """modify an image through an interactive shell"""
     def main(self, image_name):
         with ClientToServerLink() as server:
@@ -86,28 +87,28 @@ class WalTImageShell(cli.Application):
             # will cause the server to cleanup session data on server side.
 
 @WalTImage.subcommand("remove")
-class WalTImageRemove(cli.Application):
+class WalTImageRemove(WalTApplication):
     """remove an image from your working set"""
     def main(self, image_name):
         with ClientToServerLink() as server:
             server.remove_image(image_name)
 
 @WalTImage.subcommand("rename")
-class WalTImageRename(cli.Application):
+class WalTImageRename(WalTApplication):
     """rename an image of your working set"""
     def main(self, image_name, new_image_name):
         with ClientToServerLink() as server:
             server.rename_image(image_name, new_image_name)
 
 @WalTImage.subcommand("duplicate")
-class WalTImageDuplicate(cli.Application):
+class WalTImageDuplicate(WalTApplication):
     """duplicate an image of your working set"""
     def main(self, image_name, new_image_name):
         with ClientToServerLink() as server:
             server.duplicate_image(image_name, new_image_name)
 
 @WalTImage.subcommand("cp")
-class WalTImageCp(cli.Application):
+class WalTImageCp(WalTApplication):
     """transfer files (client machine <-> image)"""
     def main(self, src, dst):
         with ClientToServerLink() as server:

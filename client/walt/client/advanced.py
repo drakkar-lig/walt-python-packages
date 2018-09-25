@@ -2,19 +2,20 @@ from plumbum import cli
 from walt.client.link import ClientToServerLink
 from walt.client.interactive import run_sql_prompt
 from walt.client.auth import get_auth_conf
+from walt.client.application import WalTCategoryApplication, WalTApplication
 
-class WalTAdvanced(cli.Application):
+class WalTAdvanced(WalTCategoryApplication):
     """advanced sub-commands"""
     pass
 
 @WalTAdvanced.subcommand("sql")
-class WalTAdvancedSql(cli.Application):
+class WalTAdvancedSql(WalTApplication):
     """Start a remote SQL prompt on the WalT server database"""
     def main(self):
         run_sql_prompt()
 
 @WalTAdvanced.subcommand("fix-image-owner")
-class WalTAdvancedFixImageOwner(cli.Application):
+class WalTAdvancedFixImageOwner(WalTApplication):
     """fix the owner of images"""
     _force = False # default
     def main(self, other_user):
@@ -34,7 +35,7 @@ walt advanced fix-image-owner --yes-i-know-do-it-please %s
         self._force = True
 
 @WalTAdvanced.subcommand("update-hub-meta")
-class WalTUpdateHubMeta(cli.Application):
+class WalTUpdateHubMeta(WalTApplication):
     """update hub metadata (docker images pushed without walt)"""
     _waltplatform_user = False # default
     def main(self):

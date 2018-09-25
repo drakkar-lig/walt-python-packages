@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import sys
 from walt.client.doc.color import RE_ESC_COLOR
-from walt.client.interactive import TTYSettings
+from walt.client.term import TTYSettings
 
 SCROLL_HELP = '<up>/<down>, <page-up>/<page-down>: scroll'
 Q_HELP = '<q>: quit'

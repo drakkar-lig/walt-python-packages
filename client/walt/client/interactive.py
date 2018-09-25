@@ -1,73 +1,25 @@
 #!/usr/bin/env python
-import sys, tty, termios, array, fcntl
-from walt.client.config import conf
+import sys
 from sys import stdin, stdout
 from select import select
+from walt.client.config import conf
+from walt.client.term import TTYSettings
 from walt.common.constants import WALT_SERVER_TCP_PORT
 from walt.common.io import SmartFile, \
                             unbuffered, read_and_copy
 from walt.common.tcp import Requests, write_pickle, client_sock_file
-from walt.client import myhelp
 
 SQL_SHELL_MESSAGE = """\
 Type \dt for a list of tables.
 """
 IMAGE_SHELL_MESSAGE = """\
 Notice: this is a limited virtual environment.
-Run 'walt --help-about shells' for more info.
+Run 'walt help show shells' for more info.
 """
 NODE_SHELL_MESSAGE = """\
 Caution: changes will be lost on next node reboot.
-Run 'walt --help-about shells' for more info.
+Run 'walt help show shells' for more info.
 """
-
-myhelp.register_topic('shells', """
-                | walt node shell    | walt image shell
-------------------------------------------------------------
-persistence     | until the node     | yes
-                | reboots (1)        |
-------------------------------------------------------------
-backend         | the real node      | virtual environment
-                |                    | ARM CPU emulation (2)
-------------------------------------------------------------
-target workflow | testing/debugging  | apply changes
-                |                    |
-------------------------------------------------------------
-
-(1): Changes are lost on reboot. This ensures that a node booting a
-given image will always act the same.
-
-(2): Avoid heavy processing, such as compiling of a large
-source code base. In this case, cross-compiling on another machine
-and importing the build artefacts in the virtual environment (through
-the emulated network) should be the prefered option.
-Also, keep in mind that in the virtual environment (docker container)
-no services are running (no init process, etc). Actually, the only
-process running in this virtual environment when you enter it is the
-shell process itself.
-""")
-
-class TTYSettings(object):
-    def __init__(self):
-        self.tty_fd = sys.stdout.fileno()
-        # save
-        self.saved = termios.tcgetattr(self.tty_fd)
-        self.win_size = self.get_win_size()
-        self.rows, self.cols = self.win_size[0], self.win_size[1]
-    def set_raw_no_echo(self):
-        # set raw mode
-        tty.setraw(self.tty_fd, termios.TCSADRAIN)
-        # disable echo
-        new = termios.tcgetattr(self.tty_fd)
-        new[3] &= ~termios.ECHO
-        termios.tcsetattr(self.tty_fd, termios.TCSADRAIN, new)
-    def restore(self):
-        # return saved conf
-        termios.tcsetattr(self.tty_fd, termios.TCSADRAIN, self.saved)
-    def get_win_size(self):
-        buf = array.array('h', [0, 0, 0, 0])
-        fcntl.ioctl(self.tty_fd, termios.TIOCGWINSZ, buf, True)
-        return buf
 
 class PromptClient(object):
     def __init__(self, req_id, **params):

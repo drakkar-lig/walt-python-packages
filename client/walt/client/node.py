@@ -1,7 +1,6 @@
 import time, sys
 from plumbum import cli
 from walt.common.tools import format_sentence_about_nodes
-from walt.client import myhelp
 from walt.client.link import ClientToServerLink
 from walt.client.tools import confirm
 from walt.client.interactive import run_node_cmd, \
@@ -9,6 +8,7 @@ from walt.client.interactive import run_node_cmd, \
                                     NODE_SHELL_MESSAGE
 from walt.client.transfer import run_transfer_with_node
 from walt.client.expose import TCPExposer
+from walt.client.application import WalTCategoryApplication, WalTApplication
 
 POE_REBOOT_DELAY            = 2  # seconds
 
@@ -17,37 +17,10 @@ MSG_SOFT_REBOOT_FAILED = """\
 MSG_SOFT_REBOOT_FAILED_TIP = """\
 Retry 'walt node reboot %(nodes_ko)s' in a moment (and add option --hard if it still fails)."""
 
-myhelp.register_topic('node-terminology', """
-* 'owning' a node
-* ---------------
-In WalT terminology, if node <N> boots an image created by user <U>,
-we consider that "<U> owns <N>".
-
-Thus, if you just started using WalT, "you do not own any node" until you boot
-an image on one of them (use 'walt node boot <node(s)> <image>' for this).
-
-A good practice is, once you are done with your experiment, to boot the default
-image on them (use 'walt node boot my-nodes default' for this), in order to
-release your 'ownership' on these nodes.
-After you run this, these nodes will appear as 'free' to other WalT users.
-
-* specifying a set of nodes 
-* -------------------------
-Some commands accept a "set of nodes":
-- walt node boot
-- walt node reboot
-- walt log show         (see option '--nodes')
-
-In this case you can specify either:
-* the keyword 'my-nodes' (this will select the nodes that you own)
-* the keyword 'all-nodes'
-* a coma separated list of nodes (e.g "rpi1,rpi2" or just "rpi1")
-""")
-
 WAIT_NODES_BUSY_LABEL='\
 Node bootup notification still pending (press ctrl-C to proceed anyway)'
 
-class WalTNode(cli.Application):
+class WalTNode(WalTCategoryApplication):
     """WalT node management sub-commands"""
     @staticmethod
     def wait_for_nodes(server, node_set, busy_label = WAIT_NODES_BUSY_LABEL):
@@ -108,7 +81,7 @@ class WalTNode(cli.Application):
                 reboot_nodes(server, node_set)
 
 @WalTNode.subcommand("show")
-class WalTNodeShow(cli.Application):
+class WalTNodeShow(WalTApplication):
     """show WalT nodes"""
     _all = False # default
     def main(self):
@@ -119,14 +92,14 @@ class WalTNodeShow(cli.Application):
         self._all = True
 
 @WalTNode.subcommand("create")
-class WalTNodeCreate(cli.Application):
+class WalTNodeCreate(WalTApplication):
     """create a virtual WalT node"""
     def main(self, node_name):
         with ClientToServerLink() as server:
             server.create_vnode(node_name)
 
 @WalTNode.subcommand("remove")
-class WalTNodeRemove(cli.Application):
+class WalTNodeRemove(WalTApplication):
     """remove a virtual WalT node"""
     def main(self, node_name):
         with ClientToServerLink() as server:
@@ -135,7 +108,7 @@ class WalTNodeRemove(cli.Application):
             server.remove_vnode(node_name)
 
 @WalTNode.subcommand("blink")
-class WalTNodeBlink(cli.Application):
+class WalTNodeBlink(WalTApplication):
     """make a node blink for a given number of seconds"""
     def main(self, node_name, duration=60):
         try:
@@ -196,7 +169,7 @@ def reboot_nodes(server, node_set, hard=False):
             print(MSG_SOFT_REBOOT_FAILED_TIP % dict(nodes_ko = nodes_ko))
 
 @WalTNode.subcommand("reboot")
-class WalTNodeReboot(cli.Application):
+class WalTNodeReboot(WalTApplication):
     """reboot a (set of) node(s)"""
     _hard = False # default
     def main(self, node_set):
@@ -209,19 +182,19 @@ class WalTNodeReboot(cli.Application):
         self._hard = True
 
 @WalTNode.subcommand("boot")
-class WalTNodeBoot(cli.Application):
+class WalTNodeBoot(WalTApplication):
     """let a (set of) node(s) boot an operating system image"""
     def main(self, node_set, image_name_or_default):
         return WalTNode.boot_nodes(node_set, image_name_or_default)
 
 @WalTNode.subcommand("deploy")
-class WalTNodeDeploy(cli.Application):
+class WalTNodeDeploy(WalTApplication):
     """alias to 'boot' subcommand"""
     def main(self, node_set, image_name_or_default):
         return WalTNode.boot_nodes(node_set, image_name_or_default)
 
 @WalTNode.subcommand("ping")
-class WalTNodePing(cli.Application):
+class WalTNodePing(WalTApplication):
     """check that a node is reachable on WalT network"""
     def main(self, node_name):
         node_ip = None
@@ -231,7 +204,7 @@ class WalTNodePing(cli.Application):
             run_device_ping(node_ip)
 
 @WalTNode.subcommand("shell")
-class WalTNodeShell(cli.Application):
+class WalTNodeShell(WalTApplication):
     """run an interactive shell connected to the node"""
     def main(self, node_name):
         WalTNode.run_cmd(   node_name, False, [ ],
@@ -239,7 +212,7 @@ class WalTNodeShell(cli.Application):
                             tty = True)
 
 @WalTNode.subcommand("run")
-class WalTNodeRun(cli.Application):
+class WalTNodeRun(WalTApplication):
     """run a command on a (set of) node(s)"""
     _term = False # default
     def main(self, node_set, *cmdargs):
@@ -249,7 +222,7 @@ class WalTNodeRun(cli.Application):
         self._term = True
 
 @WalTNode.subcommand("cp")
-class WalTNodeCp(cli.Application):
+class WalTNodeCp(WalTApplication):
     """transfer files/dirs (client machine <-> node)"""
     def main(self, src, dst):
         with ClientToServerLink() as server:
@@ -267,7 +240,7 @@ class WalTNodeCp(cli.Application):
                 print 'Aborted.'
 
 @WalTNode.subcommand("wait")
-class WalTNodeWait(cli.Application):
+class WalTNodeWait(WalTApplication):
     """wait for bootup notification of a node (or set of nodes)"""
     def main(self, node_set):
         with ClientToServerLink() as server_link:
@@ -275,7 +248,7 @@ class WalTNodeWait(cli.Application):
             WalTNode.wait_for_nodes(server_link, node_set, busy_label)
 
 @WalTNode.subcommand("expose")
-class WalTNodeExpose(cli.Application):
+class WalTNodeExpose(WalTApplication):
     """expose a network port of a node on the local machine"""
     @cli.positional(str, int, int)
     def main(self, node_name, node_port, local_port):
@@ -291,7 +264,7 @@ class WalTNodeExpose(cli.Application):
             exposer.run()
 
 @WalTNode.subcommand("netsetup")
-class WalTNodeNetsetup(cli.Application):
+class WalTNodeNetsetup(WalTApplication):
     """assign LAN or NAT network setup to a node (or set of nodes)"""
     def main(self, node_set, netsetup_value):
         if netsetup_value.lower() in ("lan", "nat"):

@@ -1,12 +1,12 @@
 import sys, re, datetime, cPickle as pickle
-from plumbum import cli
 from walt.common.constants import WALT_SERVER_TCP_PORT
 from walt.common.tcp import read_pickle, write_pickle, client_sock_file, \
                             Requests
+from plumbum import cli
+from walt.client.application import WalTCategoryApplication, WalTApplication
 from walt.client.config import conf
 from walt.client.link import ClientToServerLink
 from walt.client.tools import confirm
-from walt.client import myhelp
 
 DATE_FORMAT_STRING= '%Y-%m-%d %H:%M:%S'
 DATE_FORMAT_STRING_HUMAN= '<YYYY>-<MM>-<DD> <hh>:<mm>:<ss>'
@@ -14,88 +14,6 @@ DATE_FORMAT_STRING_EXAMPLE= '2015-09-28 15:16:39'
 
 DEFAULT_FORMAT_STRING= \
    '{timestamp:%H:%M:%S.%f} {sender}.{stream} -> {line}'
-POSIX_TIMESTAMP_FORMAT = '{timestamp:%s.%f}'
-
-myhelp.register_topic('log-format', """
-You may display walt logs in a custom format by using:
-$ walt log show --format FORMAT_STRING [other_options...]
-
-FORMAT_STRING should be a python-compatible string formating pattern.
-The default is:
-%s
-
-A useful example in case of batch processing is to use '%s'
-for the timestamp part. It will display it as a POSIX timestamp (i.e. a
-float number of seconds since Jan 1, 1970).
-""" % (DEFAULT_FORMAT_STRING, POSIX_TIMESTAMP_FORMAT))
-
-myhelp.register_topic('log-history', """
-All logs are saved in a database on the walt server. You may retrieve 
-them by using:
-$ walt log show --history <range> [other_options...]
-
-The <range> may be either 'full', 'none', or have the form
-'[<start>]:[<end>]'.
-Omitting <start> means the range has no limit in the past.
-Omitting <end> means logs up to now should match.
-Thus the range ':' is equivalent to using the keyword 'full'.
- 
-If specified, <start> and <end> boundaries must be either:
-- a relative offset to the current time, in the form '-<num><unit>',
-  such as '-40s', '-5m', '-1h', '-10d' (resp. seconds, minutes, hours and days).
-- the name of a checkpoint (see 'walt --help-about log-checkpoint')
-""")
-
-myhelp.register_topic('log-realtime', """
-WalT logs may be retrieved in pseudo-realtime by using:
-$ walt log show --realtime [other_options...]
-
-In this mode, 'walt log show' will wait for incoming log records and
-display them.
-
-Note that you may combine --realtime and --history options, e.g.:
-$ walt log show --history '-2m:' --realtime
-This will display the logs from 2 minutes in the past to now and then
-continue listening for new incoming logs.
-""")
-
-myhelp.register_topic('log-checkpoint', """
-A checkpoint is a kind of marker in time. It allows to easily
-reference the associated point in time by just giving its name.
-
-Here is a sample workflow:
-$ walt log add-checkpoint exp1-start
-[... run experience exp1 ...]
-$ walt log add-checkpoint exp1-end
-$ walt log show --history exp1-start:exp1-end > exp1.log
-
-By using 'walt log add-checkpoint' with option '--date',
-you can create a checkpoint referencing a given date. For example:
-$ walt log add-checkpoint --date '%s' my-checkpoint
-""" % DATE_FORMAT_STRING_EXAMPLE)
-
-myhelp.register_topic('log-wait', """
-'walt log wait' allows to wait for a given log trace to be emitted.
-The command returns when it occurs.
-
-Option '--nodes' allows to specify the set of nodes monitored.
-If unspecified, the nodes you own (see walt --help-about node-terminology)
-will be selected.
-
-The default behavior (--mode ANY) of this command is to wait until a
-logline emitted by ONE of the selected nodes matches the specified
-regular expression.
-In some cases, one may require a different behavior by using option
-'--mode ALL'. With this option, the command will wait until ALL selected
-nodes emit a given logline.
-For example, let's consider an experiment run using scripts automatically
-started on node's bootup. These scripts send a logline "DONE" at the end
-of the experiment. In order to wait until all nodes are done with the
-experiment, the user can use:
-$ walt node wait --mode ALL --nodes node1,node2,node3 DONE
-This command will return when a logline including "DONE" has been
-received from all the specified experiment nodes.
-""")
 
 SECONDS_PER_UNIT = {'s':1, 'm':60, 'h':3600, 'd':86400}
 NUM_LOGS_CONFIRM_TRESHOLD = 1000
@@ -117,24 +35,24 @@ class LogsFlowFromServer(object):
     def close(self):
         self.f.close()
 
-class WalTLog(cli.Application):
+class WalTLog(WalTCategoryApplication):
     """management of logs"""
     pass
 
-class WalTLogShowOrWait(cli.Application):
+class WalTLogShowOrWait(WalTApplication):
     """Implements options and features common to "show" and "wait" subcommands"""
     format_string = cli.SwitchAttr(
                 "--format",
                 str,
                 argname = 'LOG_FORMAT',
                 default = DEFAULT_FORMAT_STRING,
-                help= """format used to print logs (see walt --help-about log-format)""")
+                help= """format used to print logs (see walt help show log-format)""")
     set_of_nodes = cli.SwitchAttr(
                 "--nodes",
                 str,
                 argname = 'SET_OF_NODES',
                 default = 'my-nodes',
-                help= """targeted nodes (see walt --help-about node-terminology)""")
+                help= """targeted nodes (see walt help show node-terminology)""")
     streams = cli.SwitchAttr(
                 "--streams",
                 str,
@@ -224,18 +142,18 @@ class WalTLogShow(WalTLogShowOrWait):
     realtime = cli.Flag(
                 "--realtime",
                 default = False,
-                help= """enable realtime mode (see walt --help-about log-realtime)""")
+                help= """enable realtime mode (see walt help show log-realtime)""")
     history_range = cli.SwitchAttr(
                 "--history",
                 str,
                 argname = 'HISTORY_RANGE',
                 default = 'none',
-                help= """history range to be retrieved (see walt --help-about log-history)""")
+                help= """history range to be retrieved (see walt help show log-history)""")
 
     def main(self, logline_regexp = None):
         if self.realtime == False and self.history_range == 'none':
             print 'You must specify at least 1 of the options --realtime and --history.'
-            print "See 'walt --help-about log-realtime' and 'walt --help-about log-history' for more info."
+            print "See 'walt help show log-realtime' and 'walt help show log-history' for more info."
             return
         if not WalTLogShowOrWait.verify_regexps(self.streams, logline_regexp):
             return
@@ -245,7 +163,7 @@ class WalTLogShow(WalTLogShowOrWait):
                 return
             range_analysis = WalTLogShowOrWait.analyse_history_range(server, self.history_range)
             if not range_analysis[0]:
-                print '''Invalid HISTORY_RANGE. See 'walt --help-about log-history' for more info.'''
+                print '''Invalid HISTORY_RANGE. See 'walt help show log-history' for more info.'''
                 return
             history_range = range_analysis[1]
             # Note : if a regular expression is specified, we do not bother computing the number
@@ -261,7 +179,7 @@ class WalTLogShow(WalTLogShowOrWait):
                                             senders, self.streams, logline_regexp, None)
 
 @WalTLog.subcommand("add-checkpoint")
-class WalTLogAddCheckpoint(cli.Application):
+class WalTLogAddCheckpoint(WalTApplication):
     """Record a checkpoint (reference point in time)"""
     date = cli.SwitchAttr("--date", str, default=None)
 
@@ -286,14 +204,14 @@ Invalid checkpoint name:
             server.add_checkpoint(checkpoint_name, self.date)
 
 @WalTLog.subcommand("remove-checkpoint")
-class WalTLogRemoveCheckpoint(cli.Application):
+class WalTLogRemoveCheckpoint(WalTApplication):
     """Remove a checkpoint"""
     def main(self, checkpoint_name):
         with ClientToServerLink() as server:
             server.remove_checkpoint(checkpoint_name)
 
 @WalTLog.subcommand("list-checkpoints")
-class WalTLogListCheckpoints(cli.Application):
+class WalTLogListCheckpoints(WalTApplication):
     """List checkpoints"""
     def main(self):
         with ClientToServerLink() as server:
@@ -307,7 +225,7 @@ class WalTLogWait(WalTLogShowOrWait):
                 cli.Set("ALL", "ANY", case_sensitive = False),
                 argname = 'MODE',
                 default = 'ANY',
-                help= """specify mode (see walt --help-about log-wait)""")
+                help= """specify mode (see walt help show log-wait)""")
     time_margin = cli.SwitchAttr(
                 "--time-margin",
                 int,

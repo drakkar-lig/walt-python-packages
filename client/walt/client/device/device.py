@@ -3,13 +3,14 @@ from walt.client.link import ClientToServerLink
 from walt.client.interactive import run_device_ping
 from walt.client.device.admin import WalTDeviceAdmin
 from walt.common.tools import deserialize_ordered_dict
+from walt.client.application import WalTCategoryApplication, WalTApplication
 
-class WalTDevice(cli.Application):
+class WalTDevice(WalTCategoryApplication):
     """management of WalT platform devices"""
     pass
 
 @WalTDevice.subcommand("tree")
-class WalTDeviceTree(cli.Application):
+class WalTDeviceTree(WalTApplication):
     """print the network structure of the platform"""
     _all = False # default
     def main(self):
@@ -20,28 +21,28 @@ class WalTDeviceTree(cli.Application):
         self._all = True
 
 @WalTDevice.subcommand("show")
-class WalTDeviceShow(cli.Application):
+class WalTDeviceShow(WalTApplication):
     """print details about devices involved in the platform"""
     def main(self):
         with ClientToServerLink() as server:
             print server.device_show()
 
 @WalTDevice.subcommand("rescan")
-class WalTDeviceRescan(cli.Application):
+class WalTDeviceRescan(WalTApplication):
     """rescan the network devices involved in the platform"""
     def main(self):
         with ClientToServerLink() as server:
             server.device_rescan()
 
 @WalTDevice.subcommand("rename")
-class WalTRenameDevice(cli.Application):
+class WalTRenameDevice(WalTApplication):
     """rename a device"""
     def main(self, old_name, new_name):
         with ClientToServerLink() as server:
             server.rename(old_name, new_name)
 
 @WalTDevice.subcommand("ping")
-class WalTDevicePing(cli.Application):
+class WalTDevicePing(WalTApplication):
     """check that a device is reachable on WalT network"""
     def main(self, device_name):
         device_ip = None
@@ -59,7 +60,7 @@ MSG_USE_WALT_NODE_REMOVE = """\
 %(node)s is a virtual node. Use 'walt node remove %(node)s' instead."""
 
 @WalTDevice.subcommand("forget")
-class WalTDeviceForget(cli.Application):
+class WalTDeviceForget(WalTApplication):
     """let the WalT system forget about an obsolete device"""
     _force = False # default
     def main(self, device_name):

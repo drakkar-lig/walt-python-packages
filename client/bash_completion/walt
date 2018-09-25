@@ -37,6 +37,11 @@ __walt_node_name_all() {
 	COMPREPLY=( $(compgen -W "${names[*]}" -- "$cur") )
 }
 
+__walt_help_topic_all() {
+	local names=`walt help list | tail -n -1 | tr -d ','`
+	COMPREPLY=( $(compgen -W "$names" -- "$cur") )
+}
+
 __walt_show_nothing() {
 	COMPREPLY=( $(compgen -W "" -- "$cur") )
 }
@@ -105,7 +110,7 @@ _walt_advanced() {
 			COMPREPLY=( $( compgen -W "$boolean_options $main_options_with_args" -- "$cur" ) )
 			;;
 		*)
-			COMPREPLY=( $( compgen -W "${commands[*]} help" -- "$cur" ) )
+			COMPREPLY=( $( compgen -W "${commands[*]}" -- "$cur" ) )
 			;;
 	esac
 
@@ -138,6 +143,81 @@ _walt_advanced() {
 
 }
 ##########################walt advanced##########################
+#################################################################
+
+#################################################################
+##########################walt help##############################
+## Done
+_walt_help_show() {
+	case "$cur" in
+	-*)
+		COMPREPLY=( $( compgen -W "$boolean_options $main_options_with_args" -- "$cur" ) )
+		;;
+	*)
+		__walt_help_topic_all
+		;;
+	esac
+}
+## Done
+_walt_help_list() {
+	case "$cur" in
+	-*)
+		COMPREPLY=( $( compgen -W "$boolean_options $main_options_with_args" -- "$cur" ) )
+		;;
+	*)
+		__walt_show_nothing
+		;;
+	esac
+}
+
+_walt_help() {
+
+	local previous_extglob_setting=$(shopt -p extglob)
+	shopt -s extglob
+
+	local commands=(
+		show
+		list
+	)
+
+	case "$cur" in
+		-*)
+			COMPREPLY=( $( compgen -W "$boolean_options $main_options_with_args" -- "$cur" ) )
+			;;
+		*)
+			COMPREPLY=( $( compgen -W "${commands[*]}" -- "$cur" ) )
+			;;
+	esac
+
+	local main_options_with_args_glob=$(__walt_to_extglob "$main_options_with_args")
+
+	local cur prev words cword
+	_get_comp_words_by_ref -n : cur prev words cword
+
+	local command='help' cpos=1
+	local counter=2
+	while [ $counter -lt $cword ]; do
+		case "${words[$counter]}" in
+			$main_options_with_args_glob )
+				(( counter++ ))
+				;;
+			-*)
+				;;
+			*)
+				command="${words[$counter]}"
+				cpos=$counter
+				(( cpos++ ))
+				break
+				;;
+		esac
+		(( counter++ ))
+	done
+
+	local completions_func=_walt_help_${command}
+	declare -F $completions_func >/dev/null && $completions_func
+
+}
+##########################walt help##############################
 #################################################################
 
 
@@ -245,7 +325,7 @@ _walt_device() {
 			COMPREPLY=( $( compgen -W "$boolean_options $main_options_with_args" -- "$cur" ) )
 			;;
 		*)
-			COMPREPLY=( $( compgen -W "${commands[*]} help" -- "$cur" ) )
+			COMPREPLY=( $( compgen -W "${commands[*]}" -- "$cur" ) )
 			;;
 	esac
 
@@ -410,7 +490,7 @@ _walt_image() {
 			COMPREPLY=( $( compgen -W "$boolean_options $main_options_with_args" -- "$cur" ) )
 			;;
 		*)
-			COMPREPLY=( $( compgen -W "${commands[*]} help" -- "$cur" ) )
+			COMPREPLY=( $( compgen -W "${commands[*]}" -- "$cur" ) )
 			;;
 	esac
 
@@ -519,7 +599,7 @@ _walt_log() {
 			COMPREPLY=( $( compgen -W "$boolean_options $main_options_with_args" -- "$cur" ) )
 			;;
 		*)
-			COMPREPLY=( $( compgen -W "${commands[*]} help" -- "$cur" ) )
+			COMPREPLY=( $( compgen -W "${commands[*]}" -- "$cur" ) )
 			;;
 	esac
 
@@ -720,7 +800,7 @@ _walt_node() {
 			COMPREPLY=( $( compgen -W "$boolean_options $main_options_with_args" -- "$cur" ) )
 			;;
 		*)
-			COMPREPLY=( $( compgen -W "${commands[*]} help" -- "$cur" ) )
+			COMPREPLY=( $( compgen -W "${commands[*]}" -- "$cur" ) )
 			;;
 	esac
 
@@ -756,20 +836,7 @@ _walt_node() {
 #################################################################
 
 _walt_walt() {
-	
-	local boolean_options="
-		--help-about -z
-	"
-
-	case "$cur" in
-		-*)
-			COMPREPLY=( $( compgen -W "$boolean_options $main_options_with_args" -- "$cur" ) )
-			;;
-		*)
-			COMPREPLY=( $( compgen -W "${commands[*]} help" -- "$cur" ) )
-			;;
-	esac
-
+    COMPREPLY=( $( compgen -W "${commands[*]}" -- "$cur" ) )
 }
 
 _walt() {
@@ -782,12 +849,11 @@ _walt() {
 		image
 		log
 		node
+        help
 	)
 
 	local main_options_with_args="
-		--help -h
-		--help-all
-		--version -v
+		--help
 	"
 
 	local main_options_with_args_glob=$(__walt_to_extglob "$main_options_with_args")
