@@ -131,7 +131,9 @@ class MarkdownRenderer:
             wrapped_lines.append(curr_line)
             curr_line = ''
             curr_len = 0
-        return '\n'.join(wrapped_lines)
+        # after wrapping is validated, we can revert non-breaking spaces
+        # to regular space.
+        return '\n'.join(wrapped_lines).replace(u'\xa0', ' ')
     def quoted(self, text):
         return '\n'.join((u' \u2588' + line) for line in text.rstrip('\n').split('\n')) + '\n'
     def heading(self, node, entering):
@@ -164,7 +166,8 @@ class MarkdownRenderer:
     def code(self, node, entering):
         self.stack_context( fg_color = FG_COLOR_SOURCE_CODE,
                             bg_color = BG_COLOR_SOURCE_CODE)
-        # replace space with non-breaking space.
+        # replace spaces with non-breaking space
+        # (this should be reverted after the paragraph has been wrapped, see above)
         self.lit(node.literal.replace(' ', u'\xa0'))
         self.pop_context()
     def pre_format_code_block(self, text):
