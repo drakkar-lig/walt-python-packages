@@ -113,24 +113,58 @@ class MarkdownRenderer:
             self.buf = node.saved_buf + self.quoted(self.buf)
             self.target_width += 2
             self.cr()
+    def justify(self, words, num_spaces):
+        num_intervals = len(words) - 1
+        if num_intervals == 0:
+            # only one word, cannot justify
+            return words[0]
+        # Fill intervals evenly with appropriate number of spaces
+        added_spaces = [ ' ' * (num_spaces/num_intervals)  ] * num_intervals
+        num_spaces -= (num_spaces/num_intervals) * num_intervals
+        # Because of the integer division, a few remaining spaces should be added
+        # (less than the number of intervals).
+        # Preferably add one more space after ponctuation marks.
+        for signs in ('.!?', ':;', ','):
+            for i, word in enumerate(words[:-1]):
+                if num_spaces == 0:
+                    break
+                if word[-1] in signs:
+                    added_spaces[i] += ' '
+                    num_spaces -= 1
+        # For better understanding of what we will do with any space still remaining,
+        # let's take an example:
+        # if we have 15 intervals and 4 remaining spaces, distribute evenly
+        # these 4 spaces at intervals 1*15/5=3, 2*15/5=6, 3*15/5=9 and 4*15/5=12.
+        for i in range(1, num_spaces+1):
+            added_spaces[i*num_intervals/(num_spaces+1)] += ' '
+        # add a fake ending 'interval' for the zip() function below
+        added_spaces += [ '' ]
+        return ''.join((word + spacing) for word, spacing in zip(words, added_spaces))
     def wrap_escaped(self, text):
         # textwrap.fill does not work well because of the escape sequences
         wrapped_lines = []
-        curr_line = ''
-        curr_len = 0
+        curr_words = []
+        curr_words_no_color = []
         for line in text.split('\n'):
             for word in line.split(' '):
-                wordlen = len(''.join(RE_ESC_COLOR.split(word)))
-                if curr_len + 1 + wordlen > self.target_width:
-                    wrapped_lines.append(curr_line)
-                    curr_line = ' ' + word
-                    curr_len = 1 + wordlen
+                word_no_color = ''.join(RE_ESC_COLOR.split(word))
+                min_line_no_color = ' '.join(curr_words_no_color + [ word_no_color ])
+                min_len = len(min_line_no_color)
+                if 1 + min_len > self.target_width:
+                    # cannot include the new word, format previous ones into a line
+                    len_no_space = len(''.join(curr_words_no_color))
+                    num_spaces = self.target_width - 1 - len_no_space
+                    curr_line = self.justify(curr_words, num_spaces)
+                    wrapped_lines.append(' ' + curr_line)
+                    # the new word will be included into next line
+                    curr_words = [ word ]
+                    curr_words_no_color = [ word_no_color ]
                 else:
-                    curr_line += ' ' + word
-                    curr_len += 1 + wordlen
-            wrapped_lines.append(curr_line)
-            curr_line = ''
-            curr_len = 0
+                    # ok, include this new word into the current line
+                    curr_words.append(word)
+                    curr_words_no_color.append(word_no_color)
+            wrapped_lines.append(' ' + ' '.join(curr_words))
+            curr_words, curr_words_no_color = [], []
         # after wrapping is validated, we can revert non-breaking spaces
         # to regular space.
         return '\n'.join(wrapped_lines).replace(u'\xa0', ' ')
