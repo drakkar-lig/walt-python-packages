@@ -18,6 +18,8 @@ def display_doc(topic):
         pager.display(text)
     else:
         print(content)
+        # For debugging colors with hexdump, prefer:
+        #print(MarkdownRenderer().render(content))
 
 def display_topic_list():
     file_list = sorted(resource_listdir(__name__, '.'))

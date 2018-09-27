@@ -4,6 +4,7 @@ from pygments import highlight
 from pygments.lexers import get_lexer_by_name
 from pygments.formatters import Terminal256Formatter
 from collections import namedtuple
+import termios
 from walt.client.doc.color import *
 from walt.client.term import TTYSettings
 
@@ -30,8 +31,12 @@ class MarkdownRenderer:
         init_state = FormatState(bg_color=BG_COLOR_DEFAULT, fg_color=FG_COLOR_DEFAULT,
                             underline=UNDERLINE_OFF, bold=BOLD_OFF, dim=DIM_OFF)
         self.contexts = [ init_state ]
-        tty = TTYSettings()
-        self.target_width = min(tty.cols, MAX_TARGET_WIDTH)
+        try:
+            tty = TTYSettings()
+            self.target_width = min(tty.cols, MAX_TARGET_WIDTH)
+        except termios.error:
+            # Stdout seems not to be a terminal
+            self.target_width = 80  # Minimal requirement
     def render(self, text):
         parser = CommonMark.Parser()
         ast = parser.parse(text)
