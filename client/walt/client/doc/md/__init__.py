@@ -1,3 +1,6 @@
+import os
+import sys
+
 from pkg_resources import resource_string, resource_listdir
 from walt.client.doc.markdown import MarkdownRenderer
 from walt.client.doc.pager import Pager
@@ -8,10 +11,13 @@ def display_doc(topic):
     except:
         print('Sorry, no such help topic. (tip: use "walt help list")')
         return
-    renderer = MarkdownRenderer()
-    text = renderer.render(content)
-    pager = Pager()
-    pager.display(text)
+    if os.isatty(sys.stdout.fileno()):
+        renderer = MarkdownRenderer()
+        text = renderer.render(content)
+        pager = Pager()
+        pager.display(text)
+    else:
+        print(content)
 
 def display_topic_list():
     file_list = sorted(resource_listdir(__name__, '.'))
