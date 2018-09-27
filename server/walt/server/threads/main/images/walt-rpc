@@ -1,0 +1,32 @@
+#!/bin/sh
+
+func_call=$1
+NC_SCRIPT="/tmp/nc-$$.sh"
+
+cat >$NC_SCRIPT << EOF
+#!/bin/sh
+echo REQ_API_SESSION
+echo NSAPI
+read api_version
+echo "('API_CALL', '$func_call', (), {})"
+read response
+echo \$response >&2
+echo "('CLOSE')"
+EOF
+chmod +x $NC_SCRIPT
+
+nc %(server_ip)s %(walt_server_rpc_port)s -e $NC_SCRIPT 2>&1 | {
+    read response_word1 response_rest
+    word2=$(echo -n "$response_rest" | sed -e 's/.$//')
+    if [ "$response_word1" = "('RESULT'," ]
+    then
+        echo $word2
+        return 0
+    else
+        echo $word2 >&2
+        return 1  # exception
+    fi
+}
+exit_code=$?
+rm $NC_SCRIPT
+exit $exit_code

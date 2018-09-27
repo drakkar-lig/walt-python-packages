@@ -1,0 +1,9 @@
+#!/bin/sh
+
+# get timestamp from server (format epoch)
+ts=$(/bin/walt-rpc sync_clock)
+
+# set local clock
+busybox date -s "$(busybox date -D "%s" -d $ts "+%Y-%m-%d %H:%M:%S")"
+
+

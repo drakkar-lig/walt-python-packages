@@ -6,7 +6,12 @@ UMOUNT='busybox umount'
 ROOTFS='/tmp/rootfs'
 ROOTFS_BUSYBOX_APPLETS="
     sh ls timeout reboot sleep nc chroot
-    mktemp mkfifo
+    mktemp mkfifo sed
+"
+IMAGE_SCRIPTS="
+    /bin/walt-nfs-watchdog /bin/walt-net-service
+    /bin/walt-notify-bootup /bin/walt-rpc
+    /bin/walt-clock-sync
 "
 
 admin_sh()
@@ -37,14 +42,18 @@ do_mounts()
     $MOUNT -t tmpfs none /tmp
 }
 
-run_bgscript_in_rootfs()
+run_script_in_rootfs()
 {
     cd $ROOTFS
-    script_path_src="mnt/fs_union/bin/$1"
-    script_path_dst="bin/$1"
-    shift; args="$@"
-    cp -p "$script_path_src" "$script_path_dst"
-    busybox chroot . bin/sh $script_path_dst $args &
+    mode="$1"
+    script_path="bin/$2"
+    shift 2; args="$@"
+    if [ "$mode" = "fg" ]
+    then
+        busybox chroot . bin/sh $script_path $args
+    else
+        busybox chroot . bin/sh $script_path $args &
+    fi
     cd - >/dev/null
 }
 
@@ -54,6 +63,10 @@ prepare_rootfs()
     cd $ROOTFS
     mkdir -p tmp bin dev mnt/nfsroot
     cp "$(which busybox)" bin/
+    for image_script in $IMAGE_SCRIPTS
+    do
+        cp $image_script bin/
+    done
     for c in $ROOTFS_BUSYBOX_APPLETS
     do
         ln -s busybox bin/$c
@@ -81,9 +94,9 @@ prepare_rootfs()
 # handle these features in all WalT images.
 start_background_processes()
 {
-    run_bgscript_in_rootfs walt-nfs-watchdog
-    run_bgscript_in_rootfs walt-net-service mnt/fs_union
-    run_bgscript_in_rootfs walt-notify-bootup
+    run_script_in_rootfs bg walt-nfs-watchdog
+    run_script_in_rootfs bg walt-net-service mnt/fs_union
+    run_script_in_rootfs bg walt-notify-bootup
 }
 
 # since we share the NFS export across all rpi nodes,
@@ -131,6 +144,8 @@ echo "*** Mounting filesystem union...  ***"
 mount_union
 echo "*** Re-mounting over the union... ***"
 update_mounts
+echo "*** Setting clock...              ***"
+run_script_in_rootfs fg walt-clock-sync
 echo "*** Starting bg processes...      ***"
 start_background_processes
 echo "*** Starting walt image init...   ***"

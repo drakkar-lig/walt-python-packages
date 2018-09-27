@@ -8,11 +8,5 @@ do
     sleep 1
 done
 
-# connect to server and send notification
-nc %(server_ip)s %(walt_server_rpc_port)s >/dev/null << EOF
-REQ_API_SESSION
-NSAPI
-('API_CALL', 'node_bootup_event', (), {})
-('CLOSE')
-EOF
-
+# send notification to server
+/bin/walt-rpc node_bootup_event >/dev/null

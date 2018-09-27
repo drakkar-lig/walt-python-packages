@@ -12,3 +12,7 @@ class NSAPI(APISession):
         node_name = context.devices.get_name_from_ip(context.remote_ip)
         context.nodes.node_bootup_event(node_name)
 
+    @api_expose_method
+    def sync_clock(self, context):
+        context.nodes.clock.sync(context.task)
+

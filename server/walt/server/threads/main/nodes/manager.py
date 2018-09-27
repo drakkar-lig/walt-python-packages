@@ -9,6 +9,7 @@ from walt.server.threads.main.network.netsetup import NetSetup
 from walt.server.threads.main.nodes.register import handle_registration_request
 from walt.server.threads.main.nodes.show import show
 from walt.server.threads.main.nodes.wait import WaitInfo
+from walt.server.threads.main.nodes.clock import NodesClockSyncInfo
 from walt.server.threads.main.nodes.expose import ExposeManager
 from walt.server.threads.main.transfer import validate_cp
 from walt.server.threads.main.network.tools import ip, get_walt_subnet, get_server_ip
@@ -103,6 +104,7 @@ class NodesManager(object):
         self.topology = topology
         self.other_kwargs = kwargs
         self.wait_info = WaitInfo()
+        self.clock = NodesClockSyncInfo(ev_loop)
         self.expose_manager = ExposeManager(tcp_server, ev_loop)
 
     def prepare(self):
