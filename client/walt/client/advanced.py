@@ -45,3 +45,8 @@ class WalTUpdateHubMeta(WalTApplication):
     @cli.autoswitch(help='update waltplatform user (walt devs only)')
     def waltplatform_user(self):
         self._waltplatform_user = True
+
+@WalTAdvanced.subcommand("rescan-hub-account")
+class WalTRescanHubAccount(WalTUpdateHubMeta):
+    """alias to 'update-hub-meta' subcommand"""
+    pass
