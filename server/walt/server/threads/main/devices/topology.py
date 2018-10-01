@@ -344,7 +344,9 @@ class TopologyManager(object):
                     info.update(name = name)
                 self.devices.add_or_update(**info)
             elif ip != db_info.ip:
-                self.devices.add_or_update(mac = mac, ip = ip)
+                info = dict(mac = mac, ip = ip,
+                            type = db_info.type, name = db_info.name)
+                self.devices.add_or_update(**info)
 
     def rescan(self, requester=None, remote_ip=None, ui=None):
         self.last_scan = time.time()
