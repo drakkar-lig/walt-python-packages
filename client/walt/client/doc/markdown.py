@@ -3,13 +3,11 @@ import CommonMark, textwrap
 from pygments import highlight
 from pygments.lexers import get_lexer_by_name
 from pygments.formatters import Terminal256Formatter
-from collections import namedtuple
 import termios
 from walt.client.doc.color import *
 from walt.client.term import TTYSettings
 
 MAX_TARGET_WIDTH = 120
-FORMAT_ATTRS = ['bg_color', 'fg_color', 'underline', 'bold', 'dim']
 
 FG_COLOR_MARKDOWN = FG_COLOR_BLACK
 BG_COLOR_MARKDOWN = BG_COLOR_WHITE
@@ -18,18 +16,12 @@ BG_COLOR_SOURCE_CODE = BG_COLOR_LIGHT_GREY
 FG_COLOR_URL = FG_COLOR_BLUE
 FG_COLOR_HEADING = FG_COLOR_DARK_RED
 
-class FormatState(namedtuple('FormatState', FORMAT_ATTRS)):
-    def alter(self, **kwargs):
-        state = dict(**self._asdict())
-        state.update(**kwargs)
-        return FormatState(**state)
-
 class MarkdownRenderer:
     def __init__(self, *args, **kwargs):
         self.list_numbering = []
         # initialize context with current terminal setup (default for all attrs)
         init_state = FormatState(bg_color=BG_COLOR_DEFAULT, fg_color=FG_COLOR_DEFAULT,
-                            underline=UNDERLINE_OFF, bold=BOLD_OFF, dim=DIM_OFF)
+                            underline=False, bold=False, dim=False)
         self.contexts = [ init_state ]
         try:
             tty = TTYSettings()
@@ -62,24 +54,15 @@ class MarkdownRenderer:
         self.buf += s
     def text(self, node, entering=None):
         self.lit(node.literal)
-    def get_esc_sequence(self, old, new):
-        codes = []
-        for name in FORMAT_ATTRS:
-            if getattr(new, name) != getattr(old, name):
-                codes.append(str(getattr(new, name)))
-        if len(codes) == 0:
-            return ''
-        else:
-            return '\x1b[' + ';'.join(codes) + 'm'
     def stack_context(self, **kwargs):
         curr_state = self.contexts[-1]
         new_state = curr_state.alter(**kwargs)
-        self.lit(self.get_esc_sequence(curr_state, new_state))
+        self.lit(get_transition_esc_sequence(curr_state, new_state))
         self.contexts.append(new_state)
     def pop_context(self):
         curr_state = self.contexts[-1]
         new_state = self.contexts[-2]
-        self.lit(self.get_esc_sequence(curr_state, new_state))
+        self.lit(get_transition_esc_sequence(curr_state, new_state))
         self.contexts = self.contexts[:-1]
     def cr(self):
         self.lit('\n')
@@ -179,7 +162,7 @@ class MarkdownRenderer:
         if entering:
             level = 1 if node.level is None else node.level
             self.cr()
-            self.stack_context(fg_color = FG_COLOR_HEADING, bold = BOLD_ON)
+            self.stack_context(fg_color = FG_COLOR_HEADING, bold = True)
             self.lit('#'*level + ' ')
             self.underline(None, True)
         else:
@@ -189,17 +172,17 @@ class MarkdownRenderer:
             self.cr()
     def underline(self, node, entering):
         if entering:
-            self.stack_context(underline = UNDERLINE_ON)
+            self.stack_context(underline = True)
         else:
             self.pop_context()
     def strong(self, node, entering):
         if entering:
-            self.stack_context(bold = BOLD_ON)
+            self.stack_context(bold = True)
         else:
             self.pop_context()
     def emph(self, node, entering):
         if entering:
-            self.stack_context(dim = DIM_ON)
+            self.stack_context(dim = True)
         else:
             self.pop_context()
     def code(self, node, entering):
