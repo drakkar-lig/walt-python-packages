@@ -1,8 +1,8 @@
-import subprocess, os, sys, json, re, fcntl, signal
+import subprocess, os, sys, json, re, signal
 from plumbum.cmd import cat
 from collections import OrderedDict
 from datetime import datetime, timedelta
-from fcntl import fcntl, F_GETFD, F_SETFD, FD_CLOEXEC
+from fcntl import fcntl, F_GETFD, F_SETFD, F_GETFL, F_SETFL, FD_CLOEXEC
 
 DEVNULL = open(os.devnull, 'w')
 
@@ -142,8 +142,8 @@ def fd_copy(fd_src, fd_dst, size):
         return None
 
 def set_non_blocking(fd):
-    fl = fcntl.fcntl(fd, fcntl.F_GETFL)
-    fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
+    fl = fcntl(fd, F_GETFL)
+    fcntl(fd, F_SETFL, fl | os.O_NONBLOCK)
 
 def remove_non_utf8(s):
     return s.decode('utf-8','ignore').encode("utf-8")
