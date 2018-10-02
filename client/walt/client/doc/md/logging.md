@@ -15,8 +15,8 @@ All loglines and logstreams are saved in a database on the server.
 ## How to generate experiment logs
 
 WalT will not generate experiment logs by itself. However, all WalT nodes provide tools you can use in order to emit loglines while your experiment is running. For example, you could write an experiment script `experiment1.sh` such as:
-```
-#!/bin/sh
+```bash
+#!/bin/bash
 
 init_exp()
 {
