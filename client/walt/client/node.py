@@ -107,6 +107,15 @@ class WalTNodeRemove(WalTApplication):
                 return
             server.remove_vnode(node_name)
 
+@WalTNode.subcommand("rename")
+class WalTNodeRename(WalTApplication):
+    """rename a WalT node"""
+    def main(self, old_node_name, new_node_name):
+        with ClientToServerLink() as server:
+            if not WalTNode.confirm_nodes_not_owned(server, old_node_name):
+                 return
+            server.rename(old_node_name, new_node_name)
+
 @WalTNode.subcommand("blink")
 class WalTNodeBlink(WalTApplication):
     """make a node blink for a given number of seconds"""
