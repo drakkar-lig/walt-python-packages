@@ -5,6 +5,7 @@ from pygments.lexers import get_lexer_by_name
 from pygments.formatters import Terminal256Formatter
 import termios
 from walt.client.doc.color import *
+from walt.client.doc.mdtable import detect_table, render_table
 from walt.client.term import TTYSettings
 
 MAX_TARGET_WIDTH = 120
@@ -89,7 +90,12 @@ class MarkdownRenderer:
             node.saved_buf = self.buf
             self.buf = ''
         else:
-            self.buf = node.saved_buf + self.wrap_escaped(self.buf)
+            if detect_table(self.buf):
+                table_buf = self.buf
+                self.buf = node.saved_buf
+                render_table(self, table_buf)
+            else:
+                self.buf = node.saved_buf + self.wrap_escaped(self.buf)
             self.cr()
             self.cr()
     def block_quote(self, node, entering):
@@ -128,6 +134,8 @@ class MarkdownRenderer:
         # add a fake ending 'interval' for the zip() function below
         added_spaces += [ '' ]
         return ''.join((word + spacing) for word, spacing in zip(words, added_spaces))
+    def real_text_len(self, text):
+        return len(''.join(RE_ESC_COLOR.split(text)))
     def wrap_escaped(self, text):
         # textwrap.fill does not work well because of the escape sequences
         wrapped_lines = []

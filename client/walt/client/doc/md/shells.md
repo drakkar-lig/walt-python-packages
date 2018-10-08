@@ -28,17 +28,9 @@ Also, keep in mind that in the virtual environment (docker container) no service
 
 The following table summarizes usage of these 2 commands and their limits.
 
-```
-                | walt node shell    | walt image shell
-------------------------------------------------------------
-persistence     | until the node     | yes
-                | reboots            |
-------------------------------------------------------------
-backend         | the real node      | virtual environment,
-                |                    | possible CPU emulation
-------------------------------------------------------------
-target workflow | testing/debugging  | apply changes
-                |                    |
-------------------------------------------------------------
-```
+|                 | walt node shell        | walt image shell                            |
+|-----------------|------------------------|---------------------------------------------|
+| persistence     | until the node reboots | yes                                         |
+| backend         | the real node          | virtual environment, possible CPU emulation |
+| target workflow | testing/debugging      | apply changes                               |
 
