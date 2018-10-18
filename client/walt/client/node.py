@@ -1,3 +1,4 @@
+import contextlib
 import time, sys
 from plumbum import cli
 from walt.common.tools import format_sentence_about_nodes
@@ -138,19 +139,14 @@ class WalTNodeBlink(WalTApplication):
                     finally:
                         server.blink(node_name, False)
 
-class PoETemporarilyOff:
-    def __init__(self, server, node_set):
-        self.server = server
-        self.node_set = node_set
-        self.node_set_off = None
-    def __enter__(self):
-        self.node_set_off = self.server.poweroff(
-                self.node_set, warn_poe_issues=True)
-        return self.node_set_off != None
-    def __exit__(self, type, value, traceback):
-        if self.node_set_off:
-            self.server.poweron(
-                self.node_set_off, warn_poe_issues=True)
+@contextlib.contextmanager
+def PoETemporarilyOff(server, node_set):
+    node_set_off = server.poweroff(
+        node_set, warn_poe_issues=True)
+    yield node_set_off is not None
+    if node_set_off:
+        server.poweron(
+            node_set_off, warn_poe_issues=True)
 
 def reboot_nodes(server, node_set, hard=False):
     if not hard:
