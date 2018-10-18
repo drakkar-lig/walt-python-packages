@@ -20,6 +20,24 @@ SELECT name, ip, mac, type from devices
 WHERE type %(unknown_op)s 'unknown'
 ORDER BY type, name;"""
 
+NODE_SET_QUERIES = {
+        'my-nodes': """
+            SELECT  d.name as name
+            FROM devices d, nodes n, images i
+            WHERE   d.mac = n.mac
+            AND     n.image = i.fullname
+            AND     i.ready = True
+            AND     split_part(n.image, '/', 1) = '%s'
+            ORDER BY name;""",
+        'all-nodes': """
+            SELECT  d.name as name
+            FROM devices d, nodes n, images i
+            WHERE   d.mac = n.mac
+            AND     n.image = i.fullname
+            AND     i.ready = True
+            ORDER BY name;"""
+}
+
 TITLE_DEVICE_SHOW_MAIN = """\
 The WalT network contains the following devices:"""
 
@@ -221,6 +239,35 @@ class DevicesManager(object):
                 poe_reboot_nodes = conf['allow_poe_reboot'],
                 snmp_conf = json.dumps(conf['snmp']))
         self.add_or_update(**device_info)
+
+    def parse_device_set(self, requester, device_set):
+        username = requester.get_username()
+        if not username:
+            return ()    # client already disconnected, give up
+        # check keywords
+        sql = None
+        if device_set is None or device_set == 'my-nodes':
+            sql = NODE_SET_QUERIES['my-nodes'] % username
+        elif device_set == 'all-nodes':
+            sql = NODE_SET_QUERIES['all-nodes']
+        elif device_set == 'all-devices':
+            sql = DEVICES_QUERY
+        if sql is not None:
+            # retrieve devices from database
+            devices = [record[0] for record in self.db.execute(sql)]
+        else:
+            # otherwise the list is explicit
+            devices = device_set.split(',')
+        # get devices info
+        devices = [self.get_device_info(requester, d) for d in devices]
+        if None in devices:
+            return None
+        # get complete devices info
+        devices = [self.get_complete_device_info(d.mac) for d in devices]
+        if len(devices) == 0:
+            requester.stderr.write('No matching devices found! (tip: walt help show node-terminology)\n')
+            return None
+        return sorted(devices)
 
     def as_device_set(self, names):
         return ','.join(sorted(names))

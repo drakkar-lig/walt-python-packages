@@ -17,24 +17,6 @@ from walt.server.tools import to_named_tuple
 
 NODE_CONNECTION_TIMEOUT = 1
 
-NODE_SET_QUERIES = {
-        'my-nodes': """
-            SELECT  d.name as name
-            FROM devices d, nodes n, images i
-            WHERE   d.mac = n.mac
-            AND     n.image = i.fullname
-            AND     i.ready = True
-            AND     split_part(n.image, '/', 1) = '%s'
-            ORDER BY name;""",
-        'all-nodes': """
-            SELECT  d.name as name
-            FROM devices d, nodes n, images i
-            WHERE   d.mac = n.mac
-            AND     n.image = i.fullname
-            AND     i.ready = True
-            ORDER BY name;"""
-}
-
 MSG_CONNECTIVITY_UNKNOWN = """\
 %s: Unknown PoE switch port. Cannot proceed! Try 'walt device rescan'.
 """
@@ -456,26 +438,15 @@ class NodesManager(object):
                 '%s was(were) rebooted.' , nodes_ok) + '\n')
 
     def parse_node_set(self, requester, node_set):
-        username = requester.get_username()
-        if not username:
-            return ()    # client already disconnected, give up
-        sql = None
-        if node_set == None or node_set == 'my-nodes':
-            sql = NODE_SET_QUERIES['my-nodes'] % username
-        elif node_set == 'all-nodes':
-            sql = NODE_SET_QUERIES['all-nodes']
-        if sql:
-            nodes = [record[0] for record in self.db.execute(sql) ]
-        else:
-            # otherwise the list is explicit
-            nodes = node_set.split(',')
-        nodes = [self.get_node_info(requester, n) for n in nodes]
-        if None in nodes:
+        device_set = self.devices.parse_device_set(requester, node_set)
+        if device_set is None:
             return None
-        if len(nodes) == 0:
-            requester.stderr.write('No matching nodes found! (tip: walt help show node-terminology)\n')
-            return None
-        return sorted(nodes)
+        for device_info in device_set:
+            if device_info.type != "node":
+                requester.stderr.write('%s is not a node, it is a %s.\n' %
+                                       (device_info.name, device_info.type))
+                return None
+        return device_set
 
     def wait(self, requester, task, node_set):
         nodes = self.parse_node_set(requester, node_set)
