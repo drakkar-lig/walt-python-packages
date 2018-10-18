@@ -79,7 +79,43 @@ class WalTNode(WalTCategoryApplication):
                     return
                 if not server.set_image(node_set, image_name_or_default):
                     return
-                reboot_nodes(server, node_set)
+                WalTNode.reboot_nodes(server, node_set)
+
+    @staticmethod
+    @contextlib.contextmanager
+    def PoETemporarilyOff(server, node_set):
+        node_set_off = server.poweroff(
+            node_set, warn_poe_issues=True)
+        yield node_set_off is not None
+        if node_set_off:
+            server.poweron(
+                node_set_off, warn_poe_issues=True)
+
+    @staticmethod
+    def reboot_nodes(server, node_set, hard=False):
+        if not hard:
+            WalTNode.wait_for_nodes(server, node_set)
+        server.set_busy_label('Trying soft-reboot')
+        nodes_ok, nodes_ko = server.softreboot(node_set, hard)
+        # if it fails and --hard was specified,
+        # try to power-cycle physical nodes using PoE and restart VM of
+        # virtual nodes
+        if len(nodes_ko) > 0:
+            if hard:
+                virtnodes, physnodes = server.virtual_or_physical(nodes_ko)
+                if len(virtnodes) > 0:
+                    server.set_busy_label('Hard-rebooting virtual nodes')
+                    server.hard_reboot_vnodes(virtnodes)
+                if len(physnodes) > 0:
+                    server.set_busy_label('Trying hard-reboot (PoE)')
+                    with WalTNode.PoETemporarilyOff(server, physnodes) as really_off:
+                        if really_off:
+                            time.sleep(POE_REBOOT_DELAY)
+            else:
+                print(format_sentence_about_nodes(
+                        MSG_SOFT_REBOOT_FAILED,
+                        nodes_ko.split(',')))
+                print(MSG_SOFT_REBOOT_FAILED_TIP % dict(nodes_ko = nodes_ko))
 
 @WalTNode.subcommand("show")
 class WalTNodeShow(WalTApplication):
@@ -139,40 +175,6 @@ class WalTNodeBlink(WalTApplication):
                     finally:
                         server.blink(node_name, False)
 
-@contextlib.contextmanager
-def PoETemporarilyOff(server, node_set):
-    node_set_off = server.poweroff(
-        node_set, warn_poe_issues=True)
-    yield node_set_off is not None
-    if node_set_off:
-        server.poweron(
-            node_set_off, warn_poe_issues=True)
-
-def reboot_nodes(server, node_set, hard=False):
-    if not hard:
-        WalTNode.wait_for_nodes(server, node_set)
-    server.set_busy_label('Trying soft-reboot')
-    nodes_ok, nodes_ko = server.softreboot(node_set, hard)
-    # if it fails and --hard was specified,
-    # try to power-cycle physical nodes using PoE and restart VM of
-    # virtual nodes
-    if len(nodes_ko) > 0:
-        if hard:
-            virtnodes, physnodes = server.virtual_or_physical(nodes_ko)
-            if len(virtnodes) > 0:
-                server.set_busy_label('Hard-rebooting virtual nodes')
-                server.hard_reboot_vnodes(virtnodes)
-            if len(physnodes) > 0:
-                server.set_busy_label('Trying hard-reboot (PoE)')
-                with PoETemporarilyOff(server, physnodes) as really_off:
-                    if really_off:
-                        time.sleep(POE_REBOOT_DELAY)
-        else:
-            print(format_sentence_about_nodes(
-                    MSG_SOFT_REBOOT_FAILED,
-                    nodes_ko.split(',')))
-            print(MSG_SOFT_REBOOT_FAILED_TIP % dict(nodes_ko = nodes_ko))
-
 @WalTNode.subcommand("reboot")
 class WalTNodeReboot(WalTApplication):
     """reboot a (set of) node(s)"""
@@ -181,7 +183,7 @@ class WalTNodeReboot(WalTApplication):
         with ClientToServerLink() as server:
             if not WalTNode.confirm_nodes_not_owned(server, node_set):
                 return
-            reboot_nodes(server, node_set, self._hard)
+            WalTNode.reboot_nodes(server, node_set, self._hard)
     @cli.autoswitch(help='try hard-reboot (PoE) if soft-reboot fails')
     def hard(self):
         self._hard = True
