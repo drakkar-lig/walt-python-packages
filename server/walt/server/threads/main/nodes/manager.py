@@ -179,9 +179,6 @@ class NodesManager(object):
     def forget_vnode(self, node_name):
         self.try_kill_vnode(node_name)
 
-    def as_node_set(self, names):
-        return ','.join(sorted(names))
-
     def register_node(self, mac, model):
         handle_registration_request(
                 db = self.db,
@@ -391,7 +388,7 @@ class NodesManager(object):
                 '%s was(were) powered ' + s_state + '.' ,
                 [n.name for n in nodes_really_ok]) + '\n')
             # return successful nodes as a node_set
-            return self.as_node_set(n.name for n in nodes_really_ok)
+            return self.devices.as_device_set(n.name for n in nodes_really_ok)
         else:
             return None
 
@@ -425,7 +422,7 @@ class NodesManager(object):
             requester.stdout.write(format_sentence_about_nodes(
                 '%s was(were) rebooted.' , nodes_ok) + '\n')
         # return nodes OK and KO in node_set form
-        return self.as_node_set(nodes_ok), self.as_node_set(nodes_ko)
+        return self.devices.as_device_set(nodes_ok), self.devices.as_device_set(nodes_ko)
 
     def virtual_or_physical(self, requester, node_set):
         nodes = self.parse_node_set(requester, node_set)
@@ -438,7 +435,7 @@ class NodesManager(object):
             else:
                 pnodes.append(node.name)
         # return the 2 sets in node_set form
-        return self.as_node_set(vnodes), self.as_node_set(pnodes)
+        return self.devices.as_device_set(vnodes), self.devices.as_device_set(pnodes)
 
     def hard_reboot_vnodes(self, requester, node_set):
         nodes = self.parse_node_set(requester, node_set)
@@ -496,7 +493,7 @@ class NodesManager(object):
         nodes = self.parse_node_set(requester, node_set)
         if nodes == None:
             return None
-        return self.as_node_set(n.name for n in nodes)
+        return self.devices.as_device_set(n.name for n in nodes)
 
     def includes_nodes_not_owned(self, requester, node_set, warn):
         username = requester.get_username()
@@ -529,7 +526,7 @@ class NodesManager(object):
         return Filesystem(FS_CMD_PATTERN % dict(node_ip = node_ip))
 
     def get_cp_entity_attrs(self, requester, node_name):
-        owned = not self.includes_nodes_not_owned(requester, node_name, True)
+        owned = not self.devices.includes_devices_not_owned(requester, node_name, True)
         ip = self.get_node_ip(requester, node_name)
         return dict(node_name = node_name,
                     node_ip = ip,

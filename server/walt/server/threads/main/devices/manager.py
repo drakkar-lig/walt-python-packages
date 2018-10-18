@@ -221,3 +221,6 @@ class DevicesManager(object):
                 poe_reboot_nodes = conf['allow_poe_reboot'],
                 snmp_conf = json.dumps(conf['snmp']))
         self.add_or_update(**device_info)
+
+    def as_device_set(self, names):
+        return ','.join(sorted(names))
