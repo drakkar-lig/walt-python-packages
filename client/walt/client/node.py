@@ -1,6 +1,8 @@
 import contextlib
 import time, sys
 from plumbum import cli
+from walt.client.device import WalTDevice
+
 from walt.common.tools import format_sentence_about_nodes
 from walt.client.link import ClientToServerLink
 from walt.client.tools import confirm
@@ -33,21 +35,11 @@ class WalTNode(WalTCategoryApplication):
         server.set_default_busy_label()
 
     @staticmethod
-    def confirm_nodes_not_owned(server, node_set):
-        not_owned = server.includes_nodes_not_owned(node_set, warn=True)
-        if not_owned == None:
-            return False
-        if not_owned == True:
-            if not confirm():
-                return False
-        return True
-
-    @staticmethod
     def run_cmd(node_set, several_nodes_allowed, cmdargs,
                 startup_msg = None, tty = False):
         nodes_ip = None
         with ClientToServerLink() as server:
-            if not WalTNode.confirm_nodes_not_owned(server, node_set):
+            if not WalTDevice.confirm_devices_not_owned(server, node_set):
                 return
             nodes_ip = server.get_nodes_ip(node_set)
             if len(nodes_ip) == 0:
@@ -75,7 +67,7 @@ class WalTNode(WalTCategoryApplication):
                 node_set = server.develop_node_set(node_set)
                 if node_set is None:
                     return
-                if not WalTNode.confirm_nodes_not_owned(server, node_set):
+                if not WalTDevice.confirm_devices_not_owned(server, node_set):
                     return
                 if not server.set_image(node_set, image_name_or_default):
                     return
@@ -140,7 +132,7 @@ class WalTNodeRemove(WalTApplication):
     """remove a virtual WalT node"""
     def main(self, node_name):
         with ClientToServerLink() as server:
-            if not WalTNode.confirm_nodes_not_owned(server, node_name):
+            if not WalTDevice.confirm_devices_not_owned(server, node_name):
                 return
             server.remove_vnode(node_name)
 
@@ -149,7 +141,7 @@ class WalTNodeRename(WalTApplication):
     """rename a WalT node"""
     def main(self, old_node_name, new_node_name):
         with ClientToServerLink() as server:
-            if not WalTNode.confirm_nodes_not_owned(server, old_node_name):
+            if not WalTDevice.confirm_devices_not_owned(server, old_node_name):
                  return
             server.rename(old_node_name, new_node_name)
 
@@ -181,7 +173,7 @@ class WalTNodeReboot(WalTApplication):
     _hard = False # default
     def main(self, node_set):
         with ClientToServerLink() as server:
-            if not WalTNode.confirm_nodes_not_owned(server, node_set):
+            if not WalTDevice.confirm_devices_not_owned(server, node_set):
                 return
             WalTNode.reboot_nodes(server, node_set, self._hard)
     @cli.autoswitch(help='try hard-reboot (PoE) if soft-reboot fails')
@@ -279,6 +271,6 @@ class WalTNodeNetsetup(WalTApplication):
                 node_set = server.develop_node_set(node_set)
                 if node_set is None:
                     return
-                if not WalTNode.confirm_nodes_not_owned(server, node_set):
+                if not WalTDevice.confirm_devices_not_owned(server, node_set):
                     return
                 server.netsetup_configure(node_set, netsetup_value)

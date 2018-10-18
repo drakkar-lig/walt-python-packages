@@ -2,12 +2,21 @@ from plumbum import cli
 from walt.client.link import ClientToServerLink
 from walt.client.interactive import run_device_ping
 from walt.client.device.admin import WalTDeviceAdmin
+from walt.client.tools import confirm
 from walt.common.tools import deserialize_ordered_dict
 from walt.client.application import WalTCategoryApplication, WalTApplication
 
 class WalTDevice(WalTCategoryApplication):
     """management of WalT platform devices"""
-    pass
+    @staticmethod
+    def confirm_devices_not_owned(server, device_set):
+        not_owned = server.includes_devices_not_owned(device_set, warn=True)
+        if not_owned == None:
+            return False
+        if not_owned == True:
+            if not confirm():
+                return False
+        return True
 
 @WalTDevice.subcommand("tree")
 class WalTDeviceTree(WalTApplication):

@@ -2,6 +2,7 @@
 
 from walt.server.threads.main.network.tools import set_static_ip_on_switch, \
                                                     ip_in_walt_network
+from walt.common.tools import format_sentence
 from walt.server.tools import format_paragraph, merge_named_tuples
 import re, json
 
@@ -239,6 +240,26 @@ class DevicesManager(object):
                 poe_reboot_nodes = conf['allow_poe_reboot'],
                 snmp_conf = json.dumps(conf['snmp']))
         self.add_or_update(**device_info)
+
+    def includes_devices_not_owned(self, requester, device_set, warn):
+        username = requester.get_username()
+        if not username:
+            return False    # client already disconnected, give up
+        devices = self.parse_device_set(requester, device_set)
+        if devices is None:
+            return None
+        not_owned = [d for d in devices
+                     if not (d.type == "node" and
+                             (d.image.startswith(username + '/') or d.image.startswith('waltplatform/'))
+                             or d.type != "node")]
+        if len(not_owned) == 0:
+            return False
+        else:
+            if warn:
+                requester.stderr.write(format_sentence(
+                    'Warning: %s seems(seem) to be used by another(other) user(users).',
+                    [d.name for d in not_owned], "No device", "Device", "Devices") + '\n')
+            return True
 
     def parse_device_set(self, requester, device_set):
         username = requester.get_username()

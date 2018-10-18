@@ -65,8 +65,8 @@ class CSAPI(APISession):
             return tuple(n.name for n in nodes)
 
     @api_expose_method
-    def includes_nodes_not_owned(self, context, node_set, warn):
-        return context.nodes.includes_nodes_not_owned(context.requester.sync, node_set, warn)
+    def includes_devices_not_owned(self, context, device_set, warn):
+        return context.devices.includes_devices_not_owned(context.requester.sync, device_set, warn)
 
     @api_expose_method
     def develop_node_set(self, context, node_set):

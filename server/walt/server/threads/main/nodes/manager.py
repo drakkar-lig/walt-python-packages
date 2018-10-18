@@ -466,25 +466,6 @@ class NodesManager(object):
             return None
         return self.devices.as_device_set(n.name for n in nodes)
 
-    def includes_nodes_not_owned(self, requester, node_set, warn):
-        username = requester.get_username()
-        if not username:
-            return False    # client already disconnected, give up
-        nodes = self.parse_node_set(requester, node_set)
-        if nodes == None:
-            return None
-        not_owned = [ n for n in nodes \
-                if not (n.image.startswith(username + '/') or
-                        n.image.startswith('waltplatform/')) ]
-        if len(not_owned) == 0:
-            return False
-        else:
-            if warn:
-                requester.stderr.write(format_sentence_about_nodes(
-                    'Warning: %s seems(seem) to be used by another(other) user(users).',
-                    [n.name for n in not_owned]) + '\n')
-            return True
-
     def validate_cp(self, requester, src, dst):
         return validate_cp("node", self, requester, src, dst)
 
