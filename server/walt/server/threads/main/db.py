@@ -121,10 +121,11 @@ class ServerDB(PostgresDB):
                 WHERE d.name = %s AND s.sender_mac = d.mac AND l.stream_id = s.id;
             DELETE FROM logstreams s USING devices d WHERE d.name = %s AND s.sender_mac = d.mac;
             DELETE FROM nodes n USING devices d WHERE d.name = %s AND d.mac = n.mac;
+            DELETE FROM switches s USING devices d WHERE d.name = %s AND d.mac = s.mac;
             DELETE FROM topology t USING devices d WHERE d.name = %s AND d.mac = t.mac1;
             DELETE FROM topology t USING devices d WHERE d.name = %s AND d.mac = t.mac2;
             DELETE FROM devices d WHERE d.name = %s;
-        """,  (dev_name,)*6)
+        """,  (dev_name,)*7)
         self.commit()
 
     def get_config(self, item, default = None):
