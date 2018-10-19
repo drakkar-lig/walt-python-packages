@@ -262,15 +262,14 @@ class WalTNodeExpose(WalTApplication):
             exposer = TCPExposer(local_port, node_ip, node_port)
             exposer.run()
 
-@WalTNode.subcommand("netsetup")
-class WalTNodeNetsetup(WalTApplication):
-    """assign LAN or NAT network setup to a node (or set of nodes)"""
-    def main(self, node_set, netsetup_value):
-        if netsetup_value.lower() in ("lan", "nat"):
-            with ClientToServerLink() as server:
-                node_set = server.develop_node_set(node_set)
-                if node_set is None:
-                    return
-                if not WalTDevice.confirm_devices_not_owned(server, node_set):
-                    return
-                server.netsetup_configure(node_set, netsetup_value)
+@WalTNode.subcommand("config")
+class WalTNodeConfig(WalTApplication):
+    """Set nodes configuration"""
+    def main(self, node_set, *configuration):
+        with ClientToServerLink() as server:
+            node_set = server.develop_node_set(node_set)
+            if node_set is None:
+                return
+            if not WalTDevice.confirm_devices_not_owned(server, node_set):
+                return
+            server.set_device_config(node_set, configuration)

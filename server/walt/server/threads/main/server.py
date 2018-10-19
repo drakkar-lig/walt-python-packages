@@ -15,6 +15,7 @@ from walt.server.threads.main.network.dhcpd import DHCPServer
 from walt.server.threads.main.nodes.manager import NodesManager
 from walt.server.threads.main.devices.manager import DevicesManager
 from walt.server.threads.main.devices.topology import TopologyManager
+from walt.server.threads.main.settings_manager import SettingsHandler
 from walt.server.threads.main.transfer import TransferManager
 from walt.server.threads.main.apisession import APISession
 from walt.server.threads.main.network import tftp
@@ -47,6 +48,7 @@ class Server(object):
                                     docker = self.docker,
                                     devices = self.devices,
                                     topology = self.topology)
+        self.settings = SettingsHandler(server=self)
 
     def prepare(self):
         self.tcp_server.join_event_loop(self.ev_loop)

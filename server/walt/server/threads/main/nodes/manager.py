@@ -2,7 +2,7 @@ import socket, random, subprocess, shlex, signal, os
 from collections import defaultdict
 from snimpy import snmp
 from walt.common.tcp import Requests
-from walt.common.tools import do, format_sentence_about_nodes, failsafe_makedirs
+from walt.common.tools import do, format_sentence_about_nodes, failsafe_makedirs, format_sentence
 from walt.server.const import SSH_COMMAND, WALT_NODE_NET_SERVICE_PORT
 from walt.server.threads.main.filesystem import Filesystem
 from walt.server.threads.main.network.netsetup import NetSetup
@@ -484,9 +484,34 @@ class NodesManager(object):
                     node_ip = ip,
                     node_owned = owned)
 
-    def netsetup_configure(self, requester, node_set, netsetup_value):
-        new_netsetup_state = NetSetup(netsetup_value)
-        for node_info in self.parse_node_set(requester, node_set):
+    def netsetup_handler(self, requester, device_set, netsetup_value):
+        # Interpret the node set, some of them may be strict devices
+        device_infos = self.devices.parse_device_set(requester, device_set)
+
+        # Check the node set
+        not_nodes = filter(lambda di: di.type != "node", device_infos)
+        if len(not_nodes) > 0:
+            msg = format_sentence("%s is(are) not a() node(nodes), "
+                                  "so it(they) does(do) not support the 'netsetup' setting.\n",
+                                  [d.name for d in not_nodes],
+                                  None, 'Device', 'Devices')
+            requester.stderr.write(msg)
+            yield False
+
+        # Interpret the value
+        new_netsetup_state = None
+        try:
+            new_netsetup_state = NetSetup(netsetup_value)
+        except ValueError:
+            requester.stderr.write(
+                "'%s' is not a valid setting value for netsetup." % (netsetup_value))
+            yield False
+
+        # Yield information that all things have ran correctly
+        yield True
+
+        # Effectively configure nodes
+        for node_info in device_infos:
             if node_info.netsetup == new_netsetup_state:
                 # skip this node: already configured
                 continue

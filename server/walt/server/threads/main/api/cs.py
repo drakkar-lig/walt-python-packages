@@ -73,6 +73,10 @@ class CSAPI(APISession):
         return context.nodes.develop_node_set(context.requester.sync, node_set)
 
     @api_expose_method
+    def develop_device_set(self, context, device_set):
+        return context.devices.develop_device_set(context.requester.sync, device_set)
+
+    @api_expose_method
     def poweroff(self, context, node_set, warn_poe_issues):
         return context.nodes.setpower(context.requester.sync, node_set, False, warn_poe_issues)
 
@@ -229,11 +233,11 @@ class CSAPI(APISession):
         return context.logs.get_pickled_checkpoint_time(context.requester.sync, cp_name)
 
     @api_expose_method
-    def netsetup_configure(self, context, nodes_set, netsetup_value):
-        context.nodes.netsetup_configure(context.requester.sync, nodes_set, netsetup_value)
-        context.server.dhcpd.update()
-
-    @api_expose_method
     def update_hub_metadata(self, context, auth_conf, waltplatform_user):
         dh_peer = self.get_session_object(auth_conf['dh_peer_id'])
         context.images.update_hub_metadata(context, auth_conf, dh_peer, waltplatform_user)
+
+    @api_expose_method
+    def set_device_config(self, context, device_set, conf_args):
+        context.server.settings.set_device_config(context.requester.sync, device_set, conf_args)
+        context.server.dhcpd.update()
