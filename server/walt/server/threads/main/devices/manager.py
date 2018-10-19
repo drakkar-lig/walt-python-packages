@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-
 from walt.server.threads.main.network.tools import set_static_ip_on_switch, \
                                                     ip_in_walt_network
 from walt.common.tools import format_sentence
@@ -292,3 +291,9 @@ class DevicesManager(object):
 
     def as_device_set(self, names):
         return ','.join(sorted(names))
+
+    def develop_device_set(self, requester, device_set):
+        devices = self.parse_device_set(requester, device_set)
+        if devices is None:
+            return None
+        return self.as_device_set(d.name for d in devices)

@@ -100,3 +100,15 @@ class WalTDeviceForget(WalTApplication):
 
 # this one has much code and has its own module
 WalTDevice.subcommand("admin", WalTDeviceAdmin)
+
+@WalTDevice.subcommand("config")
+class WalTDeviceConfig(WalTApplication):
+    """Set devices configuration"""
+    def main(self, device_set, *configuration):
+        with ClientToServerLink() as server:
+            device_set = server.develop_device_set(device_set)
+            if device_set is None:
+                return
+            if not WalTDevice.confirm_devices_not_owned(server, device_set):
+                return
+            server.set_device_config(device_set, configuration)
