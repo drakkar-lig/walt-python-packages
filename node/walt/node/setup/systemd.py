@@ -3,7 +3,7 @@ from walt.common.tools import failsafe_symlink
 from pkg_resources import resource_filename
 import shutil
 
-SYSTEMD_SERVICES = [ "walt-logs.service", "walt-notify-bootup.service" ]
+SYSTEMD_SERVICES = [ "walt-logs.service" ]
 SYSTEMD_SERVICES_DIR = "/etc/systemd/system"
 SYSTEMD_INSTALL_DIR = "/etc/systemd/system/multi-user.target.wants"
 
