@@ -3,8 +3,8 @@ PACKAGE_GENERIC_INFO = dict(
     author = "Etienne Duble",
     author_email = "etienne.duble@imag.fr",
     license = "LGPL",
-    keywords = "WalT wireless testbed",
-    url = "http://walt.forge.imag.fr/",
+    keywords = "WalT testbed",
+    url = "https://walt-project.liglab.fr",
     namespace_packages = ['walt']
 )
 
@@ -15,7 +15,7 @@ PACKAGE_SPECIFIC_INFO = {
                      'pygments>=2.2.0', 'walt-common==%(upload)s'],
         version_str = '%(upload)s',
         setup = dict(
-            description = "WalT (Wireless Testbed) control tool.",
+            description = "WalT control tool.",
             entry_points = {
                 'console_scripts': [
                     'walt = walt.client.client:run'
@@ -32,7 +32,7 @@ PACKAGE_SPECIFIC_INFO = {
         requires = ['walt-common==%(upload)s'],
         version_str = '%(upload)s',
         setup = dict(
-            description = "WalT (Wireless Testbed) software embedded in images.",
+            description = "WalT optional software embedded in images.",
             entry_points = {
                 'console_scripts': [
                     'walt-setup-systemd = walt.node.setup.systemd:run',
@@ -53,7 +53,7 @@ PACKAGE_SPECIFIC_INFO = {
                         'walt-common==%(upload)s'],
         version_str = '%(upload)s',
         setup = dict(
-            description = "WalT (Wireless Testbed) server daemon.",
+            description = "WalT server daemon.",
             entry_points = {
                 'console_scripts': [
                     'walt-server-daemon = walt.server.daemon:run',
@@ -71,7 +71,7 @@ PACKAGE_SPECIFIC_INFO = {
         requires = ['plumbum>=1.4.2'],
         version_str = '%(upload)s',
         setup = dict(
-            description = "WalT (Wireless Testbed) common python modules."
+            description = "WalT common python modules."
         )
     ),
     "walt-clientselector": dict(
@@ -79,7 +79,7 @@ PACKAGE_SPECIFIC_INFO = {
         requires = [ 'walt-client==%(upload)s' ],
         version_str = '%(cs_api)s.%(upload)s',
         setup = dict(
-            description = "WalT (Wireless Testbed) virtual package for walt-client update."
+            description = "WalT virtual package for walt-client update."
         )
     ),
     "walt-nodeselector": dict(
@@ -87,7 +87,7 @@ PACKAGE_SPECIFIC_INFO = {
         requires = [ 'walt-node==%(upload)s' ],
         version_str = '%(ns_api)s.%(upload)s',
         setup = dict(
-            description = "WalT (Wireless Testbed) virtual package for walt-node update."
+            description = "WalT virtual package for walt-node update."
         )
     )
 }
