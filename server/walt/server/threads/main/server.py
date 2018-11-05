@@ -63,15 +63,9 @@ class Server(object):
         self.nodes.prepare()
 
     def update(self):
-        self.ui.task_start('Scanning walt devices and images...')
-        self.ui.task_running()
-        # topology exploration
-        self.topology.rescan(ui=self.ui)
-        self.ui.task_running()
-        # re-update dhcp with any new device discovered
-        self.dhcpd.update()
-        self.ui.task_running()
         # mount images needed
+        self.ui.task_start('Scanning walt images...')
+        self.ui.task_running()
         self.images.update(startup = True)
         # restores nodes setup
         self.nodes.restore()

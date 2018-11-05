@@ -25,8 +25,14 @@ TIPS_MIN = (TIP_DEVICE_SHOW, TIP_DEVICE_ADMIN_2, TIP_DEVICE_RESCAN)
 NOTE_LAST_NETWORK_SCAN = "\
 this view comes from last network scan, issued %s ago (use 'walt device rescan' to update)"
 
+NOTE_LAST_NETWORK_SCAN_UNKNOWN = "\
+this view comes from last network scan (use 'walt device rescan' to update)"
+
 MSG_NO_NEIGHBORS = """\
 WalT Server did not detect any neighbor!
+"""
+MSG_UNKNOWN_USE_RESCAN = """\
+Sorry, topology is unknown. Use "walt device rescan" first.
 """
 
 def format_explanation(item_type, items):
@@ -56,6 +62,9 @@ class Topology(object):
     def __init__(self):
         # links as a dict (mac1, mac2) -> (port1, port2, confirmed)
         self.links = {}
+
+    def is_empty(self):
+        return len(self.links) == 0
 
     def register_neighbor(self, local_mac, local_port, neighbor_mac):
         mac1 = min(local_mac, neighbor_mac)
@@ -252,8 +261,11 @@ class Topology(object):
         # prune parts of the tree
         self.prune(t, root_mac, device_types, lldp_forbidden, show_all)
         # print tree and associated messages
-        delay = time.time() - last_scan
-        note_last_scan = NOTE_LAST_NETWORK_SCAN % human_readable_delay(delay)
+        if last_scan is None:
+            note_last_scan = NOTE_LAST_NETWORK_SCAN_UNKNOWN
+        else:
+            delay = time.time() - last_scan
+            note_last_scan = NOTE_LAST_NETWORK_SCAN % human_readable_delay(delay)
         tips = TIPS_MIN
         notes = (note_last_scan,)
         if len(all_macs - confirmed_macs) > 0:
@@ -398,6 +410,8 @@ class TopologyManager(object):
     def tree(self, requester, show_all):
         db_topology = Topology()
         db_topology.load_from_db(self.db)
+        if db_topology.is_empty():
+            return MSG_UNKNOWN_USE_RESCAN
         root_mac = self.get_tree_root_mac(db_topology)
         if root_mac == None:
             return MSG_NO_NEIGHBORS + format_explanation('tip', TIPS_MIN)
