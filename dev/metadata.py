@@ -11,7 +11,7 @@ PACKAGE_GENERIC_INFO = dict(
 PACKAGE_SPECIFIC_INFO = {
     "walt-client": dict(
         subdir = 'client',
-        requires = [ 'plumbum>=1.4.2', 'CommonMark>=0.7.5',
+        requires = [ 'plumbum>=1.4.2', 'commonmark>=0.7.5',
                      'pygments>=2.2.0', 'walt-common==%(upload)s'],
         version_str = '%(upload)s',
         setup = dict(

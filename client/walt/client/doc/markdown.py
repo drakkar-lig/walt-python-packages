@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import CommonMark, textwrap
+import commonmark, textwrap
 from pygments import highlight
 from pygments.lexers import get_lexer_by_name
 from pygments.formatters import Terminal256Formatter
@@ -31,7 +31,7 @@ class MarkdownRenderer:
             # Stdout seems not to be a terminal
             self.target_width = 80  # Minimal requirement
     def render(self, text):
-        parser = CommonMark.Parser()
+        parser = commonmark.Parser()
         ast = parser.parse(text)
         walker = ast.walker()
         self.buf = ''
