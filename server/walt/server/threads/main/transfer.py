@@ -67,11 +67,8 @@ def validate_cp(image_or_node_label, caller,
     filesystems = []
     paths = []
     for index, operand in enumerate([src, dst]):
-        parts = operand.split(':')
+        parts = operand.rsplit(':', 1)  # caution, we may have <image>:<tag>:<path>
         operand_type = len(parts)-1
-        if operand_type > 1:
-            invalid = True
-            break
         operands.append(operand)
         operand_index_per_type[operand_type] = index
         if operand_type == TYPE_CLIENT:

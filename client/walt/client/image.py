@@ -116,7 +116,7 @@ class WalTImageCp(WalTApplication):
             if info == None:
                 return
             session_info = server.create_image_shell_session(
-                            info['image_tag'], 'file transfer')
+                            info['image_name'], 'file transfer')
             if session_info == None:
                 return  # issue already reported
             session_id, image_fullname, container_name, default_new_name = \
