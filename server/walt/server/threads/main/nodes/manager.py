@@ -131,9 +131,19 @@ class NodesManager(object):
             do("iptables --insert WALT --source '%s' --jump ACCEPT" % node_ip)
 
     def try_kill_vnode(self, node_name):
-        # note: kvm processes may already have ended because they are subprocesses
-        # and they may have also received the signal that caused us to be there.
-        do("screen -S walt.node.%(name)s -X quit" % dict(name = node_name))
+        # get screen session
+        # caution: "screen -S walt.node.vnode1 -X kill" may be ambiguous and
+        # kill screen session of vnode10 instead of vnode1.
+        # That's why we identify the full session name with "grep -ow".
+        try:
+            session_name = subprocess.check_output(
+                'screen -ls | grep -ow "[[:digit:]]*.walt.node.%(name)s"' % \
+                dict(name = node_name), shell=True).strip()
+            do('screen -S "%(session)s" -X quit' % \
+                dict(session = session_name))
+        except subprocess.CalledProcessError:
+            # screen session was probably manually killed
+            return
 
     def cleanup(self):
         # stop virtual nodes
