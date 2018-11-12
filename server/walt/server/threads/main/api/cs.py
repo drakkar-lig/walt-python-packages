@@ -191,7 +191,8 @@ class CSAPI(APISession):
     @api_expose_method
     def image_shell_session_save(self, context, session_id, new_name, name_confirmed):
         session = self.get_session_object(session_id)
-        return session.save(context.requester.sync, new_name, name_confirmed)
+        return context.server.image_shell_session_save(
+                    context.requester.sync, session, new_name, name_confirmed)
 
     @api_expose_method
     def remove_image(self, context, image_name):

@@ -289,6 +289,11 @@ class NodesManager(object):
                 self.devices.get_complete_device_info(n.mac)
                 for n in nodes)
 
+    def reboot_nodes_for_image(self, requester, image_fullname):
+        node_set = ','.join(n.name for n in \
+                    self.get_nodes_using_image(image_fullname))
+        self.softreboot(requester, node_set, False)
+
     def prepare_ssh_access_for_ip(self, ip):
         cmd = CMD_ADD_SSH_KNOWN_HOST % dict(ip = ip)
         do(cmd)

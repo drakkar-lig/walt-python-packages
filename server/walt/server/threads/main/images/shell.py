@@ -22,7 +22,7 @@ class ImageShellSession(object):
     def save(self, requester, new_image_name, name_confirmed):
         username = requester.get_username()
         if not username:
-            return None    # client already disconnected, give up
+            return 'GIVE_UP'    # client already disconnected, give up
         # 1st step: validate new name
         existing_image = self.images.get_user_image_from_name(
                                         requester,
@@ -64,25 +64,24 @@ class ImageShellSession(object):
                 'Image modified using walt image [cp|shell]')
         if self.image.fullname == image_fullname:
             # same name, we are modifying the image
-            # if image is mounted, umount/mount it in order to make
-            # the nodes reboot with the new version
-            node_reboot_msg = ''
+            # if image is mounted, umount/mount it in order to make changes
+            # available to nodes
             if self.image.mounted:
-                node_reboot_msg = ' (nodes using it are rebooting)'
                 # umount
                 self.images.umount_used_image(self.image)
                 # re-mount
                 self.images.update_image_mounts()
             # done.
-            requester.stdout.write('Image %s updated%s.\n' % \
-                            (new_image_name, node_reboot_msg))
+            requester.stdout.write('Image %s updated.\n' % new_image_name)
+            self.image.task_label = None
+            return 'OK_BUT_REBOOT_NODES'
         else:
             # we are saving changes to a new image, leaving the initial one
             # unchanged
             self.images.register_image(image_fullname, True)
             requester.stdout.write('New image %s saved.\n' % new_image_name)
-        self.image.task_label = None
-        return 'OK_SAVED'
+            self.image.task_label = None
+            return 'OK_SAVED'
 
     def cleanup(self):
         self.docker.local.stop_container(self.container_name)

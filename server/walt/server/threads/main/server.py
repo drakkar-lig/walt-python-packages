@@ -7,6 +7,7 @@ from walt.common.tcp import TCPServer
 from walt.common.tools import format_sentence_about_nodes
 from walt.server.threads.main.blocking import BlockingTasksManager
 from walt.server.threads.main.db import ServerDB
+from walt.server.threads.main.images.image import format_image_fullname
 from walt.server.threads.main.images.manager import NodeImageManager
 from walt.server.threads.main.interactive import InteractionManager
 from walt.server.threads.main.logs import LogsManager
@@ -165,3 +166,11 @@ class Server(object):
                                   senders = senders,
                                   stream_ids = stream_ids,
                                   **kwargs)
+
+    def image_shell_session_save(self, requester, session, new_name, name_confirmed):
+        status = session.save(requester, new_name, name_confirmed)
+        if status == 'OK_BUT_REBOOT_NODES':
+            image_fullname = format_image_fullname(requester.get_username(), new_name)
+            self.nodes.reboot_nodes_for_image(requester, image_fullname)
+            status = 'OK_SAVED'
+        return status
