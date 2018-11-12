@@ -187,7 +187,8 @@ class NodeImageStore(object):
         self.update_image_mounts(images_in_use = images)
     def num_nodes_using_image(self, image_fullname):
         return len(self.db.select("nodes", image=image_fullname))
-    def warn_overwrite_image(self, requester, image_fullname):
+    def warn_overwrite_image(self, requester, image_name):
+        image_fullname = format_image_fullname(requester.get_username(), image_name)
         num_nodes = self.num_nodes_using_image(image_fullname)
         if num_nodes == 0:
             reboot_message = ''
