@@ -42,12 +42,12 @@ def get_env_start():
     }
 
 def send_register_request(env):
-    with ServerAPILink(env['next-server'], 'SSAPI') as server:
+    with ServerAPILink(env['next-server'], 'VSAPI') as server:
         vci = 'walt.node.' + env['model']
         return server.register_device(vci, '', env['ip'], env['mac'])
 
 def add_network_info(env):
-    with ServerAPILink(env['next-server'], 'SSAPI') as server:
+    with ServerAPILink(env['next-server'], 'VSAPI') as server:
         info = server.get_device_info(env['mac'])
         print(info)
         if info is None:
