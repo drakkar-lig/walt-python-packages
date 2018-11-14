@@ -50,20 +50,33 @@ PACKAGE_SPECIFIC_INFO = {
                         'ipaddress>=1.0.7','requests>=2.3.0',
                         'docker-py>=1.2.2','sdnotify>=0.3.0',
                         'python-dateutil>=2.4.2',
-                        'walt-common==%(upload)s'],
+                        'walt-common==%(upload)s',
+                        'walt-virtual==%(upload)s'],
         version_str = '%(upload)s',
         setup = dict(
-            description = "WalT server daemon.",
+            description = "WalT server components.",
             entry_points = {
                 'console_scripts': [
                     'walt-server-daemon = walt.server.daemon:run',
                     'walt-server-console = walt.server.ui.console:run',
                     'walt-dhcp-event = walt.server.dhcpevent:run',
-                    'walt-net-config = walt.server.netconfig:run',
-                    'walt-fake-ipxe-node = walt.server.fakeipxenode:run'
+                    'walt-net-config = walt.server.netconfig:run'
                 ]
             },
             include_package_data = True
+        )
+    ),
+    "walt-virtual": dict(
+        subdir = 'virtual',
+        requires = ['walt-common==%(upload)s'],
+        version_str = '%(upload)s',
+        setup = dict(
+            description = "WalT components related to virtualization.",
+            entry_points = {
+                'console_scripts': [
+                    'walt-fake-ipxe-node = walt.virtual.fakeipxenode:run'
+                ]
+            }
         )
     ),
     "walt-common": dict(

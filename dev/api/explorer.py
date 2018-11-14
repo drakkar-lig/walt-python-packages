@@ -19,6 +19,7 @@ source_packages = {
     'walt.server': './server/walt/server',
     'walt.client': './client/walt/client',
     'walt.common': './common/walt/common',
+    'walt.virtual': './virtual/walt/virtual',
     'walt.node':   './node/walt/node'
 }
 

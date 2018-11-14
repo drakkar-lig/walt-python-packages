@@ -26,9 +26,9 @@
 #     - test    -> pypitest
 #     - [other] -> [forbidden]
 
-ALL_PACKAGES=common server node client clientselector nodeselector
-# common must be installed 1st (needed by others)
-INSTALLABLE_PACKAGES_ON_SERVER=common server client
+ALL_PACKAGES=common virtual server node client clientselector nodeselector
+# common must be installed 1st (needed by others), then virtual
+INSTALLABLE_PACKAGES_ON_SERVER=common virtual server client
 GNUMAKEFLAGS=--no-print-directory
 
 # ------
