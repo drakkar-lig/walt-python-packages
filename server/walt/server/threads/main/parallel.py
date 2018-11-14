@@ -35,9 +35,13 @@ class ParallelProcessSocketListener(object):
         self.params = None
         self.client_sock_file = sock_file
         self.slave_sock_file = None
-        self.client_sock_file.write('READY\n')
+        self.send_client('READY\n')
+    def send_client(self, s):
+        self.client_sock_file.write(s)
     def update_params(self):
         pass  # override in subclasses if needed
+    def prepare(self, **params):
+        return True  # override in subclasses if needed
     def get_command(self, **params):
         '''this should be defined in subclasses'''
         raise NotImplementedError
@@ -105,6 +109,9 @@ class ParallelProcessSocketListener(object):
                 self.close()    # issue
                 return False
             self.update_params()
+            if self.prepare(**self.params) == False:
+                self.close()    # issue
+                return False
             self.params['cmd'] = self.get_command(**self.params)
             # we now have all info to start the child process
             self.start()

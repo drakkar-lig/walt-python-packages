@@ -17,3 +17,6 @@ class SSAPI(APISession):
     def register_device(self, context, *args):
         context.server.register_device(*args)
 
+    @api_expose_method
+    def get_device_info(self, context, device_mac):
+        return context.server.get_device_info(device_mac)

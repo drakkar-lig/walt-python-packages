@@ -96,7 +96,13 @@ def to_named_tuple(d):
     global nt_index
     code = pickle.dumps(sorted(d.keys()))
     if code not in nt_classes:
-        nt_classes[code] = namedtuple('NamedTuple_%d' % nt_index, d.keys())
+        base = namedtuple('NamedTuple_%d' % nt_index, d.keys())
+        class NT(base):
+            def update(self, **kwargs):
+                d = self._asdict()
+                d.update(**kwargs)
+                return to_named_tuple(d)
+        nt_classes[code] = NT
         nt_index += 1
     return nt_classes[code](**d)
 

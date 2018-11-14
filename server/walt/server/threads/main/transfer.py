@@ -16,6 +16,8 @@ $ walt $(image_or_node_label) cp <$(image_or_node_label)>:<file_path> <local_fil
 Regular files as well as directories are accepted.
 """
 
+NODE_TFTP_ROOT = "/var/lib/walt/nodes/%(node_mac)s/tftp"
+
 def get_random_suffix():
     return ''.join(random.choice('0123456789ABCDEF') for i in range(8))
 
@@ -156,12 +158,33 @@ class NodeTarReceiver(ParallelProcessSocketListener):
     def get_command(self, **params):
         return ssh_wrap_cmd(TarReceiveCommand) % params
 
+class NodeFakeTFTPGet(ParallelProcessSocketListener):
+    REQ_ID = Requests.REQ_FAKE_TFTP_GET
+    def prepare(self, **params):
+        full_path = (NODE_TFTP_ROOT + '%(path)s') % params
+        if os.path.exists(full_path):
+            self.send_client('OK\n')
+            # send file length
+            # (client will be able to close connection immediately after
+            # the transfer, this is faster than detecting the end of the
+            # 'cat' command)
+            self.send_client(str(os.stat(full_path).st_size) + '\n')
+            # save full_path for get_command() below
+            self.params['full_path'] = full_path
+            return True
+        else:
+            self.send_client('NO SUCH FILE\n')
+            return False
+    def get_command(self, **params):
+        return 'cat "%(full_path)s"' % params
+
 class TransferManager(object):
     def __init__(self, tcp_server, ev_loop):
         for cls in [    ImageTarSender,
                         ImageTarReceiver,
                         NodeTarSender,
-                        NodeTarReceiver ]:
+                        NodeTarReceiver,
+                        NodeFakeTFTPGet ]:
             tcp_server.register_listener_class(
                     req_id = cls.REQ_ID,
                     cls = cls,

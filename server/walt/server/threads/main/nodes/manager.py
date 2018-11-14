@@ -36,7 +36,7 @@ MSG_NOT_VIRTUAL = "WARNING: %s is not a virtual node. IGNORED.\n"
 FS_CMD_PATTERN = SSH_COMMAND + ' root@%(node_ip)s "%%(prog)s %%(prog_args)s"'
 
 CMD_START_VNODE = 'screen -S walt.node.%(name)s -d -m   \
-       walt-fake-ipxe-node %(mac)s %(ip)s %(netmask)s "%(gateway)s" %(name)s %(server_ip)s'
+       walt-fake-ipxe-node %(mac)s %(ip)s %(model)s %(name)s %(server_ip)s'
 CMD_ADD_SSH_KNOWN_HOST = "  mkdir -p /root/.ssh && ssh-keygen -F %(ip)s || \
                             ssh-keyscan -t ecdsa %(ip)s >> /root/.ssh/known_hosts"
 
@@ -235,17 +235,14 @@ class NodesManager(object):
             failsafe_makedirs('/etc/qemu')
             with open('/etc/qemu/bridge.conf', 'w') as f:
                 f.write('allow walt-net\n')
-        server_ip = get_server_ip()
-        netmask = str(get_walt_subnet().netmask)
-        gateway = server_ip if node.netsetup == NetSetup.NAT else ''
         cmd = CMD_START_VNODE % dict(
             mac = node.mac,
             ip = node.ip,
-            netmask = netmask,
-            gateway = gateway,
+            model = node.model,
             name = node.name,
-            server_ip = server_ip
+            server_ip = get_server_ip()
         )
+        print(cmd)
         subprocess.Popen(shlex.split(cmd))
 
     def get_node_info(self, requester, node_name):

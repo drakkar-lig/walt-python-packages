@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 from walt.server.threads.main.network.tools import set_static_ip_on_switch, \
-                                                    ip_in_walt_network
+                            ip_in_walt_network, get_walt_subnet, get_server_ip
+from walt.server.threads.main.network.netsetup import NetSetup
 from walt.common.tools import format_sentence
-from walt.server.tools import format_paragraph, merge_named_tuples
+from walt.server.tools import format_paragraph, to_named_tuple, merge_named_tuples
 import re, json
 
 DEVICE_NAME_NOT_FOUND="""No device with name '%s' found.\n"""
@@ -56,6 +57,8 @@ class DevicesManager(object):
 
     def __init__(self, db):
         self.db = db
+        self.server_ip = get_server_ip()
+        self.netmask = str(get_walt_subnet().netmask)
 
     def register_device(self, device_cls, **kwargs):
         """Derive device type from device class, then add or update, return True if new equipment."""
@@ -105,6 +108,15 @@ class DevicesManager(object):
         device_type = device_info.type
         if device_type == 'node':
             node_info = self.db.select_unique("nodes", mac=mac)
+            if node_info.netsetup == NetSetup.NAT:
+                gateway = self.server_ip
+            else:
+                gateway = ''
+            node_info = to_named_tuple(node_info._asdict())
+            node_info = node_info.update(
+                gateway = gateway,
+                netmask = self.netmask
+            )
             device_info = merge_named_tuples(device_info, node_info)
         elif device_type == 'switch':
             switch_info = self.db.select_unique("switches", mac=mac)

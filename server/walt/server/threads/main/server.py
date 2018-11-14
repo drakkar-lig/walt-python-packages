@@ -107,6 +107,9 @@ class Server(object):
             self.nodes.register_node(   mac = mac,
                                         model = device_cls.MODEL_NAME)
 
+    def get_device_info(self, device_mac):
+        return dict(self.devices.get_complete_device_info(device_mac)._asdict())
+
     def rename_device(self, requester, old_name, new_name):
         self.devices.rename(requester, old_name, new_name)
         self.dhcpd.update()
