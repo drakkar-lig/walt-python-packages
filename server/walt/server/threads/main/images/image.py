@@ -5,7 +5,6 @@ from walt.server.threads.main.filesystem import Filesystem
 from walt.server.threads.main.images.setup import setup
 from walt.common.tools import \
         failsafe_makedirs, succeeds
-from walt.common.versions import API_VERSIONING, UPLOAD
 
 # IMPORTANT TERMINOLOGY NOTES:
 #

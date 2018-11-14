@@ -1,8 +1,8 @@
 PACKAGE_GENERIC_INFO = dict(
     # metadata for upload to PyPI
-    author = "Etienne Duble",
-    author_email = "etienne.duble@imag.fr",
-    license = "LGPL",
+    author = "WalT developers",
+    author_email = "walt-contact@univ-grenoble-alpes.fr",
+    license = "3-Clause BSD",
     keywords = "WalT testbed",
     url = "https://walt-project.liglab.fr",
     namespace_packages = ['walt']
@@ -85,22 +85,6 @@ PACKAGE_SPECIFIC_INFO = {
         version_str = '%(upload)s',
         setup = dict(
             description = "WalT common python modules."
-        )
-    ),
-    "walt-clientselector": dict(
-        subdir = 'clientselector',
-        requires = [ 'walt-client==%(upload)s' ],
-        version_str = '%(cs_api)s.%(upload)s',
-        setup = dict(
-            description = "WalT virtual package for walt-client update."
-        )
-    ),
-    "walt-nodeselector": dict(
-        subdir = 'nodeselector',
-        requires = [ 'walt-node==%(upload)s' ],
-        version_str = '%(ns_api)s.%(upload)s',
-        setup = dict(
-            description = "WalT virtual package for walt-node update."
         )
     )
 }

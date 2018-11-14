@@ -26,7 +26,7 @@
 #     - test    -> pypitest
 #     - [other] -> [forbidden]
 
-ALL_PACKAGES=common virtual server node client clientselector nodeselector
+ALL_PACKAGES=common virtual server node client
 # common must be installed 1st (needed by others), then virtual
 INSTALLABLE_PACKAGES_ON_SERVER=common virtual server client
 GNUMAKEFLAGS=--no-print-directory
@@ -52,9 +52,9 @@ node.%: common.%
 %.info:
 	@$(MAKE) $*/walt/$*/info.py
 
-%/info.py: common/walt/common/versions.py dev/metadata.py dev/version/info-updater.py
+%/info.py: common/walt/common/version.py dev/metadata.py dev/info-updater.py
 	@echo updating info.py files
-	@dev/version/info-updater.py
+	@dev/info-updater.py
 
 clean:
 	find . -name \*.pyc -delete

@@ -102,7 +102,7 @@ class ServerAPIConnection(object):
         self.sock = socket()
         self.sock_file = self.sock.makefile('r+',0)
         self.api_channel = APIChannel(self.sock_file)
-        self.remote_api_version = None
+        self.remote_version = None
         is_interactive = os.isatty(sys.stdout.fileno()) and \
                             os.isatty(sys.stdin.fileno())
         self.client_proxy = AttrCallAggregator(self.handle_client_call)
@@ -118,14 +118,14 @@ class ServerAPIConnection(object):
             self.sock.connect((self.server_ip, WALT_SERVER_DAEMON_PORT))
             Requests.send_id(self.sock_file, Requests.REQ_API_SESSION)
             self.sock_file.write('%s\n' % self.target_api)
-            self.remote_api_version = int(self.sock_file.readline().strip())
+            self.remote_version = int(self.sock_file.readline().strip())
             self.connected = True
     def set_busy_label(self, label):
         self.indicator.set_label(label)
     def set_default_busy_label(self):
         self.indicator.set_default_label()
-    def get_api_version(self):
-        return self.remote_api_version
+    def get_remote_version(self):
+        return self.remote_version
     def handle_client_call(self, path, args, kwargs):
         if hasattr(self, path):
             # this is something implemented locally

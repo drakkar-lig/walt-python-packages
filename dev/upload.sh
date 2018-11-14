@@ -1,13 +1,17 @@
 #!/bin/bash
 set -e
-URL=https://github.com/drakkar-lig/walt-python-packages.git
+URL=github.com/drakkar-lig/walt-python-packages
 SUBPACKAGES="$*"
 . dev/tools/functions.sh
 
 branch=$(git branch | grep '*' | awk '{print $2}')
 case "$branch" in
-    master) tag_prefix='upload_';;
-    test)   tag_prefix='testupload_';;
+    master) tag_prefix='upload_'
+            repo_option=''
+            ;;
+    test)   tag_prefix='testupload_'
+            repo_option='--repository-url https://test.pypi.org/legacy/'
+            ;;
     *)      >&2 echo "Only branches 'master' and 'test' are allowed. You are on branch '$branch'."
             exit;;
 esac
@@ -28,7 +32,7 @@ if [ "$stat_porcelain" -gt 0 ]; then
     >&2 echo "Aborted."
     exit
 fi
-    
+
 stat_ahead=$(git status --porcelain -b | grep ahead | wc -l)
 
 if [ $stat_ahead = 1 ]; then
@@ -36,18 +40,8 @@ if [ $stat_ahead = 1 ]; then
     exit
 fi
 
-pypi_credentials="$(prompt_pypi_credentials)"
-pypi_username="$(echo "$pypi_credentials" | head -n 1)"
-pypi_password="$(echo "$pypi_credentials" | tail -n 1)"
-
-# create .pypirc
-backup_pypirc
-create_pypirc "$branch" "$pypi_username" "$pypi_password"
-trap restore_pypirc EXIT    # on exit, restore
-
-# check that packages are fine
-# check that credentials are fine
-do_subpackages sdist register -r $repo
+# build and check that packages are fine
+do_subpackages python setup.py sdist
 
 # everything seems fine, let's start the real work
 
@@ -56,23 +50,20 @@ git fetch $remote 'refs/tags/*:refs/tags/*'
 last_upload_in_git=$(git tag | grep "^$tag_prefix" | tr '_' ' ' | awk '{print $2}' | sort -n | tail -n 1)
 new_upload=$((last_upload_in_git+1))
 
-# restore versions.py as it was on last upload
-git checkout $tag_prefix$last_upload_in_git -- common/walt/common/versions.py
-# update file walt/common/versions.py (increment UPLOAD and update API numbers if needed)
-dev/version/versions-updater.py $new_upload
-echo "versions.py updated"
-dev/version/info-updater.py
-echo "info.py files updated"
+# update files containing version number
+echo "__version__ = '$new_upload'" > common/walt/common/version.py
+dev/info-updater.py
+echo "info.py, version.py files updated"
 
 newTag="$tag_prefix$new_upload"
-git add common/walt/common/versions.py
-git commit -m "$newTag (automated by $0)"
+git commit -a -m "$newTag (automated by $0)"
 
 git tag -m "$newTag (automated by $0)" -a $newTag
 git push --tag $remote $branch
 
-# sdist: rebuild source packages
-# register: submit metadata to index server
+# rebuild updated packages
+do_subpackages python setup.py sdist
+
 # upload: upload packages
-do_subpackages sdist register -r $repo upload -r $repo
+do_subpackages twine upload $repo_option dist/*
 

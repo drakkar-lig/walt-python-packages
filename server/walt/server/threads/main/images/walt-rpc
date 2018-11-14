@@ -7,7 +7,7 @@ cat >$NC_SCRIPT << EOF
 #!/bin/sh
 echo REQ_API_SESSION
 echo NSAPI
-read api_version
+read server_version
 echo "('API_CALL', '$func_call', (), {})"
 read response
 echo \$response >&2

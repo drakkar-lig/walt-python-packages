@@ -1,4 +1,4 @@
-from walt.common.versions import API_VERSIONING
+from walt.common.version import __version__
 from walt.common.tcp import Requests
 from walt.common.apilink import APIChannel, AttrCallAggregator
 
@@ -51,13 +51,7 @@ class APISessionManager(object):
     def init_target_api(self):
         try:
             self.target_api = self.sock_file.readline().strip()
-            if self.target_api in API_VERSIONING:
-                api_version = API_VERSIONING[self.target_api][0]
-            else:
-                # no api version is managed
-                # ex: SSAPI -> server to server communication
-                api_version = 0
-            self.sock_file.write("%d\n" % api_version)
+            self.sock_file.write("%d\n" % int(__version__))
             return True
         except:
             return False

@@ -1,5 +1,5 @@
-import os
-from walt.common.versions import API_VERSIONING
+import os, subprocess
+from walt.common.version import __version__
 from walt.client.link import ClientToServerLink
 
 # use DEBUG_WITH_TESTPYPI=1 walt <args>
@@ -9,16 +9,21 @@ from walt.client.link import ClientToServerLink
 def client_update():
     updated = False
     with ClientToServerLink() as server:
-        server_cs_api = server.get_api_version()
-        client_cs_api = API_VERSIONING['CSAPI'][0]
-        if server_cs_api != client_cs_api:
-            print('Auto-updating the client to match server API...')
-            if os.getenv('DEBUG_WITH_TESTPYPI'):
-                repo_option = '-i https://testpypi.python.org/simple'
-            else:
-                repo_option = ''
-            do('sudo pip install %s --upgrade "walt-clientselector==%d.*"' % \
-                            (repo_option, server_cs_api))
-            updated = True
+        remote_version = server.get_remote_version()
+    if remote_version != int(__version__):
+        print('Auto-updating the client to match server API...')
+        if os.getenv('DEBUG_WITH_TESTPYPI'):
+            repo_option = '-i https://testpypi.python.org/simple'
+        else:
+            repo_option = ''
+        cmd = 'sudo pip install %s --upgrade "walt-client==%d"' % \
+                        (repo_option, remote_version)
+        try:
+            if subprocess.call(cmd, shell=True) == 0:
+                updated = True
+        except BaseException as e:
+            print('Issue: ' + str(e))
+        if not updated:
+            print('WARNING!! client update failed. Trying to continue...')
     return updated
 
