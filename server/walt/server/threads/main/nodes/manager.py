@@ -205,8 +205,8 @@ class NodesManager(object):
             return False
         return True
 
-    def show(self, requester, show_all):
-        return show(self.db, requester, show_all)
+    def show(self, username, show_all):
+        return show(self.db, username, show_all)
 
     def generate_vnode_info(self):
         # random mac address generation

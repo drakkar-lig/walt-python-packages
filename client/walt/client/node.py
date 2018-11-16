@@ -6,6 +6,7 @@ from walt.client.device import WalTDevice
 from walt.common.tools import format_sentence_about_nodes
 from walt.client.link import ClientToServerLink
 from walt.client.tools import confirm
+from walt.client.config import conf
 from walt.client.interactive import run_node_cmd, \
                                     run_device_ping, \
                                     NODE_SHELL_MESSAGE
@@ -115,7 +116,7 @@ class WalTNodeShow(WalTApplication):
     _all = False # default
     def main(self):
         with ClientToServerLink() as server:
-            print server.show_nodes(self._all)
+            print server.show_nodes(conf['username'], self._all)
     @cli.autoswitch(help='show nodes used by other users too')
     def all(self):
         self._all = True

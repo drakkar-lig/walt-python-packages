@@ -45,10 +45,7 @@ def short_image_name(image_name):
         image_name = image_name[:-7]
     return image_name
 
-def show(db, requester, show_all):
-    username = requester.get_username()
-    if not username:
-        return ""    # client already disconnected, give up
+def show(db, username, show_all):
     res_user, res_free, res_other, res_not_ready = [], [], [], []
     res = db.execute(NODE_SHOW_QUERY)
     for record in res:

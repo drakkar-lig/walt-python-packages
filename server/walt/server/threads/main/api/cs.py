@@ -25,8 +25,8 @@ class CSAPI(APISession):
         return context.devices.show()
 
     @api_expose_method
-    def show_nodes(self, context, show_all):
-        return context.nodes.show(context.requester.sync, show_all)
+    def show_nodes(self, context, username, show_all):
+        return context.nodes.show(username, show_all)
 
     @api_expose_method
     def create_vnode(self, context, node_name):

@@ -23,7 +23,7 @@ class APISessionManager(object):
         return self.api_channel.fileno()
     def handle_event(self, ts):
         if not self.target_api:
-            return self.init_target_api() and self.init_session()
+            return self.init_session()
         else:
             return self.handle_api_call()
     def handle_api_call(self):
@@ -48,17 +48,15 @@ class APISessionManager(object):
                 self.api_channel.write('RESULT', res)
         except:
             pass
-    def init_target_api(self):
+    def init_session(self):
         try:
             self.target_api = self.sock_file.readline().strip()
+            self.session_id = self.rpc_session.sync.create_session(
+                                self.target_api, self.remote_ip)
             self.sock_file.write("%d\n" % int(__version__))
             return True
         except:
             return False
-    def init_session(self):
-        self.session_id = self.rpc_session.sync.create_session(
-                                self.target_api, self.remote_ip)
-        return True
     def close(self):
         if self.session_id != None:
             self.rpc_session.sync.destroy_session(self.session_id)
