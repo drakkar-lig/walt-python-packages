@@ -41,7 +41,8 @@ if [ $stat_ahead = 1 ]; then
 fi
 
 # build and check that packages are fine
-do_subpackages python setup.py sdist
+rm -rf */walt/*/dist
+do_subpackages python setup.py sdist bdist_wheel
 
 # everything seems fine, let's start the real work
 
@@ -62,7 +63,7 @@ git tag -m "$newTag (automated by $0)" -a $newTag
 git push --tag $remote $branch
 
 # rebuild updated packages
-do_subpackages python setup.py sdist
+do_subpackages python setup.py sdist bdist_wheel
 
 # upload: upload packages
 do_subpackages twine upload $repo_option dist/*

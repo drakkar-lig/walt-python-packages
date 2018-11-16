@@ -1,3 +1,2 @@
-# walt is a "namespace namespace", shared by walt-client, walt-server, walt-node
-# see: http://pythonhosted.org/setuptools/setuptools.html#namespace-packages
-__import__('pkg_resources').declare_namespace(__name__)
+# walt is a "namespace package", shared by walt-client, walt-server, walt-node...
+__path__ = __import__('pkgutil').extend_path(__path__, __name__)

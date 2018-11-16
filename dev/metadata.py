@@ -4,8 +4,7 @@ PACKAGE_GENERIC_INFO = dict(
     author_email = "walt-contact@univ-grenoble-alpes.fr",
     license = "3-Clause BSD",
     keywords = "WalT testbed",
-    url = "https://walt-project.liglab.fr",
-    namespace_packages = ['walt']
+    url = "https://walt-project.liglab.fr"
 )
 
 PACKAGE_SPECIFIC_INFO = {

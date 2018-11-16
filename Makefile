@@ -47,7 +47,7 @@ node.%: common.%
 
 %.install: %.info
 	@$(MAKE) $*.uninstall
-	@cd $*; pwd; sudo -H pip install . >/dev/null 2>&1 || sudo -H pip install .
+	@cd $*; pwd; python setup.py bdist_wheel && sudo -H pip install .
 
 %.info:
 	@$(MAKE) $*/walt/$*/info.py
