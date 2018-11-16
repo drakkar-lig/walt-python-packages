@@ -222,3 +222,5 @@ def set_close_on_exec(fd, close_on_exec):
         val &= ~FD_CLOEXEC
     fcntl(fd, F_SETFD, val)
 
+def restart():
+    os.execvp(sys.argv[0], sys.argv)

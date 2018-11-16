@@ -72,6 +72,3 @@ class ProgressMessageThread(Process):
     def interrupt(self, msg):
         self.queue.put((1, msg))
 
-def restart():
-    os.execvp(sys.argv[0], sys.argv)
-

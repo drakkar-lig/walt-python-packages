@@ -3,6 +3,8 @@
 WalT (wireless testbed) control tool.
 """
 import sys, socket
+from walt.common.apilink import LinkException
+from walt.common.update import check_auto_update
 from walt.client.myhelp import WalTHelp
 from walt.client.log import WalTLog
 from walt.client.advanced import WalTAdvanced
@@ -10,11 +12,9 @@ from walt.client.node import WalTNode
 from walt.client.device import WalTDevice
 from walt.client.image import WalTImage
 from walt.client.startup import init_config
-from walt.common.apilink import LinkException
-from walt.client.update import client_update
-from walt.client.tools import restart
 from walt.client.logo import try_add_logo
 from walt.client.application import WalTToolboxApplication
+from walt.client.link import ClientToServerLink
 
 WALT_COMMAND_HELP_PREFIX = '''\
 
@@ -48,8 +48,8 @@ WalT.subcommand("node", WalTNode)
 def run():
     try:
         init_config()
-        if client_update():
-            restart()   # this will never return, no need to exit
+        with ClientToServerLink() as server:
+            check_auto_update(server, 'walt-client')
         WalT.run()
     except socket.error:
         print 'Network connection to WalT server failed!'
