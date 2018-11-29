@@ -53,7 +53,7 @@ IMAGE_MOUNT_PATH='/var/lib/walt/images/%s/fs'
 IMAGE_DIFF_PATH='/var/lib/walt/images/%s/diff'
 ERROR_BAD_IMAGE_NAME='''\
 Bad name: expected format is <name> or <name>:<tag>.
-Only alnum and dash(-) characters are allowed in <name> and <tag>.
+Only lowercase letters, digits and dash(-) characters are allowed in <name> and <tag>.
 '''
 
 def get_mount_path(image_fullname):
@@ -82,7 +82,7 @@ def check_alnum_dash(token):
 
 def validate_image_name(requester, image_name):
     if  image_name.count(':') in (0,1) and \
-        re.match('^[a-zA-Z0-9\-]+$', image_name.replace(':', '')):
+        re.match('^[a-z0-9\-]+$', image_name.replace(':', '')):
         return True     # ok
     requester.stderr.write(ERROR_BAD_IMAGE_NAME)
     return False
