@@ -150,22 +150,31 @@ def execute_line(env, line):
             f.write(content)
         env["kvm-args"] += " -initrd " + initrd_copy
         return True
-    # handle "boot" directive
-    if words[0] == 'boot':
-        kernel_path = words[1]
-        kernel_cmdline = " ".join(words[2:])
-        content = fake_tftp_read(env, kernel_path)
-        if content is None:
-            return False
-        kernel_copy = env['TMPDIR'] + '/kernel'
-        with open(kernel_copy, 'wb') as f:
-            f.write(content)
-        env["kvm-args"] += " -kernel " + kernel_copy
-        env["kvm-args"] += " -append '" + kernel_cmdline + "'"
-        cmd = env["kvm-args"] % env
-        print cmd
-        subprocess.call(cmd, shell=True)
-        return False    # reboot when it exits
+    # handle "kernel" and "boot" directives
+    if words[0] in ('boot', 'kernel'):
+        if len(words) > 1:
+            kernel_path = words[1]
+            kernel_cmdline = " ".join(words[2:])
+            content = fake_tftp_read(env, kernel_path)
+            if content is None:
+                return False
+            kernel_copy = env['TMPDIR'] + '/kernel'
+            with open(kernel_copy, 'wb') as f:
+                f.write(content)
+            env["kvm-args"] += " -kernel " + kernel_copy
+            env["kvm-args"] += " -append '" + kernel_cmdline + "'"
+        if words[0] == 'boot':
+            cmd = env["kvm-args"] % env
+            print cmd
+            subprocess.call(cmd, shell=True)
+            return False    # reboot when it exits
+        else:
+            return True
+    # handle "sleep" directive
+    if words[0] == 'sleep':
+        delay = int(words[1])
+        time.sleep(delay)
+        return True
     # handle "reboot" directive
     if words[0] == 'reboot':
         return False
