@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import sys, subprocess, tempfile, shutil, shlex, time, random
+import sys, subprocess, tempfile, shutil, shlex, time, random, os.path
 from walt.common.apilink import ServerAPILink
 from walt.common.tcp import write_pickle, client_sock_file, \
                             Requests
@@ -62,7 +62,9 @@ def fake_tftp_read(env, path):
     # wait for the READY message from the server
     f.readline()
     # write the parameters
-    write_pickle(dict(node_mac=env['mac'], path=path), f)
+    write_pickle(dict(
+            node_mac=env['mac'],
+            path=remote_absname(env, path)), f)
     # receive status
     status = f.readline().strip()
     if status == 'OK':
@@ -76,6 +78,26 @@ def fake_tftp_read(env, path):
     f.close()
     print(path + " " + status)
     return content
+
+def remote_curdir(env):
+    return env['REMOTEDIRSTACK'][-1]    # top of the stack
+
+def remote_absname(env, path):
+    if path[0] == '/':
+        return path     # already absolute
+    else:
+        return os.path.join(remote_curdir(env), path)
+
+def remote_dirname(env, path):
+    if path[0] != '/':
+        path = remote_absname(env, path)
+    return os.path.dirname(path)
+
+def remote_cd(env, path):
+    env['REMOTEDIRSTACK'].append(remote_absname(env, path))
+
+def remote_revert_cd(env):
+    env['REMOTEDIRSTACK'] = env['REMOTEDIRSTACK'][:-1]  # pop
 
 def execute_line(env, line):
     line = line.strip()
@@ -132,9 +154,13 @@ def execute_line(env, line):
         content = fake_tftp_read(env, path)
         if content is None:
             return False
+        # when executing a script, relative paths will be interpreted
+        # as being relative to the path of the script itself
+        remote_cd(env, remote_dirname(env, path))
         for line in content.splitlines():
             if not execute_line(env, line):
                 return False
+        remote_revert_cd(env)
         return True
     # handle "imgfree" directive
     if words[0] == 'imgfree':
@@ -199,6 +225,7 @@ def run():
             print("Starting...")
             env = get_env_start()
             env['TMPDIR'] = TMPDIR
+            env['REMOTEDIRSTACK'] = ['/']
             send_register_request(env)
             add_network_info(env)
             execute_line(env, "chain /start.ipxe")
