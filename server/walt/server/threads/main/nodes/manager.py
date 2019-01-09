@@ -499,6 +499,8 @@ class NodesManager(object):
     def netsetup_handler(self, requester, device_set, netsetup_value):
         # Interpret the node set, some of them may be strict devices
         device_infos = self.devices.parse_device_set(requester, device_set)
+        if device_infos is None:
+            yield False
 
         # Check the node set
         not_nodes = filter(lambda di: di.type != "node", device_infos)

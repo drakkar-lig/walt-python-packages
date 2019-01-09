@@ -2,8 +2,9 @@
 from walt.server.threads.main.network.tools import set_static_ip_on_switch, \
                             ip_in_walt_network, get_walt_subnet, get_server_ip
 from walt.server.threads.main.network.netsetup import NetSetup
-from walt.common.tools import format_sentence
+from walt.common.tools import format_sentence, get_mac_address
 from walt.server.tools import format_paragraph, to_named_tuple, merge_named_tuples
+from walt.server import const
 import re, json
 
 DEVICE_NAME_NOT_FOUND="""No device with name '%s' found.\n"""
@@ -21,22 +22,32 @@ SELECT name, ip, mac, type from devices
 WHERE type %(unknown_op)s 'unknown'
 ORDER BY type, name;"""
 
-NODE_SET_QUERIES = {
-        'my-nodes': """
-            SELECT  d.name as name
-            FROM devices d, nodes n, images i
-            WHERE   d.mac = n.mac
-            AND     n.image = i.fullname
-            AND     i.ready = True
-            AND     split_part(n.image, '/', 1) = '%s'
-            ORDER BY name;""",
+MY_NODES_QUERY = """\
+SELECT  d.mac as mac
+FROM devices d, nodes n, images i
+WHERE   d.mac = n.mac
+AND     n.image = i.fullname
+AND     i.ready = True
+AND     split_part(n.image, '/', 1) = '%s'
+ORDER BY name;"""
+
+DEVICE_SET_QUERIES = {
         'all-nodes': """
-            SELECT  d.name as name
+            SELECT  d.mac as mac
             FROM devices d, nodes n, images i
             WHERE   d.mac = n.mac
             AND     n.image = i.fullname
             AND     i.ready = True
-            ORDER BY name;"""
+            ORDER BY d.name;""",
+        'all-switches': """
+            SELECT  d.mac as mac
+            FROM devices d
+            WHERE   d.type = 'switch'
+            ORDER BY name;""",
+        'all-devices': """
+            SELECT  d.mac as mac
+            FROM devices d
+            ORDER BY type, name;""",
 }
 
 TITLE_DEVICE_SHOW_MAIN = """\
@@ -273,33 +284,47 @@ class DevicesManager(object):
             return True
 
     def parse_device_set(self, requester, device_set):
-        username = requester.get_username()
-        if not username:
-            return ()    # client already disconnected, give up
-        # check keywords
-        sql = None
-        if device_set is None or device_set == 'my-nodes':
-            sql = NODE_SET_QUERIES['my-nodes'] % username
-        elif device_set == 'all-nodes':
-            sql = NODE_SET_QUERIES['all-nodes']
-        elif device_set == 'all-devices':
-            sql = DEVICES_QUERY
-        if sql is not None:
-            # retrieve devices from database
-            devices = [record[0] for record in self.db.execute(sql)]
+        if ',' in device_set:
+            devices = []
+            for subset in device_set.split(','):
+                subset_devices = self.parse_device_set(requester, subset)
+                if subset_devices is None:
+                    return None
+                devices += subset_devices
+            return devices
+        elif device_set == 'server':
+            server_mac = get_mac_address(const.WALT_INTF)
+            # register the server in the device list, if missing
+            self.add_or_update(
+                    mac = server_mac, ip = str(get_server_ip()),
+                type = 'server')
+            return [self.get_complete_device_info(server_mac)]
         else:
-            # otherwise the list is explicit
-            devices = device_set.split(',')
-        # get devices info
-        devices = [self.get_device_info(requester, d) for d in devices]
-        if None in devices:
-            return None
-        # get complete devices info
-        devices = [self.get_complete_device_info(d.mac) for d in devices]
-        if len(devices) == 0:
-            requester.stderr.write('No matching devices found! (tip: walt help show node-terminology)\n')
-            return None
-        return sorted(devices)
+            username = requester.get_username()
+            if not username:
+                return None    # client already disconnected, give up
+            # check keywords
+            sql = None
+            if device_set is None or device_set == 'my-nodes':
+                sql = MY_NODES_QUERY % username
+            elif device_set in DEVICE_SET_QUERIES:
+                sql = DEVICE_SET_QUERIES[device_set]
+            if sql is not None:
+                # retrieve devices from database
+                device_macs = [record[0] for record in self.db.execute(sql)]
+            else:
+                # otherwise a specific device is requested by name
+                dev_name = device_set
+                dev_info = self.get_device_info(requester, dev_name)
+                if dev_info is None:
+                    return None
+                device_macs = [ dev_info.mac ]
+            # get complete devices info
+            devices = [self.get_complete_device_info(mac) for mac in device_macs]
+            if len(devices) == 0:
+                requester.stderr.write('No matching devices found! (tip: walt help show node-terminology)\n')
+                return None
+            return sorted(devices)
 
     def as_device_set(self, names):
         return ','.join(sorted(names))
