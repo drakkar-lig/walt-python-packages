@@ -48,6 +48,12 @@ DEVICE_SET_QUERIES = {
             SELECT  d.mac as mac
             FROM devices d
             ORDER BY type, name;""",
+        'explorable-switches': """
+            SELECT  d.mac as mac
+            FROM devices d, switches s
+            WHERE   d.mac = s.mac
+            AND     s.lldp_explore = True
+            ORDER BY d.name;"""
 }
 
 TITLE_DEVICE_SHOW_MAIN = """\

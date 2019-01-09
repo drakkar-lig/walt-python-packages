@@ -13,8 +13,8 @@ from walt.server.threads.main.apisession import APISession
 class CSAPI(APISession):
 
     @api_expose_method
-    def device_rescan(self, context):
-        context.server.device_rescan(context.requester.sync, context.remote_ip)
+    def device_rescan(self, context, device_set):
+        context.server.device_rescan(context.requester.sync, context.remote_ip, device_set)
 
     @api_expose_method
     def device_tree(self, context, show_all):

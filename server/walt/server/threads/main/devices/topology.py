@@ -315,16 +315,22 @@ class TopologyManager(object):
             requester.stdout.flush()
         print(message)
 
-    def collect_devices(self, requester, topology, server_mac):
-        # collect neighbors of this walt server
-        self.collect_connected_devices(requester, topology,
-            "walt server", "localhost", server_mac, const.SERVER_SNMP_CONF)
-        # collect neighbors of switches where lldp exploration is allowed
-        for sw_info in self.db.select('switches', lldp_explore = True):
-            sw_info = self.devices.get_complete_device_info(sw_info.mac)
-            snmp_conf = json.loads(sw_info.snmp_conf)
-            self.collect_connected_devices(requester, topology,
-                sw_info.name, sw_info.ip, sw_info.mac, snmp_conf)
+    def collect_devices(self, requester, topology, devices):
+        for device in devices:
+            if device.type == 'server':
+                self.collect_connected_devices(requester, topology,
+                    "walt server", "localhost", device.mac, const.SERVER_SNMP_CONF)
+            elif device.type == 'switch':
+                if not device.lldp_explore:
+                    self.print_message(requester,
+                        'Querying %-25s FORBIDDEN (tip: walt device admin)' % device.name)
+                    continue
+                snmp_conf = json.loads(device.snmp_conf)
+                self.collect_connected_devices(requester, topology,
+                    device.name, device.ip, device.mac, snmp_conf)
+            else:
+                self.print_message(requester,
+                    'Querying %-25s INVALID (can only scan switches or the server)' % device.name)
 
     def collect_connected_devices(self, requester, topology, host_name,
                                     host_ip, host_mac, host_snmp_conf):
@@ -360,17 +366,12 @@ class TopologyManager(object):
                             type = db_info.type, name = db_info.name)
                 self.devices.add_or_update(**info)
 
-    def rescan(self, requester=None, remote_ip=None, ui=None):
+    def rescan(self, requester, remote_ip, devices):
         self.last_scan = time.time()
-        # register the server in the device list, if missing
-        server_mac = get_mac_address(const.WALT_INTF)
-        self.devices.add_or_update(
-                mac = server_mac, ip = str(get_server_ip()),
-                type = 'server')
 
-        # explore the network
+        # explore the network equipments
         new_topology = Topology()
-        self.collect_devices(requester, new_topology, server_mac)
+        self.collect_devices(requester, new_topology, devices)
 
         # retrieve past topology data from db
         db_topology = Topology()

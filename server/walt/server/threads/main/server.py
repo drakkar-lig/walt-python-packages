@@ -115,8 +115,11 @@ class Server(object):
         self.dhcpd.update()
         tftp.update(self.db)
 
-    def device_rescan(self, requester, remote_ip = None):
-        self.topology.rescan(requester=requester, remote_ip = remote_ip)
+    def device_rescan(self, requester, remote_ip, device_set):
+        devices = self.devices.parse_device_set(requester, device_set)
+        if devices == None:
+            return False   # error already reported
+        self.topology.rescan(requester=requester, remote_ip=remote_ip, devices=devices)
         self.dhcpd.update()
         tftp.update(self.db)
 

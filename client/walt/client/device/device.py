@@ -39,9 +39,9 @@ class WalTDeviceShow(WalTApplication):
 @WalTDevice.subcommand("rescan")
 class WalTDeviceRescan(WalTApplication):
     """rescan the network devices involved in the platform"""
-    def main(self):
+    def main(self, device_set='server,explorable-switches'):
         with ClientToServerLink() as server:
-            server.device_rescan()
+            server.device_rescan(device_set)
 
 @WalTDevice.subcommand("rename")
 class WalTRenameDevice(WalTApplication):
