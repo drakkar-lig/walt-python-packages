@@ -65,10 +65,9 @@ class WalTLogShowOrWait(WalTApplication):
         server_time = pickle.loads(server.get_pickled_time())
         MALFORMED=(False,)
         try:
-            history_range = history_range.lower()
-            if history_range == 'none':
+            if history_range.lower() == 'none':
                 return True, None
-            elif history_range == 'full':
+            elif history_range.lower() == 'full':
                 return True, (None, None)
             parts = history_range.split(':')
             if len(parts) != 2:
