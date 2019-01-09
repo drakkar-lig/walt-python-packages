@@ -335,31 +335,14 @@ class NodesManager(object):
         # we have to verify that:
         # - we know where each node is connected (PoE switch port)
         # - PoE remote control is allowed on this switch
-        #
-        # we verify this in several steps:
-        # 1- we call filter_poe_rebootable() but disabling
-        #    warnings about nodes with unknown connectivity
-        # 2- if such nodes were returned, we rescan the network,
-        #    and then call filter_poe_rebootable() again,
-        #    for those problematic nodes only, and this time
-        #    with the warning enabled.
         nodes = self.parse_node_set(requester, node_set)
         if nodes == None:
             return None # error already reported
         nodes_ok, nodes_unknown, nodes_forbidden = \
                     self.filter_poe_rebootable( \
                                 requester, nodes,
-                                False,
+                                warn_poe_issues,
                                 warn_poe_issues)
-        if len(nodes_unknown) > 0:
-            # rescan and retry
-            self.topology.rescan()
-            nodes_ok2, nodes_unknown2, nodes_forbidden2 = \
-            self.filter_poe_rebootable( requester,
-                                        nodes_unknown,
-                                        warn_poe_issues,
-                                        warn_poe_issues)
-            nodes_ok += nodes_ok2
         if len(nodes_ok) == 0:
             return None
         # otherwise, at least one node can be reached, so do it.
