@@ -149,6 +149,7 @@ class NodeImageStore(object):
         if images_in_use == None:
             images_in_use = self.get_images_in_use()
         images_found = []
+        nodes_found = self.db.select("nodes")
         # ensure all needed images are mounted
         for fullname in images_in_use:
             if fullname in self.images:
@@ -159,7 +160,7 @@ class NodeImageStore(object):
             else:
                 sys.stderr.write(MSG_IMAGE_IS_USED_BUT_NOT_FOUND % fullname)
         # update nfs configuration
-        nfs.update_exported_filesystems(images_found)
+        nfs.update_exported_filesystems(images_found, nodes_found)
         # unmount images that are not needed anymore
         for fullname in self.images:
             if fullname not in images_in_use:
@@ -168,7 +169,7 @@ class NodeImageStore(object):
                     img.unmount()
     def cleanup(self):
         # release nfs mounts
-        nfs.update_exported_filesystems([])
+        nfs.update_exported_filesystems([], [])
         # unmount images
         for fullname in self.images:
             img = self.images[fullname]

@@ -123,6 +123,22 @@ mount_union()
     $MOUNT -t overlayfs -o upperdir=fs_rw,lowerdir=/ union fs_union
 }
 
+# This is the persistent mount point, available even across reboots.
+# Data are stored on the server through a NFS share.
+mount_persistent()
+{
+    cd $ROOTFS/mnt
+
+    # Compute persistent storage path from NFS root
+    NFS_REMOTE_PATH=$(findmnt / --output SOURCE --noheadings)
+    PERSIST_PATH=${NFS_REMOTE_PATH%/*}/persist
+
+    # Mount the share
+    mkdir fs_union/persist
+    $MOUNT -t nfs -o rw,relatime,vers=3,nolock \
+           "${PERSIST_PATH}" fs_union/persist
+}
+
 update_mounts()
 {
     $MOUNT -o bind /dev $ROOTFS/mnt/fs_union/dev
@@ -136,18 +152,19 @@ run_real_init()
 }
 
 # let's go
-echo "*** Mounting...                   ***"
+echo "*** Mounting...                    ***"
 do_mounts
-echo "*** Preparing rootfs...           ***"
+echo "*** Preparing rootfs...            ***"
 prepare_rootfs
-echo "*** Mounting filesystem union...  ***"
+echo "*** Mounting filesystem union...   ***"
 mount_union
-echo "*** Re-mounting over the union... ***"
+echo "*** Mounting persistent filesystem ***"
+mount_persistent
+echo "*** Re-mounting over the union...  ***"
 update_mounts
-echo "*** Setting clock...              ***"
+echo "*** Setting clock...               ***"
 run_script_in_rootfs fg walt-clock-sync
-echo "*** Starting bg processes...      ***"
+echo "*** Starting bg processes...       ***"
 start_background_processes
-echo "*** Starting walt image init...   ***"
+echo "*** Starting walt image init...    ***"
 run_real_init
-
