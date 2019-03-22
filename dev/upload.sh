@@ -41,7 +41,7 @@ if [ $stat_ahead = 1 ]; then
 fi
 
 # build and check that packages are fine
-rm -rf */walt/*/dist
+rm -rf */dist
 do_subpackages python setup.py sdist bdist_wheel
 
 # everything seems fine, let's start the real work
@@ -63,6 +63,7 @@ git tag -m "$newTag (automated by $0)" -a $newTag
 git push --tag $remote $branch
 
 # rebuild updated packages
+rm -rf */dist
 do_subpackages python setup.py sdist bdist_wheel
 
 # upload: upload packages
