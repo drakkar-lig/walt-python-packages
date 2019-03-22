@@ -33,8 +33,8 @@ class NodeImageManager(object):
         self.store.refresh(startup)
         self.store.update_image_mounts()
         tftp.update(self.db)
-    def search(self, requester, task, keyword):
-        return search(self.blocking, requester, task, keyword)
+    def search(self, requester, task, keyword, tty_mode):
+        return search(self.blocking, requester, task, keyword, tty_mode)
     def clone(self, requester, task, **kwargs):
         return clone(self.blocking, requester, task, **kwargs)
     def publish(self, requester, task, image_name, **kwargs):

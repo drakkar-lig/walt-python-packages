@@ -21,42 +21,73 @@ def as_string(item):
     else:
         return str(item)
 
-def header_underline(colwidths):
-    return [ '-' * w for w in colwidths ]
+def columnate_sanitize_data(tabular_data):
+    for i in tabular_data:
+        yield [as_string(s) for s in i]
 
-def columnate_sanitize(tabular_data, header = None):
-    # stringify all (and work on a copy)
-    tabular_data_copy = [ [as_string(s) for s in i] for i in tabular_data ]
-    # if header is specified, replace underscores with spaces
-    if header != None:
-        header = [ i.replace('_', ' ') for i in header ]
-    return tabular_data_copy, header
+def columnate_sanitize_header(header):
+    # replace underscores with spaces
+    return [ i.replace('_', ' ') for i in header ]
 
-def get_columnate_format(tabular_data, header = None):
+def get_columnate_format(*rows):
+    # filter out separation lines
+    rows = tuple(row for row in rows if row is not None)
     # compute the max length of elements in each column
-    colwidths = [ max([ len(s) for s in i ]) for i in zip(header, *tabular_data) ]
+    colwidths = [ max([ len(s) for s in i ]) for i in zip(*rows) ]
     # compute a format that should be applied to each record
     str_format = "".join([ '%-' + str(w + COLUMNATE_SPACING) + 's' \
-                            for w in colwidths ])
-    return str_format, colwidths
+                            for w in colwidths ]) + '\n'
+    # compute sep line
+    sep_line = str_format % tuple('-' * w for w in colwidths)
+    return str_format, sep_line
 
-def columnate_iterate(tabular_data, str_format, colwidths, header = None):
+def columnate_iterate_rows(tabular_data, header = None):
     # yield data
     first = True
-    for record in tabular_data:
+    for row in tabular_data:
         if first:
             # if header, yield it
             if header is not None:
-                yield str_format % tuple(header)
-                yield str_format % tuple(header_underline(colwidths))
+                yield tuple(header)
+                yield None  # will be understood as a separation line
             first = False
-        yield str_format % tuple(record)
+        yield tuple(row)
+
+def columnate_format_row(str_format, sep_line, row):
+    if row is None:
+        return sep_line
+    else:
+        return str_format % row
 
 def columnate(tabular_data, header = None):
-    tabular_data, header = columnate_sanitize(tabular_data, header)
-    str_format, colwidths = get_columnate_format(tabular_data, header)
-    it = columnate_iterate(tabular_data, str_format, colwidths, header)
-    return '\n'.join(it)
+    tabular_data = tuple(columnate_sanitize_data(tabular_data))
+    if len(tabular_data) == 0:
+        return ''
+    if header is not None:
+        header = columnate_sanitize_header(header)
+    str_format, sep_line = get_columnate_format(header, *tabular_data)
+    formatted = ''.join(columnate_format_row(str_format, sep_line, row) \
+        for row in columnate_iterate_rows(tabular_data, header))
+    return formatted[:-1]    # remove ending eol
+
+def columnate_iterate_tty(tabular_data, header = None):
+    tabular_data = columnate_sanitize_data(tabular_data)
+    if header is not None:
+        header = columnate_sanitize_header(header)
+    all_rows = []
+    str_format = None
+    for row in columnate_iterate_rows(tabular_data, header):
+        all_rows.append(row)
+        new_str_format, sep_line = get_columnate_format(*all_rows)
+        if new_str_format == str_format:
+            yield columnate_format_row(str_format, sep_line, row)
+        else:
+            # new row has larger columns, re-print
+            if str_format is not None:
+                yield '\x1b[%(up)dA' % dict(up=len(all_rows)-1)
+            str_format = new_str_format
+            yield ''.join(columnate_format_row(str_format, sep_line, row) \
+                             for row in all_rows)
 
 def display_transient_label(stdout, label):
     stdout.write('\r' + label + ' ')

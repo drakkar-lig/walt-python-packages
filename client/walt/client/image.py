@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import os, sys
 from plumbum import cli
 from walt.client.link import ClientToServerLink
 from walt.client.tools import confirm
@@ -17,7 +18,8 @@ class WalTImageSearch(WalTApplication):
     def main(self, keyword=None):
         with ClientToServerLink() as server_link:
             server_link.set_busy_label('Searching')
-            server_link.search_images(keyword)
+            tty_mode = os.isatty(sys.stdout.fileno())
+            server_link.search_images(keyword, tty_mode)
 
 @WalTImage.subcommand("clone")
 class WalTImageClone(WalTApplication):

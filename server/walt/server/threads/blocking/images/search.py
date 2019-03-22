@@ -1,6 +1,6 @@
 import requests
 from collections import defaultdict
-from walt.server.tools import get_columnate_format, columnate_iterate, \
+from walt.server.tools import columnate, columnate_iterate_tty, \
                               format_node_models_list
 from walt.server.threads.blocking.images.metadata import \
             pull_user_metadata
@@ -82,12 +82,6 @@ class Search(object):
                 for location in locations:
                     labels = images_and_labels[image_name][location]
                     yield (user, image_name, location, labels)
-    def local_unsorted_search(self):
-        for fullname in self.image_store:
-            if self.validate_fullname(fullname, LOCATION_WALT_SERVER):
-                user, image_name = fullname.split('/')
-                yield (user, image_name, LOCATION_WALT_SERVER,
-                            self.docker.local.get_labels(fullname))
 
 def short_image_name(image_name):
     if image_name.endswith(':latest'):
@@ -120,7 +114,7 @@ def format_result(it):
                 clonable_link(location, user, image_name))
 
 # this implements walt image search
-def perform_search(docker, image_store, requester, keyword):
+def perform_search(docker, image_store, requester, keyword, tty_mode):
     username = requester.get_username()
     if not username:
         return None    # client already disconnected, give up
@@ -131,24 +125,28 @@ def perform_search(docker, image_store, requester, keyword):
         validate = None
     # search
     search = Search(docker, image_store, requester, validate)
-    # estimate output format (column sizes)
-    # based on results of a cheaper and fast local-only query
-    it = search.local_unsorted_search()
-    it = discard_images_in_ws(it, username)
-    it = format_result(it)
-    str_format, colwidths = get_columnate_format(it, SEARCH_HEADER)
-    # preform the real search and print results
     it = search.search()
     it = discard_images_in_ws(it, username)
     it = format_result(it)
+
     found = False
-    for s in columnate_iterate(it, str_format, colwidths, SEARCH_HEADER):
-        found = True
-        requester.stdout.write(s + '\n')
+    if tty_mode:
+        # allow escape-codes to reprint lines, if a new row has columns
+        # with a size larger than previous ones.
+        for s in columnate_iterate_tty(it, SEARCH_HEADER):
+            found = True
+            requester.stdout.write(s)
+    else:
+        # wait for all results to be available, in order to compute
+        # the appropriate column formatting.
+        s = columnate(it, SEARCH_HEADER)
+        if len(s) > 0:
+            found = True
+            requester.stdout.write(s + '\n')
     if not found:
         requester.stderr.write(MSG_SEARCH_NO_MATCH)
 
 # this implements walt image search
-def search(requester, server, keyword):
-    return perform_search(server.docker, server.images.store, requester, keyword)
+def search(requester, server, keyword, tty_mode):
+    return perform_search(server.docker, server.images.store, requester, keyword, tty_mode)
 

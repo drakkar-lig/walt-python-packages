@@ -139,8 +139,8 @@ class CSAPI(APISession):
         return context.images.fix_owner(context.requester.sync, other_user)
 
     @api_expose_method
-    def search_images(self, context, keyword):
-        context.images.search(context.requester.sync, context.task, keyword)
+    def search_images(self, context, keyword, tty_mode=False):
+        context.images.search(context.requester.sync, context.task, keyword, tty_mode)
 
     @api_expose_method
     def clone_image(self, context, clonable_link, force=False):
