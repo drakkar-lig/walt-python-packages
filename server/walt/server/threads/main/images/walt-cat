@@ -1,7 +1,4 @@
 #!/bin/sh
 
-# walt-cat is the same as walt-tee with stdout removed.
-exec 1>/dev/null
-# we source walt-tee in order to keep $0 unchanged.
-. walt-tee
-
+echo "WARNING: walt-cat is deprecated. Use walt-log-cat instead."
+. walt-log-cat "$@"

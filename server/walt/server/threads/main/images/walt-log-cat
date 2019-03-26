@@ -1,0 +1,7 @@
+#!/bin/sh
+
+# walt-cat is the same as walt-log-tee with stdout removed.
+exec 1>/dev/null
+# we source walt-log-tee in order to keep $0 unchanged.
+. walt-log-tee
+

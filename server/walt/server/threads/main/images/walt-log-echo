@@ -1,0 +1,74 @@
+#!/bin/sh
+WALT_LOGS_FIFO="/var/lib/walt/logs.fifo"
+
+if [ "$1" = "--timestamp" -o "$1" = "--ts" ]
+then
+    ts_mode=1
+    ts="$2"
+    shift 2
+else
+    ts_mode=0
+fi
+
+if [ -z "$2" ]
+then
+    progname="$(basename $0)"
+	echo """\
+Usage: $progname [--timestamp <timestamp>] <stream-name> <log-line>
+
+This will record the given <log-line> in the log stream given
+by <stream-name>.
+
+If you have means to record precise event timestamps (e.g.
+network timestamps), you can specify them by using option
+--timestamp. The <timestamp> value must be a UNIX timestamp,
+i.e. a floating point number of seconds since the 'EPOCH'
+(january 1, 1970).
+Without this option, the timestamp recorded will be the current
+time when $progname is run.
+"""
+	exit
+fi
+
+stream_name="$1"
+shift
+log_line="$*"
+
+do_with_no_logs_daemon() {
+    # use walt-log-cat to establish a direct TCP connection to walt server
+    if [ "$ts_mode" = "1" ]
+    then
+        # timestamp is provided
+        echo "$ts $log_line" | walt-log-cat --ts "$stream_name"
+    else
+        # timestamp not provided
+        echo "$log_line" | walt-log-cat "$stream_name"
+    fi
+}
+
+do_with_logs_daemon() {
+    # send log line to daemon
+    if [ "$ts_mode" = "1" ]
+    then
+        # timestamp is provided
+        echo "TSLOG $ts $stream_name $log_line" > "$WALT_LOGS_FIFO"
+    else
+        # timestamp not provided
+        echo "LOG $stream_name $log_line" > "$WALT_LOGS_FIFO"
+    fi
+}
+
+# let's do it
+if [ -e "$WALT_LOGS_FIFO" ]
+then
+    # walt-logs-daemon is running on this node
+    # => we will let it send our log lines.
+    # this allows to reduce the number of
+    # TCP connections to the server.
+    do_with_logs_daemon
+else
+    # no logs daemon here.
+    # we have to manage a TCP connection ourselves.
+    do_with_no_logs_daemon
+fi
+

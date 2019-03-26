@@ -13,6 +13,9 @@ from pkg_resources import resource_filename
 # if they contain template parameters that should be
 # updated.
 NODE_SCRIPTS = {'walt-env': True,
+                'walt-log-echo': False,
+                'walt-log-cat': False,
+                'walt-log-tee': False,
                 'walt-echo': False,
                 'walt-cat': False,
                 'walt-tee': False,

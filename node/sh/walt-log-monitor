@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+# walt-monitor is a shell script, and thus it loads fast,
+# even on slow hardware (such as a raspberry pi).
+#
+# However, it cannot perform complex tasks such as offering
+# a virtual tty to the command that will be run.
+#
+# Thus all the work is delegated to a background daemon
+# called walt-monitor-daemon, written in python.
+#
+# In this shell script, we just perform tty forwarding.
+# This means, considering the local tty and a remote tty
+# handled by the background daemon:
+# * we set the local tty in raw mode
+# * we forward the traffic to the remote tty
+# * the remote tty runs the command
+# * the remote tty output is transfered back to the local tty
+
+
+if [ -z "$1" ]
+then
+	echo "Usage: $0 <command line and args>"
+	echo
+	echo "This will catch stdout and stderr and send them"
+	echo "to walt server as log lines."
+	exit
+fi
+
+if ! which "$1" >/dev/null
+then
+	echo "Either $1 cannot be found in PATH or its execution is not allowed."
+	exit
+fi
+
+# note: the naming sheme of the following fifos is known
+# by the background daemon
+stdin_fifo=/tmp/walt-monitor-stdin-$$.fifo
+stdout_fifo=/tmp/walt-monitor-stdout-$$.fifo
+
+# register cleanup procedurr on exit
+on_exit()
+{
+    # kill the background 'cat' process if any
+    if [ ! -z "$cat_pid" ]
+    then
+        kill -INT $cat_pid
+    fi
+
+    # clean up and restore tty settings
+    if [ ! -z "$saved_tty_settings" ]
+    then
+        stty $saved_tty_settings <&6
+    fi
+
+    if [ -f "$stdin_fifo" ]
+    then
+        rm -f $stdin_fifo
+    fi
+
+    if [ -f "$stdout_fifo" ]
+    then
+        rm -f $stdout_fifo
+    fi
+}
+trap on_exit EXIT
+
+# create fifos
+mkfifo $stdin_fifo $stdout_fifo
+
+# set tty in raw mode
+saved_tty_settings=$(stty -g)
+stty raw -echo
+
+# send the request to walt-logs-daemon specifying
+# our PID, UID, GID, terminal size.
+# Note: walt-monitor-daemon will retrieve some more information
+# in /proc/<PID>/[cmdline,env,...] in order to mimic our
+# local parameters.
+echo MONITOR $$ $(id -u) $(id -g) $(stty size) >/var/lib/walt/logs.fifo
+
+# we should copy everything from stdin to <stdin_fifo>.
+# we first copy fd 0 (stdin) to fd 6 and close fd 0
+# (just to make it sure that only this 'cat' process will
+# read on stdin)
+exec 6<&0
+exec 0<&-
+(cat <&6 > $stdin_fifo) &
+cat_pid=$!
+
+# we should also copy everything from <stdout_fifo> to stdout
+cat < $stdout_fifo
+
+# the previous cat returned, this means the command run
+# by the background daemon has completed.
+# this ends the script (but at_exit() will be called to
+# clean up things).
+

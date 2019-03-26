@@ -1,0 +1,96 @@
+#!/bin/sh
+
+USAGE="\
+Usage: $ <cmd...> | $(basename $0) [--ts] <logstream-label>
+
+Output lines of <cmd...> will be transmitted up to
+WalT server and stored as log lines associated with
+the given log stream label.
+
+If you have means to specify high precision timestamps
+(e.g. network capture timestamps), you may use option --ts
+and stream lines of the following form instead:
+<float_timestamp> <log_line>
+with float_timestamp a unix timestamp (float number of
+seconds since 1970), as obtained with 'date +%s.%N'.
+"
+
+# get walt-related env variables
+. walt-env
+
+# check possible option
+ts_mode=0
+if [ "$1" = "--timestamp" -o "$1" = "--ts" ]
+then
+    # timestamps provided in input
+    ts_mode=1
+    shift
+else
+    # check if date command can provide sub-second granularity
+    if [ "$(date +%N)" = '%N' ]
+    then
+        # cannot get sub-second granularity
+        # we will let the server timestamp traces
+        ts_mode=2
+    fi
+fi
+
+# get stream name as first arg
+stream="$1"
+
+if [ -z "$stream" ]
+then
+    echo "$USAGE" >&2
+    exit 1
+fi
+
+# save stdout as fd 6
+exec 6<&1
+
+# read log lines, timestamp them
+# and send them through network
+{
+    echo REQ_NEW_INCOMING_LOGS
+    echo "$stream"
+    if [ "$ts_mode" = "2" ]
+    then
+        # let the server know we will not send timestamps
+        # (thus server should set timestamps itself)
+        echo "NO_TIMESTAMPS"
+        while read line
+        do
+            # send log line through pipe
+            echo "$line"
+            # also print it to stdout
+            echo "$line" >&6
+        done
+    else
+        # let the server know we will send timestamps
+        # (as 1st column)
+        echo "TIMESTAMPS_INSIDE"
+        if [ "$ts_mode" = "1" ]
+        then
+            while read ts line
+            do
+                # send log line through pipe
+                echo "$ts $line"
+                # also print it to stdout
+                echo "$line" >&6
+            done
+        else
+            while read line
+            do
+                # send log line through pipe
+                echo "$(date +%s.%N) $line"
+                # also print it to stdout
+                echo "$line" >&6
+            done
+        fi
+    fi
+    # this "CLOSE" message is not formatted as a
+    # log line, thus the server will close the
+    # connection, which will cause the nc process
+    # below to disconnect.
+    echo CLOSE
+} | nc $walt_server_ip $walt_server_logs_port
+
