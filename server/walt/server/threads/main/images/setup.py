@@ -13,6 +13,7 @@ from pkg_resources import resource_filename
 # if they contain template parameters that should be
 # updated.
 NODE_SCRIPTS = {'walt-env': True,
+                'walt-echo': False,
                 'walt-cat': False,
                 'walt-tee': False,
                 'walt-rpc': True,
@@ -168,6 +169,9 @@ def setup(image):
         os.remove(mount_path + '/etc/hostname')     # probably a residual of image build
     # fix absolute symlinks in /boot
     fix_absolute_symlinks(mount_path, mount_path + '/boot')
+    # fix compatbility with old walt-node packages
+    if os.path.exists(mount_path + '/usr/local/bin/walt-echo'):
+        os.remove(mount_path + '/usr/local/bin/walt-echo')
     # copy walt scripts in <image>/bin, update template parameters
     image_bindir = mount_path + '/bin/'
     for script_name, template in NODE_SCRIPTS.items():

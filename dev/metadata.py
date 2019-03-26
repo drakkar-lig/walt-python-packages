@@ -39,7 +39,7 @@ PACKAGE_SPECIFIC_INFO = {
                     'walt-logs-daemon = walt.node.logs.daemon:run'
                 ]
             },
-            scripts = [ 'sh/walt-monitor', 'sh/walt-echo' ],
+            scripts = [ 'sh/walt-monitor' ],
             include_package_data = True
         )
     ),

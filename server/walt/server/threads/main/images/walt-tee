@@ -20,7 +20,7 @@ seconds since 1970), as obtained with 'date +%s.%N'.
 
 # check possible option
 ts_mode=0
-if [ "$1" = "--ts" ]
+if [ "$1" = "--timestamp" -o "$1" = "--ts" ]
 then
     # timestamps provided in input
     ts_mode=1
