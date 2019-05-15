@@ -1,6 +1,27 @@
 
 Welcome to WalT integrated help.
 
+# Admin documentation
+
+# Presentation of WalT network structure
+
+See [`walt help show networking`](networking.md).
+
+# Installation
+
+## Server installation
+
+See [`walt help show server-install`](server-install.md).
+
+## Switches installation
+
+See [`walt help show switch-install`](switch-install.md).
+
+## Nodes installation
+
+See [`walt help show node-install`](node-install.md).
+
+
 # User documentation
 
 ## Getting started
