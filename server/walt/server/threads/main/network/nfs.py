@@ -1,7 +1,6 @@
-import os
 from plumbum.cmd import exportfs
 
-from walt.common.tools import do, succeeds
+from walt.common.tools import do, succeeds, failsafe_makedirs
 from walt.server.threads.main.network.tools import get_walt_subnet
 
 IMAGE_EXPORT_PATTERN = """\
@@ -30,7 +29,7 @@ def generate_exports_file(images, nodes):
             persist_path = PERSISTENT_PATH % dict(node_mac=node.mac)
             try:
                 # ensure persistent directories exists
-                os.mkdir(persist_path)
+                failsafe_makedirs(persist_path)
             except OSError:
                 # directory already exists
                 pass
