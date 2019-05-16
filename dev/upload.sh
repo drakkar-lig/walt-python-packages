@@ -4,6 +4,11 @@ URL=github.com/drakkar-lig/walt-python-packages
 SUBPACKAGES="$*"
 . dev/tools/functions.sh
 
+which twine >/dev/null || {
+    echo "twine command is missing! Aborted." >&2
+    exit
+}
+
 branch=$(git branch | grep '*' | awk '{print $2}')
 case "$branch" in
     master) tag_prefix='upload_'
