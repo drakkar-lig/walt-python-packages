@@ -33,9 +33,9 @@ About the USB flash drive: 8Go can be enough, considering you will migrate to th
 
 ## Booting the machine using WalT server image
 
-* Download the OS image `server-install.img.bz2` from https://github.com/drakkar-lig/walt-project/releases/latest.
+* Download the OS image `server-install.dd.bz2` from https://github.com/drakkar-lig/walt-project/releases/latest.
 * Uncompress and dump it to your USB drive (assuming a linux-based machine, and your USB disk at `/dev/sdX`):
-  `$ bzcat server-install.img.bz2 | dd of=/dev/sdX bs=10M; sync; sync`
+  `$ bzcat server-install.dd.bz2 | dd of=/dev/sdX bs=10M; sync; sync`
 * Boot the server machine using the flash drive (by configuring BIOS/UEFI boot settings accordingly).
 * When asked, enter the root OS password you want to set on this server.
 * When OS is booted, you can login with user `root` and the password you just specified.
@@ -62,17 +62,21 @@ $ systemctl enable walt-server
 ## Testing walt
 
 The `walt` command line tool is installed on the server.
-You can test that walt is running correctly, independently of the network, by using virtual nodes.
+
+In order to be able to use it, you need valid docker hub credentials. If you do not have such an account
+yet, register at https://hub.docker.com/signup.
+
+Now, we can first test that the system is running well by creating a virtual node.
 ```
 $ walt node create vnode1
 $ walt node shell vnode1
 ```
 
-After a few minutes (node bootup) you should be connected on the virtual node.
+After a few minutes (download of the default image + node bootup) you should be connected on the virtual node.
 
 Then, connect physical nodes and check that you can reach them (see [`walt help show node-install`](node-install.md)).
 Caution: do not connect a node directly to the server (with no intermediate switch). It will NOT work.
-(see [`walt help show networking`](networking.md) and [`walt help show switch-install`](switch-install.md))
+(See [`walt help show networking`](networking.md) and [`walt help show switch-install`](switch-install.md).)
 
 ## Move the OS to the main disk
 

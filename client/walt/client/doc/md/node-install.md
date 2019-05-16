@@ -30,6 +30,16 @@ the network bootloader can handle the network card.
 
 ## Raspberry Pi boards
 
+### Hardware tips
+
+WalT supports raspberry pi models B, B+, 2B, 3B and 3B+.
+
+We recommend raspberry pi model 3B+, with the official PoE HAT addon board of the raspberry pi foundation.
+
+You will also need at least one SD card for the first bootup (see below). You may use the same SD card to
+perform this first bootup of each node.
+
+
 ### standard boot method: using a SD card
 
 Download image `rpi-sd-files.tar.gz` at https://github.com/drakkar-lig/walt-project/releases/latest.
