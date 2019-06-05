@@ -1,4 +1,4 @@
-import sys, re, datetime, pickle as pickle
+import sys, re, datetime, pickle
 from walt.common.constants import WALT_SERVER_TCP_PORT
 from walt.common.tcp import read_pickle, write_pickle, client_sock_file, \
                             Requests

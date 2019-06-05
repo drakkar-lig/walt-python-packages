@@ -1,5 +1,5 @@
 # coding=utf-8
-import curses, os, pickle as pickle
+import curses, os, pickle
 from walt.common.evloop import EventLoop
 from walt.common.fifo import open_readable_fifo
 from walt.server.const import UI_FIFO_PATH

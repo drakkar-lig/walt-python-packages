@@ -1,4 +1,4 @@
-import datetime, pickle as pickle
+import datetime, pickle
 
 from walt.common.crypto.dh import DHPeer
 from walt.common.api import api, api_expose_method
