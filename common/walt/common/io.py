@@ -29,7 +29,7 @@ class SmartFile(object):
         self.file_w = file_w
         # timeout=0, do not block
         self.select_args = [[file_r],[],[file_r],0]
-        self.chars = [ '' ] * SmartFile.BUFFER_SIZE
+        self.chars = [ b'' ] * SmartFile.BUFFER_SIZE
     def read_available(self):
         # continue reading until there
         # is nothing more to read or we reach BUFFER_SIZE
@@ -46,7 +46,7 @@ class SmartFile(object):
                     break   # empty read
         except:
             chars[i] = ''
-        return ''.join(chars[:i+1])
+        return b''.join(chars[:i+1])
     def __getattr__(self, attr):
         if attr in ('write', 'flush'):
             f = self.file_w
@@ -71,7 +71,7 @@ class SmartFile(object):
 def read_and_copy(in_reader, out):
     try:
         buf = in_reader.read_available()
-        if buf == '':
+        if buf == b'':
             return False    # close
         out.write(buf)
         out.flush()

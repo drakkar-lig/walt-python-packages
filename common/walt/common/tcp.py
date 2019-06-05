@@ -37,7 +37,7 @@ class Requests(object):
             return None
     @staticmethod
     def send_id(stream, req_id):
-        stream.write('%d\n' % req_id)
+        stream.write(b'%d\n' % req_id)
         stream.flush()
 
 def read_pickle(stream):
@@ -53,8 +53,8 @@ def write_pickle(obj, stream):
 class SmartSocketFile(SmartFile):
     def __init__(self, sock):
         self.sock = sock
-        sock_r = sock.makefile('r', 0)
-        sock_w = sock.makefile('w', 0)
+        sock_r = sock.makefile('rb', 0)
+        sock_w = sock.makefile('wb', 0)
         SmartFile.__init__(self, sock_r, sock_w)
     def shutdown(self, mode):
         return self.sock.shutdown(mode)
