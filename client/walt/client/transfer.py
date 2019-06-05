@@ -29,14 +29,14 @@ class SmartWriter:
        sent the other way."""
     def __init__(self, sock_file):
         self.sock_file = sock_file
-        self.buf_out = ''
+        self.buf_out = b''
     def write(self, s):
         self.buf_out += self.sock_file.read_available()
         return self.sock_file.write(s)
     def wait_remote_close(self):
         while True:
             c = self.sock_file.read(1)
-            if c == '':
+            if c == b'':
                 break
             self.buf_out += c
     def shutdown_write(self):
@@ -47,7 +47,7 @@ class SmartWriter:
     def close(self):
         self.sock_file.close()
     def get_msg(self):
-        return self.buf_out.strip()
+        return self.buf_out.decode('utf-8').strip()
 
 def run_transfer(req_id, dst_dir, dst_name, src_dir, src_name, tmp_name,
                             client_operand_index, **entity_params):
