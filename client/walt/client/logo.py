@@ -26,6 +26,6 @@ def try_add_logo(left_text):
     format_string = '%-' + str(max_text_len) + 's   %s\x1b[0m\n'
     out_text = ''
     for text_line, logo_line in zip_longest(text_lines, logo_lines, fillvalue=''):
-        out_text += format_string % (text_line, logo_line)
+        out_text += format_string % (text_line, logo_line.decode(sys.stdout.encoding))
     return out_text
 
