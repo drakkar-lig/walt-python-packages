@@ -14,7 +14,7 @@ class BlowFish(object):
         # ensure bitlength is valid
         bitlength = min(448, max(32, bitlength))
 
-        hexlength = bitlength / 4
+        hexlength = bitlength >> 2
         hexkey = hex(key)[2:]
         if hexkey[-1]=='L':
            hexkey = hexkey[:-1]
@@ -22,7 +22,7 @@ class BlowFish(object):
         # and truncate if key is actually larger than bitlength
         hexkey = ('0'*hexlength + hexkey)[-hexlength:]
 
-        lenkey = len(hexkey)/8
+        lenkey = len(hexkey) >> 3
         if lenkey==0:  pos=0
 
         # XOR key segments with P-boxes
@@ -106,13 +106,15 @@ class BlowFish(object):
 
     def encrypt(self, instring):
 
-        blocks = len(instring)/8
+        instring = instring.encode('UTF-8')
+
+        blocks = len(instring) >> 3
         padding = (blocks + 1)*8 - len(instring)
         # we pad with a char whose ordinal value is the size
         # of the padding
-        instring = instring + padding * chr(padding)
+        instring = instring + bytes(padding * [ padding ])
 
-        outstring = ""
+        outstring = b''
 
         for i in range(blocks+1):
             inbytes   = self.mkchunk(instring[i*8:i*8+8]) # 8-byte string as hex no.
@@ -124,9 +126,9 @@ class BlowFish(object):
 
     def decrypt(self, instring):
 
-        outstring = ""
+        outstring = b''
 
-        for i in range(len(instring)/8):
+        for i in range(len(instring) >> 3):
             inbytes   = self.mkchunk(instring[i*8:i*8+8]) # 8-byte string as hex no.
             plain     = self.bfdecrypt(inbytes)           # ...decrypted
             outbytes  = self.mkbytes(plain)
@@ -134,9 +136,9 @@ class BlowFish(object):
 
         # the last byte will give us the size of the padding
         lastbyte = outstring[-1]
-        outstring = outstring[:-ord(lastbyte)]
+        outstring = outstring[:-lastbyte]
 
-        return outstring
+        return outstring.decode('UTF-8')
 
     def mkchunk(self, chrs):
         """
@@ -150,7 +152,7 @@ class BlowFish(object):
         Accept a long integer and return a corresponding
         string of characters (bytes), left-padding to 8 bytes
         """
-        instr = (('0'*16)+hex(in_int)[2:-1])[-16:]
+        instr = (('0'*16)+hex(in_int)[2:])[-16:]
         return unhexlify(instr)
 
     def loadhexpi(self):
