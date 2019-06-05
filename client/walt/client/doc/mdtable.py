@@ -44,7 +44,7 @@ def align(text, real_text_len, field_len, alignment):
     elif alignment == ALIGN_RIGHT:
         return ' ' * (field_len - real_text_len) + text
     else:   # center
-        left_len = (field_len - real_text_len)/2
+        left_len = (field_len - real_text_len)//2
         right_len = field_len - real_text_len - left_len
         return ' ' * left_len + text + ' ' * right_len
 

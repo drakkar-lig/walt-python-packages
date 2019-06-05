@@ -113,8 +113,8 @@ class MarkdownRenderer:
             # only one word, cannot justify
             return words[0]
         # Fill intervals evenly with appropriate number of spaces
-        added_spaces = [ ' ' * (num_spaces/num_intervals)  ] * num_intervals
-        num_spaces -= (num_spaces/num_intervals) * num_intervals
+        added_spaces = [ ' ' * (num_spaces//num_intervals)  ] * num_intervals
+        num_spaces -= (num_spaces//num_intervals) * num_intervals
         # Because of the integer division, a few remaining spaces should be added
         # (less than the number of intervals).
         # Preferably add one more space after ponctuation marks.
@@ -130,7 +130,7 @@ class MarkdownRenderer:
         # if we have 15 intervals and 4 remaining spaces, distribute evenly
         # these 4 spaces at intervals 1*15/5=3, 2*15/5=6, 3*15/5=9 and 4*15/5=12.
         for i in range(1, num_spaces+1):
-            added_spaces[i*num_intervals/(num_spaces+1)] += ' '
+            added_spaces[i*num_intervals//(num_spaces+1)] += ' '
         # add a fake ending 'interval' for the zip() function below
         added_spaces += [ '' ]
         return ''.join((word + spacing) for word, spacing in zip(words, added_spaces))
