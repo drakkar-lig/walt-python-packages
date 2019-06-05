@@ -43,7 +43,7 @@ class TCPExposer:
         write_pickle(self.params, sock_file)
         # wait for the status message from the server
         status = sock_file.readline().strip()
-        if status == 'OK':
+        if status == b'OK':
             print('New connection forwarded to node.')
             return sock_file
         else:
