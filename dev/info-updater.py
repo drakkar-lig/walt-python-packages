@@ -20,7 +20,7 @@ versions_info = dict(
     upload = __version__
 )
 
-for package_name, package_specific in list(PACKAGE_SPECIFIC_INFO.items()):
+for package_name, package_specific in PACKAGE_SPECIFIC_INFO.items():
     setup_info = OrderedDict()
     setup_info.update(name = package_name)
     version = package_specific['version_str'] % versions_info

@@ -39,7 +39,7 @@ class VlanProxy(object):
     def get_existing_vlans(self):
         static_vlans = dict(self.snmp.dot1qVlanStaticName)
         existing_vlans = {}
-        for vlan_id in [ int(k[1]) for k in list(self.snmp.dot1qVlanStatus.keys()) ]:
+        for vlan_id in [ int(k[1]) for k in self.snmp.dot1qVlanStatus.keys() ]:
             if vlan_id in static_vlans:
                 existing_vlans[vlan_id] = { 'preconfigured': False,
                                             'name': str(static_vlans[vlan_id]) }
@@ -47,7 +47,7 @@ class VlanProxy(object):
                 existing_vlans[vlan_id] = { 'preconfigured': True }
         return existing_vlans
     def vlan_exists(self, vlan_name):
-        return vlan_name in list(self.snmp.dot1qVlanStaticName.values())
+        return vlan_name in self.snmp.dot1qVlanStaticName.values()
     def apply_config_to_device(self, config):
         print('setting the default vlan id on each port...')
         for port_config in config.port_configs:

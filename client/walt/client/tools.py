@@ -20,9 +20,9 @@ def yes_or_no(msg, okmsg = 'OK.\n', komsg = 'OK.\n'):
 def choose(msg='possible values:', **args):
     while True:
         print(msg)
-        for k, explain in list(args.items()):
+        for k, explain in args.items():
             print("* %s: %s" % (k, explain))
-        all_keys = '/'.join(list(args.keys()))
+        all_keys = '/'.join(args.keys())
         print('selected value (%s):' % all_keys, end=' ')
         res = input()
         if res in args:

@@ -20,7 +20,7 @@ LOCATION_LONG_LABEL = {
     LOCATION_DOCKER_HUB: 'docker hub',
 }
 
-LOCATION_PER_LABEL = {v: k for k, v in list(LOCATION_LABEL.items())}
+LOCATION_PER_LABEL = {v: k for k, v in LOCATION_LABEL.items()}
 
 # in order to efficiently search for walt images on the docker hub,
 # each walt user has a dummy image called 'walt_metadata' pushed on
@@ -63,7 +63,7 @@ class Search(object):
             if LOCATION_DOCKER_HUB in locations:
                 # read metadata to detect walt images of this user
                 user_metadata = pull_user_metadata(self.docker, user)
-                for fullname, info in list(user_metadata['walt.user.images'].items()):
+                for fullname, info in user_metadata['walt.user.images'].items():
                     if self.validate_fullname(fullname, LOCATION_DOCKER_HUB):
                         image_name = fullname.split('/')[1]
                         images_and_labels[image_name][LOCATION_DOCKER_HUB] = info['labels']

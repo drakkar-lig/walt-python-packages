@@ -39,7 +39,7 @@ class LLDPProxy(object):
 
         # merge info
         neighbors = {}
-        for port, mac in list(mac_per_port.items()):
+        for port, mac in mac_per_port.items():
             ip = ip_per_port[port] if port in ip_per_port else None
             sysname = sysname_per_port[port]
             neighbors[port] = { 'mac': mac, 'ip': ip, 'sysname': sysname }

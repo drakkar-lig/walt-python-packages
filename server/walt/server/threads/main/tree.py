@@ -12,7 +12,7 @@ class UNICODE_CHARSET:
     SPACE = ' '
 
 SPECIAL_CHARS = ''.join(
-        v for k, v in list(UNICODE_CHARSET.__dict__.items()) \
+        v for k, v in UNICODE_CHARSET.__dict__.items() \
                 if isinstance(v, str))
 
 # simpler characters (fallback)
@@ -47,7 +47,7 @@ class Tree(object):
     def sort_children(self):
         if not self.up_to_date:
             # sort children by child_pos
-            for node in list(self.nodes.values()):
+            for node in self.nodes.values():
                 node['children'] = sorted(node['children'])
             self.up_to_date = True
     def printed(self, root):

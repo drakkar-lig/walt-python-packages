@@ -29,7 +29,7 @@ class APISession(object):
 
     @staticmethod
     def cleanup_all():
-        for session in list(APISession.SESSIONS.values()):
+        for session in APISession.SESSIONS.values():
             session.cleanup()
 
     @staticmethod

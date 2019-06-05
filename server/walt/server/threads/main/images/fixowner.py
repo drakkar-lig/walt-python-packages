@@ -32,7 +32,7 @@ def fix_owner(images, docker, requester, other_user):
         return
     mounted = set()
     candidates = set()
-    for image in list(images.values()):
+    for image in images.values():
         if image.user == other_user:
             if image.mounted:
                 mounted.add(image.name)

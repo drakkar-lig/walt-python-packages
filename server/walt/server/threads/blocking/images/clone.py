@@ -52,7 +52,7 @@ def parse_clonable_link(requester, clonable_link):
         bad = True
     if not bad:
         location = parts[0]
-        if location not in list(LOCATION_LABEL.values()):
+        if location not in LOCATION_LABEL.values():
             bad = True
     if not bad:
         parts = parts[1].split('/')
@@ -187,10 +187,10 @@ class WorkflowCleaner:
             docker.local.untag(ws_image_fullname, ignore_missing=True)
             docker.local.untag(remote_image_fullname, ignore_missing=True)
             # restore the backups
-            for image_fullname, backup_fullname in list(saved_images.items()):
+            for image_fullname, backup_fullname in saved_images.items():
                 docker.local.tag(backup_fullname, image_fullname)
         # in any case cleanup the backup tags
-        for backup_fullname in list(saved_images.values()):
+        for backup_fullname in saved_images.values():
             docker.local.untag(backup_fullname)
 
 # workflow management functions

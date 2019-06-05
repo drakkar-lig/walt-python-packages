@@ -88,7 +88,7 @@ class NodeImageManager(object):
             for node in nodes:
                 image_fullnames[node.mac] = self.store.get_default_image_fullname(node.model)
         # let's update the database about which node is mounting what
-        for node_mac, image_fullname in list(image_fullnames.items()):
+        for node_mac, image_fullname in image_fullnames.items():
             self.db.update('nodes', 'mac',
                     mac=node_mac,
                     image=image_fullname)
