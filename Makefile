@@ -47,7 +47,7 @@ node.%: common.%
 
 %.install: %.info
 	@$(MAKE) $*.uninstall
-	@cd $*; pwd; python setup.py bdist_wheel && sudo -H pip install .
+	@cd $*; pwd; python setup.py bdist_wheel && sudo -H `which pip` install .
 
 %.info:
 	@$(MAKE) $*/walt/$*/info.py
@@ -60,7 +60,7 @@ clean:
 	find . -name \*.pyc -delete
 
 %.uninstall:
-	@pip show walt-$* >/dev/null && sudo -H pip uninstall -y walt-$* || true
+	@pip show walt-$* >/dev/null && sudo -H `which pip` uninstall -y walt-$* || true
 
 upload:
 	@./dev/upload.sh $(ALL_PACKAGES)
