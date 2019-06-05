@@ -43,7 +43,7 @@ class PromptClient(object):
         self.sock_file.readline()
         write_pickle(params, self.sock_file)
         # provide read_available() method
-        self.stdin_reader = SmartFile(unbuffered(stdin, 'r'))
+        self.stdin_reader = SmartFile(unbuffered(stdin, 'rb'))
 
     def run(self):
         # we will wait on 2 file descriptors
@@ -72,7 +72,7 @@ class PromptClient(object):
                     break
                 fd = rlist[0].fileno()
                 if fd == self.sock_file.fileno():
-                    if read_and_copy(self.sock_file, stdout) == False:
+                    if read_and_copy(self.sock_file, stdout.buffer) == False:
                         break
                 else:
                     if read_and_copy(self.stdin_reader, self.sock_file) == False:
