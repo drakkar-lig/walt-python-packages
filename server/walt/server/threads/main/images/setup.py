@@ -114,7 +114,7 @@ def fix_ptp(mount_path):
         changed = True
     if changed:
         with open(mount_path + '/etc/ptpd.conf', 'w') as ptpfile:
-            for confname, confval in list(conf.items()):
+            for confname, confval in conf.items():
                 ptpfile.write('%s=%s\n' % (confname, confval))
 
 # boot files (in directory /boot) are accessed using TFTP,
@@ -157,7 +157,7 @@ def setup(image):
     remove_if_link(mount_path + '/etc/ssh')
     remove_if_link(mount_path + '/etc/dropbear')
     # copy files listed in variable FILES on the image
-    for path, content in list(FILES.items()):
+    for path, content in FILES.items():
         failsafe_makedirs(mount_path + os.path.dirname(path))
         with open(mount_path + path, 'w') as f:
             f.write(content)
@@ -177,7 +177,7 @@ def setup(image):
         os.remove(mount_path + '/usr/local/bin/walt-echo')
     # copy walt scripts in <image>/bin, update template parameters
     image_bindir = mount_path + '/bin/'
-    for script_name, template in list(NODE_SCRIPTS.items()):
+    for script_name, template in NODE_SCRIPTS.items():
         script_path = resource_filename(__name__, script_name)
         shutil.copy(script_path, image_bindir)
         if template:

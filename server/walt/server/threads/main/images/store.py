@@ -104,13 +104,13 @@ class NodeImageStore(object):
     def __len__(self):
         return len(self.images)
     def keys(self):
-        return list(self.images.keys())
+        return self.images.keys()
     def iteritems(self):
-        return iter(self.images.items())
+        return self.images.items()
     def itervalues(self):
-        return iter(self.images.values())
+        return self.images.values()
     def values(self):
-        return list(self.images.values())
+        return self.images.values()
     # look for an image belonging to the requester.
     # The 'expected' parameter allows to specify if we expect a matching
     # result (expected = True), no matching result (expected = False),
@@ -123,7 +123,7 @@ class NodeImageStore(object):
             return None    # client already disconnected, give up
         found = None
         fullname = format_image_fullname(username, image_name)
-        for image in list(self.images.values()):
+        for image in self.images.values():
             if image.fullname == fullname:
                 found = image
         if expected == True and found is None:

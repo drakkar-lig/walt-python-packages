@@ -60,7 +60,7 @@ class TCPExposer:
         self.associations[client_channel] = node_channel
         self.associations[node_channel] = client_channel
     def close(self):
-        for f1, f2 in list(self.associations.items()):
+        for f1, f2 in self.associations.items():
             f1.close()
             f2.close()
         self.local_server_s.close()

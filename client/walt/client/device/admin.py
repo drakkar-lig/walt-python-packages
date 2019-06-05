@@ -92,7 +92,7 @@ def ask_snmp_conf():
     )
 
 def display_conf(conf, prefix = ''):
-    for k, v in list(conf.items()):
+    for k, v in conf.items():
         if isinstance(v, OrderedDict):
             print('%s%s:' % (prefix, k))
             display_conf(v, prefix + '  ')

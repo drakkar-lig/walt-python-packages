@@ -322,7 +322,7 @@ class NodesManager(object):
             requester.stderr.write(format_sentence_about_nodes(
                 MSG_CONNECTIVITY_UNKNOWN, [n.name for n in nodes_unknown]))
         if len(nodes_forbidden) > 0 and warn_poe_forbidden:
-            for sw_name, sw_nodes in list(nodes_forbidden.items()):
+            for sw_name, sw_nodes in nodes_forbidden.items():
                 explain = MSG_POE_REBOOT_UNABLE_EXPLAIN % dict(
                     sw_name = sw_name
                 )

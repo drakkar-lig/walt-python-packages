@@ -341,7 +341,7 @@ class TopologyManager(object):
         snmp_proxy = snmp.Proxy(host_ip, host_snmp_conf, lldp=True)
         # get neighbors
         try:
-            neighbors = list(snmp_proxy.lldp.get_neighbors().items())
+            neighbors = snmp_proxy.lldp.get_neighbors().items()
             self.print_message(requester, "Querying %-25s OK" % host_name)
         except SNMPException:
             self.print_message(requester, "Querying %-25s FAILED (SNMP issue)" % host_name)
