@@ -15,12 +15,12 @@ class APIChannel(object):
     def write(self, *args):
         if self.sock_file.closed:
             return
-        self.sock_file.write(repr(args) + '\n')
+        self.sock_file.write(repr(args).encode('UTF-8') + b'\n')
     def read(self):
         if self.sock_file.closed:
             return None
         try:
-            return eval(self.sock_file.readline())
+            return eval(self.sock_file.readline().decode('UTF-8'))
         except (EOFError, SyntaxError, OSError, SocketError):
             return None
     def fileno(self):
@@ -100,7 +100,7 @@ class ServerAPIConnection(object):
         self.target_api = target_api
         self.server_ip = server_ip
         self.sock = socket()
-        self.sock_file = self.sock.makefile('r+',0)
+        self.sock_file = self.sock.makefile('rwb',0)
         self.api_channel = APIChannel(self.sock_file)
         self.remote_version = None
         is_interactive = os.isatty(sys.stdout.fileno()) and \
@@ -116,7 +116,7 @@ class ServerAPIConnection(object):
     def connect(self):
         if not self.connected:
             self.sock.connect((self.server_ip, WALT_SERVER_DAEMON_PORT))
-            self.sock_file.write('%d\n%s\n' % (Requests.REQ_API_SESSION, self.target_api))
+            self.sock_file.write(b'%d\n%s\n' % (Requests.REQ_API_SESSION, self.target_api.encode('UTF-8')))
             self.remote_version = int(self.sock_file.readline().strip())
             self.connected = True
     def set_busy_label(self, label):
