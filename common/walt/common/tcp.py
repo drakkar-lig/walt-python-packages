@@ -1,4 +1,4 @@
-import socket, pickle as pickle
+import socket, pickle
 from walt.common.tools import set_close_on_exec
 from walt.common.io import SmartFile
 

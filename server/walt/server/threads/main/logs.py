@@ -1,4 +1,4 @@
-import re, pickle as pickle
+import re, pickle
 from datetime import datetime
 from walt.common.constants import WALT_SERVER_NETCONSOLE_PORT
 from walt.common.tcp import read_pickle, write_pickle, \

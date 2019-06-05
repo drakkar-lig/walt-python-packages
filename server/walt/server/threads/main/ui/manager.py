@@ -1,4 +1,4 @@
-import os, select, pickle as pickle
+import os, select, pickle
 from walt.server.const import UI_FIFO_PATH, UI_RESPONSE_FIFO_PATH
 from walt.common.fifo import open_readable_fifo
 

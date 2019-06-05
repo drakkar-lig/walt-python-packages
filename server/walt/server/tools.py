@@ -1,6 +1,6 @@
 from collections import namedtuple
 from itertools import takewhile
-import pickle as pickle
+import pickle
 import re
 
 COLUMNATE_SPACING = 2
