@@ -1,4 +1,4 @@
-import sys, re, datetime, cPickle as pickle
+import sys, re, datetime, pickle as pickle
 from walt.common.constants import WALT_SERVER_TCP_PORT
 from walt.common.tcp import read_pickle, write_pickle, client_sock_file, \
                             Requests
@@ -90,8 +90,8 @@ class WalTLogShowOrWait(WalTApplication):
                     return MALFORMED
             if history[0] and history[1]:
                 if pickle.loads(history[0]) > pickle.loads(history[1]):
-                    print 'Issue with the HISTORY_RANGE specified: ' + \
-                            'the starting point is newer than the ending point.'
+                    print('Issue with the HISTORY_RANGE specified: ' + \
+                            'the starting point is newer than the ending point.')
                     return MALFORMED
             return True, tuple(history)
         except Exception as e:
@@ -105,7 +105,7 @@ class WalTLogShowOrWait(WalTApplication):
             try:
                 re.compile(regexp)
             except:
-                print 'Invalid regular expression: %s.' % regexp
+                print('Invalid regular expression: %s.' % regexp)
                 return False
         return True
 
@@ -123,16 +123,16 @@ class WalTLogShowOrWait(WalTApplication):
                 record = conn.read_log_record()
                 if record == None:
                     break
-                print format_string.format(**record)
+                print(format_string.format(**record))
                 sys.stdout.flush()
                 if stop_test is not None and stop_test(**record):
                     break
             except KeyboardInterrupt:
-                print
+                print()
                 break
             except Exception as e:
-                print 'Could not display the log record.'
-                print 'Verify your format string.'
+                print('Could not display the log record.')
+                print('Verify your format string.')
                 break
 
 @WalTLog.subcommand("show")
@@ -151,8 +151,8 @@ class WalTLogShow(WalTLogShowOrWait):
 
     def main(self, logline_regexp = None):
         if self.realtime == False and self.history_range == 'none':
-            print 'You must specify at least 1 of the options --realtime and --history.'
-            print "See 'walt help show log-realtime' and 'walt help show log-history' for more info."
+            print('You must specify at least 1 of the options --realtime and --history.')
+            print("See 'walt help show log-realtime' and 'walt help show log-history' for more info.")
             return
         if not WalTLogShowOrWait.verify_regexps(self.streams, logline_regexp):
             return
@@ -162,7 +162,7 @@ class WalTLogShow(WalTLogShowOrWait):
                 return
             range_analysis = WalTLogShowOrWait.analyse_history_range(server, self.history_range)
             if not range_analysis[0]:
-                print '''Invalid HISTORY_RANGE. See 'walt help show log-history' for more info.'''
+                print('''Invalid HISTORY_RANGE. See 'walt help show log-history' for more info.''')
                 return
             history_range = range_analysis[1]
             # Note : if a regular expression is specified, we do not bother computing the number
@@ -171,7 +171,7 @@ class WalTLogShow(WalTLogShowOrWait):
             if history_range and logline_regexp is None and isatty():
                 num_logs = server.count_logs(history = history_range, senders = senders, streams = self.streams)
                 if num_logs > NUM_LOGS_CONFIRM_TRESHOLD:
-                    print 'This will display approximately %d log records from history.' % num_logs
+                    print('This will display approximately %d log records from history.' % num_logs)
                     if not confirm():
                         return
         WalTLogShowOrWait.start_streaming(self.format_string, history_range, self.realtime,
@@ -188,9 +188,9 @@ class WalTLogAddCheckpoint(WalTApplication):
                 self.date = pickle.dumps(datetime.datetime.strptime(\
                                 self.date, DATE_FORMAT_STRING))
             except:
-                print 'Could not parse the date specified.'
-                print 'Expected format is: %s' % DATE_FORMAT_STRING_HUMAN
-                print 'Example: %s' % DATE_FORMAT_STRING_EXAMPLE
+                print('Could not parse the date specified.')
+                print('Expected format is: %s' % DATE_FORMAT_STRING_HUMAN)
+                print('Example: %s' % DATE_FORMAT_STRING_EXAMPLE)
                 return
         if not validate_checkpoint_name(checkpoint_name):
             sys.stderr.write("""\

@@ -1,4 +1,4 @@
-import os, select, cPickle as pickle
+import os, select, pickle as pickle
 from walt.server.const import UI_FIFO_PATH, UI_RESPONSE_FIFO_PATH
 from walt.common.fifo import open_readable_fifo
 
@@ -17,8 +17,8 @@ class UIManager(object):
             response_fifo.close()
             os.remove(UI_RESPONSE_FIFO_PATH)
         else:
-            print "Press <enter> to continue...",
-            raw_input()
+            print("Press <enter> to continue...", end=' ')
+            input()
     def request_ui_update(self, *args):
         if self.ui_running():
             self.send_request_to_ui(*args)
@@ -56,7 +56,7 @@ class UIManager(object):
         self.set_explain('ERROR:\n' + error_msg, None)
     def update_topic(self, topic, text, ui_only=False):
         if not ui_only:
-            print '**', text
+            print('**', text)
         return self.request_ui_update(topic, text)
     def set_status(self, *args, **kwargs):
         return self.update_topic('STATUS', *args, **kwargs)

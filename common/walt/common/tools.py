@@ -200,7 +200,7 @@ class SimpleContainer(object):
 
 def serialize_ordered_dict(od):
     res = []
-    for k, v in od.items():
+    for k, v in list(od.items()):
         if isinstance(v, OrderedDict):
             v = serialize_ordered_dict(v)
         res.append((k, v))

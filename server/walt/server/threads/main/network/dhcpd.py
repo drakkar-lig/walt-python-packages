@@ -128,8 +128,8 @@ UNKNOWNS_CONF_PATTERN = """\
 # see http://stackoverflow.com/questions/2154249/identify-groups-of-continuous-numbers-in-a-list
 def get_contiguous_ranges(ips):
     ranges=[]
-    for k, g in groupby(enumerate(ips), lambda (i,x):i-int(x)):
-        group = map(itemgetter(1), g)
+    for k, g in groupby(enumerate(ips), lambda i_x:i_x[0]-int(i_x[1])):
+        group = list(map(itemgetter(1), g))
         ranges.append((group[0], group[-1]))
     return ranges
 
@@ -210,5 +210,5 @@ class DHCPServer(object):
             force = True # perform the restart below
         if force == True:
             do('service isc-dhcp-server restart')
-            print 'dhcpd conf updated.'
+            print('dhcpd conf updated.')
 

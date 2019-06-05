@@ -3,10 +3,10 @@ from walt.server.threads.main.snmp.vlan import PortConfig, SwitchConfig
 
 def configure_main_switch_if_needed(snmp_proxy):
     if snmp_proxy.vlan.vlan_exists('walt-out'):
-        print 'the main switch is already configured'
+        print('the main switch is already configured')
         return False    # already configured
     else:
-        print 'configuring the main switch...'
+        print('configuring the main switch...')
         config = SwitchConfig()
         config.register_vlan(1, 'walt')
         config.register_vlan(169, 'walt-out')

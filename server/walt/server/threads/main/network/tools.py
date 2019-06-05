@@ -6,10 +6,10 @@ from walt.server import const, conf
 from walt.server.threads.main.snmp import Proxy
 
 def ip(ip_as_str):
-    return ip_address(unicode(ip_as_str))
+    return ip_address(str(ip_as_str))
 
 def net(net_as_str):
-    return ip_network(unicode(net_as_str), strict=False)
+    return ip_network(str(net_as_str), strict=False)
 
 def get_walt_subnet():
     return net(conf['network']['walt-net']['ip'])
@@ -32,7 +32,7 @@ def smallest_subnet_for_these_ip_addresses(ip1, ip2):
     # start with <ip1>/31, then <ip1>/30 etc.
     # until <ip2> is in this network too.
     for netrange in range(31,0,-1):
-        net = ip_network(u'%s/%d' % (ip1, netrange), strict=False)
+        net = ip_network('%s/%d' % (ip1, netrange), strict=False)
         if ip2 in net:
             return net
 
@@ -58,7 +58,7 @@ def assign_temp_ip_to_reach_neighbor(neighbor_ip, callback, intf, *args):
     for increment in [ 1, -1 ]:
         free_ip = find_free_ip_near(neighbor_ip, intf, increment)
         subnet = smallest_subnet_for_these_ip_addresses(neighbor_ip, free_ip)
-        print free_ip, subnet
+        print(free_ip, subnet)
         add_ip_to_interface(free_ip, subnet, intf)
         if check_if_we_can_reach(neighbor_ip):
             callback_result = callback(free_ip, neighbor_ip, intf, *args)

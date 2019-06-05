@@ -23,7 +23,7 @@ def check_auto_update(server, package_name):
             if subprocess.call(cmd, shell=True) == 0:
                 updated = True
         except BaseException as e:
-            print('Issue: ' + str(e))
+            print(('Issue: ' + str(e)))
         if not updated:
             print('WARNING!! software update failed. Trying to continue...')
     if updated:

@@ -24,5 +24,5 @@ def display_doc(topic):
 def display_topic_list():
     file_list = sorted(resource_listdir(__name__, '.'))
     print('The following help topics are available:')
-    print(', '.join(filename[:-3] for filename in file_list \
-            if filename.endswith('.md')))
+    print((', '.join(filename[:-3] for filename in file_list \
+            if filename.endswith('.md'))))

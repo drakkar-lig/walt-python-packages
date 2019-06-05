@@ -20,13 +20,13 @@ class WalTAdvancedFixImageOwner(WalTApplication):
     _force = False # default
     def main(self, other_user):
         if not self._force:
-            print """\
+            print("""\
 This will make you own all images of user '%s'. It is intended
 for maintenance only (i.e. if user '%s' is no longer working with
 walt).
 If this is really what you want, run:
 walt advanced fix-image-owner --yes-i-know-do-it-please %s
-""" % ((other_user,) * 3)
+""" % ((other_user,) * 3))
         else:
             with ClientToServerLink() as server:
                 server.fix_image_owner(other_user)

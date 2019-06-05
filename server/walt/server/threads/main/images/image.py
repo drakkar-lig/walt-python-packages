@@ -156,10 +156,10 @@ class NodeImage(object):
         self.docker.local.image_mount(self.fullname, self.diff_path, self.mount_path)
         self.mounted = True
     def mount(self, requester = None):
-        print 'Mounting %s...' % self.fullname
+        print('Mounting %s...' % self.fullname)
         self.os_mount()
         setup(self)
-        print 'Mounting %s... done' % self.fullname
+        print('Mounting %s... done' % self.fullname)
     def os_unmount(self):
         while not succeeds('umount %s 2>/dev/null' % self.mount_path):
             time.sleep(0.1)
@@ -173,7 +173,7 @@ class NodeImage(object):
         os.rmdir(self.mount_path)
         self.mounted = False
     def unmount(self):
-        print 'Un-mounting %s...' % self.fullname,
+        print('Un-mounting %s...' % self.fullname, end=' ')
         self.os_unmount()
-        print 'done'
+        print('done')
 

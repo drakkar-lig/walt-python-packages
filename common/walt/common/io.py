@@ -35,7 +35,7 @@ class SmartFile(object):
         # is nothing more to read or we reach BUFFER_SIZE
         chars = self.chars
         try:
-            for i in xrange(SmartFile.BUFFER_SIZE):
+            for i in range(SmartFile.BUFFER_SIZE):
                 rlist, wlist, elist = select(*self.select_args)
                 # error or no input (timeout), leave the loop
                 if len(elist) > 0 or len(rlist) == 0:

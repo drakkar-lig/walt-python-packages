@@ -51,7 +51,7 @@ class EventLoop(object):
         #print 'removing ' + str(in_listener)
         #sys.stdout.flush()
         # find fd
-        for fd, listener in self.listeners.iteritems():
+        for fd, listener in self.listeners.items():
             if listener is in_listener:
                 break
         # do no fail in case of issue in listener.close()
@@ -59,7 +59,7 @@ class EventLoop(object):
         try:
             listener.close()
         except Exception as e:
-            print 'warning: got exception in listener.close():', e
+            print('warning: got exception in listener.close():', e)
         del self.listeners[fd]
         self.poller.unregister(fd)
 
@@ -80,7 +80,7 @@ class EventLoop(object):
                         next_ts, target, repeat_delay, **kwargs)
             # if a listener provides a method is_valid(),
             # check it and remove it if result is False
-            for listener in self.listeners.values():
+            for listener in list(self.listeners.values()):
                 try:
                     if listener.is_valid() == False:
                         # some data may have been buffered, we check this.

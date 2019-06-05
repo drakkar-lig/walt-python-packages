@@ -54,14 +54,14 @@ def get_poe_port_mapping(snmp_proxy, host):
         if "IF-MIB" not in get_loaded_mibs():
             load_mib("IF-MIB")
         iface_port_indexes = list(
-                int(k) for k, v in snmp_proxy.ifSpeed.items()
+                int(k) for k, v in list(snmp_proxy.ifSpeed.items())
                 if v in POE_PORT_SPEEDS)
         iface_type_indexes = list(
-                int(k) for k, v in snmp_proxy.ifType.items()
+                int(k) for k, v in list(snmp_proxy.ifType.items())
                 if int(v) == ETHERNETCSMACD)
         poe_port_indexes = list(
                 (int(grp_idx), int(grp_port)) \
-                for grp_idx, grp_port in snmp_proxy.pethPsePortAdminEnable.keys())
+                for grp_idx, grp_port in list(snmp_proxy.pethPsePortAdminEnable.keys()))
         # check if we have the same number of poe ports and 10/100/1000 ports
         if len(iface_port_indexes) == len(poe_port_indexes):
             # this probably means we can associate iface_port_indexes and
@@ -86,7 +86,7 @@ def detect_correct_mib(snmp_proxy, host):
     for mib in CANDIDATE_POE_MIBS:
         load_mib(mib)
         try:
-            dummy = snmp_proxy.pethPsePortAdminEnable.keys()
+            dummy = list(snmp_proxy.pethPsePortAdminEnable.keys())
             break # ok previous line passed with no error
         except (snmp.SNMPNoSuchObject,
                 snmp.SNMPNoSuchInstance,

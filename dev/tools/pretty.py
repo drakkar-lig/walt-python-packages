@@ -1,7 +1,7 @@
 def pprint_dict(d, indent=0):
     lines = [ 'dict(' ]
     if len(d) > 0:
-        for k, v in d.items():
+        for k, v in list(d.items()):
             if isinstance(v, dict):
                 v_repr = pprint_dict(v, indent+1)
             else:

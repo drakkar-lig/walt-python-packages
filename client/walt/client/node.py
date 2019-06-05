@@ -32,7 +32,7 @@ class WalTNode(WalTCategoryApplication):
         try:
             server.wait_for_nodes(node_set)
         except KeyboardInterrupt:
-            print
+            print()
         server.set_default_busy_label()
 
     @staticmethod
@@ -54,7 +54,7 @@ class WalTNode(WalTCategoryApplication):
         if nodes_ip:
             for ip in nodes_ip:
                 if startup_msg:
-                    print startup_msg
+                    print(startup_msg)
                 run_node_cmd(ip, cmdargs, tty)
 
     @staticmethod
@@ -105,10 +105,10 @@ class WalTNode(WalTCategoryApplication):
                         if really_off:
                             time.sleep(POE_REBOOT_DELAY)
             else:
-                print(format_sentence_about_nodes(
+                print((format_sentence_about_nodes(
                         MSG_SOFT_REBOOT_FAILED,
-                        nodes_ko.split(',')))
-                print(MSG_SOFT_REBOOT_FAILED_TIP % dict(nodes_ko = nodes_ko))
+                        nodes_ko.split(','))))
+                print((MSG_SOFT_REBOOT_FAILED_TIP % dict(nodes_ko = nodes_ko)))
 
 @WalTNode.subcommand("show")
 class WalTNodeShow(WalTApplication):
@@ -116,7 +116,7 @@ class WalTNodeShow(WalTApplication):
     _all = False # default
     def main(self):
         with ClientToServerLink() as server:
-            print server.show_nodes(conf['username'], self._all)
+            print(server.show_nodes(conf['username'], self._all))
     @cli.autoswitch(help='show nodes used by other users too')
     def all(self):
         self._all = True
@@ -159,12 +159,12 @@ class WalTNodeBlink(WalTApplication):
             with ClientToServerLink() as server:
                 WalTNode.wait_for_nodes(server, node_name)
                 if server.blink(node_name, True):
-                    print 'blinking for %ds... ' % seconds
+                    print('blinking for %ds... ' % seconds)
                     try:
                         time.sleep(seconds)
-                        print 'done.'
+                        print('done.')
                     except KeyboardInterrupt:
-                        print 'Aborted.'
+                        print('Aborted.')
                     finally:
                         server.blink(node_name, False)
 
@@ -236,8 +236,8 @@ class WalTNodeCp(WalTApplication):
             try:
                 run_transfer_with_node(**info)
             except (KeyboardInterrupt, EOFError):
-                print
-                print 'Aborted.'
+                print()
+                print('Aborted.')
 
 @WalTNode.subcommand("wait")
 class WalTNodeWait(WalTApplication):
@@ -258,8 +258,8 @@ class WalTNodeExpose(WalTApplication):
             if not node_ip:
                 return
             WalTNode.wait_for_nodes(server_link, node_name)
-            print 'Listening on TCP port %d and redirecting connections to %s:%d.' % \
-                            (local_port, node_name, node_port)
+            print('Listening on TCP port %d and redirecting connections to %s:%d.' % \
+                            (local_port, node_name, node_port))
             exposer = TCPExposer(local_port, node_ip, node_port)
             exposer.run()
 

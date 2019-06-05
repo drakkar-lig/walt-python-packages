@@ -5,15 +5,15 @@ from walt.server.tools import try_encode
 
 # special characters used to display the tree (if possible)
 class UNICODE_CHARSET:
-    WHOLE_V = u'\u2502'         # whole vertical bar
-    WHOLE_V_RIGHT_H = u'\u251c' # whole vertical + right horizontal bars
-    WHOLE_H = u'\u2500'         # whole horizontal bar
-    UPPER_V_RIGHT_H = u'\u2514' # upper vertical + right horizontal bars
-    SPACE = u' '
+    WHOLE_V = '\u2502'         # whole vertical bar
+    WHOLE_V_RIGHT_H = '\u251c' # whole vertical + right horizontal bars
+    WHOLE_H = '\u2500'         # whole horizontal bar
+    UPPER_V_RIGHT_H = '\u2514' # upper vertical + right horizontal bars
+    SPACE = ' '
 
 SPECIAL_CHARS = ''.join(
-        v for k, v in UNICODE_CHARSET.__dict__.items() \
-                if isinstance(v, unicode))
+        v for k, v in list(UNICODE_CHARSET.__dict__.items()) \
+                if isinstance(v, str))
 
 # simpler characters (fallback)
 class ASCII_CHARSET:
@@ -47,7 +47,7 @@ class Tree(object):
     def sort_children(self):
         if not self.up_to_date:
             # sort children by child_pos
-            for node in self.nodes.values():
+            for node in list(self.nodes.values()):
                 node['children'] = sorted(node['children'])
             self.up_to_date = True
     def printed(self, root):

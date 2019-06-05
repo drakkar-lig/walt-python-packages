@@ -83,7 +83,7 @@ class PostgresDB():
         # a dictionary, because in an insert query,
         # we need a list of keys and a list of values 
         # with the same ordering.
-        items = res.items()
+        items = list(res.items())
         return (list(t[0] for t in items),
                 list(t[1] for t in items))
 

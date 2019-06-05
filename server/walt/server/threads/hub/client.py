@@ -35,7 +35,7 @@ class APISessionManager(object):
         if len(event) != 4:
             return False
         attr, args, kwargs = event[1:]
-        print 'hub api_call:', self.target_api, attr, args, kwargs
+        print('hub api_call:', self.target_api, attr, args, kwargs)
         self.record_task(attr, args, kwargs)
         return True
     def return_result(self, res):

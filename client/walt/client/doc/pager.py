@@ -27,8 +27,8 @@ class Pager:
             help_keys = [ SCROLL_HELP, Q_HELP ]
         else:
             help_keys = [ Q_HELP ]
-        footer = u'\u2501' * self.tty.cols + \
-                 u'\r\n  ' + u' \u2502 '.join(help_keys) + '\r'
+        footer = '\u2501' * self.tty.cols + \
+                 '\r\n  ' + ' \u2502 '.join(help_keys) + '\r'
         # activate the pager
         try:
             self.tty.set_raw_no_echo()

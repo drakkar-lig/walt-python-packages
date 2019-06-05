@@ -91,7 +91,7 @@ class Topology(object):
 
     def save_to_db(self, db):
         db.delete('topology');
-        for link_macs, link_info in self.links.iteritems():
+        for link_macs, link_info in self.links.items():
             db.insert('topology',   mac1 = link_macs[0],
                                     mac2 = link_macs[1],
                                     port1 = link_info[0],
@@ -108,7 +108,7 @@ class Topology(object):
 
     def __iter__(self):
         # iterate over links info
-        for macs, info in self.links.iteritems():
+        for macs, info in self.links.items():
             yield macs + info   # concatenate the tuples
 
     def merge_links_info(self, confirmed, unconfirmed):
@@ -142,7 +142,7 @@ class Topology(object):
         # check if we have several links at the same location
         # (mac, non-null-port), and in this case keep the one confirmed.
         locations = {}
-        for macs, info in new_links.copy().iteritems():
+        for macs, info in new_links.copy().items():
             mac1, mac2, port1, port2, confirmed = macs + info
             if port1 is not None:
                 conflicting_mac2 = locations.get((mac1, port1))
@@ -334,14 +334,14 @@ class TopologyManager(object):
 
     def collect_connected_devices(self, requester, topology, host_name,
                                     host_ip, host_mac, host_snmp_conf):
-        print "Querying %s..." % host_name
+        print("Querying %s..." % host_name)
         if host_ip is None:
             self.print_message(requester, "Querying %-25s FAILED (unknown management IP!)" % host_name)
             return
         snmp_proxy = snmp.Proxy(host_ip, host_snmp_conf, lldp=True)
         # get neighbors
         try:
-            neighbors = snmp_proxy.lldp.get_neighbors().items()
+            neighbors = list(snmp_proxy.lldp.get_neighbors().items())
             self.print_message(requester, "Querying %-25s OK" % host_name)
         except SNMPException:
             self.print_message(requester, "Querying %-25s FAILED (SNMP issue)" % host_name)
@@ -350,8 +350,8 @@ class TopologyManager(object):
         for port, neighbor_info in neighbors:
             ip, mac, sysname =  neighbor_info['ip'], neighbor_info['mac'], \
                                 neighbor_info['sysname']
-            print '---- found on %s %s -- port %d: %s %s %s' % \
-                        (host_name, host_mac, port, ip, mac, sysname)
+            print('---- found on %s %s -- port %d: %s %s %s' % \
+                        (host_name, host_mac, port, ip, mac, sysname))
             topology.register_neighbor(host_mac, port, mac)
             db_info = self.devices.get_complete_device_info(mac)
             if db_info == None:

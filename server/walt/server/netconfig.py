@@ -16,7 +16,7 @@ def generate_random_mac():
             random.randint(0x00, 0xff) ]
 
 def get_random_mac():
-    return ':'.join(map(lambda x: "%02x" % x, generate_random_mac()))
+    return ':'.join(["%02x" % x for x in generate_random_mac()])
 
 def filter_out_8021q(iface_src, iface_dst):
     do(DOT1Q_FILTER % dict(src=iface_src, dst=iface_dst))

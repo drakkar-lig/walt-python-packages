@@ -17,7 +17,7 @@ class TCPExposer:
     def run(self):
         self.local_server_s = server_socket(self.local_port)
         while True:
-            read_socks = self.associations.keys() + [ self.local_server_s ]
+            read_socks = list(self.associations.keys()) + [ self.local_server_s ]
             select_args = [ read_socks, [], read_socks ]
             rlist, wlist, elist = select(*select_args)
             if len(elist) > 0 or len(rlist) == 0:
@@ -44,11 +44,11 @@ class TCPExposer:
         # wait for the status message from the server
         status = sock_file.readline().strip()
         if status == 'OK':
-            print 'New connection forwarded to node.'
+            print('New connection forwarded to node.')
             return sock_file
         else:
             sock_file.close()
-            print status
+            print(status)
             return None
     def event_on_server_s(self):
         conn_s, addr = self.local_server_s.accept()
@@ -60,7 +60,7 @@ class TCPExposer:
         self.associations[client_channel] = node_channel
         self.associations[node_channel] = client_channel
     def close(self):
-        for f1, f2 in self.associations.items():
+        for f1, f2 in list(self.associations.items()):
             f1.close()
             f2.close()
         self.local_server_s.close()

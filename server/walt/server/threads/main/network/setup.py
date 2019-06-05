@@ -10,7 +10,7 @@ MSG_WAITING_COMPANION_SERVICES = 'Waiting for companion services to be ready...'
 MSG_DETECTING_MAIN_SWITCH = 'Detecting the main switch...'
 MSG_CHECK_DOCKER = "Checking internet connection to the Docker Hub..."
 
-EXPLAIN_PLUG_ELEMENTS = u'''\
+EXPLAIN_PLUG_ELEMENTS = '''\
 We will now connect the other elements of the WalT platform: cascaded switches and nodes.
 
 ┌────────────────┐      ┌─────────────┐
@@ -27,7 +27,7 @@ Once a given switch is connected, power if off and on in order to ensure that it
 network configuration is reset.
 '''
 
-EXPLAIN_PLUG_INTERNET_CABLE = u'''\
+EXPLAIN_PLUG_INTERNET_CABLE = '''\
 The cable to the external VLAN should now be plugged on port 1 of the main switch:
 
 ┌────────────────┐      ┌─────────────┐
@@ -42,7 +42,7 @@ The cable to the external VLAN should now be plugged on port 1 of the main switc
 This external VLAN is expected to provide a DHCP service and internet access (at least to the docker hub).
 '''
 
-ACTION_CHECK_DOCKER = u'''
+ACTION_CHECK_DOCKER = '''
 The server failed to access hub.docker.com. Please verify that the server is allowed to reach internet.
 The setup process will retry this periodically until it succeeds.
 '''
@@ -52,7 +52,7 @@ def wait_companion_services(ui):
     while True:
         try:
             snmp_local = snmp.Proxy('localhost', SERVER_SNMP_CONF, lldp=True)
-            print snmp_local.lldp.get_local_ips()
+            print(snmp_local.lldp.get_local_ips())
         except snimpy.snmp.SNMPException:
             ui.task_running()
             time.sleep(1)
@@ -82,7 +82,7 @@ def wait_for_main_switch(ui, msg, explain = None, todo = None):
     snmp_local = snmp.Proxy('localhost', SERVER_SNMP_CONF, lldp=True)
     while True:
         try:
-            neighbors = snmp_local.lldp.get_neighbors().values()
+            neighbors = list(snmp_local.lldp.get_neighbors().values())
         except SNMPException:
             neighbors = []
         if len(neighbors) > 0:
@@ -92,6 +92,6 @@ def wait_for_main_switch(ui, msg, explain = None, todo = None):
         time.sleep(1)
     ui.task_done()
     main_switch_info = neighbors[0]
-    print 'main switch:', main_switch_info
+    print('main switch:', main_switch_info)
     return main_switch_info
 

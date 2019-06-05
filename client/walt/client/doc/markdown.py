@@ -163,9 +163,9 @@ class MarkdownRenderer:
             curr_words, curr_words_no_color = [], []
         # after wrapping is validated, we can revert non-breaking spaces
         # to regular space.
-        return '\n'.join(wrapped_lines).replace(u'\xa0', ' ')
+        return '\n'.join(wrapped_lines).replace('\xa0', ' ')
     def quoted(self, text):
-        return '\n'.join((u' \u2588' + line) for line in text.rstrip('\n').split('\n')) + '\n'
+        return '\n'.join((' \u2588' + line) for line in text.rstrip('\n').split('\n')) + '\n'
     def heading(self, node, entering):
         if entering:
             level = 1 if node.level is None else node.level
@@ -198,7 +198,7 @@ class MarkdownRenderer:
                             bg_color = BG_COLOR_SOURCE_CODE)
         # replace spaces with non-breaking space
         # (this should be reverted after the paragraph has been wrapped, see above)
-        self.lit(node.literal.replace(' ', u'\xa0'))
+        self.lit(node.literal.replace(' ', '\xa0'))
         self.pop_context()
     def pre_format_code_block(self, text):
         text = textwrap.dedent(text)
@@ -265,7 +265,7 @@ class MarkdownRenderer:
             numbering = self.list_numbering[-1]
             node.prefix = '  ' * len(self.list_numbering)
             if numbering is None:
-                node.prefix += u'\u2022 '
+                node.prefix += '\u2022 '
             else:
                 node.prefix += '%d. ' % numbering
                 self.list_numbering[-1] += 1

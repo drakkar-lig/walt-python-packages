@@ -49,30 +49,30 @@ def align(text, real_text_len, field_len, alignment):
         return ' ' * left_len + text + ' ' * right_len
 
 def horizontal_line(col_widths, left_char, sep_char, right_char):
-    return left_char + sep_char.join(u'\u2500' * (w+2) for w in col_widths) + right_char + '\n'
+    return left_char + sep_char.join('\u2500' * (w+2) for w in col_widths) + right_char + '\n'
 
 def render_table(md_renderer, buf):
     table_content, alignments = analyse_table(buf)
     col_widths = [ max(md_renderer.real_text_len(cell) for cell in col) \
             for col in zip(*table_content) ]
     # print top line
-    md_renderer.lit(horizontal_line(col_widths, u'\u250c', u'\u252c', u'\u2510'))
+    md_renderer.lit(horizontal_line(col_widths, '\u250c', '\u252c', '\u2510'))
     # print header
     for col_idx, word in enumerate(table_content[0]):
-        md_renderer.lit(u'\u2502 ')
+        md_renderer.lit('\u2502 ')
         md_renderer.stack_context(bold = True)
         md_renderer.lit(align(word, md_renderer.real_text_len(word), col_widths[col_idx], ALIGN_CENTER))
         md_renderer.pop_context()
         md_renderer.lit(' ')
-    md_renderer.lit(u'\u2502\n')
+    md_renderer.lit('\u2502\n')
     # print value rows
-    separation_line = horizontal_line(col_widths, u'\u251c', u'\u253c', u'\u2524')
+    separation_line = horizontal_line(col_widths, '\u251c', '\u253c', '\u2524')
     for row_idx, row in enumerate(table_content[1:]):
         md_renderer.lit(separation_line)
         for col_idx, word in enumerate(row):
-            md_renderer.lit(u'\u2502 ')
+            md_renderer.lit('\u2502 ')
             md_renderer.lit(align(word, md_renderer.real_text_len(word), col_widths[col_idx], alignments[col_idx]))
             md_renderer.lit(' ')
-        md_renderer.lit(u'\u2502\n')
+        md_renderer.lit('\u2502\n')
     # print bottom line
-    md_renderer.lit(horizontal_line(col_widths, u'\u2514', u'\u2534', u'\u2518'))
+    md_renderer.lit(horizontal_line(col_widths, '\u2514', '\u2534', '\u2518'))

@@ -1,1 +1,1 @@
-from device import WalTDevice
+from .device import WalTDevice

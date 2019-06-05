@@ -1,6 +1,6 @@
 from collections import namedtuple
-from itertools import takewhile, izip
-import cPickle as pickle
+from itertools import takewhile
+import pickle as pickle
 import re
 
 COLUMNATE_SPACING = 2
@@ -127,7 +127,7 @@ def to_named_tuple(d):
     global nt_index
     code = pickle.dumps(sorted(d.keys()))
     if code not in nt_classes:
-        base = namedtuple('NamedTuple_%d' % nt_index, d.keys())
+        base = namedtuple('NamedTuple_%d' % nt_index, list(d.keys()))
         class NT(base):
             def update(self, **kwargs):
                 d = self._asdict()
@@ -162,7 +162,7 @@ def try_encode(s, encoding):
 def format_node_models_list(node_models):
     if len(node_models) == 1:
         return node_models[0]
-    prefix_len = len(tuple(takewhile(lambda s: len(set(s)) == 1, izip(*node_models))))
+    prefix_len = len(tuple(takewhile(lambda s: len(set(s)) == 1, zip(*node_models))))
     prefix = node_models[0][:prefix_len]
     regex_result = prefix + '[' + '|'.join(m[prefix_len:] for m in node_models) + ']'
     simple_result = ','.join(node_models)

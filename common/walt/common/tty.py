@@ -1,6 +1,6 @@
 import os, termios, struct, fcntl, re
 
-TTY_CONTROL_CHARS = ''.join(map(unichr, range(0,32) + range(127,160)))
+TTY_CONTROL_CHARS = ''.join(map(chr, list(range(0,32)) + list(range(127,160))))
 TTY_CONTROL_CHARS_RE = re.compile('[%s]' % re.escape(TTY_CONTROL_CHARS))
 
 def remove_control_chars(s):

@@ -82,11 +82,11 @@ class PromptClient(object):
                 self.tty_settings.restore()
 
 def run_sql_prompt():
-    print SQL_SHELL_MESSAGE
+    print(SQL_SHELL_MESSAGE)
     PromptClient(Requests.REQ_SQL_PROMPT).run()
 
 def run_image_shell_prompt(image_fullname, container_name):
-    print IMAGE_SHELL_MESSAGE
+    print(IMAGE_SHELL_MESSAGE)
     PromptClient(Requests.REQ_DOCKER_PROMPT,
                 image_fullname = image_fullname,
                 container_name = container_name).run()

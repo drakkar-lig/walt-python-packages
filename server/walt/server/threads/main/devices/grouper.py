@@ -32,5 +32,5 @@ class Grouper:
     def __contains__(self, item):
         return item in self.group_id_per_item
     def debug(self):
-        for group_id, items in self.items_per_group_id.items():
-            print group_id, items
+        for group_id, items in list(self.items_per_group_id.items()):
+            print(group_id, items)

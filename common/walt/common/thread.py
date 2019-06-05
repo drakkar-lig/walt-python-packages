@@ -27,7 +27,7 @@ class EvThread(Thread):
                 self.prepare()
                 self.ev_loop.loop()
         except DownwardPropagatedException:
-            print self.name + ' stopped because of propagated exception.'
+            print(self.name + ' stopped because of propagated exception.')
         except BaseException as e:
             try:
                 self.pipe_in.send(e) # propagate upward
@@ -117,7 +117,7 @@ class RPCTask(object):
         #print current_thread().name, 'RESULT', self.remote_req_id, res
         self.connector.write(('RESULT', self.remote_req_id, res))
     def return_exception(self, e):
-        print current_thread().name + ': Exception occured while performing API request:'
+        print(current_thread().name + ': Exception occured while performing API request:')
         sys.excepthook(*sys.exc_info())
         self.connector.write(('RESULT', self.remote_req_id, Exception(str(e))))
 
@@ -191,7 +191,7 @@ class RPCThreadConnector(ThreadConnector):
                 return None
         return self.results.pop(local_req_id)
     def send_task(self, remote_req_id, local_service, path, args, kwargs, sync):
-        local_req_id = self.ids_generator.next()
+        local_req_id = next(self.ids_generator)
         self.last_req_id = local_req_id
         self.submitted_tasks[local_req_id] = SimpleContainer(
                     local_service = AttrCallRunner(local_service),

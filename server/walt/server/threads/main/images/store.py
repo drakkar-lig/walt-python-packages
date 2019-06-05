@@ -63,7 +63,7 @@ class NodeImageStore(object):
                     # if the daemon is starting, remove images from db not listed
                     # by docker.
                     if startup:
-                        print(MSG_REMOVING_FROM_DB % db_fullname)
+                        print((MSG_REMOVING_FROM_DB % db_fullname))
                         self.db.delete('images', fullname = db_fullname)
                     else:
                         assert (db_ready == False), \
@@ -72,7 +72,7 @@ class NodeImageStore(object):
                         self.images[db_fullname] = NodeImage(self.db,
                                             self.docker, db_fullname)
         # remove deleted images
-        for fullname in self.images.keys():
+        for fullname in list(self.images.keys()):
             if fullname not in db_images:
                 del self.images[fullname]
     def register_image(self, image_fullname, is_ready):
@@ -100,17 +100,17 @@ class NodeImageStore(object):
             self.refresh()
         return self.images[image_fullname]
     def __iter__(self):
-        return self.images.iterkeys()
+        return iter(self.images.keys())
     def __len__(self):
         return len(self.images)
     def keys(self):
-        return self.images.keys()
+        return list(self.images.keys())
     def iteritems(self):
-        return self.images.iteritems()
+        return iter(self.images.items())
     def itervalues(self):
-        return self.images.itervalues()
+        return iter(self.images.values())
     def values(self):
-        return self.images.values()
+        return list(self.images.values())
     # look for an image belonging to the requester.
     # The 'expected' parameter allows to specify if we expect a matching
     # result (expected = True), no matching result (expected = False),
@@ -123,7 +123,7 @@ class NodeImageStore(object):
             return None    # client already disconnected, give up
         found = None
         fullname = format_image_fullname(username, image_name)
-        for image in self.images.values():
+        for image in list(self.images.values()):
             if image.fullname == fullname:
                 found = image
         if expected == True and found is None:

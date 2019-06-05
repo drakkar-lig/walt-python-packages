@@ -48,7 +48,7 @@ class WalTImageShow(WalTApplication):
     _refresh = False # default
     def main(self):
         with ClientToServerLink() as server:
-            print server.show_images(self._refresh)
+            print(server.show_images(self._refresh))
     @cli.autoswitch(help='resync image list from Docker daemon.')
     def refresh(self):
         self._refresh = True
@@ -67,11 +67,11 @@ class WalTImageShell(WalTApplication):
             run_image_shell_prompt(image_fullname, container_name)
             try:
                 while True:
-                    new_name = raw_input(\
+                    new_name = input(\
                         'New image name [%s]: ' % default_new_name)
                     if new_name == '':
                         new_name = default_new_name
-                        print 'Selected: %s' % new_name
+                        print('Selected: %s' % new_name)
                     res = server.image_shell_session_save(
                                     session_id, new_name, name_confirmed = False)
                     if res == 'NAME_NOT_OK':
@@ -84,7 +84,7 @@ class WalTImageShell(WalTApplication):
                             continue
                     break
             except (KeyboardInterrupt, EOFError):
-                print 'Aborted.'
+                print('Aborted.')
             # leaving the API session scoped by the with construct
             # will cause the server to cleanup session data on server side.
 
@@ -133,6 +133,6 @@ class WalTImageCp(WalTApplication):
                     server.image_shell_session_save(
                             session_id, default_new_name, True)
             except (KeyboardInterrupt, EOFError):
-                print
-                print 'Aborted.'
+                print()
+                print('Aborted.')
 

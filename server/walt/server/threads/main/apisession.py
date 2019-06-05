@@ -18,18 +18,18 @@ class APISession(object):
         APISession.NEXT_ID += 1
         cls = APISession.TARGET_APIS[target_api]
         APISession.SESSIONS[session_id] = cls(server, remote_ip)
-        print 'session %d: connected' % session_id
+        print('session %d: connected' % session_id)
         return session_id
 
     @staticmethod
     def destroy(session_id):
-        print 'session %d: disconnected' % session_id
+        print('session %d: disconnected' % session_id)
         APISession.SESSIONS[session_id].cleanup()
         del APISession.SESSIONS[session_id]
 
     @staticmethod
     def cleanup_all():
-        for session in APISession.SESSIONS.values():
+        for session in list(APISession.SESSIONS.values()):
             session.cleanup()
 
     @staticmethod

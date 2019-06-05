@@ -24,7 +24,7 @@ class WalTDeviceTree(WalTApplication):
     _all = False # default
     def main(self):
         with ClientToServerLink() as server:
-            print server.device_tree(self._all)
+            print(server.device_tree(self._all))
     @cli.autoswitch(help='show all devices detected')
     def all(self):
         self._all = True
@@ -34,7 +34,7 @@ class WalTDeviceShow(WalTApplication):
     """print details about devices involved in the platform"""
     def main(self):
         with ClientToServerLink() as server:
-            print server.device_show()
+            print(server.device_show())
 
 @WalTDevice.subcommand("rescan")
 class WalTDeviceRescan(WalTApplication):
@@ -80,20 +80,20 @@ class WalTDeviceForget(WalTApplication):
                 return  # issue already reported
             device_info = deserialize_ordered_dict(device_info)
             if device_info['type'] == 'node' and device_info['virtual']:
-                print MSG_USE_WALT_NODE_REMOVE % dict(node = device_name)
+                print(MSG_USE_WALT_NODE_REMOVE % dict(node = device_name))
                 return
             if not self._force:
                 logs_cnt = server.count_logs(
                         history = (None, None),
                         senders = set([device_name]))
                 if logs_cnt > 0:
-                    print MSG_FORGET_DEVICE_WITH_LOGS % (
+                    print(MSG_FORGET_DEVICE_WITH_LOGS % (
                         device_name, logs_cnt, device_name
-                    )
+                    ))
                     return  # give up for now
             # ok, do it
             server.forget(device_name)
-            print 'done.'
+            print('done.')
     @cli.autoswitch(help='do it, even if related data will be lost')
     def force(self):
         self._force = True

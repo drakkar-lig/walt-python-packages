@@ -21,11 +21,11 @@ def enable_matching_features(image, image_spec):
         available_feature_set = server_feature_set & image_feature_set
         for feature in available_feature_set:
             enabling_cmd = image_spec['features'][feature]
-            print """enabling '%s' feature by running '%s'.""" % \
-                            (feature, enabling_cmd)
-            print image.chroot(enabling_cmd)
+            print("""enabling '%s' feature by running '%s'.""" % \
+                            (feature, enabling_cmd))
+            print(image.chroot(enabling_cmd))
     except Exception as e:
-        print """WARNING: Caught exception '%s'""" % str(e)
+        print("""WARNING: Caught exception '%s'""" % str(e))
 
 def update_templates(image_path, image_spec, template_env):
     for template_file in image_spec.get('templates', []):

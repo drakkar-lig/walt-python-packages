@@ -1,5 +1,5 @@
 # coding=utf-8
-import curses, os, cPickle as pickle
+import curses, os, pickle as pickle
 from walt.common.evloop import EventLoop
 from walt.common.fifo import open_readable_fifo
 from walt.server.const import UI_FIFO_PATH
@@ -14,13 +14,13 @@ class Console(object):
         self.status_win = self.stdscr.subwin(1, max_x, 2, 0)
         self.explain_win = self.stdscr.subwin(4, 0)
         self.BOX_DRAWING={
-            u'┼': curses.ACS_PLUS,
-            u'┌': curses.ACS_ULCORNER,
-            u'─': curses.ACS_HLINE,
-            u'│': curses.ACS_VLINE,
-            u'┐': curses.ACS_URCORNER,
-            u'┘': curses.ACS_LRCORNER,
-            u'└': curses.ACS_LLCORNER
+            '┼': curses.ACS_PLUS,
+            '┌': curses.ACS_ULCORNER,
+            '─': curses.ACS_HLINE,
+            '│': curses.ACS_VLINE,
+            '┐': curses.ACS_URCORNER,
+            '┘': curses.ACS_LRCORNER,
+            '└': curses.ACS_LLCORNER
         }
         self.stdscr.refresh()
         self.fifo = open_readable_fifo(UI_FIFO_PATH)

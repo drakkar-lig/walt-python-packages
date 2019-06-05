@@ -13,7 +13,7 @@ class WalTToolboxApplication(WalTApplication):
         group="Meta-switches")
     def help(self):
         """Prints this help message and quits"""
-        print(self.get_help_prefix().rstrip())
+        print((self.get_help_prefix().rstrip()))
         subitems = []
         for name, subcls in sorted(self._subcommands.items()):
             subapp = subcls.get()
@@ -22,7 +22,7 @@ class WalTToolboxApplication(WalTApplication):
         max_name_len = max(len(name) for name, doc in subitems)
         format_str = '    %-' + str(max_name_len) + 's  %s'
         for name, doc in subitems:
-            print(format_str % (name, doc))
+            print((format_str % (name, doc)))
 
 WALT_CATEGORY_COMMAND_HELP_PREFIX = '''
 WalT platform control tool

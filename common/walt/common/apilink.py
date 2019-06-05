@@ -159,7 +159,7 @@ class ServerAPIConnection(object):
                     self.handle_api_call(*event[1:])
                     continue
                 elif event[0] == 'EXCEPTION':
-                    print 'Unexpected server-side issue! %s' % event[1]
+                    print('Unexpected server-side issue! %s' % event[1])
                     break
                 elif event[0] == 'RESULT':
                     api_result = event[1]

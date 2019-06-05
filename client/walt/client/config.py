@@ -31,7 +31,7 @@ def ask_config_item(key, coded=False):
         if coded:
             value = getpass(msg)
         else:
-            value = raw_input(msg)
+            value = input(msg)
         if value.strip() == '':
             continue
         break
@@ -52,8 +52,8 @@ def get_config_from_file(coded_items):
     conf = read_json(config_file)
     if conf == None:
         if os.path.exists(config_file):
-            print "Warning: %s file exists, but it could not be parsed properly." \
-                            % config_file
+            print("Warning: %s file exists, but it could not be parsed properly." \
+                            % config_file)
         conf = OrderedDict()
     for key in conf:
         if key in coded_items:
@@ -71,7 +71,7 @@ class ConfigFileSaver(object):
         with open(config_file, 'w') as f:
             f.write(self.printed())
         os.chmod(config_file, 0o600)
-        print '\nConfiguration was stored in %s.\n' % config_file
+        print('\nConfiguration was stored in %s.\n' % config_file)
     def add_item_group(self, desc, explain=None):
         self.item_groups.append(dict(
             desc    = desc,

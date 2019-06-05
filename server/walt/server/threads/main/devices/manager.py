@@ -198,15 +198,15 @@ class DevicesManager(object):
                         ))
                 # now we know its type, so we consider we have a new equipment here.
                 new_equipment = True
-                print 'Device: %s updating type, unknown -> %s' % (name, args_data['type'])
+                print('Device: %s updating type, unknown -> %s' % (name, args_data['type']))
                 updates['type'] = args_data['type']
             if db_data.ip is None and args_data['ip'] is not None:
-                print 'Device: %s updating ip, unknown -> %s' % (name, args_data['ip'])
+                print('Device: %s updating ip, unknown -> %s' % (name, args_data['ip']))
                 updates['ip'] = args_data['ip']
             elif db_data.ip is not None and args_data['ip'] is not None and \
                     not ip_in_walt_network(db_data.ip) and ip_in_walt_network(args_data['ip']):
                 # the device updated its IP by requesting our managed DHCP server
-                print 'Device: %s updating ip, %s -> %s (now in walt network)' % (name, db_data.ip, args_data['ip'])
+                print('Device: %s updating ip, %s -> %s (now in walt network)' % (name, db_data.ip, args_data['ip']))
                 updates['ip'] = args_data['ip']
             if len(updates) > 0:
                 modified = True
@@ -216,7 +216,7 @@ class DevicesManager(object):
             # generate a name for this device
             if 'name' not in args_data:
                 args_data['name'] = self.generate_device_name(**args_data)
-            print 'Device: %s is new, adding (%s, %s)' % (args_data['name'], args_data['ip'], args_data['type'])
+            print('Device: %s is new, adding (%s, %s)' % (args_data['name'], args_data['ip'], args_data['type']))
             self.db.insert("devices", **args_data)
             modified = True
             if args_data['type'] != 'unknown':

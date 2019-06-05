@@ -27,7 +27,7 @@ class APISessionTask(object):
             # run task
             res = m(self.context, *self.args, **self.kwargs)
         except BaseException as e:
-            print 'Exception occured while performing API request:'
+            print('Exception occured while performing API request:')
             sys.excepthook(*sys.exc_info())
             res = e
         # return result, unless async mode was set

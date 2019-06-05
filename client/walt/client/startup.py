@@ -23,15 +23,15 @@ def init_config():
         server_check = 'server' not in conf
         credentials_check = 'username' not in conf or 'password' not in conf
         if server_check or credentials_check:
-            print "Starting configuration procedure..."
+            print("Starting configuration procedure...")
         while True:
             server_update = 'server' not in conf
             credentials_update = 'username' not in conf or 'password' not in conf
             if server_update:
                 conf['server'] = config.ask_config_item('ip or hostname of WalT server')
             if credentials_update:
-                print 'Docker hub credentials are missing, incomplete or invalid.'
-                print '(Please get an account at hub.docker.com if not done yet.)'
+                print('Docker hub credentials are missing, incomplete or invalid.')
+                print('(Please get an account at hub.docker.com if not done yet.)')
             if 'username' not in conf:
                 conf['username'] = config.ask_config_item('username')
             if 'password' not in conf:
@@ -45,11 +45,11 @@ def init_config():
         if modified:
             save_config(conf)
         if server_check or credentials_check:
-            print 'Resuming normal operations...'
+            print('Resuming normal operations...')
             time.sleep(2)
         config.set_conf(conf)
     except KeyboardInterrupt:
-        print '\nAborted.'
+        print('\nAborted.')
         sys.exit()
 
 def test_config(conf, credentials_check):
@@ -62,13 +62,13 @@ def test_config(conf, credentials_check):
                 server.set_busy_label('Authenticating to the docker hub')
                 auth_conf = get_auth_conf(server)
                 if not server.docker_login(auth_conf):
-                    print 'Re-trying...'
+                    print('Re-trying...')
                     del conf['username']
                     del conf['password']
                     return False
     except socket.error:
-        print 'Network connection to WalT server failed.'
-        print 'The value of \'server\' you entered seems invalid (or the server is down?). Re-trying...'
+        print('Network connection to WalT server failed.')
+        print('The value of \'server\' you entered seems invalid (or the server is down?). Re-trying...')
         del conf['server']
         return False
     return True

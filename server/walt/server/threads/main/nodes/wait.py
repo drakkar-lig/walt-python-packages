@@ -21,7 +21,7 @@ class WaitInfo(object):
             self.tid_to_macs[tid].add(node.mac)
 
     def node_bootup_event(self, node):
-        print 'node bootup', node.name
+        print('node bootup', node.name)
         tids = self.mac_to_tids[node.mac]
         del self.mac_to_tids[node.mac]
         for tid in tids:

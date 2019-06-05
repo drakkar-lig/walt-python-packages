@@ -18,7 +18,7 @@ class LogsConnCache(object):
         return self.conns[stream_name]
     def cleanup(self):
         limit = time() - LOGCONN_CACHE_MIN_DELAY
-        for name, stream in self.conns.items():
+        for name, stream in list(self.conns.items()):
             if stream.last_used < limit:
                 stream.close()
                 del self.conns[name]

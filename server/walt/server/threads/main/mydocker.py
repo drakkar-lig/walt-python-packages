@@ -170,7 +170,7 @@ class DockerHubClient:
                             registry = REGISTRY,
                             reauth   = True)
         except Exception as e:
-            print e
+            print(e)
             requester.stdout.write('FAILED.\n')
             return False
         return True
@@ -208,7 +208,7 @@ class DockerHubClient:
             tag = requests.utils.unquote(elem['name'])
             yield tag
     def get_manifest(self, fullname):
-        print('retrieving manifest from hub: ' + fullname)
+        print(('retrieving manifest from hub: ' + fullname))
         reponame, tag = fullname.split(':')
         token = requests.get(LOGIN_PULL_TEMPLATE.format(repository=reponame), json=True).json()["token"]
         result = requests.get(

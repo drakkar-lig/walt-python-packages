@@ -110,7 +110,7 @@ class SensorLogsMonitor(object):
             stream = stream,
             line = logline
         )
-        print logout.strip()
+        print(logout.strip())
         self.out_dbg_log.write(logout)
         self.out_dbg_log.flush()
         self.walt_logs.write(logout)
@@ -124,11 +124,11 @@ class SensorLogsMonitor(object):
 
 def run():
     if len(sys.argv) != 2:
-        print 'Usage: %s <serial_dev_path>' % sys.argv[0]
+        print('Usage: %s <serial_dev_path>' % sys.argv[0])
         sys.exit()
     serial_dev_path = sys.argv[1]
     if not os.path.exists(serial_dev_path):
-        print 'No such file of directory: %s' % serial_dev_path
+        print('No such file of directory: %s' % serial_dev_path)
         sys.exit()
     sensor_logs_monitor = SensorLogsMonitor(serial_dev_path)
     ev_loop = EventLoop()

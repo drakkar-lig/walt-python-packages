@@ -53,13 +53,13 @@ class ImageShellSession(object):
         # and then tries to commit the container through rpc commands.
         # we have to ensure here that the container was run and completed its job.
         while True:
-            event = self.docker_events.next()
+            event = next(self.docker_events)
             if 'status' not in event:
                 continue
             if event['status'] == 'die' and \
                     self.docker.local.get_container_name(event['id']) == self.container_name:
                 break
-        print 'committing %s...' % self.container_name
+        print('committing %s...' % self.container_name)
         self.docker.local.commit(self.container_name, image_fullname,
                 'Image modified using walt image [cp|shell]')
         if self.image.fullname == image_fullname:

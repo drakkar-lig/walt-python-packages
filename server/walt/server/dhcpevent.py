@@ -4,7 +4,7 @@ from walt.common.apilink import ServerAPILink
 
 def run():
     if sys.argv[1] != 'commit':
-        print 'unexpected dhcp event:', sys.argv[1]
+        print('unexpected dhcp event:', sys.argv[1])
         return
     vci, uci, ip, mac = sys.argv[2:]
     with ServerAPILink('localhost', 'SSAPI') as server:

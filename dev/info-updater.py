@@ -13,14 +13,14 @@ SETUP_INFO = %(setup_info)s
 """
 
 # read __version__ variable
-execfile('common/walt/common/version.py')
+exec(compile(open('common/walt/common/version.py').read(), 'common/walt/common/version.py', 'exec'))
 
 # generate info.py in each pypi package directory
 versions_info = dict(
     upload = __version__
 )
 
-for package_name, package_specific in PACKAGE_SPECIFIC_INFO.items():
+for package_name, package_specific in list(PACKAGE_SPECIFIC_INFO.items()):
     setup_info = OrderedDict()
     setup_info.update(name = package_name)
     version = package_specific['version_str'] % versions_info

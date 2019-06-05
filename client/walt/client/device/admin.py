@@ -38,21 +38,21 @@ Management IP of this switch is unknown. Please specify it:"""
 
 def ask_switch_conf(device_info):
     conf = OrderedDict()
-    print 'Starting switch setup'
-    print '---------------------'
+    print('Starting switch setup')
+    print('---------------------')
     conf['allow_lldp_explore'] = False
     conf['allow_poe_reboot'] = None
     conf['snmp'] = None
     conf['ip'] = device_info['ip']
     if conf['ip'] is None:
-        print MSG_UNKNOWN_MANAGEMENT_IP,
-        conf['ip'] = raw_input()
-        print 'OK.\n'
-    print MSG_EXPLAIN_LLDP_EXPLORE
+        print(MSG_UNKNOWN_MANAGEMENT_IP, end=' ')
+        conf['ip'] = input()
+        print('OK.\n')
+    print(MSG_EXPLAIN_LLDP_EXPLORE)
     if yes_or_no('Is WalT allowed to explore LLDP neighbors of this switch?'):
         conf['allow_lldp_explore'] = True
         conf['allow_poe_reboot'] = False
-        print MSG_EXPLAIN_POE_REBOOT
+        print(MSG_EXPLAIN_POE_REBOOT)
         if yes_or_no('Is this switch PoE-capable?'):
             if yes_or_no(MSG_QUESTION_ALLOW_POE_REBOOT):
                 conf['allow_poe_reboot'] = True
@@ -65,41 +65,41 @@ def ask_switch_conf(device_info):
         # the PoE-related questions are no more meaningful.
         pass
     # confirm
-    print 'Please review the following setup:'
-    print '----------------------------------'
-    print
+    print('Please review the following setup:')
+    print('----------------------------------')
+    print()
     display_conf(conf)
-    print
+    print()
     if confirm('Is it OK?'):
         return conf
     else:
         return None
 
 def ask_snmp_conf():
-    print 'Starting SNMP setup'
-    print '-------------------'
+    print('Starting SNMP setup')
+    print('-------------------')
     possible_values = {
         '1': 'SNMP version 1',
         '2': 'SNMP version 2' }
     version = choose(MSG_INDICATE_SNMP_VERSION, **possible_values)
-    print 'OK.\n'
-    print 'Please indicate the community string WalT should use:',
-    community = raw_input()
-    print 'OK.\n'
+    print('OK.\n')
+    print('Please indicate the community string WalT should use:', end=' ')
+    community = input()
+    print('OK.\n')
     return OrderedDict(
         version = int(version),
         community = community
     )
 
 def display_conf(conf, prefix = ''):
-    for k, v in conf.items():
+    for k, v in list(conf.items()):
         if isinstance(v, OrderedDict):
-            print '%s%s:' % (prefix, k)
+            print('%s%s:' % (prefix, k))
             display_conf(v, prefix + '  ')
         elif v == None:
             continue
         else:
-            print '%s%s: %s' % (prefix, k, str(v))
+            print('%s%s: %s' % (prefix, k, str(v)))
 
 class WalTDeviceAdmin(WalTApplication):
     """configure WalT regarding network switches and unknown devices"""
@@ -111,13 +111,13 @@ class WalTDeviceAdmin(WalTApplication):
             if not device_type:
                 return  # issue already reported
             if device_type not in ('unknown', 'switch'):
-                print MSG_NOT_APPLICABLE % dict(
+                print(MSG_NOT_APPLICABLE % dict(
                     device_name = device_name,
                     device_type = device_type
-                )
+                ))
                 return
             if device_type == 'unknown':
-                print 'WalT could not autodetect the type of this device.\n'
+                print('WalT could not autodetect the type of this device.\n')
                 if yes_or_no('Is it a network switch?', komsg = 'Nothing to do.'):
                     device_type = 'switch'
             if device_type == 'switch':

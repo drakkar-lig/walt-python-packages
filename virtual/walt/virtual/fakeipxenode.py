@@ -24,8 +24,8 @@ def get_qemu_product_name():
 
 def get_env_start():
     if len(sys.argv) != 6:
-        print('Usage: %(prog)s <node_mac> <node_ip> <node_model> <node_name> <server_ip>' % \
-                    dict(prog = sys.argv[0]))
+        print(('Usage: %(prog)s <node_mac> <node_ip> <node_model> <node_name> <server_ip>' % \
+                    dict(prog = sys.argv[0])))
         sys.exit()
     mac, ip, model, name, server_ip = sys.argv[1:]
     return {
@@ -76,7 +76,7 @@ def fake_tftp_read(env, path):
         content = None
     # close file and return
     f.close()
-    print(path + " " + status)
+    print((path + " " + status))
     return content
 
 def remote_curdir(env):
@@ -146,7 +146,7 @@ def execute_line(env, line):
         return True
     # handle "echo" directive
     if words[0] == 'echo':
-        print ' '.join(words[1:])
+        print(' '.join(words[1:]))
         return True
     # handle "chain" directive
     if words[0] == 'chain':
@@ -191,7 +191,7 @@ def execute_line(env, line):
             env["kvm-args"] += " -append '" + kernel_cmdline + "'"
         if words[0] == 'boot':
             cmd = env["kvm-args"] % env
-            print cmd
+            print(cmd)
             subprocess.call(cmd, shell=True)
             return False    # reboot when it exits
         else:
@@ -210,7 +210,7 @@ def execute_line(env, line):
 def random_wait():
     delay = int(random.random()*10) + 1
     while delay > 0:
-        print 'waiting for %ds' % delay
+        print('waiting for %ds' % delay)
         time.sleep(1)
         delay -= 1
 
@@ -230,7 +230,7 @@ def run():
             add_network_info(env)
             execute_line(env, "chain /start.ipxe")
     except NotImplementedError as e:
-        print(str(e))
+        print((str(e)))
         time.sleep(120)
     shutil.rmtree(TMPDIR)
 

@@ -15,7 +15,7 @@ def show(db, docker, images, requester, refresh):
     if refresh:
         images.refresh()
     tabular_data = []
-    for image in images.itervalues():
+    for image in images.values():
         if image.user != username:
             continue
         created_at = image.get_created_at()

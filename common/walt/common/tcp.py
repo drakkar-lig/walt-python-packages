@@ -1,4 +1,4 @@
-import socket, cPickle as pickle
+import socket, pickle as pickle
 from walt.common.tools import set_close_on_exec
 from walt.common.io import SmartFile
 
@@ -121,7 +121,7 @@ class TCPServer(object):
         sock_file = SmartSocketFile(conn_s)
         req_id = Requests.read_id(sock_file)
         if req_id is None or req_id not in self.listener_classes:
-            print 'Invalid request.'
+            print('Invalid request.')
             sock_file.close()
             return
         # create the appropriate listener given the req_id

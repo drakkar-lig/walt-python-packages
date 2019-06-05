@@ -322,7 +322,7 @@ class NodesManager(object):
             requester.stderr.write(format_sentence_about_nodes(
                 MSG_CONNECTIVITY_UNKNOWN, [n.name for n in nodes_unknown]))
         if len(nodes_forbidden) > 0 and warn_poe_forbidden:
-            for sw_name, sw_nodes in nodes_forbidden.items():
+            for sw_name, sw_nodes in list(nodes_forbidden.items()):
                 explain = MSG_POE_REBOOT_UNABLE_EXPLAIN % dict(
                     sw_name = sw_name
                 )
@@ -487,7 +487,7 @@ class NodesManager(object):
             yield False
 
         # Check the node set
-        not_nodes = filter(lambda di: di.type != "node", device_infos)
+        not_nodes = [di for di in device_infos if di.type != "node"]
         if len(not_nodes) > 0:
             msg = format_sentence("%s is(are) not a() node(nodes), "
                                   "so it(they) does(do) not support the 'netsetup' setting.\n",

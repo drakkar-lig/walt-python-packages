@@ -1,4 +1,4 @@
-import re, cPickle as pickle
+import re, pickle as pickle
 from datetime import datetime
 from walt.common.constants import WALT_SERVER_NETCONSOLE_PORT
 from walt.common.tcp import read_pickle, write_pickle, \
@@ -91,8 +91,8 @@ class LogsStreamListener(object):
                 timestamp = timestamp,
                 line = line)
         except BaseException as e:
-            print e
-            print 'Log stream with id %d is being closed.' % self.stream_id
+            print(e)
+            print('Log stream with id %d is being closed.' % self.stream_id)
             # let the event loop know we should 
             # be removed.
             return False
@@ -246,7 +246,7 @@ class LogsToSocketHandler(object):
             write_pickle(d, self.sock_file)
         except IOError as e:
             # the socket was supposedly closed.
-            print "client log connection closing"
+            print("client log connection closing")
             # notify the hub that we should be removed.
             return False
     # let the event loop know what we are reading on
