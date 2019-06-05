@@ -1,4 +1,4 @@
-import json, re, binascii, os
+import json, re, os
 from os.path import expanduser
 from collections import OrderedDict
 from walt.common.tools import read_json
@@ -20,10 +20,10 @@ would be generated again accordingly.
 # (it is readable by the owner only).
 # The docker framework relies on the same policy regarding password storage in
 # .docker/conf.json or .dockercfg.
-KEY="RAND0M STRING T0 HIDE A PASSW0RD"
+KEY=b"RAND0M STRING T0 HIDE A PASSW0RD"
 def xor(password):
-    key = (len(password) / len(KEY) +1)*KEY     # repeat if KEY is too short
-    return "".join(chr(ord(a)^ord(b)) for a,b in zip(key,password))
+    key = (len(password) // len(KEY) +1)*KEY     # repeat if KEY is too short
+    return bytes(a^b for a,b in zip(key,password))
 
 def ask_config_item(key, coded=False):
     msg = '%s: ' % key
@@ -38,10 +38,10 @@ def ask_config_item(key, coded=False):
     return value
 
 def encode(value):
-    return binascii.hexlify(xor(value))
+    return xor(value.encode('UTF-8')).hex()
 
 def decode(coded_value):
-    return xor(binascii.unhexlify(coded_value))
+    return xor(bytes.fromhex(coded_value)).decode('UTF-8')
 
 def get_config_file():
     return expanduser('~/.waltrc')
