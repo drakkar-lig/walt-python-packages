@@ -17,7 +17,7 @@ class LLDPProxy(object):
         chassis_types = dict(self.snmp.lldpRemChassisIdSubtype)
         chassis_values = dict(self.snmp.lldpRemChassisId)
         sys_names = dict(self.snmp.lldpRemSysName)
-        ip_info = set(self.snmp.lldpRemManAddrIfSubtype)
+        ip_info = list(self.snmp.lldpRemManAddrIfSubtype)
 
         # retrieve mac address and sysname of neighbors
         for neighbor_key in chassis_types:
@@ -48,7 +48,7 @@ class LLDPProxy(object):
 
     def get_local_ips(self):
         ips = []
-        ip_info = set(self.snmp.lldpLocManAddrIfSubtype)
+        ip_info = list(self.snmp.lldpLocManAddrIfSubtype)
         for subtype, encoded_ip in ip_info:
             if enum_label(subtype).lower() == 'ipv4':
                 ips.append(decode_ipv4_address(encoded_ip))

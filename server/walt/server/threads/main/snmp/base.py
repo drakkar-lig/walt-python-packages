@@ -49,11 +49,11 @@ def unload_any_of_these_mibs(mibs):
             unload_mib(mib)
 
 def decode_ipv4_address(octet_string):
-    return '.'.join([str(ord(i)) for i in octet_string])
+    return '.'.join(str(i) for i in octet_string)
 
 def decode_mac_address(octet_string):
     return ':'.join(re.findall('..', octet_string.encode('hex')))
 
 def enum_label(enum):
-    return enum.entity.enum[enum]
+    return enum.entity.enum[enum.real]
 
