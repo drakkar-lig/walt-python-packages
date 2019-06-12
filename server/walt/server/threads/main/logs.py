@@ -149,17 +149,17 @@ class NetconsoleListener(object):
             # Second list element is the current pending message for this sender
             # (in some cases we may receive a line in multiple parts before getting
             # the end-of-line char)
-            self.sender_info[sender_ip] = [stream_id, '']
+            self.sender_info[sender_ip] = [stream_id, b'']
         stream_id, cur_msg = self.sender_info[sender_ip]
         cur_msg += msg
         # log terminated lines
-        lines = cur_msg.split('\n')
+        lines = cur_msg.split(b'\n')
         if len(lines) > 1:
             timestamp = ts
             if not isinstance(timestamp, datetime):
                 timestamp = datetime.fromtimestamp(timestamp)
             for line in lines[:-1]: # terminated lines
-                record = dict(timestamp=timestamp, line=line, stream_id=stream_id)
+                record = dict(timestamp=timestamp, line=line.decode('ascii'), stream_id=stream_id)
                 self.hub.log(**record)
         # update current message of this sender
         cur_msg = lines[-1] # last line (unterminated one)
