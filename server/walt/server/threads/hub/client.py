@@ -50,10 +50,10 @@ class APISessionManager(object):
             pass
     def init_session(self):
         try:
-            self.target_api = self.sock_file.readline().strip()
+            self.target_api = self.sock_file.readline().decode('UTF-8').strip()
             self.session_id = self.rpc_session.sync.create_session(
                                 self.target_api, self.remote_ip)
-            self.sock_file.write("%d\n" % int(__version__))
+            self.sock_file.write(b"%d\n" % int(__version__))
             return True
         except:
             return False
