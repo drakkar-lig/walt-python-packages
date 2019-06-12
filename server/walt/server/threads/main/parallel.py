@@ -37,7 +37,7 @@ class ParallelProcessSocketListener(object):
         self.slave_sock_file = None
         self.send_client('READY\n')
     def send_client(self, s):
-        self.client_sock_file.write(s)
+        self.client_sock_file.write(s.encode('UTF-8'))
     def update_params(self):
         pass  # override in subclasses if needed
     def prepare(self, **params):
