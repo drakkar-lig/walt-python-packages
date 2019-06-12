@@ -43,11 +43,11 @@ server.%: common.%
 node.%: common.%
 
 %.clean: %.info
-	@cd $*; pwd; python setup.py clean --all
+	@cd $*; pwd; python3 setup.py clean --all
 
 %.install: %.info
 	@$(MAKE) $*.uninstall
-	@cd $*; pwd; python setup.py bdist_wheel && sudo -H `which pip` install .
+	@cd $*; pwd; python3 setup.py bdist_wheel && sudo -H `which pip3` install .
 
 %.info:
 	@$(MAKE) $*/walt/$*/info.py
@@ -60,7 +60,7 @@ clean:
 	find . -name \*.pyc -delete
 
 %.uninstall:
-	@pip show walt-$* >/dev/null && sudo -H `which pip` uninstall -y walt-$* || true
+	@pip3 show walt-$* >/dev/null && sudo -H `which pip3` uninstall -y walt-$* || true
 
 upload:
 	@./dev/upload.sh $(ALL_PACKAGES)
