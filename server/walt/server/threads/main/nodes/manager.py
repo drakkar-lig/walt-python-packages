@@ -60,7 +60,7 @@ class ServerToNodeLink:
 
     def request(self, req):
         try:
-            self.conn.send(req + '\n')
+            self.conn.send(req.encode('ascii') + b'\n')
             resp = self.rfile.readline().split(' ',1)
             resp = tuple(part.strip() for part in resp)
             if resp[0] == 'OK':
@@ -68,7 +68,7 @@ class ServerToNodeLink:
             elif len(resp) == 2:
                 return (False, resp[1])
             else:
-                return (False, 'Node did not acknowledge reboot request.')
+                return (False, 'Node did not acknowledge "%s" request.' % req)
         except socket.timeout:
             return (False, 'Connection timeout.')
         except socket.error:
