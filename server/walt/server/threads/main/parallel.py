@@ -66,8 +66,8 @@ class ParallelProcessSocketListener(object):
             os.execvpe(cmd_args[0], cmd_args, env)
         # the parent should communicate.
         # use unbuffered communication with the slave process
-        slave_r = os.fdopen(os.dup(fd_slave), 'r', 0)
-        slave_w = os.fdopen(os.dup(fd_slave), 'w', 0)
+        slave_r = os.fdopen(os.dup(fd_slave), 'rb', 0)
+        slave_w = os.fdopen(os.dup(fd_slave), 'wb', 0)
         self.slave_sock_file = SmartFile(slave_r, slave_w)
         # create a new listener on the event loop for reading
         # what the slave process outputs
