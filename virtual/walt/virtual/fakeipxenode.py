@@ -5,6 +5,7 @@ from walt.common.tcp import write_pickle, client_sock_file, \
                             Requests
 from walt.common.constants import WALT_SERVER_TCP_PORT
 
+OS_ENCODING = sys.stdout.encoding
 MANUFACTURER = "QEMU"
 KVM_RAM = 512
 KVM_CORES = 4
@@ -18,7 +19,7 @@ KVM_ARGS = "kvm -m " + str(KVM_RAM) + "\
                 -no-reboot"
 
 def get_qemu_product_name():
-    line = subprocess.check_output('kvm -machine help | grep default', shell=True)
+    line = subprocess.check_output('kvm -machine help | grep default', shell=True).decode(OS_ENCODING)
     line = line.replace('(default)', '')
     return line.split(' ', 1)[1].strip()
 
@@ -66,17 +67,20 @@ def fake_tftp_read(env, path):
             node_mac=env['mac'],
             path=remote_absname(env, path)), f)
     # receive status
-    status = f.readline().strip()
+    status = f.readline().decode('UTF-8').strip()
     if status == 'OK':
         # read size
         size = int(f.readline().strip())
+        print(path, size)
         # receive content
-        content = f.read(size)
+        content = b''
+        while len(content) < size:
+            content += f.read(size - len(content))
     else:
         content = None
     # close file and return
     f.close()
-    print((path + " " + status))
+    print(path + " " + status)
     return content
 
 def remote_curdir(env):
@@ -157,7 +161,7 @@ def execute_line(env, line):
         # when executing a script, relative paths will be interpreted
         # as being relative to the path of the script itself
         remote_cd(env, remote_dirname(env, path))
-        for line in content.splitlines():
+        for line in content.decode(OS_ENCODING).splitlines():
             if not execute_line(env, line):
                 return False
         remote_revert_cd(env)
