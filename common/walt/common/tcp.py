@@ -32,7 +32,7 @@ class Requests(object):
     @staticmethod
     def read_id(stream):
         try:
-            return Requests.get_id(stream.readline().strip())
+            return Requests.get_id(stream.readline().decode('ascii').strip())
         except:
             return None
     @staticmethod
