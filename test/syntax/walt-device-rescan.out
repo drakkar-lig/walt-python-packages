@@ -1,0 +1,8 @@
+rescan the network devices involved in the platform
+
+Usage:
+    walt device rescan [SWITCHES] [device_set=server,explorable-switches]
+
+Meta-switches:
+    -h, --help      Prints this help message and quits
+

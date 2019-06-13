@@ -1,0 +1,29 @@
+
+WalT platform control tool
+-> WalT node management sub-commands
+
+Usage:
+    walt node SUBCOMMAND [args...]
+
+Help about a given subcommand:
+    walt node SUBCOMMAND --help
+
+Help about WalT in general:
+    walt help show
+
+Sub-commands:
+    blink   make a node blink for a given number of seconds
+    boot    let a (set of) node(s) boot an operating system image
+    config  Set nodes configuration
+    cp      transfer files/dirs (client machine <-> node)
+    create  create a virtual WalT node
+    deploy  alias to 'boot' subcommand
+    expose  expose a network port of a node on the local machine
+    ping    check that a node is reachable on WalT network
+    reboot  reboot a (set of) node(s)
+    remove  remove a virtual WalT node
+    rename  rename a WalT node
+    run     run a command on a (set of) node(s)
+    shell   run an interactive shell connected to the node
+    show    show WalT nodes
+    wait    wait for bootup notification of a node (or set of nodes)

@@ -1,0 +1,11 @@
+fix the owner of images
+
+Usage:
+    walt advanced fix-image-owner [SWITCHES] other_user
+
+Meta-switches:
+    -h, --help                     Prints this help message and quits
+
+Switches:
+    --yes-i-know-do-it-please      yes, I know, do it!
+

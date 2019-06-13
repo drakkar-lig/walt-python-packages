@@ -1,0 +1,8 @@
+Set nodes configuration
+
+Usage:
+    walt node config [SWITCHES] node_set configuration...
+
+Meta-switches:
+    -h, --help      Prints this help message and quits
+

@@ -1,0 +1,18 @@
+
+WalT platform control tool
+-> advanced sub-commands
+
+Usage:
+    walt advanced SUBCOMMAND [args...]
+
+Help about a given subcommand:
+    walt advanced SUBCOMMAND --help
+
+Help about WalT in general:
+    walt help show
+
+Sub-commands:
+    fix-image-owner     fix the owner of images
+    rescan-hub-account  alias to 'update-hub-meta' subcommand
+    sql                 Start a remote SQL prompt on the WalT server database
+    update-hub-meta     update hub metadata (docker images pushed without walt)

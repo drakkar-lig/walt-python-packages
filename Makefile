@@ -69,3 +69,7 @@ upload:
 	@$(MAKE) $*.uninstall
 	@sudo -H ./dev/pull.sh $*
 
+test:
+	@./dev/test.sh
+
+.PHONY: test

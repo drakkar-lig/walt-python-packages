@@ -1,0 +1,11 @@
+let the WalT system forget about an obsolete device
+
+Usage:
+    walt device forget [SWITCHES] device_name
+
+Meta-switches:
+    -h, --help      Prints this help message and quits
+
+Switches:
+    --force         do it, even if related data will be lost
+

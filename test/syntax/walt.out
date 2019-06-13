@@ -1,0 +1,20 @@
+
+WalT platform control tool.
+
+Usage:
+    walt CATEGORY SUBCOMMAND [args...]
+
+Help about a given category or subcommand:
+    walt CATEGORY --help
+    walt CATEGORY SUBCOMMAND --help
+
+Help about WalT in general:
+    walt help show
+
+Categories:
+    advanced  advanced sub-commands
+    device    management of WalT platform devices
+    help      help sub-commands
+    image     management of WalT-nodes operating system images
+    log       management of logs
+    node      WalT node management sub-commands

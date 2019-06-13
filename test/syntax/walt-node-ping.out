@@ -1,0 +1,8 @@
+check that a node is reachable on WalT network
+
+Usage:
+    walt node ping [SWITCHES] node_name
+
+Meta-switches:
+    -h, --help      Prints this help message and quits
+

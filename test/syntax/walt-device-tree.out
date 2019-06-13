@@ -1,0 +1,11 @@
+print the network structure of the platform
+
+Usage:
+    walt device tree [SWITCHES] 
+
+Meta-switches:
+    -h, --help      Prints this help message and quits
+
+Switches:
+    --all           show all devices detected
+

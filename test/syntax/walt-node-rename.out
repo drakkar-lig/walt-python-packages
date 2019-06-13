@@ -1,0 +1,8 @@
+rename a WalT node
+
+Usage:
+    walt node rename [SWITCHES] old_node_name new_node_name
+
+Meta-switches:
+    -h, --help      Prints this help message and quits
+

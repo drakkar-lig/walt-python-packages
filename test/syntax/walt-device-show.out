@@ -1,0 +1,8 @@
+print details about devices involved in the platform
+
+Usage:
+    walt device show [SWITCHES] 
+
+Meta-switches:
+    -h, --help      Prints this help message and quits
+

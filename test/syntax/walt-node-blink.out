@@ -1,0 +1,8 @@
+make a node blink for a given number of seconds
+
+Usage:
+    walt node blink [SWITCHES] node_name [duration=60]
+
+Meta-switches:
+    -h, --help      Prints this help message and quits
+

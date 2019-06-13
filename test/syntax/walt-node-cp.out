@@ -1,0 +1,8 @@
+transfer files/dirs (client machine <-> node)
+
+Usage:
+    walt node cp [SWITCHES] src dst
+
+Meta-switches:
+    -h, --help      Prints this help message and quits
+

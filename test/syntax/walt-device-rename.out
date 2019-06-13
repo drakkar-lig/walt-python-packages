@@ -1,0 +1,8 @@
+rename a device
+
+Usage:
+    walt device rename [SWITCHES] old_name new_name
+
+Meta-switches:
+    -h, --help      Prints this help message and quits
+

@@ -1,0 +1,8 @@
+search for remote WalT node OS images
+
+Usage:
+    walt image search [SWITCHES] [keyword=None]
+
+Meta-switches:
+    -h, --help      Prints this help message and quits
+

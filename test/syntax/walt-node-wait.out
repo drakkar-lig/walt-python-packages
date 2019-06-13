@@ -1,0 +1,8 @@
+wait for bootup notification of a node (or set of nodes)
+
+Usage:
+    walt node wait [SWITCHES] node_set
+
+Meta-switches:
+    -h, --help      Prints this help message and quits
+

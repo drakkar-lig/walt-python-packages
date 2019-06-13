@@ -1,0 +1,11 @@
+run a command on a (set of) node(s)
+
+Usage:
+    walt node run [SWITCHES] node_set cmdargs...
+
+Meta-switches:
+    -h, --help      Prints this help message and quits
+
+Switches:
+    --term          run command in a pseudo-terminal
+

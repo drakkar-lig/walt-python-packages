@@ -1,0 +1,8 @@
+check that a device is reachable on WalT network
+
+Usage:
+    walt device ping [SWITCHES] device_name
+
+Meta-switches:
+    -h, --help      Prints this help message and quits
+

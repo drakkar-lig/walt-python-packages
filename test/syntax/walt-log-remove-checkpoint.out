@@ -1,0 +1,8 @@
+Remove a checkpoint
+
+Usage:
+    walt log remove-checkpoint [SWITCHES] checkpoint_name
+
+Meta-switches:
+    -h, --help      Prints this help message and quits
+

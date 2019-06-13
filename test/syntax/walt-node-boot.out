@@ -1,0 +1,8 @@
+let a (set of) node(s) boot an operating system image
+
+Usage:
+    walt node boot [SWITCHES] node_set image_name_or_default
+
+Meta-switches:
+    -h, --help      Prints this help message and quits
+

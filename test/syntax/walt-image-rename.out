@@ -1,0 +1,8 @@
+rename an image of your working set
+
+Usage:
+    walt image rename [SWITCHES] image_name new_image_name
+
+Meta-switches:
+    -h, --help      Prints this help message and quits
+

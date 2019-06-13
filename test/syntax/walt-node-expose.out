@@ -1,0 +1,8 @@
+expose a network port of a node on the local machine
+
+Usage:
+    walt node expose [SWITCHES] node_name node_port local_port
+
+Meta-switches:
+    -h, --help      Prints this help message and quits
+

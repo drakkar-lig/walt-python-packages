@@ -1,0 +1,11 @@
+reboot a (set of) node(s)
+
+Usage:
+    walt node reboot [SWITCHES] node_set
+
+Meta-switches:
+    -h, --help      Prints this help message and quits
+
+Switches:
+    --hard          try hard-reboot (PoE) if soft-reboot fails
+

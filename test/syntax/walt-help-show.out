@@ -1,0 +1,8 @@
+Displays help about a given topic
+
+Usage:
+walt help show [topic=help-intro]
+
+Meta-switches:
+    -h, --help      Prints this help message and quits
+
