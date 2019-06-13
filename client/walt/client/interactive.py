@@ -2,6 +2,7 @@
 import sys
 from sys import stdin, stdout
 from select import select
+from socket import SHUT_WR
 from walt.client.config import conf
 from walt.client.term import TTYSettings
 from walt.common.constants import WALT_SERVER_TCP_PORT
@@ -47,19 +48,19 @@ class PromptClient(object):
 
     def run(self):
         # we will wait on 2 file descriptors
-        select_args = [ [ stdin, self.sock_file ], [], [ stdin, self.sock_file ] ]
+        fds = [ stdin, self.sock_file ]
 
         # this is the main trick when trying to provide a virtual
         # terminal remotely: the client should set its own terminal
         # in 'raw' mode, in order to avoid interpreting any escape
-        # sequence (ctrl-r, etc.). These sequences should just be 
-        # forwarded up to the terminal running on the server, and 
+        # sequence (ctrl-r, etc.). These sequences should just be
+        # forwarded up to the terminal running on the server, and
         # this remote terminal will interpret them.
         # Also, echo-ing what is typed should be disabled at the
         # client side, otherwise it would be echo-ed twice.
         # It is better to consider that the server terminal will
         # handle all outputs, otherwise the synchronization between
-        # the output coming from the client (echo) and from the 
+        # the output coming from the client (echo) and from the
         # server (command outputs, prompts) will not be perfect
         # because of network latency. Thus we let the server terminal
         # handle the echo.
@@ -67,8 +68,8 @@ class PromptClient(object):
             self.tty_settings.set_raw_no_echo()
         try:
             while True:
-                rlist, wlist, elist = select(*select_args)
-                if len(elist) > 0 or len(rlist) == 0:
+                rlist, wlist, elist = select(fds, [], fds)
+                if len(elist) > 0 and len(rlist) == 0:
                     break
                 fd = rlist[0].fileno()
                 if fd == self.sock_file.fileno():
@@ -76,7 +77,10 @@ class PromptClient(object):
                         break
                 else:
                     if read_and_copy(self.stdin_reader, self.sock_file) == False:
-                        break
+                        # stdin was probably closed, inform the server input is ending
+                        # and continue by reading socket only
+                        self.sock_file.shutdown(SHUT_WR)
+                        fds = [ self.sock_file ]
         finally:
             if self.client_tty:
                 self.tty_settings.restore()
