@@ -2,7 +2,8 @@
 """
 WalT (wireless testbed) control tool.
 """
-import sys, socket
+import socket
+import walt.client.perffix
 from walt.common.apilink import LinkException
 from walt.common.update import check_auto_update
 from walt.client.myhelp import WalTHelp
