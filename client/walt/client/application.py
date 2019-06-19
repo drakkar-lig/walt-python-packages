@@ -1,23 +1,17 @@
 #!/usr/bin/env python
-from plumbum import cli
-from plumbum.lib import getdoc
+import walt.client.climax as cli
 
 class WalTApplication(cli.Application):
     pass
 
-WalTApplication.unbind_switches("-v", "--version", "--help-all")
-
 class WalTToolboxApplication(WalTApplication):
-    @cli.switch(
-        ["-h", "--help"],
-        group="Meta-switches")
     def help(self):
         """Prints this help message and quits"""
         print((self.get_help_prefix().rstrip()))
         subitems = []
         for name, subcls in sorted(self._subcommands.items()):
             subapp = subcls.get()
-            doc = subapp.DESCRIPTION if subapp.DESCRIPTION else getdoc(subapp)
+            doc = subapp.DESCRIPTION if subapp.DESCRIPTION else cli.getdoc(subapp)
             subitems.append((name, doc))
         max_name_len = max(len(name) for name, doc in subitems)
         format_str = '    %-' + str(max_name_len) + 's  %s'
@@ -49,5 +43,5 @@ class WalTCategoryApplication(WalTToolboxApplication):
     def get_category_name(self):
         return self.PROGNAME.split()[-1]
     def get_category_short_desc(self):
-        return self.DESCRIPTION if self.DESCRIPTION else getdoc(self)
+        return self.DESCRIPTION if self.DESCRIPTION else cli.getdoc(self)
 

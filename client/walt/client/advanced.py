@@ -1,4 +1,4 @@
-from plumbum import cli
+import walt.client.climax as cli
 from walt.client.link import ClientToServerLink
 from walt.client.interactive import run_sql_prompt
 from walt.client.auth import get_auth_conf

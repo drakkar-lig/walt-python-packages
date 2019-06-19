@@ -1,6 +1,6 @@
 import contextlib
 import time, sys
-from plumbum import cli
+import walt.client.climax as cli
 from walt.client.device import WalTDevice
 
 from walt.common.tools import format_sentence_about_nodes

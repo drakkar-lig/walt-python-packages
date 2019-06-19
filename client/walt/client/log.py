@@ -2,7 +2,7 @@ import sys, re, datetime, pickle
 from walt.common.constants import WALT_SERVER_TCP_PORT
 from walt.common.tcp import read_pickle, write_pickle, client_sock_file, \
                             Requests
-from plumbum import cli
+import walt.client.climax as cli
 from walt.client.application import WalTCategoryApplication, WalTApplication
 from walt.client.config import conf
 from walt.client.link import ClientToServerLink

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import os, sys
-from plumbum import cli
+import walt.client.climax as cli
 from walt.client.link import ClientToServerLink
 from walt.client.tools import confirm
 from walt.client.interactive import run_image_shell_prompt

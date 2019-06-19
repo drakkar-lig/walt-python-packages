@@ -1,4 +1,4 @@
-from plumbum import cli
+import walt.client.climax as cli
 from walt.client.link import ClientToServerLink
 from walt.client.interactive import run_device_ping
 from walt.client.device.admin import WalTDeviceAdmin
