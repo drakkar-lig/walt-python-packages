@@ -74,7 +74,10 @@ PACKAGE_SPECIFIC_INFO = {
             description = "WalT components related to virtualization.",
             entry_points = {
                 'console_scripts': [
-                    'walt-fake-ipxe-node = walt.virtual.fakeipxenode:run'
+                    'walt-fake-ipxe-node = walt.virtual.fakeipxenode:run',
+                    'walt-vpn-server = walt.virtual.vpn.server:run',
+                    'walt-vpn-endpoint = walt.virtual.vpn.endpoint:run',
+                    'walt-vpn-client = walt.virtual.vpn.client:run'
                 ]
             }
         )
