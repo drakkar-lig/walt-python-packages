@@ -1,0 +1,23 @@
+
+WalT platform control tool
+-> management of WalT-nodes operating system images
+
+Usage:
+    walt image SUBCOMMAND [args...]
+
+Help about a given subcommand:
+    walt image SUBCOMMAND --help
+
+Help about WalT in general:
+    walt help show
+
+Sub-commands:
+    clone      clone a remote image into your working set
+    cp         transfer files (client machine <-> image)
+    duplicate  duplicate an image of your working set
+    publish    publish a WalT image on the docker hub
+    remove     remove an image from your working set
+    rename     rename an image of your working set
+    search     search for remote WalT node OS images
+    shell      modify an image through an interactive shell
+    show       display your working set of walt images

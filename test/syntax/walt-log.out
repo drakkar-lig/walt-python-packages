@@ -1,0 +1,19 @@
+
+WalT platform control tool
+-> management of logs
+
+Usage:
+    walt log SUBCOMMAND [args...]
+
+Help about a given subcommand:
+    walt log SUBCOMMAND --help
+
+Help about WalT in general:
+    walt help show
+
+Sub-commands:
+    add-checkpoint     Record a checkpoint (reference point in time)
+    list-checkpoints   List checkpoints
+    remove-checkpoint  Remove a checkpoint
+    show               Dump logs on standard output
+    wait               Wait for a given log line

@@ -1,0 +1,8 @@
+remove an image from your working set
+
+Usage:
+    walt image remove [SWITCHES] image_name
+
+Meta-switches:
+    -h, --help      Prints this help message and quits
+

@@ -1,0 +1,11 @@
+alias to 'update-hub-meta' subcommand
+
+Usage:
+    walt advanced rescan-hub-account [SWITCHES] 
+
+Meta-switches:
+    -h, --help               Prints this help message and quits
+
+Switches:
+    --waltplatform-user      update waltplatform user (walt devs only)
+

@@ -1,0 +1,8 @@
+remove a virtual WalT node
+
+Usage:
+    walt node remove [SWITCHES] node_name
+
+Meta-switches:
+    -h, --help      Prints this help message and quits
+

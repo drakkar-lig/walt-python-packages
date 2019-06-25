@@ -1,0 +1,8 @@
+run an interactive shell connected to the node
+
+Usage:
+    walt node shell [SWITCHES] node_name
+
+Meta-switches:
+    -h, --help      Prints this help message and quits
+

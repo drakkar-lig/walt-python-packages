@@ -1,0 +1,8 @@
+transfer files (client machine <-> image)
+
+Usage:
+    walt image cp [SWITCHES] src dst
+
+Meta-switches:
+    -h, --help      Prints this help message and quits
+

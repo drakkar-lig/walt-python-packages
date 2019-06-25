@@ -1,0 +1,8 @@
+Displays the list of help topics
+
+Usage:
+    walt help list [SWITCHES] 
+
+Meta-switches:
+    -h, --help      Prints this help message and quits
+

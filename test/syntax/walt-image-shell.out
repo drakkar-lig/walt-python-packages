@@ -1,0 +1,8 @@
+modify an image through an interactive shell
+
+Usage:
+    walt image shell [SWITCHES] image_name
+
+Meta-switches:
+    -h, --help      Prints this help message and quits
+

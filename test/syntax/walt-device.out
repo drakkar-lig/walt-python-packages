@@ -1,0 +1,22 @@
+
+WalT platform control tool
+-> management of WalT platform devices
+
+Usage:
+    walt device SUBCOMMAND [args...]
+
+Help about a given subcommand:
+    walt device SUBCOMMAND --help
+
+Help about WalT in general:
+    walt help show
+
+Sub-commands:
+    admin   configure WalT regarding network switches and unknown devices
+    config  Set devices configuration
+    forget  let the WalT system forget about an obsolete device
+    ping    check that a device is reachable on WalT network
+    rename  rename a device
+    rescan  rescan the network devices involved in the platform
+    show    print details about devices involved in the platform
+    tree    print the network structure of the platform

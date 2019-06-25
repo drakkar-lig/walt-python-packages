@@ -1,0 +1,11 @@
+show WalT nodes
+
+Usage:
+    walt node show [SWITCHES] 
+
+Meta-switches:
+    -h, --help      Prints this help message and quits
+
+Switches:
+    --all           show nodes used by other users too
+

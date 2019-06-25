@@ -1,0 +1,8 @@
+alias to 'boot' subcommand
+
+Usage:
+    walt node deploy [SWITCHES] node_set image_name_or_default
+
+Meta-switches:
+    -h, --help      Prints this help message and quits
+

@@ -1,0 +1,11 @@
+update hub metadata (docker images pushed without walt)
+
+Usage:
+    walt advanced update-hub-meta [SWITCHES] 
+
+Meta-switches:
+    -h, --help               Prints this help message and quits
+
+Switches:
+    --waltplatform-user      update waltplatform user (walt devs only)
+

@@ -1,0 +1,11 @@
+display your working set of walt images
+
+Usage:
+    walt image show [SWITCHES] 
+
+Meta-switches:
+    -h, --help      Prints this help message and quits
+
+Switches:
+    --refresh       resync image list from Docker daemon.
+

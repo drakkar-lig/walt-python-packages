@@ -1,0 +1,8 @@
+List checkpoints
+
+Usage:
+    walt log list-checkpoints [SWITCHES] 
+
+Meta-switches:
+    -h, --help      Prints this help message and quits
+

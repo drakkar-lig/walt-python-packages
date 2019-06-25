@@ -1,0 +1,15 @@
+Dump logs on standard output
+
+Usage:
+    walt log show [SWITCHES] [logline_regexp=None]
+
+Meta-switches:
+    -h, --help                        Prints this help message and quits
+
+Switches:
+    --format LOG_FORMAT:str           format used to print logs (see walt help show log-format); the default is {timestamp:%H:%M:%S.%f} {sender}.{stream} -> {line}
+    --history HISTORY_RANGE:str       history range to be retrieved (see walt help show log-history); the default is none
+    --nodes SET_OF_NODES:str          targeted nodes (see walt help show node-terminology); the default is my-nodes
+    --realtime                        enable realtime mode (see walt help show log-realtime)
+    --streams STREAMS_REGEXP:str      selected log streams (as a regular expr.)
+

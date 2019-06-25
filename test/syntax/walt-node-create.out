@@ -1,0 +1,8 @@
+create a virtual WalT node
+
+Usage:
+    walt node create [SWITCHES] node_name
+
+Meta-switches:
+    -h, --help      Prints this help message and quits
+

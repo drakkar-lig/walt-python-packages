@@ -1,0 +1,11 @@
+Record a checkpoint (reference point in time)
+
+Usage:
+    walt log add-checkpoint [SWITCHES] checkpoint_name
+
+Meta-switches:
+    -h, --help            Prints this help message and quits
+
+Switches:
+    --date VALUE:str      Sets an attribute
+

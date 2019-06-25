@@ -1,0 +1,16 @@
+
+WalT platform control tool
+-> help sub-commands
+
+Usage:
+    walt help SUBCOMMAND [args...]
+
+Help about a given subcommand:
+    walt help SUBCOMMAND --help
+
+Help about WalT in general:
+    walt help show
+
+Sub-commands:
+    list  Displays the list of help topics
+    show  Displays help about a given topic
