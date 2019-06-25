@@ -58,7 +58,6 @@ PACKAGE_SPECIFIC_INFO = {
             entry_points = {
                 'console_scripts': [
                     'walt-server-daemon = walt.server.daemon:run',
-                    'walt-server-console = walt.server.ui.console:run',
                     'walt-dhcp-event = walt.server.dhcpevent:run',
                     'walt-net-config = walt.server.netconfig:run'
                 ]
