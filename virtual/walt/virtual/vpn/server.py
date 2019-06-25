@@ -7,6 +7,25 @@ from walt.virtual.vpn.const import VPN_SOCK_PATH, VPN_SOCK_BACKLOG
 
 BRIDGE_INTF = "walt-net"
 
+# prepare the VPN server socket
+def listen_socket():
+    listen_fds = os.environ.get('LISTEN_FDS')
+    if listen_fds is None:
+        print('standalone mode')
+        # open the socket file ourselves
+        sock_path = Path(VPN_SOCK_PATH)
+        if sock_path.exists():
+            sock_path.unlink()
+        s_serv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        s_serv.bind(VPN_SOCK_PATH)
+        s_serv.listen(VPN_SOCK_BACKLOG)
+        sock_path.chmod(0o666)  # allow other users to connect
+    else:
+        print('systemd socket activation mode')
+        # we know our socket fd is 3
+        s_serv = socket.fromfd(3, socket.AF_UNIX, socket.SOCK_STREAM)
+    return s_serv
+
 def run():
     # Create TAP
     tap, tap_name = createtap()
@@ -17,14 +36,7 @@ def run():
 
     print('added ' + tap_name + ' to bridge ' + BRIDGE_INTF)
 
-    # create the VPN server socket
-    sock_path = Path(VPN_SOCK_PATH)
-    if sock_path.exists():
-        sock_path.unlink()
-    s_serv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    s_serv.bind(VPN_SOCK_PATH)
-    s_serv.listen(VPN_SOCK_BACKLOG)
-    sock_path.chmod(0o777)  # allow other users to connect
+    s_serv = listen_socket()
 
     # start select loop
     # we will just:

@@ -1,0 +1,2 @@
+include walt/virtual/setup/*.service
+include walt/virtual/setup/*.socket

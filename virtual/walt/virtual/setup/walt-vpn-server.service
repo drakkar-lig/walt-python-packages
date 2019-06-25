@@ -1,0 +1,14 @@
+# walt-vpn-server - WalT network VPN server
+#
+# This daemon allows distant walt nodes to connect to walt-net.
+#
+# It will be activated on first connexion to /var/run/walt-vpn.sock
+# (see file walt-vpn-server.socket)
+
+[Unit]
+Description=WalT network VPN server
+
+[Service]
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/local/bin/walt-vpn-server
+Restart=on-failure
