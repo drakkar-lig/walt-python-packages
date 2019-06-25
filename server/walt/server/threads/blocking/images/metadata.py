@@ -21,9 +21,9 @@ def collect_user_metadata(docker, user):
     return { 'walt.user.images': walt_images }
 
 def push_user_metadata(docker, dh_peer, auth_conf, requester, user, metadata):
-    encoded = base64.b64encode(json.dumps(metadata))
-    content = USER_METADATA_DOCKERFILE % dict(metadata = encoded)
-    dockerfile = BytesIO(content.encode('utf-8'))
+    encoded = base64.b64encode(json.dumps(metadata).encode('UTF-8'))
+    content = USER_METADATA_DOCKERFILE % { b'metadata': encoded }
+    dockerfile = BytesIO(content)
     fullname = '%(user)s/walt_metadata:latest' % dict(user = user)
     docker.local.build(fileobj=dockerfile, rm=True, tag=fullname)
     docker.hub.push(fullname, dh_peer, auth_conf, requester)
@@ -34,7 +34,7 @@ def pull_user_metadata(docker, user):
         labels = docker.hub.get_labels(
                 '%(user)s/walt_metadata:latest' % dict(user = user))
         encoded = labels['metadata']
-        return json.loads(base64.b64decode(encoded))
+        return json.loads(base64.b64decode(encoded).decode('UTF-8'))
     except:     # user did not push metadata yet
         return { 'walt.user.images': {} }
 
