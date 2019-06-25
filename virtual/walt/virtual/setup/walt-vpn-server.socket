@@ -1,0 +1,5 @@
+[Socket]
+ListenStream=/var/run/walt-vpn.sock
+
+[Install]
+WantedBy = sockets.target
