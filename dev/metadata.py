@@ -57,6 +57,7 @@ PACKAGE_SPECIFIC_INFO = {
             description = "WalT server components.",
             entry_points = {
                 'console_scripts': [
+                    'walt-server-setup = walt.server.setup:run',
                     'walt-server-daemon = walt.server.daemon:run',
                     'walt-dhcp-event = walt.server.dhcpevent:run',
                     'walt-net-config = walt.server.netconfig:run'

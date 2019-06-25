@@ -1,1 +1,2 @@
 include walt/server/threads/main/images/walt-*
+include walt/server/setup/*.service
