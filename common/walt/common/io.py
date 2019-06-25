@@ -42,10 +42,10 @@ class SmartFile(object):
                     i -= 1
                     break
                 chars[i] = self.file_r.read(1)
-                if chars[i] == '':
+                if chars[i] == b'':
                     break   # empty read
         except:
-            chars[i] = ''
+            chars[i] = b''
         return b''.join(chars[:i+1])
     def __getattr__(self, attr):
         if attr in ('write', 'flush'):
