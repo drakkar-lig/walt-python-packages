@@ -1,4 +1,4 @@
-import bz2, sys, curses
+import bz2, sys, os
 from itertools import zip_longest
 from walt.client.term import TTYSettings
 
@@ -6,6 +6,8 @@ LOGO_DATA = bz2.decompress(b'BZh91AY&SY\xc9\x16Q\x9f\x00\x06\xb4ky\x00\x10\x00\x
 LOGO_WIDTH = 32
 
 def try_add_logo(left_text):
+    if not os.isatty(1):
+        return left_text    # failed, cannot add logo
     tty = TTYSettings()
     # verify if terminal seems to handle 256 colors at least
     if tty.num_colors < 256:
