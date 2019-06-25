@@ -1,0 +1,32 @@
+# walt-server - WalT platform server daemon
+#
+# The WalT platform provides a lightweight distributed testbed for
+# sensor networks, distributed protocols, distributed data
+# management.
+
+[Unit]
+Description=WalT server daemon
+# needs lldp
+Requires=lldpd.service
+After=lldpd.service
+# needs ptpd, but we must be initialized (ip on walt-net)
+# otherwise ptpd will fail to start (thus the 'Before=',
+# and the 'Type=notify' below).
+Wants=ptpd.service
+Before=ptpd.service
+
+[Service]
+# After the initialization phase, we will notify systemd
+# that we are started successfully.
+Type=notify
+NotifyAccess=all
+# no startup timeout, because it can take a long time
+# if the user is installing the platform.
+TimeoutStartSec=0
+EnvironmentFile=-/etc/default/walt-server
+EnvironmentFile=-/etc/sysconfig/walt-server
+ExecStart=/usr/local/bin/walt-server-daemon $DAEMON_ARGS
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
