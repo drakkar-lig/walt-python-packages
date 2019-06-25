@@ -16,6 +16,7 @@ Wants=ptpd.service
 Before=ptpd.service
 
 [Service]
+Environment=PYTHONUNBUFFERED=1
 # After the initialization phase, we will notify systemd
 # that we are started successfully.
 Type=notify
