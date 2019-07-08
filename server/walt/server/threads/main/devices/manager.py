@@ -77,15 +77,6 @@ class DevicesManager(object):
         self.server_ip = get_server_ip()
         self.netmask = str(get_walt_subnet().netmask)
 
-    def register_device(self, device_cls, **kwargs):
-        """Derive device type from device class, then add or update, return True if new equipment."""
-        if device_cls == None:
-            kwargs['type'] = 'unknown'
-        else:
-            kwargs['type'] = device_cls.WALT_TYPE
-            kwargs['model'] = device_cls.MODEL_NAME
-        return self.add_or_update(**kwargs)
-
     def validate_device_name(self, requester, name):
         if self.get_device_info(requester, name, err_message = None) != None:
             requester.stderr.write("""Failed: a device with name '%s' already exists.\n""" % name)
@@ -177,6 +168,8 @@ class DevicesManager(object):
 
     def add_or_update(self, **args_data):
         """Return True if a new equipment (node, switch) was identified, False otherwise"""
+        if 'type' not in args_data:
+            args_data['type'] = 'unknown'
         new_equipment = False
         modified = False
         db_data = self.db.select_unique("devices", mac=args_data['mac']);

@@ -2,7 +2,7 @@
 import re
 import pickle
 from walt.common.constants import WALT_SERVER_TCP_PORT
-from walt.common.devices.registry import get_device_cls_from_vci_and_mac
+from walt.common.devices.registry import get_device_info_from_mac
 from walt.common.tcp import TCPServer
 from walt.common.tools import format_sentence_about_nodes
 from walt.server.threads.main.blocking import BlockingTasksManager
@@ -31,7 +31,7 @@ class Server(object):
         self.docker = DockerClient()
         self.blocking = BlockingTasksManager()
         self.devices = DevicesManager(self.db)
-        self.topology = TopologyManager(self.devices)
+        self.topology = TopologyManager(self.devices, self.add_or_update_device)
         self.dhcpd = DHCPServer(self.db)
         self.images = NodeImageManager(self.db, self.blocking, self.dhcpd, self.docker)
         self.tcp_server = TCPServer(WALT_SERVER_TCP_PORT)
@@ -83,7 +83,7 @@ class Server(object):
             return False   # error already reported
         return self.images.set_image(requester, nodes, image_tag)
 
-    def register_device(self, vci, uci, ip, mac, **kwargs):
+    def add_or_update_device(self, vci='', uci='', ip=None, mac=None, **kwargs):
         # let's try to identify this device given its mac address
         # and/or the vci field of the DHCP request.
         if uci.startswith('walt.node'):
@@ -93,19 +93,20 @@ class Server(object):
         else:
             auto_id = None
         if auto_id is None:
-            device_cls = get_device_cls_from_vci_and_mac(vci, mac)
+            info = get_device_info_from_mac(mac)
         else:
             model = auto_id[10:]
-            class DevClass:
-                MODEL_NAME = model
-                WALT_TYPE  = "node"
-            device_cls = DevClass
-        new_equipment = self.devices.register_device(device_cls,
+            info = {
+                'type': 'node',
+                'model': model
+            }
+        kwargs.update(**info)
+        new_equipment = self.devices.add_or_update(
                     ip = ip, mac = mac, **kwargs)
-        if new_equipment and device_cls != None and device_cls.WALT_TYPE == 'node':
+        if new_equipment and info.get('type') == 'node':
             # this is a walt node
             self.nodes.register_node(   mac = mac,
-                                        model = device_cls.MODEL_NAME)
+                                        model = info.get('model'))
 
     def get_device_info(self, device_mac):
         return dict(self.devices.get_complete_device_info(device_mac)._asdict())
@@ -138,7 +139,7 @@ class Server(object):
         # mimic a DHCP request from the node in order to
         # bootstrap the registration procedure (possibly involving
         # the download of a default image...)
-        self.register_device(vci, '', ip, mac, name = name, virtual = True)
+        self.add_or_update_device(vci, '', ip, mac, name = name, virtual = True)
         # start background vm
         node = self.devices.get_complete_device_info(mac)
         self.nodes.start_vnode(node)

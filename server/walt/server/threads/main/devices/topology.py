@@ -301,10 +301,11 @@ class Topology(object):
 
 class TopologyManager(object):
 
-    def __init__(self, devices):
+    def __init__(self, devices, add_or_update_device_cb):
         self.devices = devices
         self.db = devices.db
         self.last_scan = None
+        self.add_or_update_device = add_or_update_device_cb
 
     def cleanup_sysname(self, sysname):
         return re.sub("[^a-z0-9-]", "-", sysname.split('.')[0])
@@ -353,18 +354,18 @@ class TopologyManager(object):
             print('---- found on %s %s -- port %d: %s %s %s' % \
                         (host_name, host_mac, port, ip, mac, sysname))
             topology.register_neighbor(host_mac, port, mac)
+            info = dict(mac = mac, ip = ip)
             db_info = self.devices.get_complete_device_info(mac)
             if db_info == None:
-                # unknown device
-                info = dict(mac = mac, ip = ip, type = 'unknown')
+                # new device, call add_or_update_device to add it
                 name = self.cleanup_sysname(sysname)
                 if len(name) > 2:   # name seems meaningful...
                     info.update(name = name)
-                self.devices.add_or_update(**info)
+                self.add_or_update_device(**info)
             elif ip != db_info.ip:
-                info = dict(mac = mac, ip = ip,
-                            type = db_info.type, name = db_info.name)
-                self.devices.add_or_update(**info)
+                # call add_or_update_device to update ip
+                info.update(type = db_info.type, name = db_info.name)
+                self.add_or_update_device(**info)
 
     def rescan(self, requester, remote_ip, devices):
         self.last_scan = time.time()
