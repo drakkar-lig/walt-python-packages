@@ -48,7 +48,8 @@ class Tree(object):
         if not self.up_to_date:
             # sort children by child_pos
             for node in self.nodes.values():
-                node['children'] = sorted(node['children'])
+                node['children'] = sorted(node['children'],
+                          key=lambda t: (-1, t[1]) if t[0] is None else (t[0], t[1]))
             self.up_to_date = True
     def printed(self, root):
         self.root_node = self.nodes[root]
