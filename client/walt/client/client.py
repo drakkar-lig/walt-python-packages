@@ -52,10 +52,10 @@ def run():
             check_auto_update(server, 'walt-client')
         WalT.run()
     except socket.error:
-        print('Network connection to WalT server failed!')
+        sys.exit('Network connection to WalT server failed!')
     except LinkException:
-        print('Issue occured while communicating with WalT server!')
+        sys.exit('Issue occured while communicating with WalT server!')
     except KeyboardInterrupt:
         print()
-        print('Aborted.')
+        sys.exit('Aborted.')
 
