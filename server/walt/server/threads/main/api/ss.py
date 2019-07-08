@@ -15,4 +15,4 @@ class SSAPI(APISession):
 
     @api_expose_method
     def register_device(self, context, *args):
-        context.server.register_device(*args)
+        context.server.add_or_update_device(*args)
