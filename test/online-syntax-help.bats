@@ -5,7 +5,9 @@ check_expected_syntax() {
     # and replacing at most 2 dashes per a space (walt <category> <command>)
     cmd=$(echo "$out_filename" | sed -e "s/\.out$//" | sed -e 's/-/ /' | sed -e 's/-/ /')
     expected="$(cat $BATS_TEST_DIRNAME/syntax/$out_filename)"
-    result="$(LC_ALL=C $cmd --help || true)"
+    # the sed expression is used to discard the list of values of a cli.Set,
+    # because the order is not constant
+    result="$(LC_ALL=C $cmd --help | sed -e "s/:{'.*}//" || true)"
     if [ "$result" != "$expected" ]
     then
         echo "$out_filename: '$cmd' online syntax help differs from expected!"

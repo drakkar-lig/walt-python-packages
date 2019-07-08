@@ -8,7 +8,7 @@ Meta-switches:
 
 Switches:
     --format LOG_FORMAT:str           format used to print logs (see walt help show log-format); the default is {timestamp:%H:%M:%S.%f} {sender}.{stream} -> {line}
-    --mode MODE:{'ANY', 'ALL'}        specify mode (see walt help show log-wait); the default is ANY
+    --mode MODE        specify mode (see walt help show log-wait); the default is ANY
     --nodes SET_OF_NODES:str          targeted nodes (see walt help show node-terminology); the default is my-nodes
     --streams STREAMS_REGEXP:str      selected log streams (as a regular expr.)
     --time-margin SECONDS:int         also look in recent past logs if they matched
