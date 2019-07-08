@@ -1,4 +1,4 @@
-import socket, random, subprocess, shlex, signal, os
+import socket, random, subprocess, shlex, signal, os, sys
 from collections import defaultdict
 from snimpy import snmp
 from walt.common.tcp import Requests
@@ -138,7 +138,7 @@ class NodesManager(object):
         try:
             session_name = subprocess.check_output(
                 'screen -ls | grep -ow "[[:digit:]]*.walt.node.%(name)s"' % \
-                dict(name = node_name), shell=True).strip()
+                dict(name = node_name), shell=True).strip().decode(sys.stdout.encoding)
             do('screen -S "%(session)s" -X quit' % \
                 dict(session = session_name))
         except subprocess.CalledProcessError:
