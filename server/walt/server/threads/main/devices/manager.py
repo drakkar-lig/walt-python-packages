@@ -259,7 +259,7 @@ class DevicesManager(object):
                 ip = conf['ip'],
                 lldp_explore = conf['allow_lldp_explore'],
                 poe_reboot_nodes = conf['allow_poe_reboot'],
-                snmp_conf = json.dumps(conf['snmp']))
+                snmp_conf = None if conf['snmp'] is None else json.dumps(conf['snmp']))
         self.add_or_update(**device_info)
 
     def includes_devices_not_owned(self, requester, device_set, warn):
