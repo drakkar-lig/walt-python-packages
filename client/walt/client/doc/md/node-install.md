@@ -18,7 +18,8 @@ Then, last section will explain how walt users can start to use such a new node.
 ## PC nodes
 
 Download image `pc-usb.dd.gz` at https://github.com/drakkar-lig/walt-project/releases/latest.
-Flash it to a USB flash drive (a small one is enough, the image just needs a few tens of megabytes).
+Flash it to a USB flash drive (a small one is enough, the image just needs a few tens of megabytes),
+using unix tool `dd` or similar.
 
 Then, any PC can be turned into a walt node:
 * connect the PC to the WALT network
@@ -42,7 +43,7 @@ perform this first bootup of each node.
 
 ### standard boot method: using a SD card
 
-Download image `rpi-sd-files.tar.gz` at https://github.com/drakkar-lig/walt-project/releases/latest.
+Download archive `rpi-sd-files.tar.gz` at https://github.com/drakkar-lig/walt-project/releases/latest.
 Extract and copy files to a USB flash drive formatted the usual way (1 single partition, FAT32 fileystem).
 A small one is enough, total size of files is just a few tens of megabytes.
 
