@@ -5,6 +5,7 @@ from walt.server.const import SERVER_SNMP_CONF
 from walt.server.threads.main.mydocker import DockerClient
 from walt.server.threads.main import snmp
 from walt.server.threads.main.network.tools import lldp_update
+from walt.server.threads.main.snmp import NoSNMPVariantFound
 
 MSG_WAITING_COMPANION_SERVICES = 'Waiting for companion services to be ready...'
 MSG_DETECTING_MAIN_SWITCH = 'Detecting the main switch...'
@@ -52,8 +53,7 @@ def wait_companion_services(ui):
     while True:
         try:
             snmp_local = snmp.Proxy('localhost', SERVER_SNMP_CONF, lldp=True)
-            print snmp_local.lldp.get_local_ips()
-        except snimpy.snmp.SNMPException:
+        except (snimpy.snmp.SNMPException, NoSNMPVariantFound):
             ui.task_running()
             time.sleep(1)
         else:
