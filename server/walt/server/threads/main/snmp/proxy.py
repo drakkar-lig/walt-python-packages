@@ -22,7 +22,7 @@ class Proxy(object):
             if poe:
                 self.poe = PoEProxy(self.snmp, host)
             if lldp:
-                self.lldp = LLDPProxy(self.snmp)
+                self.lldp = LLDPProxy(self.snmp, host)
             if vlan:
                 self.vlan = VlanProxy(self.snmp)
             if ipsetup:
