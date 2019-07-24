@@ -1,23 +1,33 @@
 #!/usr/bin/env python
-from walt.server.threads.main.snmp.base import load_mib, decode_ipv4_address, \
-                    decode_mac_address, enum_label
+import re
+from walt.server.threads.main.snmp.base import load_mib, unload_mib, decode_ipv4_address, \
+                    decode_mac_address, enum_label, Variant, VariantsSet, VariantProxy
 
-class LLDPProxy(object):
-    def __init__(self, snmp_proxy):
-        self.snmp = snmp_proxy
+class StandardLLDP(Variant):
+    @staticmethod
+    def test_or_exception(snmp_proxy):
+        dict(snmp_proxy.lldpRemChassisIdSubtype)
+
+    @staticmethod
+    def load():
         load_mib("LLDP-MIB")
 
-    def get_neighbors(self):
+    @staticmethod
+    def unload():
+        unload_mib("LLDP-MIB")
+
+    @staticmethod
+    def get_neighbors(snmp_proxy):
 
         mac_per_port = {}
         ip_per_port = {}
         sysname_per_port = {}
 
         # perform SNMP requests
-        chassis_types = dict(self.snmp.lldpRemChassisIdSubtype)
-        chassis_values = dict(self.snmp.lldpRemChassisId)
-        sys_names = dict(self.snmp.lldpRemSysName)
-        ip_info = list(self.snmp.lldpRemManAddrIfSubtype)
+        chassis_types = dict(snmp_proxy.lldpRemChassisIdSubtype)
+        chassis_values = dict(snmp_proxy.lldpRemChassisId)
+        sys_names = dict(snmp_proxy.lldpRemSysName)
+        ip_info = list(snmp_proxy.lldpRemManAddrIfSubtype)
 
         # retrieve mac address and sysname of neighbors
         for neighbor_key in chassis_types:
@@ -46,11 +56,56 @@ class LLDPProxy(object):
 
         return neighbors
 
-    def get_local_ips(self):
-        ips = []
-        ip_info = list(self.snmp.lldpLocManAddrIfSubtype)
-        for subtype, encoded_ip in ip_info:
-            if enum_label(subtype).lower() == 'ipv4':
-                ips.append(decode_ipv4_address(encoded_ip))
-        return ips
+class TPLinkLLDP(Variant):
+    @staticmethod
+    def test_or_exception(snmp_proxy):
+        dict(snmp_proxy.lldpNeighborChassisIdType)
 
+    @staticmethod
+    def load():
+        load_mib("TPLINK-MIB")
+        load_mib("TPLINK-LLDP-MIB")
+        load_mib("TPLINK-LLDPINFO-MIB")
+
+    @staticmethod
+    def unload():
+        unload_mib("TPLINK-LLDPINFO-MIB")
+        unload_mib("TPLINK-LLDP-MIB")
+        unload_mib("TPLINK-MIB")
+
+    @staticmethod
+    def get_neighbors(snmp_proxy):
+
+        mac_per_port = {}
+        sysname_per_port = {}
+        neighbors = {}
+
+        # perform SNMP requests
+        chassis_types = dict(snmp_proxy.lldpNeighborChassisIdType)
+        chassis_values = dict(snmp_proxy.lldpNeighborChassisId)
+        sys_names = dict(snmp_proxy.lldpNeighborDeviceName)
+        port_info = dict(snmp_proxy.lldpLocalPortId)
+
+        # retrieve mac address and sysname of neighbors
+        for neighbor_key in chassis_types:
+            if bytes(chassis_types[neighbor_key]) == b'MAC address':
+                port_id, index = neighbor_key
+                port_str = bytes(port_info[int(port_id)]).decode('ascii')
+                port = int(re.split(r'[^\d]+', port_str)[-1])
+                mac = bytes(chassis_values[neighbor_key]).decode('ascii').lower()
+                if neighbor_key in sys_names:
+                    sysname = bytes(sys_names[neighbor_key]).decode('ascii')
+                else:
+                    sysname = ''
+            neighbors[port] = { 'mac': mac, 'ip': None, 'sysname': sysname }
+
+        return neighbors
+
+
+LLDP_VARIANTS = VariantsSet('LLDP neighbor table retrieval', (StandardLLDP, TPLinkLLDP))
+
+class LLDPProxy(VariantProxy):
+    def __init__(self, snmp_proxy, host):
+        VariantProxy.__init__(self, snmp_proxy, host, LLDP_VARIANTS)
+    def get_neighbors(self):
+        return self.variant.get_neighbors(self.snmp)
