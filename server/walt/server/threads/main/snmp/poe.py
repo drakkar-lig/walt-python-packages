@@ -89,6 +89,10 @@ class StandardPoE(Variant):
         poe_port = port_mapping[switch_port]
         snmp_proxy.pethPsePortAdminEnable[poe_port] = port_state
 
+    @classmethod
+    def get_poe_port_mapping(cls, snmp_proxy, host):
+        return get_poe_port_mapping(snmp_proxy, host)
+
 # Netgear variant is the same as standard one except that the loaded MIB is not the same
 class NetgearPoE(StandardPoE):
     @classmethod
@@ -99,11 +103,39 @@ class NetgearPoE(StandardPoE):
     def unload(cls):
         unload_mib("NETGEAR-POWER-ETHERNET-MIB")
 
-POE_VARIANTS = VariantsSet('PoE SNMP requests', (StandardPoE, NetgearPoE))
+# TP-link variant (not standard)
+class TPLinkPoE(Variant):
+    @classmethod
+    def test_or_exception(cls, snmp_proxy):
+        dict(snmp_proxy.tpPoePortStatus)
+
+    @classmethod
+    def load(cls):
+        load_mib("TPLINK-MIB")
+        load_mib("TPLINK-POWER-OVER-ETHERNET-MIB")
+
+    @classmethod
+    def unload(cls):
+        unload_mib("TPLINK-POWER-OVER-ETHERNET-MIB")
+        unload_mib("TPLINK-MIB")
+
+    @classmethod
+    def set_port(cls, snmp_proxy, port_mapping, switch_port, active_or_not):
+        port_state = 1 if active_or_not else 0
+        poe_port = port_mapping[switch_port]
+        snmp_proxy.tpPoePortStatus[poe_port] = port_state
+
+    @classmethod
+    def get_poe_port_mapping(cls, snmp_proxy, host):
+        return { int(k): int(k) for k in dict(snmp_proxy.tpPoePortStatus).keys() }
+
+# TP-link should be first, otherwise sending invalid requests when probing other variants
+# seem to cause it to temporarily stop answering all requests (DoS mitigation?)
+POE_VARIANTS = VariantsSet('PoE SNMP requests', (TPLinkPoE, StandardPoE, NetgearPoE))
 
 class PoEProxy(VariantProxy):
     def __init__(self, snmp_proxy, host):
         VariantProxy.__init__(self, snmp_proxy, host, POE_VARIANTS)
-        self.port_mapping = get_poe_port_mapping(snmp_proxy, host)
+        self.port_mapping = self.variant.get_poe_port_mapping(snmp_proxy, host)
     def set_port(self, switch_port, active_or_not):
         self.variant.set_port(self.snmp, self.port_mapping, switch_port, active_or_not)
