@@ -35,15 +35,17 @@ a WalT platform:
 * remote administration using SNMP
 * (and, if you ever need it in a particular setup, 802.1q support (VLANs))
 
+This switch works well with its default settings.
+
+Alternatively, WalT also works with switch TP-Link T1500G-10PS. You just have to configure it to request
+its management IP through DHCP. Other default settings are OK.
+
 Note: if you test another switch model, we would be happy to get the results of your test.
 
 
 ## Configuring the switch in WalT
 
-The switch netgear gs110tp has all features described above enabled by default, so there is nothing to
-configure on the switch itself.
-
-However, by default, WalT may not detect that the equipment is a switch. Moreover, in some complex environments,
+By default, WalT may not detect that the equipment is a switch. Moreover, in some complex environments,
 remote administration of a given switch by WalT may not be allowed. Thus, in order to let WalT use these
 features, you must:
 
