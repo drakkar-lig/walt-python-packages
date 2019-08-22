@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import re
+import re, pickle
 from snimpy import manager, snmp
 
 class SNMPBitField(object):
@@ -86,6 +86,24 @@ class Variant:
             cls.unload()
             return False
 
+class VariantsCache:
+    def __init__(self):
+        try:
+            with open('/var/lib/walt/snmp.cache', 'rb') as f:
+                self.cache = pickle.load(f)
+        except:
+            self.cache = {}
+    def save(self):
+        with open('/var/lib/walt/snmp.cache', 'wb') as f:
+            pickle.dump(self.cache, f)
+    def get(self, topic_msg, host):
+        return self.cache.get((topic_msg, host), None)
+    def set(self, topic_msg, host, variant_name):
+        self.cache[(topic_msg, host)] = variant_name
+        self.save()
+
+VARIANTS_CACHE = VariantsCache()
+
 class VariantsSet:
     def __init__(self, topic_msg, variants):
         self.topic_msg = topic_msg
@@ -95,11 +113,20 @@ class VariantsSet:
         if self.loaded is not None:
             self.loaded.unload()
             self.loaded = None
-        for variant in self.variants:
-            if variant.try_load(snmp_proxy):
-                self.loaded = variant
-                return variant
-        raise NoSNMPVariantFound(
+        variant_name = VARIANTS_CACHE.get(self.topic_msg, host)
+        if variant_name is not None:
+            for variant in self.variants:
+                if variant.__name__ == variant_name:
+                    variant.load()
+                    self.loaded = variant
+                    return variant
+        else:   # not in cache => probe
+            for variant in self.variants:
+                if variant.try_load(snmp_proxy):
+                    self.loaded = variant
+                    VARIANTS_CACHE.set(self.topic_msg, host, variant.__name__)
+                    return variant
+            raise NoSNMPVariantFound(
                 'Device %s does not seem to handle %s.' % \
                     (host, self.topic_msg))
     def ensure_variant(self, variant):
