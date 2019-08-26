@@ -74,7 +74,7 @@ def parse_clonable_link(requester, clonable_link):
 def get_temp_image_fullname():
     return 'clone-temp/walt-image:' + str(uuid.uuid4()).split('-')[0]
 
-def exit_no_such_image():
+def exit_no_such_image(requester):
     return requester.stderr.write(
             'No such remote image. Use walt image search <keyword>.\n')
 
@@ -236,12 +236,12 @@ def perform_clone(requester, docker, nodes_manager, clonable_link, image_store, 
     # and fetch compatibility info
     if remote_location == LOCATION_WALT_SERVER:
         if remote_image_fullname not in image_store:
-            return exit_no_such_image()
+            return exit_no_such_image(requester)
         target_node_models = image_store[remote_image_fullname].get_node_models()
     if remote_location == LOCATION_DOCKER_HUB:
         remote_user_metadata = pull_user_metadata(docker, remote_user)
         if remote_image_fullname not in remote_user_metadata['walt.user.images']:
-            return exit_no_such_image()
+            return exit_no_such_image(requester)
         image_info = remote_user_metadata['walt.user.images'][remote_image_fullname]
         target_node_models = image_info['labels']['walt.node.models'].split(',')
 
