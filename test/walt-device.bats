@@ -1,3 +1,4 @@
+source $BATS_TEST_DIRNAME/common.sh
 
 SQL_CONFIGURED_SWITCH="""\
 select d.name, s.lldp_explore, s.poe_reboot_nodes, s.snmp_conf::json -> 'version', s.snmp_conf::json ->> 'community'
@@ -100,17 +101,8 @@ print_admin_responses() {
 }
 
 @test "walt device ping" {
-    # here, we just check that the command times out.
-    # we have to run this in a subprocess, otherwise it will cause a problem
-    # with the display of subsequent test results (probably an issue related to
-    # the SIGINT signal which is sent by the timeout command).
-    res_file=$(mktemp)
-    {
-        timeout -s INT 3 walt device ping walt-server || echo -n $? > "$res_file"
-    } &
-    wait
-    # in the case of a timeout, command 'timeout' returns 124
-    result="$(cat "$res_file")" && rm "$res_file" && [ "$result" = "124" ]
+    # here, we just check that the command times out (return code 124).
+    test_timeout 3 walt device ping walt-server || [ "$?" = "124" ]
 }
 
 @test "walt device rescan" {
