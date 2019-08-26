@@ -123,8 +123,14 @@ class DockerLocalClient:
     def events(self):
         return self.c.events(decode=True)
     def image_mount(self, image_fullname, diff_path, mount_path):
-        layers = self.get_image_layers(image_fullname)
-        branches = [ layer + '=ro+wh' for layer in layers ]
+        while True:
+            try:
+                layers = self.get_image_layers(image_fullname)
+                branches = [ layer + '=ro+wh' for layer in layers ]
+                break # OK
+            except FileNotFoundError:
+                print('missing docker layer... updating the cache')
+                self.update_layer_id_cache()
         branches.insert(0, diff_path + '=rw')
         if len(branches) > AUFS_BR_LIMIT:
             raise Exception('Cannot mount image: too many filesystem layers.')
