@@ -147,15 +147,15 @@ class DockerLocalClient:
 class DockerHubClient:
     def __init__(self, c):
         self.c = c
+    def checker(self, line):
+        info = eval(line.strip())
+        if 'error' in info:
+            raise Exception(info['errorDetail']['message'])
     def pull(self, image_fullname, requester = None):
         reponame, tag = image_fullname.split(':')
         label = 'Downloading %s' % image_fullname
-        def checker(line):
-            info = eval(line.strip())
-            if 'error' in info:
-                raise Exception(info['errorDetail']['message'])
         stream = self.c.pull(reponame, tag=requests.utils.quote(tag), stream=True)
-        indicate_progress(sys.stdout, label, stream, checker)
+        indicate_progress(sys.stdout, label, stream, self.checker)
     def login(self, dh_peer, auth_conf, requester):
         try:
             symmetric_key = dh_peer.symmetric_key
@@ -180,7 +180,7 @@ class DockerHubClient:
             return False
         stream = self.c.push(reponame, tag=requests.utils.quote(tag), stream=True)
         label = 'Pushing %s' % image_fullname
-        indicate_progress(sys.stdout, label, stream)
+        indicate_progress(sys.stdout, label, stream, self.checker)
         return True
     def search(self, term):
         results = []

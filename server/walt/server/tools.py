@@ -101,6 +101,7 @@ def hide_transient_label(stdout, label):
 def indicate_progress(stdout, label, stream, checker = None):
     full_label = ''
     for idx, line in enumerate(stream):
+        hide_transient_label(stdout, full_label)
         if checker:
             checker(line)
         progress = "\\|/-"[idx % 4]
