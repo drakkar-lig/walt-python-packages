@@ -12,7 +12,7 @@ class Filesystem(object):
     def run_cmd(self, cmd):
         return check_output(self.wrap_cmd(cmd), shell=True)
     def ping(self):
-        return self.run_cmd('echo ok').strip() == 'ok'
+        return self.run_cmd('echo ok').strip() == b'ok'
     def get_file_type(self, path):
         if len(self.run_cmd('find %s' % path)) == 0:
             return None
@@ -24,5 +24,5 @@ class Filesystem(object):
                 )
             result = self.run_cmd(check_cmd)
             if len(result) > 0:
-                return result
+                return result.decode('ascii')
         return 'o'  # other
