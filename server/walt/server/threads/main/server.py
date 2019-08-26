@@ -125,6 +125,7 @@ class Server(object):
         tftp.update(self.db)
 
     def forget_device(self, device_name):
+        self.logs.forget_device(device_name)
         self.db.forget_device(device_name)
         self.dhcpd.update()
         # if it's a node and no other node uses its image,

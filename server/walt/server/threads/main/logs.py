@@ -166,6 +166,10 @@ class NetconsoleListener(object):
         self.sender_info[sender_ip][1] = cur_msg
         return True
 
+    def forget_ip(self, device_ip):
+        if device_ip in self.sender_info:
+            del self.sender_info[device_ip]
+
     def close(self):
         self.s.close()
 
@@ -304,6 +308,10 @@ class LogsManager(object):
                     hub = self.hub)
         self.netconsole = NetconsoleListener(self.db, self.hub, WALT_SERVER_NETCONSOLE_PORT)
         self.netconsole.join_event_loop(ev_loop)
+
+    def forget_device(self, device_name):
+        device_info = self.db.select_unique('devices', name=device_name)
+        self.netconsole.forget_ip(device_info.ip)
 
     # Look for a checkpoint. Return a tuple.
     # If the result conforms to 'expected', return (True, <checkpoint_found_or_none>)
