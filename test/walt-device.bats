@@ -14,6 +14,12 @@ where n.mac = d.mac
 limit 1;
 """
 
+SQL_ONE_DEVICE_NAME="""\
+select d.name
+from devices d
+limit 1;
+"""
+
 print_admin_responses() {
     lldp_explore="$1"
     poe_reboot_nodes="$2"
@@ -122,3 +128,22 @@ print_admin_responses() {
     [ "$status" -eq 0 ]
 }
 
+@test "walt device rename" {
+    set -- $(
+        psql walt -t -c "$SQL_ONE_DEVICE_NAME" | tr -d '|'
+    )
+
+    if [ "$1" == "" ]
+    then
+        skip "did not find a device to run this test on"
+    fi
+
+    name="$1"
+    newname="$1-test-$$"
+
+    run walt device rename "$name" "$newname"
+    [ "$status" -eq 0 ] || return 1
+
+    # restore
+    walt device rename "$newname" "$name"
+}
