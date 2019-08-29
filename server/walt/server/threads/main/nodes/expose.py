@@ -31,14 +31,14 @@ class NodeExposeSocketListener:
         try:
             self.node_sock_file = self.open_channel_to_node()
         except:
-            self.client_sock_file.write('Could not connect to %s:%d!\n' % \
+            self.client_sock_file.write(b'Could not connect to %s:%d!\n' % \
                                     self.node_ip_and_port)
             return False    # we should close
         # create a new listener on the event loop for reading
         # what the node outputs
         feedback_listener = NodeExposeFeedbackListener(self)
         self.ev_loop.register_listener(feedback_listener)
-        self.client_sock_file.write('OK\n')
+        self.client_sock_file.write(b'OK\n')
     # let the event loop know what we are reading on
     def fileno(self):
         if self.client_sock_file.closed:
