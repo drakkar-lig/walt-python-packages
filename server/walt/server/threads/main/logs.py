@@ -42,9 +42,9 @@ class LogsStreamListener(object):
         self.server_timestamps = None
 
     def register_stream(self):
-        name = self.sock_file.readline().strip()
+        name = self.sock_file.readline().strip().decode('UTF-8')
         timestamps_mode = self.sock_file.readline().strip()
-        self.server_timestamps = (timestamps_mode == 'NO_TIMESTAMPS')
+        self.server_timestamps = (timestamps_mode == b'NO_TIMESTAMPS')
         sender_ip, sender_port = self.sock_file.getpeername()
         sender_info = self.db.select_unique('devices', ip = sender_ip)
         if sender_info == None:
@@ -68,7 +68,7 @@ class LogsStreamListener(object):
     def fileno(self):
         return self.sock_file.fileno()
     # when the event loop detects an event for us, we
-    # know a log line should be read. 
+    # know a log line should be read.
     def handle_event(self, ts):
         if self.stream_id == None:
             self.stream_id = self.register_stream()
@@ -78,7 +78,7 @@ class LogsStreamListener(object):
             # let the event loop call us again if there is more.
             return True
         try:
-            inputline = self.sock_file.readline().strip()
+            inputline = self.sock_file.readline().strip().decode('UTF-8')
             if inputline == 'CLOSE':
                 return False    # stop here
             if self.server_timestamps:
@@ -93,7 +93,7 @@ class LogsStreamListener(object):
         except BaseException as e:
             print(e)
             print('Log stream with id %d is being closed.' % self.stream_id)
-            # let the event loop know we should 
+            # let the event loop know we should
             # be removed.
             return False
         # convert timestamp to datetime
