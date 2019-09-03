@@ -27,6 +27,10 @@ source $BATS_TEST_DIRNAME/walt-node.sh
     test_timeout 60 walt node wait $(bats_test_node)
 }
 
+@test "walt node blink" {
+    test_walt_node_blnk $(bats_test_node)
+}
+
 @test "walt node ping" {
     # here, we just check that the command times out (return code 124).
     test_timeout 3 walt node ping $(bats_test_node) || [ "$?" = "124" ]
@@ -34,6 +38,10 @@ source $BATS_TEST_DIRNAME/walt-node.sh
 
 @test "walt node run" {
     walt_node_rn $(bats_test_node) hostname | grep "$(bats_test_node)"
+}
+
+@test "walt node expose" {
+    test_walt_node_xpse $(bats_test_node)
 }
 
 @test "walt node cp" {
