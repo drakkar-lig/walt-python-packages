@@ -1,4 +1,4 @@
-source $BATS_TEST_DIRNAME/common.sh
+source $TESTS_DIR/includes/common.sh
 
 SQL_CONFIGURED_SWITCH="""\
 select d.name, s.lldp_explore, s.poe_reboot_nodes, s.snmp_conf::json -> 'version', s.snmp_conf::json ->> 'community'
@@ -53,14 +53,15 @@ print_admin_responses() {
     echo y
 }
 
-@test "walt device config" {
+define_test "walt device config" as {
     set -- $(
         psql walt -t -c "$SQL_NODE_AND_NETSETUP" | tr -d '|'
     )
 
     if [ "$1" == "" ]
     then
-        skip "did not find a node to run this test on"
+        echo "did not find a node to run this test on" >&2
+        return 1
     fi
 
     name="$1"
@@ -75,15 +76,16 @@ print_admin_responses() {
     fi
 
     # try to change setting, then restore it
-    walt device config "$name" netsetup $other_netsetup && {
-        # verify it is really updated
-        num=$(walt node show --all | grep "^$name " | grep -w "$other_netsetup" | wc -l)
-        [ $num -eq 1 ]
-    } && \
+    walt device config "$name" netsetup $other_netsetup
+
+    # verify it is really updated
+    walt node show --all | grep "^$name " | grep -w "$other_netsetup"
+
+    # restore
     walt device config "$name" netsetup $netsetup
 }
 
-@test "walt device admin" {
+define_test "walt device admin" as {
 
     set -- $(
         psql walt -t -c "$SQL_CONFIGURED_SWITCH" | tr -d '|'
@@ -91,7 +93,8 @@ print_admin_responses() {
 
     if [ "$1" == "" ]
     then
-        skip "did not find a switch to run this test on"
+        echo "did not find a switch to run this test on" >&2
+        return 1
     fi
 
     name="$1"
@@ -100,41 +103,38 @@ print_admin_responses() {
     print_admin_responses "$@" | walt device admin "$name"
 }
 
-@test "walt device ping" {
+define_test "walt device ping" as {
     # here, we just check that the command times out (return code 124).
-    test_timeout 3 walt device ping walt-server || [ "$?" = "124" ]
+    timeout -s INT 3 walt device ping walt-server || [ "$?" = "124" ]
 }
 
-@test "walt device rescan" {
-    run walt device rescan
-    [ "$status" -eq 0 ]
+define_test "walt device rescan" as {
+    walt device rescan
 }
 
-@test "walt device tree" {
-    run walt device tree
-    [ "$status" -eq 0 ]
+define_test "walt device tree" as {
+    walt device tree
 }
 
-@test "walt device show" {
-    run walt device show
-    [ "$status" -eq 0 ]
+define_test "walt device show" as {
+    walt device show
 }
 
-@test "walt device rename" {
+define_test "walt device rename" as {
     set -- $(
         psql walt -t -c "$SQL_ONE_DEVICE_NAME" | tr -d '|'
     )
 
     if [ "$1" == "" ]
     then
-        skip "did not find a device to run this test on"
+        echo "did not find a device to run this test on" >&2
+        return 1
     fi
 
     name="$1"
     newname="$1-test-$$"
 
-    run walt device rename "$name" "$newname"
-    [ "$status" -eq 0 ] || return 1
+    walt device rename "$name" "$newname"
 
     # restore
     walt device rename "$newname" "$name"
