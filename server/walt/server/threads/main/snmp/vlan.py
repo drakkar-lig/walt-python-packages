@@ -34,7 +34,7 @@ class SwitchConfig(object):
 
 class VlanProxy(object):
     def __init__(self, snmp_proxy):
-        load_mib("Q-BRIDGE-MIB")
+        load_mib(b"Q-BRIDGE-MIB")
         self.snmp = snmp_proxy
     def get_existing_vlans(self):
         static_vlans = dict(self.snmp.dot1qVlanStaticName)

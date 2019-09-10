@@ -10,11 +10,11 @@ class StandardLLDP(Variant):
 
     @staticmethod
     def load():
-        load_mib("LLDP-MIB")
+        load_mib(b"LLDP-MIB")
 
     @staticmethod
     def unload():
-        unload_mib("LLDP-MIB")
+        unload_mib(b"LLDP-MIB")
 
     @staticmethod
     def get_neighbors(snmp_proxy):
@@ -63,15 +63,15 @@ class TPLinkLLDP(Variant):
 
     @staticmethod
     def load():
-        load_mib("TPLINK-MIB")
-        load_mib("TPLINK-LLDP-MIB")
-        load_mib("TPLINK-LLDPINFO-MIB")
+        load_mib(b"TPLINK-MIB")
+        load_mib(b"TPLINK-LLDP-MIB")
+        load_mib(b"TPLINK-LLDPINFO-MIB")
 
     @staticmethod
     def unload():
-        unload_mib("TPLINK-LLDPINFO-MIB")
-        unload_mib("TPLINK-LLDP-MIB")
-        unload_mib("TPLINK-MIB")
+        unload_mib(b"TPLINK-LLDPINFO-MIB")
+        unload_mib(b"TPLINK-LLDP-MIB")
+        unload_mib(b"TPLINK-MIB")
 
     @staticmethod
     def get_neighbors(snmp_proxy):

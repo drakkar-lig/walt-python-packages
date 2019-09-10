@@ -4,7 +4,7 @@ from walt.server.threads.main.snmp.base import load_mib
 class IPSetupProxy(object):
     def __init__(self, snmp_proxy):
         self.snmp = snmp_proxy
-        load_mib("NETGEAR-SWITCHING-MIB")
+        load_mib(b"NETGEAR-SWITCHING-MIB")
 
     def perform_dhcp_setup(self):
         # the switch is already configured to boot using DHCP

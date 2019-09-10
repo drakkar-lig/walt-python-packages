@@ -40,8 +40,8 @@ ETHERNETCSMACD = 6
 
 def get_poe_port_mapping(snmp_proxy, host):
     if not host in POE_PORT_MAPPING_CACHE:
-        if "IF-MIB" not in get_loaded_mibs():
-            load_mib("IF-MIB")
+        if b"IF-MIB" not in get_loaded_mibs():
+            load_mib(b"IF-MIB")
         iface_port_indexes = list(
                 int(k) for k, v in snmp_proxy.ifSpeed.items()
                 if v in POE_PORT_SPEEDS)
@@ -77,11 +77,11 @@ class StandardPoE(Variant):
 
     @classmethod
     def load(cls):
-        load_mib("POWER-ETHERNET-MIB")
+        load_mib(b"POWER-ETHERNET-MIB")
 
     @classmethod
     def unload(cls):
-        unload_mib("POWER-ETHERNET-MIB")
+        unload_mib(b"POWER-ETHERNET-MIB")
 
     @classmethod
     def set_port(cls, snmp_proxy, port_mapping, switch_port, active_or_not):
@@ -97,11 +97,11 @@ class StandardPoE(Variant):
 class NetgearPoE(StandardPoE):
     @classmethod
     def load(cls):
-        load_mib("NETGEAR-POWER-ETHERNET-MIB")
+        load_mib(b"NETGEAR-POWER-ETHERNET-MIB")
 
     @classmethod
     def unload(cls):
-        unload_mib("NETGEAR-POWER-ETHERNET-MIB")
+        unload_mib(b"NETGEAR-POWER-ETHERNET-MIB")
 
 # TP-link variant (not standard)
 class TPLinkPoE(Variant):
@@ -111,13 +111,13 @@ class TPLinkPoE(Variant):
 
     @classmethod
     def load(cls):
-        load_mib("TPLINK-MIB")
-        load_mib("TPLINK-POWER-OVER-ETHERNET-MIB")
+        load_mib(b"TPLINK-MIB")
+        load_mib(b"TPLINK-POWER-OVER-ETHERNET-MIB")
 
     @classmethod
     def unload(cls):
-        unload_mib("TPLINK-POWER-OVER-ETHERNET-MIB")
-        unload_mib("TPLINK-MIB")
+        unload_mib(b"TPLINK-POWER-OVER-ETHERNET-MIB")
+        unload_mib(b"TPLINK-MIB")
 
     @classmethod
     def set_port(cls, snmp_proxy, port_mapping, switch_port, active_or_not):
