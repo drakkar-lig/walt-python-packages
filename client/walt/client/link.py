@@ -3,7 +3,7 @@ import sys
 from walt.client.config import conf
 from walt.client.filesystem import Filesystem
 from walt.common.api import api, api_expose_method, api_expose_attrs
-from walt.common.apilink import ServerAPILink
+from walt.common.apilink import ServerAPILink, BaseAPIService
 
 @api
 class ExposedStream(object):
@@ -33,7 +33,7 @@ class ExposedStream(object):
 # but the client also exposes a few objects / features
 # in the following class.
 @api
-class WaltClientService(object):
+class WaltClientService(BaseAPIService):
     @api_expose_attrs('stdin','stdout','stderr','filesystem')
     def __init__(self):
         self.stdin = ExposedStream(sys.stdin)

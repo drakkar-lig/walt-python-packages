@@ -6,6 +6,7 @@ from walt.common.constants import WALT_SERVER_DAEMON_PORT
 from walt.common.reusable import reusable
 from walt.common.tools import BusyIndicator
 from walt.common.tcp import Requests
+from walt.common.api import api, api_expose_method
 
 # exceptions may occur if the client disconnects.
 # we should ignore those.
@@ -169,15 +170,18 @@ class ServerAPIConnection(object):
     def __del__(self):
         self.sock.close()
 
-class VoidAPIService(object):
-    pass
+@api
+class BaseAPIService(object):
+    @api_expose_method
+    def is_alive(self):
+        return True
 
 # This class provides a 'with' environment to connect to
 # the server API.
 class ServerAPILink(object):
     def __init__(self, server_ip, target_api, local_service = None):
         if local_service == None:
-            local_service = VoidAPIService()
+            local_service = BaseAPIService()
         self.conn = ServerAPIConnection(
             server_ip,
             local_service,
