@@ -1,0 +1,8 @@
+Monitor VPN and accept/deny new connection requests
+
+Usage:
+    walt vpn monitor [SWITCHES] 
+
+Meta-switches:
+    -h, --help      Prints this help message and quits
+

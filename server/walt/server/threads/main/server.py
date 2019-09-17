@@ -20,6 +20,7 @@ from walt.server.threads.main.settings_manager import SettingsHandler
 from walt.server.threads.main.transfer import TransferManager
 from walt.server.threads.main.apisession import APISession
 from walt.server.threads.main.network import tftp
+from walt.server.threads.main.vpn import VPNManager
 
 
 class Server(object):
@@ -50,6 +51,7 @@ class Server(object):
                                     devices = self.devices,
                                     topology = self.topology)
         self.settings = SettingsHandler(server=self)
+        self.vpn = VPNManager()
 
     def prepare(self):
         self.tcp_server.join_event_loop(self.ev_loop)

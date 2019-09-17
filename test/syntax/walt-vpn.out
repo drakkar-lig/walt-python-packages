@@ -1,0 +1,15 @@
+
+WalT platform control tool
+-> VPN related sub-commands
+
+Usage:
+    walt vpn SUBCOMMAND [args...]
+
+Help about a given subcommand:
+    walt vpn SUBCOMMAND --help
+
+Help about WalT in general:
+    walt help show
+
+Sub-commands:
+    monitor  Monitor VPN and accept/deny new connection requests

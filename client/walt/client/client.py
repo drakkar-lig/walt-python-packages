@@ -11,6 +11,7 @@ from walt.client.advanced import WalTAdvanced
 from walt.client.node import WalTNode
 from walt.client.device import WalTDevice
 from walt.client.image import WalTImage
+from walt.client.vpn import WalTVPN
 from walt.client.startup import init_config
 from walt.client.logo import try_add_logo
 from walt.client.application import WalTToolboxApplication
@@ -44,6 +45,7 @@ WalT.subcommand("device", WalTDevice)
 WalT.subcommand("image", WalTImage)
 WalT.subcommand("log", WalTLog)
 WalT.subcommand("node", WalTNode)
+WalT.subcommand("vpn", WalTVPN)
 
 def run():
     try:

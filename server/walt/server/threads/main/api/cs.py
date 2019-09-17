@@ -242,3 +242,11 @@ class CSAPI(APISession):
     def set_device_config(self, context, device_set, conf_args):
         context.server.settings.set_device_config(context.requester.sync, device_set, conf_args)
         context.server.dhcpd.update()
+
+    @api_expose_method
+    def vpn_wait_grant_request(self, context):
+        return context.server.vpn.wait_grant_request(context.task)
+
+    @api_expose_method
+    def vpn_respond_grant_request(self, context, device_mac, auth_ok):
+        return context.server.vpn.respond_grant_request(device_mac, auth_ok)

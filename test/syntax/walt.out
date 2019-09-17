@@ -18,3 +18,4 @@ Categories:
     image     management of WalT-nodes operating system images
     log       management of logs
     node      WalT node management sub-commands
+    vpn       VPN related sub-commands

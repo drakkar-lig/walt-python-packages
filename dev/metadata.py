@@ -78,7 +78,8 @@ PACKAGE_SPECIFIC_INFO = {
                     'walt-fake-ipxe-node = walt.virtual.fakeipxenode:run',
                     'walt-vpn-server = walt.virtual.vpn.server:run',
                     'walt-vpn-endpoint = walt.virtual.vpn.endpoint:run',
-                    'walt-vpn-client = walt.virtual.vpn.client:run'
+                    'walt-vpn-client = walt.virtual.vpn.client:run',
+                    'walt-vpn-auth-tool = walt.virtual.vpn.authtool:run'
                 ]
             },
             include_package_data = True

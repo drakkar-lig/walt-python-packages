@@ -1,8 +1,9 @@
-import subprocess, os, sys, json, re, signal
+import subprocess, os, sys, json, re, signal, shutil
 from plumbum.cmd import cat
 from collections import OrderedDict
 from datetime import datetime, timedelta
 from fcntl import fcntl, F_GETFD, F_SETFD, F_GETFL, F_SETFL, FD_CLOEXEC
+from pathlib import Path
 
 DEVNULL = open(os.devnull, 'w')
 
@@ -224,3 +225,11 @@ def set_close_on_exec(fd, close_on_exec):
 
 def restart():
     os.execvp(sys.argv[0], sys.argv)
+
+def chown_tree(path, user, group):
+    for p_entry in Path(path).iterdir():
+        if p_entry.is_dir():
+            chown_tree(p_entry, user, group)
+        else:
+            shutil.chown(str(p_entry), user, group)
+    shutil.chown(str(path), user, group)
