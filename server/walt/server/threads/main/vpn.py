@@ -3,6 +3,7 @@ from pathlib import Path
 from time import time
 from collections import defaultdict
 from walt.common.tools import do, chown_tree
+from walt.common.constants import UNSECURE_ECDSA_KEYPAIR
 
 # Walt VPN clients should first connect with our unsecure key pair (written below).
 # They will be forcibly directed to "walt-vpn-auth-tool" command.
@@ -43,17 +44,7 @@ restrict,command="walt-vpn-auth-tool $SSH_ORIGINAL_COMMAND" %(unsecure_pub_key)s
 VPN_CA_KEY = WALT_VPN_USER['home_dir'] / '.ssh' / 'vpn-ca-key'
 VPN_CA_KEY_PUB = WALT_VPN_USER['home_dir'] / '.ssh' / 'vpn-ca-key.pub'
 
-UNSECURE_KEY="""
------BEGIN EC PRIVATE KEY-----
-MHcCAQEEIDWsENxcRUkFkTi/gqNog7XbEUgJqXto4LBmR912mESMoAoGCCqGSM49
-AwEHoUQDQgAE219o+OBl5qGa6iYOkHlCBbdPZs20vvIQf+bp0kIwI4Lmdq79bTTz
-REHbx9/LKRGRn8z2QMq3EY9V/stQpHc68w==
------END EC PRIVATE KEY-----
-"""
-
-UNSECURE_KEY_PUB="""\
-ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBNtfaPjgZeahmuomDpB5QgW3T2bNtL7yEH/m6dJCMCOC5nau/W0080RB28ffyykRkZ/M9kDKtxGPVf7LUKR3OvM= walt-vpn@UNSECURE
-"""
+UNSECURE_KEY, UNSECURE_KEY_PUB = UNSECURE_ECDSA_KEYPAIR['openssh-priv'], UNSECURE_ECDSA_KEYPAIR['openssh-pub']
 
 PENDING_USER_RESPONSE_DELAY = 5*60  # seconds
 
