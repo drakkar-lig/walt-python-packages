@@ -30,6 +30,7 @@ ALL_PACKAGES=common virtual server node client
 # common must be installed 1st (needed by others), then virtual
 INSTALLABLE_PACKAGES_ON_SERVER=common virtual server client
 GNUMAKEFLAGS=--no-print-directory
+SUDO=$(shell test `whoami` = root && echo -n || echo "sudo -H")
 
 # ------
 install: $(patsubst %,%.install,$(INSTALLABLE_PACKAGES_ON_SERVER))
@@ -47,7 +48,7 @@ node.%: common.%
 
 %.install: %.info
 	@$(MAKE) $*.uninstall
-	@cd $*; pwd; python3 setup.py bdist_wheel && sudo -H `which pip3` install .
+	@cd $*; pwd; python3 setup.py bdist_wheel && $(SUDO) `which pip3` install .
 
 %.info:
 	@$(MAKE) $*/walt/$*/info.py
@@ -60,14 +61,14 @@ clean:
 	find . -name \*.pyc -delete
 
 %.uninstall:
-	@pip3 show walt-$* >/dev/null && sudo -H `which pip3` uninstall -y walt-$* || true
+	@pip3 show walt-$* >/dev/null && $(SUDO) `which pip3` uninstall -y walt-$* || true
 
 upload:
 	@./dev/upload.sh $(ALL_PACKAGES)
 
 %.pull:
 	@$(MAKE) $*.uninstall
-	@sudo -H ./dev/pull.sh $*
+	@$(SUDO) ./dev/pull.sh $*
 
 test:
 	@./dev/test.sh
