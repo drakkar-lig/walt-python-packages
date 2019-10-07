@@ -129,6 +129,11 @@ def run():
     # Create TAP
     tap, tap_name = createtap()
 
+    # create bridge
+    if not (Path('/sys/class/net') / BRIDGE_INTF).exists():
+        check_call('ip link add %s type bridge' % BRIDGE_INTF, shell=True)
+    check_call('ip link set up dev %s' % BRIDGE_INTF, shell=True)
+
     # bring it up, add it to bridge
     check_call('ip link set up dev ' + tap_name, shell=True)
     check_call('ip link set master ' + BRIDGE_INTF + ' dev ' + tap_name, shell=True)
