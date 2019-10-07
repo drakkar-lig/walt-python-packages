@@ -2,6 +2,7 @@
 import sys, subprocess, time, random
 from walt.common.apilink import ServerAPILink
 from walt.virtual.fakeipxe import ipxe_boot
+from walt.virtual.udhcpc import udhcpc_fake_netboot
 from plumbum import cli
 
 OS_ENCODING = sys.stdout.encoding
@@ -18,7 +19,8 @@ KVM_ARGS = "kvm -m " + str(KVM_RAM) + "\
                 -no-reboot"
 
 USAGE = """\
-Usage: %(prog)s --mac <node_mac> --ip <node_ip> --model <node_model> --hostname <node_name> --server-ip <server_ip>\
+Usage: %(prog)s --mac <node_mac> --ip <node_ip> --model <node_model> --hostname <node_name> --server-ip <server_ip>
+       %(prog)s --net-conf-udhcpc --mac <node_mac> --model <node_model>\
 """
 
 def get_qemu_product_name():
@@ -27,31 +29,39 @@ def get_qemu_product_name():
     return line.split(' ', 1)[1].strip()
 
 def get_env_start(info):
-    args = tuple(getattr(info, attr, None) for attr in ('_mac', '_ip', '_model', '_hostname', '_server_ip'))
-    if None in args:
+    if info._udhcpc:
+        required_args = ('mac', 'model')
+    else:
+        required_args =  ('mac', 'ip', 'model', 'hostname', 'server_ip')
+    env = { attr: getattr(info, '_' + attr, None) for attr in required_args }
+    if None in env.values():
         print(USAGE % dict(prog = sys.argv[0]))
         sys.exit()
-    mac, ip, model, name, server_ip = args
-    return {
-        "mac": mac,
-        "ip": ip,
-        "model": model,
-        "name": name,
-        "hostname": name,
-        "mac:hexhyp": mac.replace(":","-"),
+    if info._udhcpc:
+        udhcpc_fake_netboot(env)
+    else:
+        api_fake_netboot(env)
+    env.update({
+        "name": env['hostname'],
+        "mac:hexhyp": env['mac'].replace(":","-"),
         "manufacturer": MANUFACTURER,
         "product": get_qemu_product_name(),
-        "next-server": server_ip,
+        "next-server": env['server_ip'],
         "kvm-args": ' '.join(KVM_ARGS.split())
-    }
+    })
+    return env
+
+def api_fake_netboot(env):
+    send_register_request(env)
+    add_network_info(env)
 
 def send_register_request(env):
-    with ServerAPILink(env['next-server'], 'VSAPI') as server:
+    with ServerAPILink(env['server_ip'], 'VSAPI') as server:
         vci = 'walt.node.' + env['model']
         return server.register_device(vci, '', env['ip'], env['mac'])
 
 def add_network_info(env):
-    with ServerAPILink(env['next-server'], 'VSAPI') as server:
+    with ServerAPILink(env['server_ip'], 'VSAPI') as server:
         info = server.get_device_info(env['mac'])
         print(info)
         if info is None:
@@ -74,14 +84,14 @@ def node_loop(info):
             random_wait()
             print("Starting...")
             env = get_env_start(info)
-            send_register_request(env)
-            add_network_info(env)
             ipxe_boot(env)
     except NotImplementedError as e:
         print((str(e)))
         time.sleep(120)
 
 class WalTVirtualNode(cli.Application):
+    _udhcpc = False     # default
+
     """run a virtual node"""
     def main(self):
         node_loop(self)
@@ -110,6 +120,11 @@ class WalTVirtualNode(cli.Application):
     def hostname(self, hostname):
         """specify node's hostname"""
         self._hostname = hostname
+
+    @cli.switch("--net-conf-udhcpc")
+    def set_net_conf_udhcpc(self):
+        """use udhcpc to get network parameters"""
+        self._udhcpc = True
 
 def run():
     WalTVirtualNode.run()
