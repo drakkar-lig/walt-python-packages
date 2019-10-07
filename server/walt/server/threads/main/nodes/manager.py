@@ -36,7 +36,7 @@ MSG_NOT_VIRTUAL = "WARNING: %s is not a virtual node. IGNORED.\n"
 FS_CMD_PATTERN = SSH_COMMAND + ' root@%(node_ip)s "%%(prog)s %%(prog_args)s"'
 
 CMD_START_VNODE = 'screen -S walt.node.%(name)s -d -m   \
-       walt-fake-ipxe-node %(mac)s %(ip)s %(model)s %(name)s %(server_ip)s'
+       walt-virtual-node --mac %(mac)s --ip %(ip)s --model %(model)s --hostname %(name)s --server-ip %(server_ip)s'
 CMD_ADD_SSH_KNOWN_HOST = "  mkdir -p /root/.ssh && ssh-keygen -F %(ip)s || \
                             ssh-keyscan -t ecdsa %(ip)s >> /root/.ssh/known_hosts"
 

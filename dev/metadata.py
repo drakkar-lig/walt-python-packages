@@ -75,7 +75,7 @@ PACKAGE_SPECIFIC_INFO = {
             entry_points = {
                 'console_scripts': [
                     'walt-virtual-setup = walt.virtual.setup:run',
-                    'walt-fake-ipxe-node = walt.virtual.fakeipxenode:run',
+                    'walt-virtual-node = walt.virtual.node:run',
                     'walt-vpn-server = walt.virtual.vpn.server:run',
                     'walt-vpn-endpoint = walt.virtual.vpn.endpoint:run',
                     'walt-vpn-client = walt.virtual.vpn.client:run',
