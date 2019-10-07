@@ -250,3 +250,7 @@ class CSAPI(APISession):
     @api_expose_method
     def vpn_respond_grant_request(self, context, device_mac, auth_ok):
         return context.server.vpn.respond_grant_request(device_mac, auth_ok)
+
+    @api_expose_method
+    def get_vpn_proxy_setup_script(self, context):
+        return context.server.vpn.get_vpn_proxy_setup_script()

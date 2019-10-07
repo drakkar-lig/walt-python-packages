@@ -1,3 +1,4 @@
+import os
 from plumbum import cli
 from walt.client.link import ClientToServerLink
 from walt.client.application import WalTCategoryApplication, WalTApplication
@@ -31,3 +32,15 @@ class WalTVPNMonitor(WalTApplication):
                     print(comment)
                 else:
                     print('FAILED! ' + comment)
+
+@WalTVPN.subcommand("setup-proxy")
+class WalTVPNSetupProxy(WalTApplication):
+    """Setup an ssh frontend server as a WalT VPN proxy"""
+    def main(self):
+        with ClientToServerLink() as server:
+            script_content = server.get_vpn_proxy_setup_script()
+            with open('proxy-setup.sh', 'w') as f:
+                f.write(script_content)
+                os.fchmod(f.fileno(), 0o755)    # set it executable
+        print("A script 'proxy-setup.sh' has been generated in current directory.")
+        print("Copy and run it on the host you want to use as a walt vpn proxy.")

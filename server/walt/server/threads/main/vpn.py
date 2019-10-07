@@ -1,7 +1,8 @@
-import tempfile
+import tempfile, sys
 from pathlib import Path
 from time import time
 from collections import defaultdict
+from pkg_resources import resource_string
 from walt.common.tools import do, chown_tree
 from walt.common.constants import UNSECURE_ECDSA_KEYPAIR
 
@@ -175,3 +176,10 @@ class VPNManager:
 
     def get_unsecure_key_pair(self):
         return (UNSECURE_KEY, UNSECURE_KEY_PUB)
+
+    def get_vpn_proxy_setup_script(self):
+        script_content = resource_string(__name__, "vpn-proxy-setup.sh").decode(sys.getdefaultencoding())
+        return script_content % dict(
+            ca_pub_key = VPN_CA_KEY_PUB.read_text().strip(),
+            unsecure_pub_key = UNSECURE_KEY_PUB
+        )
