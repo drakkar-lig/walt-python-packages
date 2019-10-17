@@ -1,4 +1,4 @@
-import fcntl, os, stat, struct
+import fcntl, os, stat, struct, sys
 from pathlib import Path
 
 TUNSETIFF = 0x400454ca
@@ -21,3 +21,25 @@ def createtap():
     tap_name = struct.unpack('16sH', ifr)[0].decode('ascii').strip('\x00')
     print('created ' + tap_name)
     return tap, tap_name
+
+def read_n(fd, n):
+    buf = b''
+    while len(buf) < n:
+        chunk = os.read(fd, n - len(buf))
+        if len(chunk) == 0:
+            # short read!
+            break
+        buf += chunk
+    return buf
+
+
+DEBUG_OUT = None
+
+def enable_debug(out = sys.stdout):
+    global DEBUG_OUT
+    DEBUG_OUT = out
+
+def debug(*args):
+    if DEBUG_OUT is not None:
+        print(time(), *args, file=DEBUG_OUT)
+        DEBUG_OUT.flush()

@@ -1,9 +1,15 @@
-import os, os.path, sys, shlex, time
+import os, os.path, sys, shlex, struct
 from subprocess import check_call, check_output, Popen, PIPE, TimeoutExpired, run, DEVNULL
 from select import select
-from walt.virtual.tools import createtap
+from walt.virtual.tools import createtap, read_n, enable_debug, debug
 from walt.common.constants import UNSECURE_ECDSA_KEYPAIR
 from pathlib import Path
+from time import time, sleep
+
+DEBUG = False
+
+if DEBUG:
+    enable_debug()
 
 BRIDGE_INTF = "walt-net"
 VPN_USER = "walt-vpn"
@@ -75,11 +81,11 @@ def setup_credentials(walt_vpn_entrypoint):
         parts = cred_info.split('\n\n')
         if len(parts) < 2 or parts[0] not in ('FAILED', 'OK'):
             print("Wrong server response. Will retry shortly.")
-            time.sleep(5)
+            sleep(5)
             continue
         if parts[0] == "FAILED":
             print("Issue: %s\nWill retry in a moment." % parts[1].strip())
-            time.sleep(15)
+            sleep(15)
             continue
         # OK
         PRIV_KEY_FILE.write_text(parts[1].strip() + '\n')
@@ -135,7 +141,7 @@ def run():
     check_call('ip link set up dev %s' % BRIDGE_INTF, shell=True)
 
     # bring it up, add it to bridge
-    check_call('ip link set up dev ' + tap_name, shell=True)
+    check_call('ip link set up dev %(intf)s' % dict(intf = tap_name), shell=True)
     check_call('ip link set master ' + BRIDGE_INTF + ' dev ' + tap_name, shell=True)
 
     print('added ' + tap_name + ' to bridge ' + BRIDGE_INTF)
@@ -151,7 +157,7 @@ def run():
 
     print('Running...')
     # start select loop
-    # we will just:
+    # we will:
     # * transfer packets coming from the tap interface to ssh stdin
     # * transfer packets coming from ssh stdout to the tap interface
     fds = [ popen.stdout, tap ]
@@ -160,11 +166,32 @@ def run():
         if len(r) == 0:
             break
         r_obj = r[0]
+        r_fd = r_obj.fileno()
         if r_obj == tap:
-            w_obj = popen.stdin     # tap -> cmd channel
+            packet = os.read(r_fd, 8192)
+            if len(packet) == 0:
+                # unexpected, let's stop
+                print(time(), 'short read on tap, exiting.')
+                break
+            # encode packet length as 2 bytes
+            encoded_packet_len = struct.pack('!H', len(packet))
+            debug('transmitting packet of', len(packet), 'bytes from tap to ssh channel')
+            fd = popen.stdin.fileno()
+            os.write(fd, encoded_packet_len)
+            os.write(fd, packet)
         else:
-            w_obj = tap             # cmd channel -> tap
-        packet = os.read(r_obj.fileno(), 2048)
-        if len(packet) == 0:
-            break
-        os.write(w_obj.fileno(), packet)
+            encoded_packet_len = read_n(r_fd, 2)
+            if len(encoded_packet_len) < 2:
+                print(time(), 'short read on ssh channel (reading packet length), exiting.')
+                break
+            # decode 2 bytes of packet length
+            packet_len = struct.unpack('!H', encoded_packet_len)[0]
+            # empty packet?
+            if packet_len == 0:
+                raise Exception(str(time()) + ' Got packet_len of 0!')
+            packet = read_n(r_fd, packet_len)
+            if len(packet) < packet_len:
+                print(time(), 'short read on ssh channel (reading packet), exiting.')
+                break
+            debug('transmitting packet of', packet_len, 'bytes from ssh channel to tap')
+            os.write(tap.fileno(), packet)
