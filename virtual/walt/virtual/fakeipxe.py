@@ -129,7 +129,7 @@ def execute_line(env, line):
         initrd_copy = env['TMPDIR'] + '/initrd'
         with open(initrd_copy, 'wb') as f:
             f.write(content)
-        env["kvm-args"] += " -initrd " + initrd_copy
+        env["qemu-args"] += " -initrd " + initrd_copy
         return True
     # handle "kernel" and "boot" directives
     if words[0] in ('boot', 'kernel'):
@@ -142,12 +142,10 @@ def execute_line(env, line):
             kernel_copy = env['TMPDIR'] + '/kernel'
             with open(kernel_copy, 'wb') as f:
                 f.write(content)
-            env["kvm-args"] += " -kernel " + kernel_copy
-            env["kvm-args"] += " -append '" + kernel_cmdline + "'"
+            env["qemu-args"] += " -kernel " + kernel_copy
+            env["qemu-args"] += " -append '" + kernel_cmdline + "'"
         if words[0] == 'boot':
-            cmd = env["kvm-args"] % env
-            print(cmd)
-            subprocess.call(cmd, shell=True)
+            env["qemu-cmd"] = env["qemu-args"] % env
             return False    # reboot when it exits
         else:
             return True
@@ -164,6 +162,25 @@ def execute_line(env, line):
 
 def ipxe_boot(env):
     with tempfile.TemporaryDirectory() as TMPDIR:
-        env['TMPDIR'] = TMPDIR
-        env['REMOTEDIRSTACK'] = ['/']
-        execute_line(env, "chain /start.ipxe")
+        net_setup_func = env['fake-network-setup']
+        with net_setup_func(env) as setup_result:
+            if setup_result is True:
+                # update env with netboot / ipxe specific info
+                env.update({
+                    'TMPDIR': TMPDIR,
+                    'REMOTEDIRSTACK': ['/'],
+                    'name': env['hostname'],
+                    'mac:hexhyp': env['mac'].replace(":","-"),
+                    'next-server': env['server_ip']
+                })
+                # start ipxe emulated netboot
+                execute_line(env, "chain /start.ipxe")
+        # if 'qemu-cmd' was specified in env, this means
+        # all went well and we can start qemu
+        # note: we just left the with context because we no
+        # longer need the temporary network setup that was
+        # possibly established.
+        if 'qemu-cmd' in env:
+            cmd = env["qemu-cmd"]
+            print(cmd)
+            subprocess.call(cmd, shell=True)

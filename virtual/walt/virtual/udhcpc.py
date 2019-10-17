@@ -1,4 +1,4 @@
-import time, sys, os, tempfile
+import time, sys, os, tempfile, traceback
 from pathlib import Path
 from subprocess import check_call, check_output
 from contextlib import contextmanager
@@ -13,7 +13,7 @@ def temporary_network_pipe():
     # create pipe
     check_call('ip link add %(pipe0)s type veth peer name %(pipe1)s' % dict(
         pipe0 = pipe[0],
-        pipe1 = pipe[1],
+        pipe1 = pipe[1]
     ), shell = True)
     try:
         yield pipe
@@ -34,14 +34,14 @@ echo VAR gateway $router
 echo VAR netmask $subnet
 '''
 
-def udhcpc_get_vars(env, pipe):
+def udhcpc_get_vars(env, interface):
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir = Path(tmpdir)
         script = tmpdir / 'script.sh'
         script.write_text(UDHCPC_SCRIPT)
         script.chmod(0o755) # make it executable
-        info = check_output('udhcpc -f -q -n -i %(pipe1)s -s %(script)s' % dict(
-            pipe1 = pipe[1],
+        info = check_output('udhcpc -f -q -n -i %(interface)s -s %(script)s' % dict(
+            interface = interface,
             script = str(script)
         ), shell=True).decode(sys.getdefaultencoding())
         for line in info.splitlines():
@@ -51,6 +51,11 @@ def udhcpc_get_vars(env, pipe):
             var_name, value = words[1], words[2]
             env[var_name] = value
 
+def udhcpc_setup_interface(interface):
+    check_call('udhcpc -f -q -n -i %(interface)s' % dict(
+            interface = interface
+            ), shell=True)
+
 # 1. We create a set of temporary "veth" interfaces. One end is linked to
 #    walt-net bridge. The other end is configured with the mac address we
 #    will use later for the walt node.
@@ -59,6 +64,7 @@ def udhcpc_get_vars(env, pipe):
 #    from the node.
 # 3. We clean things up by removing temporary "veth" interfaces.
 
+@contextmanager
 def udhcpc_fake_netboot(env):
     bridge_dev_dir = Path('/sys/class/net') / BRIDGE_INTF
     while not bridge_dev_dir.is_dir():
@@ -73,4 +79,13 @@ def udhcpc_fake_netboot(env):
             pipe1 = pipe[1],
             mac = env['mac']
         ), shell=True)
-        udhcpc_get_vars(env, pipe)
+        try:
+            # we need to save env variables retrieved through DHCP
+            # (they are needed to interpret ipxe scripts)
+            udhcpc_get_vars(env, pipe[1])
+            # we also need to setup the interface to handle TFTP transfers
+            udhcpc_setup_interface(pipe[1])
+            yield True
+        except:
+            traceback.print_exc()
+            yield False
