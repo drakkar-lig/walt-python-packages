@@ -68,7 +68,7 @@ PACKAGE_SPECIFIC_INFO = {
     ),
     "walt-virtual": dict(
         subdir = 'virtual',
-        requires = ['walt-common==%(upload)s'],
+        requires = ['walt-common==%(upload)s', 'python-daemon>=2.2.3'],
         version_str = '%(upload)s',
         setup = dict(
             description = "WalT components related to virtualization.",

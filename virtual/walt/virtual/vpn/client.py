@@ -1,4 +1,5 @@
-import os, os.path, sys, shlex, struct
+import os, os.path, sys, shlex, struct, daemon
+from daemon.pidfile import PIDLockFile
 from subprocess import check_call, check_output, Popen, PIPE, TimeoutExpired, run, DEVNULL
 from select import select
 from walt.virtual.tools import createtap, read_n, enable_debug, debug
@@ -119,7 +120,17 @@ def do_vpn_client(walt_vpn_entrypoint):
                     walt_vpn_entrypoint = walt_vpn_entrypoint
                 )), stdin=PIPE, stdout=PIPE, bufsize=0)
 
-    print('Running...')
+    if DEBUG:
+        print('Running...')
+        vpn_client_loop(popen, tap)
+    else:
+        print('Going to background.')
+        with daemon.DaemonContext(
+                    files_preserve = [popen.stdin, popen.stdout, tap],
+                    pidfile = PIDLockFile('/var/run/walt-vpn-client.pid')):
+            vpn_client_loop(popen, tap)
+
+def vpn_client_loop(popen, tap):
     # start select loop
     # we will:
     # * transfer packets coming from the tap interface to ssh stdin
