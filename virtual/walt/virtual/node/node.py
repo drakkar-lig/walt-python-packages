@@ -2,8 +2,8 @@
 import sys, subprocess, time, random, platform
 from contextlib import contextmanager
 from walt.common.apilink import ServerAPILink
-from walt.virtual.fakeipxe import ipxe_boot
-from walt.virtual.udhcpc import udhcpc_fake_netboot
+from walt.virtual.node.fakeipxe import ipxe_boot
+from walt.virtual.node.udhcpc import udhcpc_fake_netboot
 from plumbum import cli
 from pathlib import Path
 

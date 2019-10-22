@@ -32,7 +32,6 @@ def read_n(fd, n):
         buf += chunk
     return buf
 
-
 DEBUG_OUT = None
 
 def enable_debug(out = sys.stdout):
