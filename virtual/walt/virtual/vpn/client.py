@@ -2,9 +2,11 @@ import os, os.path, sys, shlex, struct
 from subprocess import check_call, check_output, Popen, PIPE, TimeoutExpired, run, DEVNULL
 from select import select
 from walt.virtual.tools import createtap, read_n, enable_debug, debug
+from walt.virtual.vpn.ssh import ssh_with_identity
 from walt.common.constants import UNSECURE_ECDSA_KEYPAIR
 from pathlib import Path
 from time import time, sleep
+from plumbum import cli
 
 DEBUG = False
 
@@ -13,14 +15,6 @@ if DEBUG:
 
 BRIDGE_INTF = "walt-net"
 VPN_USER = "walt-vpn"
-
-USAGE='''\
-Usage:
->> $ %(prog)s <walt-server>
-
-Note: in order to avoid exposing walt server to the wild, <walt-server>
-is usually replaced by an appropriately configured ssh proxy.
-'''
 
 SSH_CONF_DIR = Path.home() / '.ssh'
 PRIV_KEY_FILE = SSH_CONF_DIR / 'id_ecdsa_walt_vpn'
@@ -57,6 +51,9 @@ def get_mac_address():
     sys.exit()
 
 def setup_credentials(walt_vpn_entrypoint):
+    if PRIV_KEY_FILE.exists():
+        print('Credentials are already setup.')
+        sys.exit()
     mac_address = get_mac_address()
     if not SSH_CONF_DIR.is_dir():
         SSH_CONF_DIR.mkdir()
@@ -67,7 +64,7 @@ def setup_credentials(walt_vpn_entrypoint):
         UNSECURE_PUB_KEY_FILE.write_text(UNSECURE_ECDSA_KEYPAIR['openssh-pub'])
     while True:
         try:
-            cred_info = check_output(format_ssh_command(
+            cred_info = check_output(ssh_with_identity(
                     str(UNSECURE_PRIV_KEY_FILE),
                     SSH_AUTH_COMMAND.strip() % dict(
                         connect_timeout = SSH_CONNECT_TIMEOUT,
@@ -91,46 +88,13 @@ def setup_credentials(walt_vpn_entrypoint):
         PRIV_KEY_FILE.write_text(parts[1].strip() + '\n')
         PRIV_KEY_FILE.chmod(0o600)
         CERT_PUB_KEY_FILE.write_text(parts[2].strip() + '\n')
+        print('OK, new credentials obtained and saved.')
         break
 
-# For easy management of per-command ssh identity, we always start a new ssh-agent
-# (even if there is already one agent running on the system). This agent will
-# be running as long a the subcommand specified is running. Since we actually
-# have several things to do (2 things, see function 'ssh_helper' below), we call
-# this program (i.e. walt-vpn-client) recursively, with first arg set to 'ssh-helper',
-# and get to function 'ssh_helper' below.
-def format_ssh_command(key_path, ssh_command):
-    return shlex.split(
-            "ssh-agent %(this_prog)s ssh-helper %(key_path)s %(ssh_command)s" % dict(
-            this_prog = sys.argv[0],
-            key_path = key_path,
-            ssh_command = ssh_command
-    ))
-
-def ssh_helper(key_path, *ssh_command):
-    # We add the key explicitely using ssh-add.
-    # (Using ssh option "-o AddKeysToAgent=yes" on command ssh apparently does not
-    # work: it only adds the key, not the certificate.)
-    check_call([ 'ssh-add', key_path ], stderr=DEVNULL)
-    # replace this current process with the specified ssh command
-    os.execvp(ssh_command[0], ssh_command)
-
-def run():
-    # Verify args
-    if len(sys.argv) < 2:
-        print(USAGE % dict(prog = os.path.basename(sys.argv[0])), end='')
-        sys.exit()
-
-    # if arg is "ssh-helper", this means we were called recursively.
-    if sys.argv[1] == "ssh-helper":
-        return ssh_helper(*sys.argv[2:])
-
-    # otherwise, this is the standard call.
-    walt_vpn_entrypoint = sys.argv[1]
-
+def do_vpn_client(walt_vpn_entrypoint):
     # setup credentials if needed
     if not PRIV_KEY_FILE.exists():
-        setup_credentials(walt_vpn_entrypoint)
+        sys.exit("Run the following command once, first: 'walt-vpn-setup-credentials <walt-server>'")
 
     # Create TAP
     tap, tap_name = createtap()
@@ -147,7 +111,7 @@ def run():
     print('added ' + tap_name + ' to bridge ' + BRIDGE_INTF)
 
     # Start the command to connect to server
-    popen = Popen(format_ssh_command(
+    popen = Popen(ssh_with_identity(
                 str(PRIV_KEY_FILE),
                 SSH_VPN_COMMAND.strip() % dict(
                     connect_timeout = SSH_CONNECT_TIMEOUT,
@@ -195,3 +159,19 @@ def run():
                 break
             debug('transmitting packet of', packet_len, 'bytes from ssh channel to tap')
             os.write(tap.fileno(), packet)
+
+class WalTVPNClient(cli.Application):
+    """Establish the VPN up to walt server"""
+    def main(self, walt_vpn_entrypoint):
+        do_vpn_client(walt_vpn_entrypoint)
+
+def vpn_client():
+    WalTVPNClient.run()
+
+class WalTVPNSetupCredentials(cli.Application):
+    """Establish VPN credentials with walt server"""
+    def main(self, walt_vpn_entrypoint):
+        setup_credentials(walt_vpn_entrypoint)
+
+def vpn_setup_credentials():
+    WalTVPNSetupCredentials.run()

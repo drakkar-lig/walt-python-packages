@@ -78,7 +78,9 @@ PACKAGE_SPECIFIC_INFO = {
                     'walt-virtual-node = walt.virtual.node:run',
                     'walt-vpn-server = walt.virtual.vpn.server:run',
                     'walt-vpn-endpoint = walt.virtual.vpn.endpoint:run',
-                    'walt-vpn-client = walt.virtual.vpn.client:run',
+                    'walt-vpn-client = walt.virtual.vpn.client:vpn_client',
+                    'walt-vpn-setup-credentials = walt.virtual.vpn.client:vpn_setup_credentials',
+                    'walt-vpn-ssh-helper = walt.virtual.vpn.ssh:helper',
                     'walt-vpn-auth-tool = walt.virtual.vpn.authtool:run'
                 ]
             },
