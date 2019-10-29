@@ -49,7 +49,10 @@ def udhcpc_get_vars(env, interface):
             words = line.split()
             if words[0] != 'VAR':
                 continue
-            var_name, value = words[1], words[2]
+            if len(words) == 3:
+                var_name, value = words[1], words[2]
+            else:
+                var_name, value = words[1], ''
             env[var_name] = value
 
 def udhcpc_setup_interface(env, interface):
