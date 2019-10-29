@@ -83,7 +83,8 @@ def get_env_start(info):
     env.update({
         "manufacturer": MANUFACTURER,
         "product": QEMU_PRODUCT,
-        "qemu-args": ' '.join(qemu_args.split())
+        "qemu-args": ' '.join(qemu_args.split()),
+        "vci": 'walt.node.' + env['model']
     })
     return env
 
@@ -96,8 +97,7 @@ def api_fake_netboot(env):
 
 def send_register_request(env):
     with ServerAPILink(env['server_ip'], 'VSAPI') as server:
-        vci = 'walt.node.' + env['model']
-        return server.register_device(vci, '', env['ip'], env['mac'])
+        return server.register_device(env['vci'], '', env['ip'], env['mac'])
 
 def add_network_info(env):
     with ServerAPILink(env['server_ip'], 'VSAPI') as server:

@@ -40,7 +40,8 @@ def udhcpc_get_vars(env, interface):
         script = tmpdir / 'script.sh'
         script.write_text(UDHCPC_SCRIPT)
         script.chmod(0o755) # make it executable
-        info = check_output('udhcpc -f -q -n -i %(interface)s -s %(script)s' % dict(
+        info = check_output('udhcpc -V %(vci)s -f -q -n -i %(interface)s -s %(script)s' % dict(
+            vci = env['vci'],
             interface = interface,
             script = str(script)
         ), shell=True).decode(sys.getdefaultencoding())
@@ -51,8 +52,9 @@ def udhcpc_get_vars(env, interface):
             var_name, value = words[1], words[2]
             env[var_name] = value
 
-def udhcpc_setup_interface(interface):
-    check_call('udhcpc -f -q -n -i %(interface)s' % dict(
+def udhcpc_setup_interface(env, interface):
+    check_call('udhcpc -V %(vci)s -f -q -n -i %(interface)s' % dict(
+            vci = env['vci'],
             interface = interface
             ), shell=True)
 
@@ -84,7 +86,7 @@ def udhcpc_fake_netboot(env):
             # (they are needed to interpret ipxe scripts)
             udhcpc_get_vars(env, pipe[1])
             # we also need to setup the interface to handle TFTP transfers
-            udhcpc_setup_interface(pipe[1])
+            udhcpc_setup_interface(env, pipe[1])
             yield True
         except:
             traceback.print_exc()
