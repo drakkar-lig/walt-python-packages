@@ -1,2 +1,4 @@
 include walt/virtual/setup/*.service
 include walt/virtual/setup/*.socket
+include walt/virtual/setup/S51waltvpnclient
+include walt/virtual/setup/S52waltvirtualnode

@@ -1,0 +1,73 @@
+#!/bin/sh
+#
+# walt-virtual-node       Start a walt virtual node
+#
+
+CONF=/etc/default/walt-vpn-node
+
+# Make sure the conf is OK
+[ -f $CONF ] || {
+    echo "Missing file '$CONF'." >&2
+    exit 1
+}
+source $CONF
+[ ! -z "$WALT_VPN_ENTRYPOINT" ] || {
+    echo "File $CONF should define var WALT_VPN_ENTRYPOINT." >&2
+    exit 1
+}
+
+[ -z "$WALT_VIRTUAL_NODE_MAC" ] && {
+    # generate and save random mac address for virtual node
+    WALT_VIRTUAL_NODE_MAC="$(printf '52:54:00:%02x:%02x:%02x' $((RANDOM%256)) $((RANDOM%256)) $((RANDOM%256)))"
+    mount -o remount,rw /
+    echo "WALT_VIRTUAL_NODE_MAC='$WALT_VIRTUAL_NODE_MAC'" >> $CONF
+    mount -o remount,ro /
+}
+
+umask 077
+
+start() {
+	echo "Starting virtual node: "
+	screen -S walt.virtual.node -d -m   \
+		walt-virtual-node --attach-usb --net-conf-udhcpc --mac $WALT_VIRTUAL_NODE_MAC --model qemu-arm
+	status=$?
+	if [ "$status" -eq 0 ]; then
+		echo "OK"
+	else
+		echo "FAIL"
+	fi
+	return "$status"
+}
+stop() {
+	printf 'Stopping virtual node: '
+	screen -S "walt.virtual.node" -X quit 
+	status=$?
+	if [ "$status" -eq 0 ]; then
+		echo "OK"
+	else
+		echo "FAIL"
+	fi
+	return "$status"
+}
+restart() {
+	stop
+	start
+}
+
+case "$1" in
+  start)
+	start
+	;;
+  stop)
+	stop
+	;;
+  restart|reload)
+	restart
+	;;
+  *)
+	echo "Usage: $0 {start|stop|restart}"
+	exit 1
+esac
+
+exit $?
+
