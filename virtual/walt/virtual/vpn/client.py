@@ -26,13 +26,18 @@ UNSECURE_PUB_KEY_FILE = SSH_CONF_DIR / 'id_ecdsa_walt_unsecure.pub'
 SSH_CONNECT_TIMEOUT = 10
 
 SSH_AUTH_COMMAND = """
-ssh -T -q -A -o StrictHostKeyChecking=no -o ConnectTimeout=%(connect_timeout)d \
+ssh -T -q -A \
+    -o StrictHostKeyChecking=no \
+    -o PreferredAuthentications=publickey \
+    -o ConnectTimeout=%(connect_timeout)d \
     -i %(unsecure_priv_key)s \
     walt-vpn@%(walt_vpn_entrypoint)s %(mac_address)s
 """
 
 SSH_VPN_COMMAND = """
-ssh -T -q -A -o ConnectTimeout=%(connect_timeout)d \
+ssh -T -q -A \
+    -o PreferredAuthentications=publickey \
+    -o ConnectTimeout=%(connect_timeout)d \
     -i %(priv_key)s \
     walt-vpn@%(walt_vpn_entrypoint)s
 """
