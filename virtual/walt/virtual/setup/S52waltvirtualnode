@@ -27,46 +27,55 @@ source $CONF
 umask 077
 
 start() {
-	echo "Starting virtual node: "
-	screen -S walt.virtual.node -d -m   \
-		walt-virtual-node --attach-usb --net-conf-udhcpc --mac $WALT_VIRTUAL_NODE_MAC --model qemu-arm
-	status=$?
-	if [ "$status" -eq 0 ]; then
-		echo "OK"
-	else
-		echo "FAIL"
-	fi
-	return "$status"
+    echo "Starting virtual node: "
+    # note: when the virtual node reboots, USB peripherals plugged on the host
+    # are not power cycled (since the host does not reboot itself), which can
+    # cause issues.
+    # thus, we use option --on-vm-reboot 'reboot', which will make the host
+    # reboot too, whenever the virtual node reboots.
+    screen -S walt.virtual.node -d -m   \
+            walt-virtual-node --attach-usb \
+                              --net-conf-udhcpc \
+                              --mac $WALT_VIRTUAL_NODE_MAC \
+                              --model qemu-arm \
+                              --on-vm-reboot 'reboot'
+    status=$?
+    if [ "$status" -eq 0 ]; then
+        echo "OK"
+    else
+        echo "FAIL"
+    fi
+    return "$status"
 }
 stop() {
-	printf 'Stopping virtual node: '
-	screen -S "walt.virtual.node" -X quit 
-	status=$?
-	if [ "$status" -eq 0 ]; then
-		echo "OK"
-	else
-		echo "FAIL"
-	fi
-	return "$status"
+    printf 'Stopping virtual node: '
+    screen -S "walt.virtual.node" -X quit
+    status=$?
+    if [ "$status" -eq 0 ]; then
+        echo "OK"
+    else
+        echo "FAIL"
+    fi
+    return "$status"
 }
 restart() {
-	stop
-	start
+    stop
+    start
 }
 
 case "$1" in
   start)
-	start
-	;;
+    start
+    ;;
   stop)
-	stop
-	;;
+    stop
+    ;;
   restart|reload)
-	restart
-	;;
+    restart
+    ;;
   *)
-	echo "Usage: $0 {start|stop|restart}"
-	exit 1
+    echo "Usage: $0 {start|stop|restart}"
+    exit 1
 esac
 
 exit $?

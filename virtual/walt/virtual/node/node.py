@@ -86,6 +86,8 @@ def get_env_start(info):
         "qemu-args": ' '.join(qemu_args.split()),
         "vci": 'walt.node.' + env['model']
     })
+    if info._reboot_command is not None:
+        env['reboot-command'] = info._reboot_command
     return env
 
 @contextmanager
@@ -131,6 +133,7 @@ def node_loop(info):
 class WalTVirtualNode(cli.Application):
     _udhcpc = False         # default
     _attach_usb = False     # default
+    _reboot_command = None  # default
 
     """run a virtual node"""
     def main(self):
@@ -170,6 +173,11 @@ class WalTVirtualNode(cli.Application):
     def set_net_conf_udhcpc(self):
         """use udhcpc to get network parameters"""
         self._udhcpc = True
+
+    @cli.switch("--on-vm-reboot", str)
+    def set_reboot_command(self, shell_command):
+        """define a command to be called if virtual machine reboots"""
+        self._reboot_command = shell_command
 
 def run():
     WalTVirtualNode.run()

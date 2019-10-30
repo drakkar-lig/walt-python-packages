@@ -184,3 +184,5 @@ def ipxe_boot(env):
             cmd = env["qemu-cmd"]
             print(cmd)
             subprocess.call(cmd, shell=True)
+            if 'reboot-command' in env:
+                subprocess.call(env['reboot-command'], shell=True)
