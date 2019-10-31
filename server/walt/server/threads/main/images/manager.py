@@ -116,7 +116,7 @@ class NodeImageManager(object):
         return session
     def update_hub_metadata(self, context, auth_conf, dh_peer, waltplatform_user):
         update_hub_metadata(blocking = self.blocking,
-                           requester = context.requester.sync,
+                           requester = context.requester.do_sync,
                                 task = context.task,
                              dh_peer = dh_peer,
                            auth_conf = auth_conf,

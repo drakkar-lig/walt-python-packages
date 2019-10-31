@@ -34,4 +34,4 @@ class APISessionTask(object):
         if not self.is_async():
             self.return_result(res)
     def is_alive(self):
-        return self.context.requester.sync.is_alive()
+        return self.context.requester.do_sync.is_alive()

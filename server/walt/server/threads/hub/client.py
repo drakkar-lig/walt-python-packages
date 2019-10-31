@@ -16,7 +16,7 @@ class APISessionManager(object):
         self.requester = AttrCallAggregator(self.forward_requester_request)
         self.rpc_session = self.main.local_service(self.requester)
     def record_task(self, attr, args, kwargs):
-        self.rpc_session.async.run_task(self.session_id, attr, args, kwargs).then(
+        self.rpc_session.do_async.run_task(self.session_id, attr, args, kwargs).then(
             self.return_result
         )
     def fileno(self):
@@ -51,7 +51,7 @@ class APISessionManager(object):
     def init_session(self):
         try:
             self.target_api = self.sock_file.readline().decode('UTF-8').strip()
-            self.session_id = self.rpc_session.sync.create_session(
+            self.session_id = self.rpc_session.do_sync.create_session(
                                 self.target_api, self.remote_ip)
             self.sock_file.write(b"%d\n" % int(__version__))
             return True
@@ -59,7 +59,7 @@ class APISessionManager(object):
             return False
     def close(self):
         if self.session_id != None:
-            self.rpc_session.sync.destroy_session(self.session_id)
+            self.rpc_session.do_sync.destroy_session(self.session_id)
         self.sock_file.close()
     def forward_requester_request(self, path, args, kwargs):
         args = args[1:] # discard 1st arg, rpc context

@@ -10,23 +10,23 @@ class BlockingTasksService(object):
         self.server = server
 
     def clone_image(self, context, *args, **kwargs):
-        res = clone(context.requester.sync, self.server, *args, **kwargs)
+        res = clone(context.requester.do_sync, self.server, *args, **kwargs)
         context.task.return_result(res)
 
     def search_image(self, context, *args, **kwargs):
-        res = search(context.requester.sync, self.server, *args, **kwargs)
+        res = search(context.requester.do_sync, self.server, *args, **kwargs)
         context.task.return_result(res)
 
     def publish_image(self, context, *args, **kwargs):
-        res = publish(context.requester.sync, self.server, *args, **kwargs)
+        res = publish(context.requester.do_sync, self.server, *args, **kwargs)
         context.task.return_result(res)
 
     def update_hub_metadata(self, context, *args, **kwargs):
-        res = update_hub_metadata(context.requester.sync, self.server, *args, **kwargs)
+        res = update_hub_metadata(context.requester.do_sync, self.server, *args, **kwargs)
         context.task.return_result(res)
 
     def stream_db_logs(self, context, **params):
-        res = stream_db_logs(self.server.db, context.requester.sync, **params)
+        res = stream_db_logs(self.server.db, context.requester.do_sync, **params)
         context.task.return_result(res)
 
     def pull_image(self, context, image_fullname):
