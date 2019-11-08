@@ -178,13 +178,29 @@ class NodeFakeTFTPGet(ParallelProcessSocketListener):
     def get_command(self, **params):
         return 'cat "%(full_path)s"' % params
 
+class VPNNodeImageDump(ParallelProcessSocketListener):
+    REQ_ID = Requests.REQ_VPN_NODE_IMAGE
+    def prepare(self, **params):
+        if 'model' not in params or 'entrypoint' not in params:
+            self.send_client('ERR Invalid request!\n')
+            return False
+        if params['model'] != 'rpi-3-b-plus':
+            self.send_client('ERR Only rpi-3-b-plus boards can be used as a WalT node.\n')
+            return False
+        self.send_client('MSG Generating image... Please be patient.\n')
+        self.send_client('START\n')
+        return True
+    def get_command(self, **params):
+        return 'docker run --rm=true waltplatform/rpi3bp-vpn-sd-dump "%(entrypoint)s"' % params
+
 class TransferManager(object):
     def __init__(self, tcp_server, ev_loop):
         for cls in [    ImageTarSender,
                         ImageTarReceiver,
                         NodeTarSender,
                         NodeTarReceiver,
-                        NodeFakeTFTPGet ]:
+                        NodeFakeTFTPGet,
+                        VPNNodeImageDump ]:
             tcp_server.register_listener_class(
                     req_id = cls.REQ_ID,
                     cls = cls,

@@ -16,6 +16,7 @@ class Requests(object):
     REQ_API_SESSION = 10
     REQ_TCP_TO_NODE = 11
     REQ_FAKE_TFTP_GET = 12
+    REQ_VPN_NODE_IMAGE = 13
 
     # the request id message may be specified directly as
     # as a decimal string (e.g. '4') or by the corresponding
