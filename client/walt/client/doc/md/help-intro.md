@@ -47,6 +47,11 @@ If you are not sure when to use which command, see [`walt help show shells`](she
 WalT provides a logging system to manage your experiment logs.
 See [`walt help show logging`](logging.md) for more info.
 
+### Built-in VPN
+
+WalT provides a built-in VPN system allowing you to deploy distant nodes.
+See [`walt help show vpn`](vpn.md) for more info.
+
 ## Advanced users
 
 For specific needs, it is possible to build your own WalT image from scratch.
