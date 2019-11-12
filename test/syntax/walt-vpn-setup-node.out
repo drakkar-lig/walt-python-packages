@@ -1,0 +1,8 @@
+Setup a WalT VPN node
+
+Usage:
+    walt vpn setup-node [SWITCHES] 
+
+Meta-switches:
+    -h, --help      Prints this help message and quits
+

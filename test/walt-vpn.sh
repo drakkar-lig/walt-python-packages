@@ -22,3 +22,16 @@ sleep 1
 send "\003"
 EOF
 }
+
+define_test "walt vpn setup-proxy" as {
+    cd $(mktemp -d)
+    # check that the command creates a non-empty file proxy-setup.sh
+    walt vpn setup-proxy && [ -s proxy-setup.sh ] && rm proxy-setup.sh
+}
+
+define_test "walt vpn setup-node" as {
+    cd $(mktemp -d)
+    # check that the command creates a non-empty file rpi3bp-vpn.dd
+    echo entrypoint.walt.org | walt vpn setup-node && \
+        [ -s rpi3bp-vpn.dd ] && rm rpi3bp-vpn.dd
+}
