@@ -54,16 +54,17 @@ print_admin_responses() {
 }
 
 define_test "walt device config" as {
-    set -- $(
+    output="$(
         psql walt -t -c "$SQL_NODE_AND_NETSETUP" | tr -d '|'
-    )
+    )"
 
-    if [ "$1" == "" ]
+    if [ "$output" = "" ]
     then
         echo "did not find a node to run this test on" >&2
         return 1
     fi
 
+    set -- $output
     name="$1"
 
     if [ "$2" = "0" ]
@@ -86,17 +87,17 @@ define_test "walt device config" as {
 }
 
 define_test "walt device admin" as {
-
-    set -- $(
+    output="$(
         psql walt -t -c "$SQL_CONFIGURED_SWITCH" | tr -d '|'
-    )
+    )"
 
-    if [ "$1" == "" ]
+    if [ "$output" = "" ]
     then
         echo "did not find a switch to run this test on" >&2
         return 1
     fi
 
+    set -- $output
     name="$1"
     shift
 
@@ -121,16 +122,17 @@ define_test "walt device show" as {
 }
 
 define_test "walt device rename" as {
-    set -- $(
+    output="$(
         psql walt -t -c "$SQL_ONE_DEVICE_NAME" | tr -d '|'
-    )
+    )"
 
-    if [ "$1" == "" ]
+    if [ "$output" = "" ]
     then
         echo "did not find a device to run this test on" >&2
         return 1
     fi
 
+    set -- $output
     name="$1"
     newname="$1-test-$$"
 
