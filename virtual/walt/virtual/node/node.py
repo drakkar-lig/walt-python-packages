@@ -2,6 +2,7 @@
 import sys, subprocess, time, random, platform
 from contextlib import contextmanager
 from walt.common.apilink import ServerAPILink
+from walt.common.logs import LoggedApplication
 from walt.virtual.node.fakeipxe import ipxe_boot
 from walt.virtual.node.udhcpc import udhcpc_fake_netboot
 from plumbum import cli
@@ -130,13 +131,14 @@ def node_loop(info):
         print((str(e)))
         time.sleep(120)
 
-class WalTVirtualNode(cli.Application):
+class WalTVirtualNode(LoggedApplication):
     _udhcpc = False         # default
     _attach_usb = False     # default
     _reboot_command = None  # default
 
     """run a virtual node"""
     def main(self):
+        self.init_logs()
         node_loop(self)
 
     @cli.switch("--attach-usb")

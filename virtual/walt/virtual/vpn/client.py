@@ -5,9 +5,9 @@ from select import select
 from walt.virtual.tools import createtap, read_n, enable_debug, debug
 from walt.virtual.vpn.ssh import ssh_with_identity
 from walt.common.constants import UNSECURE_ECDSA_KEYPAIR
+from walt.common.logs import LoggedApplication
 from pathlib import Path
 from time import time, sleep
-from plumbum import cli
 
 DEBUG = False
 
@@ -176,17 +176,19 @@ def vpn_client_loop(popen, tap):
             debug('transmitting packet of', packet_len, 'bytes from ssh channel to tap')
             os.write(tap.fileno(), packet)
 
-class WalTVPNClient(cli.Application):
+class WalTVPNClient(LoggedApplication):
     """Establish the VPN up to walt server"""
     def main(self, walt_vpn_entrypoint):
+        self.init_logs()
         do_vpn_client(walt_vpn_entrypoint)
 
 def vpn_client():
     WalTVPNClient.run()
 
-class WalTVPNSetupCredentials(cli.Application):
+class WalTVPNSetupCredentials(LoggedApplication):
     """Establish VPN credentials with walt server"""
     def main(self, walt_vpn_entrypoint):
+        self.init_logs()
         setup_credentials(walt_vpn_entrypoint)
 
 def vpn_setup_credentials():
