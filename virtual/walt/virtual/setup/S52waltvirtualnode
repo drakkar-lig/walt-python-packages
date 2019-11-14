@@ -5,14 +5,18 @@
 
 CONF=/etc/default/walt-vpn-node
 
+msg() {
+	echo "[walt-virtual-node] $1" | tee /dev/tty0
+}
+
 # Make sure the conf is OK
 [ -f $CONF ] || {
-    echo "Missing file '$CONF'." >&2
+    msg "Missing file '$CONF'." >&2
     exit 1
 }
 source $CONF
 [ ! -z "$WALT_VPN_ENTRYPOINT" ] || {
-    echo "File $CONF should define var WALT_VPN_ENTRYPOINT." >&2
+    msg "File $CONF should define var WALT_VPN_ENTRYPOINT." >&2
     exit 1
 }
 
@@ -27,7 +31,7 @@ source $CONF
 umask 077
 
 start() {
-    echo "Starting virtual node: "
+    msg "Starting virtual node..."
     # note: when the virtual node reboots, USB peripherals plugged on the host
     # are not power cycled (since the host does not reboot itself), which can
     # cause issues.
@@ -38,23 +42,25 @@ start() {
                               --net-conf-udhcpc \
                               --mac $WALT_VIRTUAL_NODE_MAC \
                               --model qemu-arm \
-                              --on-vm-reboot 'reboot'
+                              --on-vm-reboot 'reboot' \
+                              --log-file /dev/tty0 \
+                              --log-prefix "walt-virtual-node"
     status=$?
     if [ "$status" -eq 0 ]; then
-        echo "OK"
+        msg "OK"
     else
-        echo "FAIL"
+        msg "FAIL"
     fi
     return "$status"
 }
 stop() {
-    printf 'Stopping virtual node: '
+    msg 'Stopping virtual node...'
     screen -S "walt.virtual.node" -X quit
     status=$?
     if [ "$status" -eq 0 ]; then
-        echo "OK"
+        msg "OK"
     else
-        echo "FAIL"
+        msg "FAILED"
     fi
     return "$status"
 }

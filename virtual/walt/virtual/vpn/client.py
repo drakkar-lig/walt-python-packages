@@ -116,26 +116,33 @@ def do_vpn_client(walt_vpn_entrypoint):
 
     print('added ' + tap_name + ' to bridge ' + BRIDGE_INTF)
 
-    # Start the command to connect to server
-    popen = Popen(ssh_with_identity(
-                str(PRIV_KEY_FILE),
-                SSH_VPN_COMMAND.strip() % dict(
-                    connect_timeout = SSH_CONNECT_TIMEOUT,
-                    priv_key = str(PRIV_KEY_FILE),
-                    walt_vpn_entrypoint = walt_vpn_entrypoint
-                )), stdin=PIPE, stdout=PIPE, bufsize=0)
-
+    # start loop
     if DEBUG:
         print('Running...')
-        vpn_client_loop(popen, tap)
+        vpn_client_loop(tap, walt_vpn_entrypoint)
     else:
         print('Going to background.')
         with daemon.DaemonContext(
-                    files_preserve = [popen.stdin, popen.stdout, tap],
+                    files_preserve = [tap],
                     pidfile = PIDLockFile('/var/run/walt-vpn-client.pid')):
-            vpn_client_loop(popen, tap)
+            vpn_client_loop(tap, walt_vpn_entrypoint)
 
-def vpn_client_loop(popen, tap):
+def vpn_client_loop(tap, walt_vpn_entrypoint):
+    while True:
+        # Start the command to connect to server
+        popen = Popen(ssh_with_identity(
+                    str(PRIV_KEY_FILE),
+                    SSH_VPN_COMMAND.strip() % dict(
+                        connect_timeout = SSH_CONNECT_TIMEOUT,
+                        priv_key = str(PRIV_KEY_FILE),
+                        walt_vpn_entrypoint = walt_vpn_entrypoint
+                    )), stdin=PIPE, stdout=PIPE, bufsize=0)
+        # transmit packets
+        should_continue = packet_transmission_loop(popen, tap)
+        if not should_continue:
+            break
+
+def packet_transmission_loop(popen, tap):
     # start select loop
     # we will:
     # * transfer packets coming from the tap interface to ssh stdin
@@ -152,7 +159,7 @@ def vpn_client_loop(popen, tap):
             if len(packet) == 0:
                 # unexpected, let's stop
                 print(time(), 'short read on tap, exiting.')
-                break
+                return False
             # encode packet length as 2 bytes
             encoded_packet_len = struct.pack('!H', len(packet))
             debug('transmitting packet of', len(packet), 'bytes from tap to ssh channel')
@@ -162,8 +169,9 @@ def vpn_client_loop(popen, tap):
         else:
             encoded_packet_len = read_n(r_fd, 2)
             if len(encoded_packet_len) < 2:
-                print(time(), 'short read on ssh channel (reading packet length), exiting.')
-                break
+                print(time(), 'short read on ssh channel (reading packet length), will re-init.')
+                sleep(5)
+                return True
             # decode 2 bytes of packet length
             packet_len = struct.unpack('!H', encoded_packet_len)[0]
             # empty packet?
@@ -171,8 +179,9 @@ def vpn_client_loop(popen, tap):
                 raise Exception(str(time()) + ' Got packet_len of 0!')
             packet = read_n(r_fd, packet_len)
             if len(packet) < packet_len:
-                print(time(), 'short read on ssh channel (reading packet), exiting.')
-                break
+                print(time(), 'short read on ssh channel (reading packet), will re-init.')
+                sleep(5)
+                return True
             debug('transmitting packet of', packet_len, 'bytes from ssh channel to tap')
             os.write(tap.fileno(), packet)
 

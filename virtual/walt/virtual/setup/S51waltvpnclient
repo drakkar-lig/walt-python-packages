@@ -22,41 +22,62 @@ source $CONF
 
 umask 077
 
+msg() {
+	echo "[walt-vpn-client] $1" | tee /dev/tty0
+}
+
 start() {
+	while true
+	do
+		eth0_state=$(cat /sys/class/net/eth0/operstate)
+		if [ "$eth0_state" = "up" ]
+		then
+			break
+		else
+			msg "Waiting for eth0 to be up..."
+			sleep 5
+		fi
+	done
+
 	if [ ! -f /root/.ssh/id_ecdsa_walt_vpn ]
 	then
-		echo "Setting up VPN credentials with walt server..."
+		msg "Setting up VPN credentials with walt server..."
 		mount -o remount,rw /
-		walt-vpn-setup-credentials $WALT_VPN_ENTRYPOINT
-		mount -o remount,ro /
-	fi
-	if [ ! -f /root/.ssh/id_ecdsa_walt_vpn ]
-	then
-		echo "Could not get VPN credentials. Rebooting."
-		reboot
-		return
+		while true
+		do
+			walt-vpn-setup-credentials --log-file /dev/tty0 --log-prefix "walt-vpn-client" $WALT_VPN_ENTRYPOINT
+			if [ -f /root/.ssh/id_ecdsa_walt_vpn ]
+			then
+				msg "VPN credentials obtained successfully."
+				mount -o remount,ro /
+				break
+			else
+				msg "Could not get VPN credentials. Will retry in a few seconds."
+				sleep 10
+			fi
+		done
 	fi
 
-	echo "Starting vpn client: "
+	msg "Starting vpn client..."
 	start-stop-daemon -S -q -p "$PIDFILE" -a "$DAEMON_PATH" \
-		-- "$WALT_VPN_ENTRYPOINT"
+		-- --log-file /dev/tty0 --log-prefix "walt-vpn-client" "$WALT_VPN_ENTRYPOINT"
 	status=$?
 	if [ "$status" -eq 0 ]; then
-		echo "OK"
+		msg "OK"
 	else
-		echo "FAIL"
+		msg "FAILED"
 	fi
 	return "$status"
 }
 stop() {
-	printf 'Stopping vpn client: '
+	msg 'Stopping vpn client...'
 	start-stop-daemon -K -q -p "$PIDFILE"
 	status=$?
 	if [ "$status" -eq 0 ]; then
 		rm -f "$PIDFILE"
-		echo "OK"
+		msg "OK"
 	else
-		echo "FAIL"
+		msg "FAIL"
 	fi
 	return "$status"
 }
