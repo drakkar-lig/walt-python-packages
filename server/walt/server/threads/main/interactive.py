@@ -5,10 +5,7 @@ from walt.server.const import SSH_COMMAND
 
 # when running walt image shell, run bash if available, sh otherwise.
 DOCKER_SH_PATTERN = """\
-docker run -it --entrypoint /bin/sh -h %(hostname)s     \
-        --name %(container_name)s                       \
-        %(image_fullname)s                              \
-        -c 'if [ -e /bin/bash ]; then exec /bin/bash; else exec /bin/sh; fi' """
+walt-image-shell-helper "%(image_fullname)s" "%(container_name)s" """
 
 class PromptSocketListener(ParallelProcessSocketListener):
     def update_params(self):
@@ -26,7 +23,6 @@ class DockerPromptSocketListener(PromptSocketListener):
     REQ_ID = Requests.REQ_DOCKER_PROMPT
     def get_command(self, **params):
         return DOCKER_SH_PATTERN % dict(
-            hostname = 'image-shell',
             container_name = params['container_name'],
             image_fullname = params['image_fullname']
         )

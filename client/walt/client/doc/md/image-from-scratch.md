@@ -40,7 +40,33 @@ Notes:
 * This comma-separated format is mandatory (even if WalT will try to print it in a more compact way in commands output).
 * Whenever you push to docker hub a new version of your image with this setting modified, you have to call `walt advanced rescan-hub-account` again.
 
-### 2- appropriate boot files
+### 2- CPU emulation related files
+
+This section is needed for appropriate support of `walt image shell <image>` command.
+
+WalT server is running an x86-64 CPU, whereas walt nodes usually have a different CPU architecture (e.g. ARM for raspberry pi nodes).
+Thus, when running `walt image shell <image>`, a CPU emulation layer is often involved.
+
+This CPU emulation is transparently handled by a qemu emulator binary, compiled for the CPU architecture of the server (i.e. x86-64), and installed at `[image_root]/usr/bin/qemu-<arch>-static`.
+For instance, raspberry pi images have such a qemu binary at `[image_root]/usr/bin/qemu-arm-static`.
+
+It can be handy to have this binary compiled with `-static` flag, so that it can be easily copied from one image to another.
+This is the case in default raspberry pi images, so you may retrieve it from there if you want to create an image for another ARM board.
+If you are using a Dockerfile, you can just add the following line:
+```
+COPY --from=waltplatform/rpi-3-b-plus-default /usr/bin/qemu-arm-static /usr/bin/qemu-arm-static
+```
+
+Note that before this qemu binary is installed in the image, docker image build process will fail to run any other binary of the image.
+Thus, if you are using a Dockerfile, the `COPY` command above should be written before any `RUN` command.
+
+At this step, in some cases, emulation might still fail for some rare image commands: those that try to guess the CPU architecture by reading file `/proc/cpuinfo`.
+Since the filesystem mounted at `/proc` is linked to the linux kernel running on the host, the content of this file shows information about the host CPU, instead of the expected target node CPU.
+An example of those failing commands is `yum` package manager often installed in rpm-based systems.
+In order to handle this case properly, you may dump the file `/proc/cpuinfo` of a running target node, and provide this file at `[image_root]/etc/cpuinfo`.
+If this file is found in the image, walt server will bind-mount it at `/proc/cpuinfo`, which should solve this problem.
+
+### 3- appropriate boot files
 
 When booting, the node starts its network bootloader stored locally (on a SD card, in a flash memory, on a bootable USB device, etc.).
 Then it will use the TFTP protocol to download a second-stage boot script.
@@ -53,7 +79,7 @@ For example, a `rpi-b-plus` node sending a TFTP request for file `/start.uboot` 
 
 As a result, the image should provide a directory `/boot/<node_model>` for each node model handled. This directory should contain the second-stage boot script and resources needed by this script (kernel, maybe an initrd, maybe a device tree blob, etc.), or symbolic links if these resources are stored elsewhere in the image.
 
-### 3- kernel features
+### 4- kernel features
 
 For a raspberry pi kernel, see https://www.raspberrypi.org/documentation/linux/kernel/building.md.
 
@@ -70,11 +96,11 @@ You should also include the device driver for your network card, for instance `C
 
 If you use an initrd, some of these features (such as `CONFIG_OVERLAY_FS`) may be built as kernel modules (`=m` instead of `=y`) and others may be omitted (such as `CONFIG_ROOT_NFS`). If not, building all these features into the kernel (`=y`) is mandatory, and in any case, it is safe to do it.
 
-### 4- an init system
+### 5- an init system
 
 The init system of your image should be available at `/sbin/init`.
 
-### 5- busybox and classical unix commands
+### 6- busybox and classical unix commands
 
 For proper handling of the bootup procedure, you should embed a static version of busybox at `/bin/busybox` (on a debian-based image: `apt-get install busybox-static`).
 This busybox binary should at least include the following applets: `chroot` `ls` `mktemp` `mkfifo` `nc` `reboot` `sed` `sh` `sleep` `timeout`.
@@ -82,7 +108,7 @@ This busybox binary should at least include the following applets: `chroot` `ls`
 The following commands should also be provided in the image (either through `busybox` applets or not, it does not matter):
 `awk` `cat` `chmod` `chroot` `cp` `date` `echo` `grep` `head` `ln` `mkdir` `mount` `reboot` `sed` `setsid` `sh` `timeout` `tr` `umount`.
 
-### 6- a ssh server set up to listen on port 22
+### 7- a ssh server set up to listen on port 22
 
 The ssh server configuration should allow root access when using public key authentication.
 

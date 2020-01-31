@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# walt-image-shell-helper is a shell script run when the server
+# has to handle a "walt image shell" command requested by a client.
+
+if [ -z "$2" ]
+then
+	echo "Usage: $0 <image_fullname> <container_name>" >&2
+	exit
+fi
+
+image_fullname="$1"
+container_name="$2"
+
+HOSTNAME='image-shell'
+RUN_SHELL_COMMAND='if [ -e /bin/bash ]; then exec /bin/bash; else exec /bin/sh; fi'
+DUMP_CPUINFO_COMMAND='if [ -e /etc/cpuinfo ]; then cat /etc/cpuinfo; fi'
+
+docker_run_options=""
+
+# If the image has a file named /etc/cpuinfo, it should be bind-mounted
+# to /proc/cpuinfo (fixes emulation support for some programs such as yum).
+cpuinfo_file=$(mktemp)
+docker run --rm --entrypoint /bin/sh                   \
+        "$image_fullname"                              \
+        -c "$DUMP_CPUINFO_COMMAND" > $cpuinfo_file
+
+if [ -s "$cpuinfo_file" ]   # if not empty
+then
+    docker_run_options="$docker_run_options -v $cpuinfo_file:/proc/cpuinfo"
+    trap "rm -f $cpuinfo_file" EXIT
+else
+    rm -f $cpuinfo_file
+fi
+
+# Run the container that will hold the shell session
+docker run -it --entrypoint /bin/sh -h "$HOSTNAME"     \
+        --name "$container_name"                       \
+        $docker_run_options                            \
+        "$image_fullname"                              \
+        -c "$RUN_SHELL_COMMAND"

@@ -63,6 +63,7 @@ PACKAGE_SPECIFIC_INFO = {
                     'walt-net-config = walt.server.netconfig:run'
                 ]
             },
+            scripts = [ 'sh/walt-image-shell-helper' ],
             include_package_data = True
         )
     ),
