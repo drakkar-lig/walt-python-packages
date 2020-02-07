@@ -54,14 +54,12 @@ class ImageShellSession(object):
         # we have to ensure here that the container was run and completed its job.
         while True:
             event = next(self.docker_events)
-            if 'status' not in event:
+            if 'Status' not in event or 'Name' not in event:
                 continue
-            if event['status'] == 'die' and \
-                    self.docker.local.get_container_name(event['id']) == self.container_name:
+            if event['Status'] == 'cleanup' and event['Name'] == self.container_name:
                 break
         print('committing %s...' % self.container_name)
-        self.docker.local.commit(self.container_name, image_fullname,
-                'Image modified using walt image [cp|shell]')
+        self.docker.local.commit(self.container_name, image_fullname)
         if self.image.fullname == image_fullname:
             # same name, we are modifying the image
             # if image is mounted, umount/mount it in order to make changes

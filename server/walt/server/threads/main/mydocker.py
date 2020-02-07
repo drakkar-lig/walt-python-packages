@@ -1,166 +1,168 @@
 from walt.common.crypto.blowfish import BlowFish
 from walt.server.tools import indicate_progress
+from walt.server.exttools import buildah, podman, mount, umount, findmnt, docker
 from walt.server import const
-from docker import Client, errors
 from datetime import datetime
-from plumbum.cmd import mount
-import os, sys, requests, shlex, json, itertools
+from subprocess import run, CalledProcessError, PIPE, Popen
+import time, re, os, sys, requests, json, itertools
 
-DOCKER_TIMEOUT=None
-AUFS_BR_LIMIT=127
-AUFS_BR_MOUNT_LIMIT=42
-REGISTRY='https://index.docker.io/v1/'
+DOCKER_HUB_TIMEOUT=None
+REGISTRY='docker.io'
 LOGIN_PULL_TEMPLATE = "https://auth.docker.io/token?service=registry.docker.io&scope=repository:{repository}:pull"
 GET_MANIFEST_TEMPLATE = "https://registry.hub.docker.com/v2/{repository}/manifests/{tag}"
 
+def parse_date(created_at):
+    # strptime does not support parsing nanosecond precision
+    # remove last 3 decimals of this number
+    created_at = re.sub(r'([0-9]{6})[0-9]*', r'\1', created_at)
+    dt = datetime.strptime(created_at, "%Y-%m-%d %H:%M:%S.%f %z %Z")
+    # remove subsecond precision (not needed)
+    dt = dt.replace(microsecond=0)
+    # convert to local time
+    return dt.astimezone().replace(tzinfo=None)
 
-def docker_command_split(cmd):
-    args = shlex.split(cmd)
-    return dict(
-        entrypoint=args[0],
-        command=args[1:]
-    )
+# 'buildah mount' does not mount the overlay filesystem with appropriate options to allow nfs export.
+# let's fix this.
+def remount_with_nfs_export_option(mountpoint):
+    # retrieve mount info
+    json_info = findmnt('--json', mountpoint)
+    mount_info = json.loads(json_info)['filesystems'][0]
+    source = mount_info['source']
+    fstype = mount_info['fstype']
+    options = mount_info['options']
+    # add appropriate options
+    options += ',index=on,nfs_export=on'
+    # umount
+    umount(mountpoint)
+    # re-mount
+    mount('-t', fstype, '-o', options, source, mountpoint)
 
 class DockerLocalClient:
-    def __init__(self, c):
-        self.c = c
-        self.layer_id_cache = {}
     def tag(self, old_fullname, new_fullname):
-        reponame, tag = new_fullname.split(':')
-        self.c.tag(image=old_fullname, repository=reponame, tag=tag)
-    def rmi(self, fullname):
-        self.c.remove_image(image=fullname, force=True)
+        buildah.tag(old_fullname, 'docker.io/' + new_fullname)
+    def rmi(self, fullname, ignore_missing = False):
+        self.untag(fullname, ignore_missing = ignore_missing)
     def untag(self, fullname, ignore_missing = False):
         if ignore_missing:
             try:
-                self.rmi(fullname)
-            except errors.NotFound:
+                buildah.rmi(fullname)
+            except CalledProcessError:
                 pass
         else:
-            self.rmi(fullname)
+            buildah.rmi(fullname)
+    def parse_buildah_image_name(self, buildah_image_name):
+        # buildah may manage several repos, we do not need it here, discard this repo prefix
+        fullname = buildah_image_name.split('/', 1)[1]
+        return fullname
     def get_images(self):
-        return self.c.images()
-    def iter_images(self):
-        for i in self.c.images():
-            if i['RepoTags'] is None:
+        images_info = {}
+        for line in buildah.images('--format', '{{.ID}}|{{.Name}}:{{.Tag}}|{{.CreatedAtRaw}}',
+                                   '--filter', 'dangling=false').splitlines():
+            image_id, buildah_image_name, created_at = line.split('|')
+            fullname = self.parse_buildah_image_name(buildah_image_name)
+            if not '/' in fullname:
                 continue
-            for tag in i['RepoTags']:
-                yield (tag, i)
+            if 'clone-temp/walt-image:' in fullname:
+                continue
+            if image_id not in images_info:
+                images_info[image_id] = {
+                    'fullnames': [ fullname ],
+                    'created_at': created_at
+                }
+            else:
+                images_info[image_id]['fullnames'].append(fullname)
+        for image_id, image_info in images_info.items():
+            image_labels = podman.inspect('--format', '{{json .Labels}}', image_id)
+            image_labels = json.loads(image_labels)
+            if 'walt.node.models' not in image_labels:
+                continue
+            for fullname in image_info['fullnames']:
+                yield {
+                    'fullname': fullname,
+                    'created_at': parse_date(image_info['created_at']),
+                    'compatibility': image_labels['walt.node.models']
+                }
     def get_creation_time(self, image_fullname):
-        for fullname, info in self.iter_images():
-            if image_fullname == fullname:
-                return datetime.fromtimestamp(info['Created'])
-    def list_running_containers(self):
-        return [ name.lstrip('/') for name in
-                    sum([ cont['Names'] for cont in
-                            self.c.containers() ], []) ]
-    def start_container(self, image_fullname, cmd):
-        params = dict(image=image_fullname)
-        params.update(docker_command_split(cmd))
-        cid = self.c.create_container(**params).get('Id')
-        self.c.start(container=cid)
-        return cid
-    def wait_container(self, cid_or_cname):
-        self.c.wait(container=cid_or_cname)
-    def stop_container(self, cid_or_cname):
+        created_at = buildah.images('--format', '{{.CreatedAtRaw}}', image_fullname)
+        return parse_date(created_at.strip())
+    def container_is_running(self, cont_name):
+        output = podman.ps('-q', '--filter', 'name=' + cont_name)
+        return len(output.strip()) > 0
+    def stop_container(self, cont_name):
+        if self.container_is_running(cont_name):
+            try:
+                podman.kill(cont_name)
+            except:
+                pass
+            try:
+                podman.wait(cont_name)
+            except:
+                pass
         try:
-            self.c.kill(container=cid_or_cname)
+            podman.rm(cont_name)
         except:
             pass
-        try:
-            self.c.wait(container=cid_or_cname)
-        except:
-            pass
-        try:
-            self.c.remove_container(container=cid_or_cname)
-        except:
-            pass
-    def commit(self, cid_or_cname, dest_fullname, msg):
-        reponame, tag = dest_fullname.split(':')
-        self.c.commit(
-                container=cid_or_cname,
-                repository=reponame,
-                tag=tag,
-                message=msg)
+    def commit(self, cid_or_cname, dest_fullname):
+        podman.commit(
+                cid_or_cname,
+                'docker.io/' + dest_fullname)
     def get_top_layer_id(self, image_fullname):
-        return next(self.get_layer_ids(image_fullname))
-    def get_layer_ids(self, image_fullname):
-        image_info = self.c.inspect_image(image_fullname)
-        if not image_info['Id'].startswith("sha256:"):
-            raise Exception('Docker internal format not understood. Update docker?')
-        # 1- get info about layers
-        for layer_diff in image_info['RootFS']['Layers'][::-1]:
-            # 2- get associated layer ID
-            layer_id = self.layer_id_cache.get(layer_diff, None)
-            if layer_id is None:
-                self.update_layer_id_cache()
-                layer_id = self.layer_id_cache.get(layer_diff)
-            yield layer_id
-    def update_layer_id_cache(self):
-        # for each dir '/var/lib/docker/image/aufs/layerdb/sha256/<id>'
-        # associate the diff ID written in file 'diff' with the layer ID
-        # written in 'cache-id' file.
-        self.layer_id_cache = {}
-        layerdb = '/var/lib/docker/image/aufs/layerdb/sha256'
-        for layer in os.listdir(layerdb):
-            with open(layerdb + '/' + layer + '/diff') as layer_diff_file:
-                diff_id = layer_diff_file.read()
-            with open(layerdb + '/' + layer + '/cache-id') as layer_cache_id_file:
-                layer_id = layer_cache_id_file.read()
-            self.layer_id_cache[diff_id] = layer_id
-    def get_image_layers(self, image_fullname):
-        layer_ids = self.get_layer_ids(image_fullname)
-        for layer_id in layer_ids:
-            diff_dir = '/var/lib/docker/aufs/diff/' + layer_id
-            if len(os.listdir(diff_dir)) > 0:
-                yield diff_dir
-    def get_container_name(self, cid):
-        try:
-            container = self.c.inspect_container(cid)
-            return container['Name'].lstrip('/')
-        except errors.NotFound:
-            return None
+        sha_id = buildah.images('--format', '{{.ID}}', '--no-trunc', image_fullname).strip()
+        return sha_id[7:]   # because it starts with "sha256:"
     def events(self):
-        return self.c.events(decode=True)
-    def image_mount(self, image_fullname, diff_path, mount_path):
+        return podman.events.stream('--format', 'json', converter = (lambda line: json.loads(line)))
+    def image_mount(self, image_fullname, mount_path):
+        cont_name = 'mount:' + image_fullname
+        buildah('from', '--pull-never', '--name', cont_name, image_fullname)
+        dir_name = buildah.mount(cont_name)
+        remount_with_nfs_export_option(dir_name)
+        mount('--bind', dir_name, mount_path)
+    def image_umount(self, image_fullname, mount_path):
+        cont_name = 'mount:' + image_fullname
         while True:
             try:
-                layers = self.get_image_layers(image_fullname)
-                branches = [ layer + '=ro+wh' for layer in layers ]
-                break # OK
-            except FileNotFoundError:
-                print('missing docker layer... updating the cache')
-                self.update_layer_id_cache()
-        branches.insert(0, diff_path + '=rw')
-        if len(branches) > AUFS_BR_LIMIT:
-            raise Exception('Cannot mount image: too many filesystem layers.')
-        else:
-            # we can mount up to AUFS_BR_MOUNT_LIMIT branches at once
-            branches_opt = 'br=' + ':'.join(branches[:AUFS_BR_MOUNT_LIMIT])
-            mount('-t', 'aufs', '-o', branches_opt, 'none', mount_path)
-            # append others one by one
-            for branch in branches[AUFS_BR_MOUNT_LIMIT:]:
-                mount('-o', 'remount,append=' + branch, mount_path)
-    def build(self, *args, **kwargs):
-        return self.c.build(*args, **kwargs)
+                umount(mount_path)
+                break
+            except:
+                time.sleep(0.1)
+                continue
+        buildah.umount(cont_name)
+        buildah.rm(cont_name)
     def get_labels(self, image_fullname):
-        image_info = self.c.inspect_image(image_fullname)
-        config = image_info['Config']
-        if 'Labels' not in config:
-            return {}
-        return config['Labels']
+        json_labels = podman.inspect('--format', '{{json .Labels}}', image_fullname)
+        return json.loads(json_labels)
+
+class DockerDaemonClient:
+    def images(self):
+        for line in docker.image.ls('--format', '{{.Repository}} {{.Tag}}',
+                                    '--filter', 'dangling=false',
+                                    '--filter', 'label=walt.node.models').splitlines():
+            repo_name, tag = line.strip().split()
+            if tag == '<none>':
+                continue
+            yield repo_name + ':' + tag
+    def get_labels(self, image_fullname):
+        json_labels = docker.image.inspect('--format', '{{json .Config.Labels}}', image_fullname)
+        return json.loads(json_labels)
+    def checker(self, line):
+        if 'error' in line.lower():
+            raise Exception(line.strip())
+    def pull(self, image_fullname, requester = None):
+        label = 'Downloading %s' % image_fullname
+        stream = podman.pull.stream('docker-daemon:' + image_fullname, out_stream='stderr')
+        indicate_progress(sys.stdout, label, stream, self.checker)
+        # images are saved with prefix "localhost/" when pulled from docker daemon.
+        # to simplify, walt names all podman images with prefix "docker.io/".
+        podman.image.tag(image_fullname, 'docker.io/' + image_fullname)
+        podman.image.rm('localhost/' + image_fullname)
 
 class DockerHubClient:
-    def __init__(self, c):
-        self.c = c
     def checker(self, line):
-        info = eval(line.strip())
-        if 'error' in info:
-            raise Exception(info['errorDetail']['message'])
+        if 'error' in line.lower():
+            raise Exception(line.strip())
     def pull(self, image_fullname, requester = None):
-        reponame, tag = image_fullname.split(':')
         label = 'Downloading %s' % image_fullname
-        stream = self.c.pull(reponame, tag=requests.utils.quote(tag), stream=True)
+        stream = podman.pull.stream(image_fullname, out_stream='stderr')
         indicate_progress(sys.stdout, label, stream, self.checker)
     def login(self, dh_peer, auth_conf, requester):
         try:
@@ -170,21 +172,17 @@ class DockerHubClient:
             # Note: the docker hub API requires the email argument
             # to be provided because it may be used to register a new user.
             # Here, the user already exists, so the email will not be used.
-            self.c.login(   username = auth_conf['username'],
-                            password = password,
-                            email    = 'email@fake.fr',
-                            registry = REGISTRY,
-                            reauth   = True)
+            podman.login(   '-u', auth_conf['username'], '--password-stdin', REGISTRY,
+                            input=password)
         except Exception as e:
             print(e)
             requester.stdout.write('FAILED.\n')
             return False
         return True
     def push(self, image_fullname, dh_peer, auth_conf, requester):
-        reponame, tag = image_fullname.split(':')
         if not self.login(dh_peer, auth_conf, requester):
             return False
-        stream = self.c.push(reponame, tag=requests.utils.quote(tag), stream=True)
+        stream = podman.push.stream(image_fullname, REGISTRY + '/' + image_fullname)
         label = 'Pushing %s' % image_fullname
         indicate_progress(sys.stdout, label, stream, self.checker)
         return True
@@ -210,7 +208,7 @@ class DockerHubClient:
     def list_image_tags(self, image_name):
         url = 'https://registry.hub.docker.com/v1/repositories/%(image_name)s/tags' % \
                     dict(image_name = image_name)
-        for elem in requests.get(url, timeout=DOCKER_TIMEOUT).json():
+        for elem in requests.get(url, timeout=DOCKER_HUB_TIMEOUT).json():
             tag = requests.utils.unquote(elem['name'])
             yield tag
     def get_manifest(self, fullname):
@@ -219,30 +217,34 @@ class DockerHubClient:
         token = requests.get(LOGIN_PULL_TEMPLATE.format(repository=reponame), json=True).json()["token"]
         result = requests.get(
             GET_MANIFEST_TEMPLATE.format(repository=reponame, tag=tag),
-            headers={"Authorization": "Bearer {}".format(token) },
+            headers={"Authorization": "Bearer {}".format(token),
+                     "Accept": "application/vnd.oci.image.manifest.v1+json" },
             json=True
         ).json()
         if 'errors' in result:
+            print(result)
             raise Exception('Downloading manifest failed.')
         return result
     def get_labels(self, fullname):
         manifest = self.get_manifest(fullname)
-        v1Compatibility_field = json.loads(manifest['history'][0]["v1Compatibility"])
-        labels = v1Compatibility_field["config"]["Labels"]
-        if labels is None:
-            return {}
+        if 'history' in manifest:
+            # legacy docker manifest format
+            v1Compatibility_field = json.loads(manifest['history'][0]["v1Compatibility"])
+            labels = v1Compatibility_field["config"]["Labels"]
+            if labels is None:
+                return {}
+            else:
+                return labels
+        elif 'annotations' in manifest:
+            # new OCI manifest format
+            return manifest['annotations']
         else:
-            return labels
+            return {}
 
 class DockerClient(object):
     def __init__(self):
-        self.c = Client(base_url='unix://var/run/docker.sock', version='auto',
-                timeout=DOCKER_TIMEOUT)
-        self.local = DockerLocalClient(self.c)
-        self.hub = DockerHubClient(self.c)
+        self.local = DockerLocalClient()
+        self.hub = DockerHubClient()
+        self.daemon = DockerDaemonClient()
     def self_test(self):
-        try:
-            self.c.search(term='walt-node')
-        except:
-            return False
         return True

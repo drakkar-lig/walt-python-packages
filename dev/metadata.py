@@ -47,7 +47,7 @@ PACKAGE_SPECIFIC_INFO = {
         subdir = 'server',
         requires = [    'plumbum>=1.4.2', 'snimpy>=0.8.3',
                         'ipaddress>=1.0.7','requests>=2.3.0',
-                        'docker-py>=1.2.2','sdnotify>=0.3.0',
+                        'sdnotify>=0.3.0',
                         'python-dateutil>=2.4.2',
                         'psycopg2-binary>=2.8.2',
                         'walt-common==%(upload)s',

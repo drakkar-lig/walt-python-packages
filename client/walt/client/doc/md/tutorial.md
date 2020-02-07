@@ -206,23 +206,29 @@ You can `search` for images available for cloning as follows:
 
 ```console
 $ walt image search jessie
-User          Image name       Location     Clonable link
-------------  ---------------  -----------  ----------------------------
-brunisholz    rpi-jessie       WalT server  server:brunisholz/rpi-jessie
-eduble        rpi-jessie-test  docker hub   hub:eduble/rpi-jessie-test
-onss          rpi-jessie       WalT server  server:onss/rpi-jessie
-waltplatform  rpi-jessie       docker hub   hub:waltplatform/rpi-jessie
-zyta          rpi-jessie       WalT server  server:zyta/rpi-jessie
+User          Image name       Location           Clonable link
+------------  ---------------  -----------        ----------------------------
+brunisholz    rpi-jessie       walt (other user)  walt:brunisholz/rpi-jessie
+eduble        rpi-jessie-test  docker hub         hub:eduble/rpi-jessie-test
+onss          rpi-jessie       walt (other user)  walt:onss/rpi-jessie
+waltplatform  rpi-jessie       docker hub         hub:waltplatform/rpi-jessie
+zyta          rpi-jessie       docker daemon      docker:zyta/rpi-jessie
 $
 ```
 
 WalT images are internally packaged as [Docker](https://www.docker.com/whatisdocker) images.
-Thus they may be stored on the docker hub, or just locally on the server, as indicated by the prefix of the clonable link.
+Listed images may be stored in one of the following locations:
+
+* docker hub (clonable link prefix 'hub:')
+* local server, managed by docker daemon (clonable link prefix 'docker:')
+* already in walt internal storage (clonable link prefix 'walt:')
+
+In the last case, only images of other users are listed, since the images you already own do not need to be cloned.
 
 Let’s choose one and clone it:
 
 ```console
-$ walt image clone server:brunisholz/rpi-jessie
+$ walt image clone walt:brunisholz/rpi-jessie
 [...]
 $
 ```

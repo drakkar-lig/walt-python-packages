@@ -11,13 +11,16 @@ SEARCH_HEADER = ['User', 'Image name', 'Location', 'Compatibility', 'Clonable li
 MSG_SEARCH_NO_MATCH = "Sorry, no image could match your request.\n"
 LOCATION_WALT_SERVER = 0
 LOCATION_DOCKER_HUB = 1
+LOCATION_DOCKER_DAEMON = 2
 LOCATION_LABEL = {
-    LOCATION_WALT_SERVER: 'server',
+    LOCATION_WALT_SERVER: 'walt',
     LOCATION_DOCKER_HUB: 'hub',
+    LOCATION_DOCKER_DAEMON: 'docker',
 }
 LOCATION_LONG_LABEL = {
-    LOCATION_WALT_SERVER: 'WalT server',
+    LOCATION_WALT_SERVER: 'walt (other user)',
     LOCATION_DOCKER_HUB: 'docker hub',
+    LOCATION_DOCKER_DAEMON: 'docker daemon'
 }
 
 LOCATION_PER_LABEL = {v: k for k, v in LOCATION_LABEL.items()}
@@ -44,23 +47,34 @@ class Search(object):
     # since this can take time, we compute all results for one user,
     # then yield them for immediate display.
     def search(self):
-        users = defaultdict(set)
-        # search for local users
+        all_users = set()
+        # search for local images and users
+        local_user_images = defaultdict(set)
         for fullname in self.image_store:
             if self.validate_fullname(fullname, LOCATION_WALT_SERVER):
-                users[fullname.split('/')[0]].add(LOCATION_WALT_SERVER)
+                user = fullname.split('/')[0]
+                all_users.add(user)
+                local_user_images[user].add(fullname)
+        # search for docker daemon images and users
+        docker_daemon_user_images = defaultdict(set)
+        for fullname in self.docker.daemon.images():
+            if self.validate_fullname(fullname, LOCATION_DOCKER_DAEMON):
+                user = fullname.split('/')[0]
+                all_users.add(user)
+                docker_daemon_user_images[user].add(fullname)
         # search for hub users
         # (detect walt users by their 'walt_metadata' dummy image)
+        hub_users = set()
         for waltuser_info in self.docker.hub.search('walt_metadata'):
             if '/walt_metadata' in waltuser_info['name']:
                 user = waltuser_info['name'].split('/')[0]
-                users[user].add(LOCATION_DOCKER_HUB)
+                all_users.add(user)
+                hub_users.add(user)
         # search images of each user
-        for user in sorted(users):
-            locations = users[user]
+        for user in sorted(all_users):
             images_and_labels = defaultdict(dict)
             # search on docker hub
-            if LOCATION_DOCKER_HUB in locations:
+            if user in hub_users:
                 # read metadata to detect walt images of this user
                 user_metadata = pull_user_metadata(self.docker, user)
                 for fullname, info in user_metadata['walt.user.images'].items():
@@ -68,14 +82,15 @@ class Search(object):
                         image_name = fullname.split('/')[1]
                         images_and_labels[image_name][LOCATION_DOCKER_HUB] = info['labels']
             # search on local server
-            if LOCATION_WALT_SERVER in locations:
-                for fullname in self.image_store:
-                    image_user, image_name = fullname.split('/')
-                    if image_user != user:
-                        continue
-                    if self.validate_fullname(fullname, LOCATION_WALT_SERVER):
-                        images_and_labels[image_name][LOCATION_WALT_SERVER] = \
+            for fullname in local_user_images[user]:
+                image_user, image_name = fullname.split('/')
+                images_and_labels[image_name][LOCATION_WALT_SERVER] = \
                                             self.docker.local.get_labels(fullname)
+            # search on docker daemon
+            for fullname in docker_daemon_user_images[user]:
+                image_user, image_name = fullname.split('/')
+                images_and_labels[image_name][LOCATION_DOCKER_DAEMON] = \
+                                            self.docker.daemon.get_labels(fullname)
             # yield results
             for image_name in sorted(images_and_labels):
                 locations = sorted(images_and_labels[image_name])
@@ -101,7 +116,7 @@ def discard_images_in_ws(it, username):
     # the server are not considered "remote images".
     # (they belong to the working set of the user, instead.)
     for user, image_name, location, labels in it:
-        if user != username or location == LOCATION_DOCKER_HUB:
+        if user != username or location != LOCATION_WALT_SERVER:
             yield user, image_name, location, labels
 
 def format_result(it):

@@ -20,7 +20,7 @@ docker_run_options=""
 # If the image has a file named /etc/cpuinfo, it should be bind-mounted
 # to /proc/cpuinfo (fixes emulation support for some programs such as yum).
 cpuinfo_file=$(mktemp)
-docker run --rm --entrypoint /bin/sh                   \
+podman run --rm --entrypoint /bin/sh                   \
         "$image_fullname"                              \
         -c "$DUMP_CPUINFO_COMMAND" > $cpuinfo_file
 
@@ -33,7 +33,7 @@ else
 fi
 
 # Run the container that will hold the shell session
-docker run -it --entrypoint /bin/sh -h "$HOSTNAME"     \
+podman run -it --entrypoint /bin/sh -h "$HOSTNAME"     \
         --name "$container_name"                       \
         $docker_run_options                            \
         "$image_fullname"                              \

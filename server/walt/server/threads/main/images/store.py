@@ -17,10 +17,10 @@ MSG_WOULD_OVERWRITE_IMAGE_REBOOTED_NODES='\
  (and reboot %d node(s))'
 
 MSG_REMOVING_FROM_DB = """\
-WARNING: Removing image %s from db because docker does not list it."""
+WARNING: Removing image %s from db because walt does not have it in its own repo."""
 
 MSG_IMAGE_READY_BUT_MISSING = """\
-Image %s is marked ready in db, but docker does not list it! Aborting."""
+Image %s is marked ready in db, but walt does not have it in its own repo! Aborting."""
 
 class NodeImageStore(object):
     def __init__(self, docker, db):
@@ -33,18 +33,7 @@ class NodeImageStore(object):
         docker_images = {}
         # gather local images
         for image in self.docker.local.get_images():
-            # restrict to images with a label 'walt.node.models'
-            if image['Labels'] is None:
-                continue
-            if 'walt.node.models' not in image['Labels']:
-                continue
-            if image['RepoTags'] is None:   # dangling image
-                continue
-            for fullname in image['RepoTags']:
-                # discard dangling images and tags temporarily added
-                # for a 'clone' operation
-                if '/' in fullname and 'clone-temp/walt-image:' not in fullname:
-                    docker_images[fullname] = image
+            docker_images[image['fullname']] = image
         # import new images from docker into the database
         for fullname in docker_images:
             if fullname not in db_images:
@@ -55,8 +44,7 @@ class NodeImageStore(object):
             db_ready = db_images[db_fullname]
             if db_fullname not in self.images:
                 if db_fullname in docker_images:
-                    created_at = datetime.fromtimestamp(
-                            docker_images[db_fullname]['Created'])
+                    created_at = docker_images[db_fullname]['created_at']
                     self.images[db_fullname] = NodeImage(self.db,
                                 self.docker, db_fullname, created_at)
                 else:

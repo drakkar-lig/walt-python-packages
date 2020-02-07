@@ -50,20 +50,14 @@ from walt.common.tools import \
 # [server|hub]:<user>/<name>
 
 IMAGE_MOUNT_PATH='/var/lib/walt/images/%s/fs'
-IMAGE_DIFF_PATH='/var/lib/walt/images/%s/diff'
 ERROR_BAD_IMAGE_NAME='''\
 Bad name: expected format is <name> or <name>:<tag>.
 Only lowercase letters, digits and dash(-) characters are allowed in <name> and <tag>.
 '''
 
 def get_mount_path(image_fullname):
-    mount_path, dummy = get_mount_info(image_fullname)
-    return mount_path
-
-def get_mount_info(image_fullname):
     sub_path = re.sub('[^a-zA-Z0-9/-]+', '_', image_fullname)
-    return IMAGE_MOUNT_PATH % sub_path, IMAGE_DIFF_PATH % sub_path
-
+    return IMAGE_MOUNT_PATH % sub_path
 def parse_image_fullname(image_fullname):
     image_user, image_name = image_fullname.split('/')
     if image_name.endswith(':latest'):
@@ -87,7 +81,7 @@ def validate_image_name(requester, image_name):
     requester.stderr.write(ERROR_BAD_IMAGE_NAME)
     return False
 
-FS_CMD_PATTERN = 'docker run --rm --entrypoint %%(prog)s %(image)s %%(prog_args)s'
+FS_CMD_PATTERN = 'podman run --rm --entrypoint %%(prog)s %(image)s %%(prog_args)s'
 
 class NodeImage(object):
     def __init__(self, db, docker, fullname, created_at = None):
@@ -131,8 +125,6 @@ class NodeImage(object):
     def __del__(self):
         if self.mounted:
             self.unmount()
-    def get_mount_info(self):
-        return get_mount_info(self.fullname)
     def ensure_temporary_mount(self):
         class TemporaryMount:
             def __init__(self, image):
@@ -150,10 +142,9 @@ class NodeImage(object):
             args = shlex.split(cmd)
             return chroot(self.mount_path, *args, retcode = None).strip()
     def os_mount(self):
-        self.mount_path, self.diff_path = self.get_mount_info()
+        self.mount_path = get_mount_path(self.fullname)
         failsafe_makedirs(self.mount_path)
-        failsafe_makedirs(self.diff_path)
-        self.docker.local.image_mount(self.fullname, self.diff_path, self.mount_path)
+        self.docker.local.image_mount(self.fullname, self.mount_path)
         self.mounted = True
     def mount(self, requester = None):
         print('Mounting %s...' % self.fullname)
@@ -161,15 +152,7 @@ class NodeImage(object):
         setup(self)
         print('Mounting %s... done' % self.fullname)
     def os_unmount(self):
-        while not succeeds('umount %s 2>/dev/null' % self.mount_path):
-            time.sleep(0.1)
-        while True:
-            try:
-                shutil.rmtree(self.diff_path)
-            except OSError:
-                time.sleep(0.1)
-                continue
-            break
+        self.docker.local.image_umount(self.fullname, self.mount_path)
         os.rmdir(self.mount_path)
         self.mounted = False
     def unmount(self):

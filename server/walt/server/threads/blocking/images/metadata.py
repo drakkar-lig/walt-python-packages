@@ -1,11 +1,6 @@
 #!/usr/bin/env python
-import json, base64, subprocess
-from io import BytesIO
-
-USER_METADATA_DOCKERFILE = b'''\
-FROM scratch
-LABEL metadata='%(metadata)s'
-'''
+from walt.server.exttools import buildah
+import json, base64
 
 def collect_user_metadata(docker, user):
     walt_images = {}
@@ -22,12 +17,18 @@ def collect_user_metadata(docker, user):
 
 def push_user_metadata(docker, dh_peer, auth_conf, requester, user, metadata):
     encoded = base64.b64encode(json.dumps(metadata).encode('UTF-8'))
-    content = USER_METADATA_DOCKERFILE % { b'metadata': encoded }
-    dockerfile = BytesIO(content)
+    encoded = encoded.decode('UTF-8')
     fullname = '%(user)s/walt_metadata:latest' % dict(user = user)
-    docker.local.build(fileobj=dockerfile, rm=True, tag=fullname)
+    cont_name = buildah('from', 'scratch')
+    # for the future (OCI images show only annotations in their manifest)
+    buildah.config('--annotation', 'metadata=' + encoded, cont_name)
+    # for the present (legacy walt code parses only manifests with docker format)
+    buildah.config('--label', 'metadata=' + encoded, cont_name)
+    # for now, save metadata images with docker manifest format
+    buildah.commit('--format', 'docker', cont_name, fullname)
+    buildah.rm(cont_name)
     docker.hub.push(fullname, dh_peer, auth_conf, requester)
-    docker.local.rmi(fullname)
+    buildah.rmi(fullname)
 
 def pull_user_metadata(docker, user):
     try:

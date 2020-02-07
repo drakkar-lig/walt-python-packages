@@ -120,7 +120,7 @@ def validate_cp(image_or_node_label, caller,
 def docker_wrap_cmd(cmd, input_needed = False):
     input_opt = '-i' if input_needed else ''
     return '''\
-        docker run %(input_opt)s --name %%(container_name)s \
+        podman run %(input_opt)s --name %%(container_name)s \
         --entrypoint /bin/sh %%(image_fullname)s -c "%(cmd)s; sync; sync"
     ''' % dict(cmd = cmd, input_opt = input_opt)
 
@@ -191,7 +191,7 @@ class VPNNodeImageDump(ParallelProcessSocketListener):
         self.send_client('START\n')
         return True
     def get_command(self, **params):
-        return 'docker run --rm=true waltplatform/rpi3bp-vpn-sd-dump "%(entrypoint)s"' % params
+        return 'podman run --rm waltplatform/rpi3bp-vpn-sd-dump "%(entrypoint)s"' % params
 
 class TransferManager(object):
     def __init__(self, tcp_server, ev_loop):

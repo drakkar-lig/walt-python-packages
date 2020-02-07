@@ -1,6 +1,6 @@
 import requests, uuid
 from walt.server.threads.blocking.images.search import \
-        LOCATION_WALT_SERVER, LOCATION_DOCKER_HUB, \
+        LOCATION_WALT_SERVER, LOCATION_DOCKER_HUB, LOCATION_DOCKER_DAEMON, \
         LOCATION_LABEL, LOCATION_PER_LABEL
 from walt.server.threads.blocking.images.metadata import \
             pull_user_metadata
@@ -151,8 +151,11 @@ def tag_server_image_to_requester(docker,
                 ws_image_fullname, remote_image_fullname, **args):
     docker.local.tag(remote_image_fullname, ws_image_fullname)
 
-def pull_hub_image(docker, requester, remote_image_fullname, **args):
-    docker.hub.pull(remote_image_fullname, requester)
+def pull_image(docker, requester, remote_location, remote_image_fullname, **args):
+    if remote_location == LOCATION_DOCKER_HUB:
+        docker.hub.pull(remote_image_fullname, requester)
+    elif remote_location == LOCATION_DOCKER_DAEMON:
+        docker.daemon.pull(remote_image_fullname, requester)
 
 def update_walt_image(image_store, ws_image_fullname, **args):
     if ws_image_fullname in image_store:
@@ -231,6 +234,7 @@ def perform_clone(requester, docker, nodes_manager, clonable_link, image_store, 
     existing_server_image = remote_image_fullname in image_store
     existing_ws_image = ws_image_fullname in image_store
     same_user = (username == remote_user)
+    image_is_local = (remote_location == LOCATION_WALT_SERVER)
 
     # check that the requested image really exists,
     # and fetch compatibility info
@@ -244,43 +248,51 @@ def perform_clone(requester, docker, nodes_manager, clonable_link, image_store, 
             return exit_no_such_image(requester)
         image_info = remote_user_metadata['walt.user.images'][remote_image_fullname]
         target_node_models = image_info['labels']['walt.node.models'].split(',')
+    if remote_location == LOCATION_DOCKER_DAEMON:
+        labels = None
+        try:
+            labels = docker.daemon.get_labels(remote_image_fullname)
+        except:
+            return exit_no_such_image(requester)
+        target_node_models = labels['walt.node.models'].split(',')
 
     # compute the workflow
     # --------------------
     # obvious facts:
-    # * if remote_location is LOCATION_WALT_SERVER, existing_server_image is True
+    # * if image_is_local is True, existing_server_image is True
     # * if same_user is True, existing_server_image == existing_ws_image
     # that's why not all workflow entries are possible.
     workflow_selector = {
-        # remote_location, existing_server_image, existing_ws_image, same_user
-        (LOCATION_WALT_SERVER, True, False, False): [ tag_server_image_to_requester ],
-        (LOCATION_WALT_SERVER, True, True, False):  [ verify_compatibility_issue, verify_overwrite,
+        # image_is_local, existing_server_image, existing_ws_image, same_user
+        (True, True, False, False): [ tag_server_image_to_requester ],
+        (True, True, True, False):  [ verify_compatibility_issue, verify_overwrite,
                                                         remove_ws_image, tag_server_image_to_requester ],
-        (LOCATION_WALT_SERVER, True, True, True):   [ error_image_belongs_to_ws ],
+        (True, True, True, True):   [ error_image_belongs_to_ws ],
 
-        (LOCATION_DOCKER_HUB, False, False, False): [ pull_hub_image, tag_server_image_to_requester, remove_server_image ],
-        (LOCATION_DOCKER_HUB, False, True, False):  [ verify_compatibility_issue, verify_overwrite, pull_hub_image,
+        (False, False, False, False): [ pull_image, tag_server_image_to_requester, remove_server_image ],
+        (False, False, True, False):  [ verify_compatibility_issue, verify_overwrite, pull_image,
                                                         remove_ws_image, \
                                                         tag_server_image_to_requester, remove_server_image ],
-        (LOCATION_DOCKER_HUB, True, False, False):  [ remove_server_image, pull_hub_image,
+        (False, True, False, False):  [ remove_server_image, pull_image,
                                                         tag_server_image_to_requester, remove_server_image,
                                                         restore_initial_server_image ],
-        (LOCATION_DOCKER_HUB, True, True, False):   [ verify_compatibility_issue, verify_overwrite,
-                                                        remove_server_image, pull_hub_image,
+        (False, True, True, False):   [ verify_compatibility_issue, verify_overwrite,
+                                                        remove_server_image, pull_image,
                                                         remove_ws_image, tag_server_image_to_requester,
                                                         remove_server_image, restore_initial_server_image ],
-        (LOCATION_DOCKER_HUB, False, False, True):  [ pull_hub_image ],
-        (LOCATION_DOCKER_HUB, True, True, True):    [ verify_compatibility_issue, verify_overwrite, remove_ws_image,
-                                                        pull_hub_image ],
+        (False, False, False, True):  [ pull_image ],
+        (False, True, True, True):    [ verify_compatibility_issue, verify_overwrite, remove_ws_image,
+                                                        pull_image ],
     }
     workflow = [ save_initial_images ]     # this is always called first
-    workflow += workflow_selector[(remote_location, existing_server_image, existing_ws_image, same_user)]
+    workflow += workflow_selector[(image_is_local, existing_server_image, existing_ws_image, same_user)]
     workflow += [ update_walt_image ]      # this is always called at the end (unless an error occurs before)
     print('clone workflow is:', ', '.join([ f.__name__ for f in workflow ]))
 
     # proceed
     # -------
     context = dict(
+        remote_location = remote_location,
         username = username,
         ws_image_fullname = ws_image_fullname,
         remote_image_fullname = remote_image_fullname,
