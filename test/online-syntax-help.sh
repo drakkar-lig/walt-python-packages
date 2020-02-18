@@ -8,7 +8,7 @@ check_expected_syntax() {
     # the sed expression is used to discard the list of values of a cli.Set,
     # because the order is not constant
     # tr allows to ignore differences in spacing (may occur with a different terminal size)
-    result="$(LC_ALL=C $cmd --help | sed -e "s/:{'.*}//" | tr -d '[:space:]' || true)"
+    result="$(LC_ALL=C $cmd --help | sed -e "s/:{.*}//" | tr -d '[:space:]' || true)"
     if [ "$result" != "$expected" ]
     then
         echo "$out_filename: '$cmd' online syntax help differs from expected!"
