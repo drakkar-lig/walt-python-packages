@@ -4,6 +4,9 @@
 ts=$(/bin/walt-rpc sync_clock)
 
 # set local clock
+# (if '@' epoch format is recognised, use it, otherwise convert
+# before setting date)
+busybox date -s @$ts 2>/dev/null || \
 busybox date -s "$(busybox date -D "%s" -d $ts "+%Y-%m-%d %H:%M:%S")"
 
 
