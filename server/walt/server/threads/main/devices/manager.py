@@ -14,6 +14,7 @@ Failed: invalid new name.
 This name must be a valid network hostname.
 Only alphanumeric characters and '-' are allowed.
 The 1st character must be an alphabet letter.
+The name must be at least 2-chars long.
 (Example: rpi-D327)
 """
 
@@ -79,10 +80,12 @@ class DevicesManager(object):
 
     def validate_device_name(self, requester, name):
         if self.get_device_info(requester, name, err_message = None) != None:
-            requester.stderr.write("""Failed: a device with name '%s' already exists.\n""" % name)
+            if requester is not None:
+                requester.stderr.write("""Failed: a device with name '%s' already exists.\n""" % name)
             return False
-        if not re.match('^[a-zA-Z][a-zA-Z0-9-]*$', name):
-            requester.stderr.write(NEW_NAME_ERROR_AND_GUIDELINES)
+        if len(name) < 2 or not re.match('^[a-zA-Z][a-zA-Z0-9-]*$', name):
+            if requester is not None:
+                requester.stderr.write(NEW_NAME_ERROR_AND_GUIDELINES)
             return False
         return True
 
@@ -105,7 +108,7 @@ class DevicesManager(object):
     def get_device_info(self, requester, device_name, \
                         err_message = DEVICE_NAME_NOT_FOUND):
         device_info = self.db.select_unique("devices", name=device_name)
-        if device_info == None and err_message != None:
+        if device_info == None and err_message != None and requester is not None:
             requester.stderr.write(err_message % device_name)
         return device_info
 

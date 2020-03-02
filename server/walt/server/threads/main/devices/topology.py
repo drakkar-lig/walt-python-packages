@@ -308,7 +308,7 @@ class TopologyManager(object):
         self.add_or_update_device = add_or_update_device_cb
 
     def cleanup_sysname(self, sysname):
-        return re.sub("[^a-z0-9-]", "-", sysname.split('.')[0])
+        return re.sub("[^a-z0-9-]+", "-", sysname.split('.')[0])
 
     def print_message(self, requester, message):
         if requester is not None:
@@ -359,7 +359,7 @@ class TopologyManager(object):
             if db_info == None:
                 # new device, call add_or_update_device to add it
                 name = self.cleanup_sysname(sysname)
-                if len(name) > 2:   # name seems meaningful...
+                if self.devices.validate_device_name(None, name):   # name seems meaningful...
                     info.update(name = name)
                 self.add_or_update_device(**info)
             elif ip != db_info.ip:
