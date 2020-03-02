@@ -6,7 +6,7 @@ UMOUNT='busybox umount'
 ROOTFS='/tmp/rootfs'
 ROOTFS_BUSYBOX_APPLETS="
     sh ls timeout reboot sleep nc chroot
-    mktemp mkfifo sed
+    mktemp mkfifo sed cat rm
 "
 IMAGE_SCRIPTS="
     /bin/walt-nfs-watchdog /bin/walt-net-service
@@ -42,6 +42,34 @@ do_mounts()
     $MOUNT -t tmpfs none /tmp
 }
 
+copy_busybox_to_rootfs()
+{
+    # copy binary
+    cp "$(which busybox)" $ROOTFS/bin/
+    # check if ldd is available
+    if ! which ldd >/dev/null
+    then
+        echo "Warning: no ldd -- If busybox is a dynamic executable, this script will not work."
+        return
+    fi
+    # check needed shared libraries
+    if ! bin_deps="$(ldd $(which busybox))"
+    then
+        # busybox is probably static, nothing more to do
+        return
+    fi
+    # copy shared libraries
+    echo "$bin_deps" | busybox awk '{print $(NF-1)}' | while read lib
+    do
+        if [ -f "$lib" ]
+        then
+            destdir="$ROOTFS/$(dirname $lib)"
+            mkdir -p "$destdir"
+            cp "$lib" "$destdir"
+        fi
+    done
+}
+
 run_script_in_rootfs()
 {
     cd $ROOTFS
@@ -62,7 +90,7 @@ prepare_rootfs()
     mkdir $ROOTFS
     cd $ROOTFS
     mkdir -p tmp bin dev mnt/nfsroot
-    cp "$(which busybox)" bin/
+    copy_busybox_to_rootfs
     for image_script in $IMAGE_SCRIPTS
     do
         cp $image_script bin/
