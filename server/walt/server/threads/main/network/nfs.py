@@ -12,7 +12,7 @@ PERSISTENT_EXPORT_PATTERN = """\
 PERSISTENT_PATH = "/var/lib/walt/nodes/%(node_mac)s/persist"
 
 def get_fsid(image):
-    return image.get_top_layer_id()[:32]   # 32 first characters
+    return image.image_id[:32]   # 32 first characters
 
 def generate_exports_file(images, nodes):
     with open('/etc/exports', 'w') as f:

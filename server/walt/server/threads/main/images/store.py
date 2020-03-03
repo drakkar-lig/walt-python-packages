@@ -32,24 +32,32 @@ class NodeImageStore(object):
                         for db_img in self.db.select('images') }
         docker_images = {}
         # gather local images
-        for image in self.docker.local.get_images():
-            docker_images[image['fullname']] = image
+        for image_info in self.docker.local.get_images():
+            docker_images[image_info['fullname']] = image_info
         # import new images from docker into the database
         for fullname in docker_images:
             if fullname not in db_images:
                 self.db.insert('images', fullname=fullname, ready=True)
                 db_images[fullname] = True
-        # add missing images
+        # update images listed in db and add missing ones
         for db_fullname in db_images:
             db_ready = db_images[db_fullname]
-            if db_fullname not in self.images:
+            if db_fullname in self.images:
+                image = self.images[db_fullname]
                 if db_fullname in docker_images:
-                    created_at = docker_images[db_fullname]['created_at']
+                    image_info = docker_images[db_fullname]
+                    # update metadata if outdated
+                    if image.image_id != image_info['image_id']:
+                        image.set_metadata(**image_info)
+            else:
+                if db_fullname in docker_images:
+                    # add missing image in this store
+                    image_info = docker_images[db_fullname]
                     self.images[db_fullname] = NodeImage(self.db,
-                                self.docker, db_fullname, created_at)
+                                self.docker, **image_info)
                 else:
                     # if the daemon is starting, remove images from db not listed
-                    # by docker.
+                    # by podman.
                     if startup:
                         print((MSG_REMOVING_FROM_DB % db_fullname))
                         self.db.delete('images', fullname = db_fullname)
@@ -58,7 +66,7 @@ class NodeImageStore(object):
                             MSG_IMAGE_READY_BUT_MISSING % db_fullname
                         # image is not ready yet (probably being pulled)
                         self.images[db_fullname] = NodeImage(self.db,
-                                            self.docker, db_fullname)
+                                            self.docker, fullname = db_fullname)
         # remove deleted images
         for fullname in list(self.images.keys()):
             if fullname not in db_images:
@@ -78,9 +86,6 @@ class NodeImageStore(object):
         self.db.delete('images', fullname=image_fullname)
         self.db.commit()
         self.refresh()
-    def set_image_ready(self, image_fullname):
-        self.db.update('images', 'fullname', fullname=image_fullname, ready=True)
-        self.db.commit()
     def __getitem__(self, image_fullname):
         if image_fullname not in self.images:
             # image was probably downloaded using docker commands,

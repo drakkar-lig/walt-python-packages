@@ -39,11 +39,11 @@ def pull_user_metadata(docker, user):
     except:     # user did not push metadata yet
         return { 'walt.user.images': {} }
 
-def update_user_metadata_for_image(docker, dh_peer, auth_conf, \
+def update_user_metadata_for_image(docker, image_store, dh_peer, auth_conf, \
                                    requester, image_fullname):
     user = image_fullname.split('/')[0]
     # read labels
-    labels = docker.local.get_labels(image_fullname)
+    labels = image_store[image_fullname].labels
     # retrieve existing metadata (i.e. for other images...)
     metadata = pull_user_metadata(docker, user)
     # update metadata of this image

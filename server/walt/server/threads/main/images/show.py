@@ -18,14 +18,14 @@ def show(db, docker, images, requester, refresh):
     for image in images.values():
         if image.user != username:
             continue
-        created_at = image.get_created_at()
+        created_at = image.created_at
         node_models = image.get_node_models()
         tabular_data.append([
                     image.name,
                     str(image.mounted),
                     created_at if created_at else 'N/A',
                     str(image.ready),
-                    format_node_models_list(node_models)])
+                    format_node_models_list(node_models) if node_models else 'N/A'])
     if len(tabular_data) == 0:
         # new user, try to make his life easier by cloning
         # default images of node models present on the platform.

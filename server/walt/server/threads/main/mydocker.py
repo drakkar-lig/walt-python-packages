@@ -57,8 +57,10 @@ class DockerLocalClient:
     def get_images(self):
         images_info = {}
         for line in buildah.images('--format', '{{.ID}}|{{.Name}}:{{.Tag}}|{{.CreatedAtRaw}}',
-                                   '--filter', 'dangling=false').splitlines():
-            image_id, buildah_image_name, created_at = line.split('|')
+                                   '--filter', 'dangling=false',
+                                   '--no-trunc').splitlines():
+            sha_id, buildah_image_name, created_at = line.split('|')
+            image_id = sha_id[7:]   # because it starts with "sha256:"
             fullname = self.parse_buildah_image_name(buildah_image_name)
             if not '/' in fullname:
                 continue
@@ -79,12 +81,21 @@ class DockerLocalClient:
             for fullname in image_info['fullnames']:
                 yield {
                     'fullname': fullname,
+                    'image_id': image_id,
                     'created_at': parse_date(image_info['created_at']),
-                    'compatibility': image_labels['walt.node.models']
+                    'labels': image_labels
                 }
-    def get_creation_time(self, image_fullname):
-        created_at = buildah.images('--format', '{{.CreatedAtRaw}}', image_fullname)
-        return parse_date(created_at.strip())
+    def get_metadata(self, image_fullname):
+        line = buildah.images('--format', '{{.ID}}|{{.CreatedAtRaw}}', '--no-trunc', image_fullname).strip()
+        sha_id, created_at = line.split('|')
+        image_id = sha_id[7:]   # because it starts with "sha256:"
+        image_labels = podman.inspect('--format', '{{json .Labels}}', image_id)
+        image_labels = json.loads(image_labels)
+        return {
+            'image_id': image_id,
+            'created_at': parse_date(created_at),
+            'labels': image_labels
+        }
     def container_is_running(self, cont_name):
         output = podman.ps('-q', '--filter', 'name=' + cont_name)
         return len(output.strip()) > 0
@@ -106,9 +117,6 @@ class DockerLocalClient:
         podman.commit(
                 cid_or_cname,
                 'docker.io/' + dest_fullname)
-    def get_top_layer_id(self, image_fullname):
-        sha_id = buildah.images('--format', '{{.ID}}', '--no-trunc', image_fullname).strip()
-        return sha_id[7:]   # because it starts with "sha256:"
     def events(self):
         return podman.events.stream('--format', 'json', converter = (lambda line: json.loads(line)))
     def image_mount(self, image_fullname, mount_path):
@@ -128,9 +136,6 @@ class DockerLocalClient:
                 continue
         buildah.umount(cont_name)
         buildah.rm(cont_name)
-    def get_labels(self, image_fullname):
-        json_labels = podman.inspect('--format', '{{json .Labels}}', image_fullname)
-        return json.loads(json_labels)
 
 class DockerDaemonClient:
     def images(self):

@@ -85,7 +85,7 @@ class Search(object):
             for fullname in local_user_images[user]:
                 image_user, image_name = fullname.split('/')
                 images_and_labels[image_name][LOCATION_WALT_SERVER] = \
-                                            self.docker.local.get_labels(fullname)
+                                            self.image_store[fullname].labels
             # search on docker daemon
             for fullname in docker_daemon_user_images[user]:
                 image_user, image_name = fullname.split('/')

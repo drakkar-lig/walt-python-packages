@@ -13,7 +13,7 @@ def finalize_registration(images, db, dhcpd, **kwargs):
     dhcpd.update()
 
 def update_images_and_finalize(images, image_fullname, **kwargs):
-    images.set_image_ready(image_fullname)
+    images[image_fullname].ready = True
     # we are all done
     finalize_registration(images = images, **kwargs)
 

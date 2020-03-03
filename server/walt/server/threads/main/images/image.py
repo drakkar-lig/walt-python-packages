@@ -84,17 +84,20 @@ def validate_image_name(requester, image_name):
 FS_CMD_PATTERN = 'podman run --rm --entrypoint %%(prog)s %(image)s %%(prog_args)s'
 
 class NodeImage(object):
-    def __init__(self, db, docker, fullname, created_at = None):
+    def __init__(self, db, docker, fullname, image_id = None, **metadata):
         self.db = db
         self.docker = docker
         self.rename(fullname)
-        self.last_created_at = created_at
-        self.last_top_layer_id = None
         self.mount_path = None
         self.mounted = False
         self.server_ip = get_server_ip()
         self.filesystem = Filesystem(FS_CMD_PATTERN % dict(image = self.fullname))
         self.task_label = None
+        self.set_metadata(image_id, **metadata)
+    def set_metadata(self, image_id, created_at = None, labels = None, **kwargs):
+        self.image_id = image_id
+        self.created_at = created_at
+        self.labels = labels
     def rename(self, fullname):
         self.fullname, self.user, self.name = parse_image_fullname(fullname)
     @property
@@ -105,23 +108,13 @@ class NodeImage(object):
         self.db.update('images', 'fullname', fullname=self.fullname, ready=is_ready)
         self.db.commit()
         if is_ready:
-            self.get_created_at()   # prepare created_at value
-    def get_created_at(self):
-        if not self.ready:
-            return None
-        top_layer_id = self.get_top_layer_id()
-        if self.last_created_at == None or self.last_top_layer_id != top_layer_id:
-            self.last_created_at = self.docker.local.get_creation_time(self.fullname)
-        self.last_top_layer_id = top_layer_id
-        return self.last_created_at
+            self.update_metadata()
+    def update_metadata(self):
+        self.set_metadata(**self.docker.local.get_metadata(self.fullname))
     def get_node_models(self):
-        labels = self.docker.local.get_labels(self.fullname)
-        return labels['walt.node.models'].split(',')
-    def get_top_layer_id(self):
-        assert (self.ready), \
-            'Tried to get top layer id of image %s which is not ready.' % \
-            self.fullname
-        return self.docker.local.get_top_layer_id(self.fullname)
+        if self.labels is None:
+            return None
+        return self.labels['walt.node.models'].split(',')
     def __del__(self):
         if self.mounted:
             self.unmount()
