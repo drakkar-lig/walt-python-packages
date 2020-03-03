@@ -11,7 +11,7 @@ ROOTFS_BUSYBOX_APPLETS="
 IMAGE_SCRIPTS="
     /bin/walt-nfs-watchdog /bin/walt-net-service
     /bin/walt-notify-bootup /bin/walt-rpc
-    /bin/walt-clock-sync
+    /bin/walt-clock-sync /bin/walt-timeout
 "
 
 admin_sh()
@@ -30,7 +30,7 @@ reboot_or_sh()
 {
     echo '>>> Issue detected!               <<<'
     echo 'Will reboot... (or press <ENTER> now for a shell)'
-    busybox timeout -t 5 busybox head -n 1 && admin_sh || busybox reboot -f
+    /bin/walt-timeout 5 busybox head -n 1 && admin_sh || busybox reboot -f
 }
 
 trap reboot_or_sh EXIT

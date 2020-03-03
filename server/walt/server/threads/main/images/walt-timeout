@@ -1,0 +1,14 @@
+#!/bin/sh
+
+# this script allows to work around a syntax change in busybox timeout applet.
+
+# check if '-t' option must be specified or not
+if busybox timeout -t 1 busybox sleep 0 2>/dev/null
+then
+    cmd_prefix='busybox timeout -t'
+else
+    cmd_prefix='busybox timeout'
+fi
+
+# run the command
+$cmd_prefix "$@"
