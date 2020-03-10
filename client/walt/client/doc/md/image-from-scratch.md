@@ -23,7 +23,7 @@ A small set of features is required to make your image work with WalT. The next 
 
 In order to run properly as a WalT image, a [docker image](https://docs.docker.com/engine/getstarted/) should provide:
 
-### 1- a docker label specifying compatible models
+### 1- A label "walt.node.models"
 
 All WalT images should provide a label `walt.node.models` specifying which node models this image can boot.
 Without this label, the image will be ignored.
@@ -40,7 +40,20 @@ Notes:
 * This comma-separated format is mandatory (even if WalT will try to print it in a more compact way in commands output).
 * Whenever you push to docker hub a new version of your image with this setting modified, you have to call `walt advanced rescan-hub-account` again.
 
-### 2- CPU emulation related files
+### 2- A label "walt.server.minversion"
+
+This label allows to specify the minimum server version this image was built for.
+For example:
+
+```
+LABEL walt.server.minversion="5"
+```
+
+Notes:
+* Management of this label was introduced in walt version 5. Thus, if not found in an image, the default value for this label is 4.
+* This label allows to handle changes in the minimum set of software an image should provide. For instance, a busybox syntax change between debian 9 and debian 10 prevents proper node bootup on walt server version 4. Thus version 5 was modified to allow both syntax forms, and buster images were built with label `walt.server.minversion` set to 5.
+
+### 3- CPU emulation related files
 
 This section is needed for appropriate support of `walt image shell <image>` command.
 
@@ -66,7 +79,7 @@ An example of those failing commands is `yum` package manager often installed in
 In order to handle this case properly, you may dump the file `/proc/cpuinfo` of a running target node, and provide this file at `[image_root]/etc/cpuinfo`.
 If this file is found in the image, walt server will bind-mount it at `/proc/cpuinfo`, which should solve this problem.
 
-### 3- appropriate boot files
+### 4- appropriate boot files
 
 When booting, the node starts its network bootloader stored locally (on a SD card, in a flash memory, on a bootable USB device, etc.).
 Then it will use the TFTP protocol to download a second-stage boot script.
@@ -79,7 +92,7 @@ For example, a `rpi-b-plus` node sending a TFTP request for file `/start.uboot` 
 
 As a result, the image should provide a directory `/boot/<node_model>` for each node model handled. This directory should contain the second-stage boot script and resources needed by this script (kernel, maybe an initrd, maybe a device tree blob, etc.), or symbolic links if these resources are stored elsewhere in the image.
 
-### 4- kernel features
+### 5- kernel features
 
 For a raspberry pi kernel, see https://www.raspberrypi.org/documentation/linux/kernel/building.md.
 
@@ -96,11 +109,11 @@ You should also include the device driver for your network card, for instance `C
 
 If you use an initrd, some of these features (such as `CONFIG_OVERLAY_FS`) may be built as kernel modules (`=m` instead of `=y`) and others may be omitted (such as `CONFIG_ROOT_NFS`). If not, building all these features into the kernel (`=y`) is mandatory, and in any case, it is safe to do it.
 
-### 5- an init system
+### 6- an init system
 
 The init system of your image should be available at `/sbin/init`.
 
-### 6- busybox and classical unix commands
+### 7- busybox and classical unix commands
 
 For proper handling of the bootup procedure, you should provide a `busybox` multi-call binary at `/bin/busybox`.
 This busybox binary should at least include the following applets: `awk` `cat` `chroot` `ls` `mktemp` `mkfifo` `nc` `reboot` `rm` `sed` `sh` `sleep` `timeout`.
@@ -109,7 +122,7 @@ If this busybox binary is not statically compiled (on a debian-based image: `apt
 The following commands should also be provided in the image (either through `busybox` applets or not, it does not matter):
 `chmod` `chroot` `cp` `date` `echo` `grep` `head` `ln` `mkdir` `mount` `reboot` `sed` `setsid` `sh` `timeout` `tr` `umount`.
 
-### 7- a ssh server set up to listen on port 22
+### 8- a ssh server set up to listen on port 22
 
 The ssh server configuration should allow root access when using public key authentication.
 

@@ -4,6 +4,7 @@ from walt.server.tools import columnate, columnate_iterate_tty, \
                               format_node_models_list
 from walt.server.threads.blocking.images.metadata import \
             pull_user_metadata
+from walt.common.version import __version__
 
 # About terminology: See comment about it in image.py.
 
@@ -104,7 +105,9 @@ def short_image_name(image_name):
     else:
         return image_name
 
-def clonable_link(location, user, image_name):
+def clonable_link(location, user, image_name, min_version = None):
+    if min_version is not None and min_version > int(__version__):
+        return "[Need server upgrade, version>=%d]" % min_version
     return "%s:%s/%s" % (
             LOCATION_LABEL[location],
             user,
@@ -121,12 +124,18 @@ def discard_images_in_ws(it, username):
 
 def format_result(it):
     for user, image_name, location, labels in it:
+        min_version = labels.get('walt.server.minversion', None)
+        if min_version is not None:
+            try:
+                min_version = int(min_version)
+            except:
+                min_version = None
         node_models = labels['walt.node.models'].split(',')
         yield ( user,
                 short_image_name(image_name),
                 LOCATION_LONG_LABEL[location],
                 format_node_models_list(node_models),
-                clonable_link(location, user, image_name))
+                clonable_link(location, user, image_name, min_version))
 
 # this implements walt image search
 def perform_search(docker, image_store, requester, keyword, tty_mode):
