@@ -37,6 +37,13 @@ def remount_with_nfs_export_option(mountpoint):
     # re-mount
     mount('-t', fstype, '-o', options, source, mountpoint)
 
+def mount_exists(mountpoint):
+    try:
+        findmnt('--json', mountpoint)
+    except CalledProcessError:
+        return False
+    return True
+
 class DockerLocalClient:
     def tag(self, old_fullname, new_fullname):
         buildah.tag(old_fullname, 'docker.io/' + new_fullname)
@@ -120,8 +127,14 @@ class DockerLocalClient:
     def events(self):
         return podman.events.stream('--format', 'json', converter = (lambda line: json.loads(line)))
     def image_mount(self, image_fullname, mount_path):
+        # if server daemon was killed and restarted, the mount may still be there
+        if mount_exists(mount_path):
+            return  # nothing to do
         cont_name = 'mount:' + image_fullname
-        buildah('from', '--pull-never', '--name', cont_name, image_fullname)
+        try:
+            buildah('from', '--pull-never', '--name', cont_name, image_fullname)
+        except CalledProcessError:
+            print('Note: walt server was probably not stopped properly and container still exists. Going on.')
         dir_name = buildah.mount(cont_name)
         remount_with_nfs_export_option(dir_name)
         mount('--bind', dir_name, mount_path)
