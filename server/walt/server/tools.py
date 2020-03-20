@@ -1,7 +1,6 @@
 from collections import namedtuple
 from itertools import takewhile
-import pickle
-import re
+import pickle, re, resource
 
 COLUMNATE_SPACING = 2
 
@@ -171,3 +170,10 @@ def format_node_models_list(node_models):
         return regex_result
     else:
         return simple_result
+
+# max number of file descriptors this process is allowed to open
+SOFT_RLIMIT_NOFILE = 16384
+
+def set_rlimits():
+    soft_limit, hard_limit = resource.getrlimit(resource.RLIMIT_NOFILE)
+    resource.setrlimit(resource.RLIMIT_NOFILE, (SOFT_RLIMIT_NOFILE, hard_limit))
