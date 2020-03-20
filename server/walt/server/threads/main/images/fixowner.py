@@ -3,8 +3,8 @@ MSG_SAME_USER="""\
 Invalid username. According to your walt.conf file, you are '%s'!
 """
 
-MSG_MOUNTED="""\
-Cannot proceed because some images of %s are mounted:
+MSG_IN_USE="""\
+Cannot proceed because some images of %s are in use:
 %s
 """
 
@@ -30,17 +30,17 @@ def fix_owner(images, docker, requester, other_user):
     if username == other_user:
         requester.stderr.write(MSG_SAME_USER % other_user)
         return
-    mounted = set()
+    in_use = set()
     candidates = set()
     for image in images.values():
         if image.user == other_user:
-            if image.mounted:
-                mounted.add(image.name)
+            if image.in_use:
+                in_use.add(image.name)
             else:
                 candidates.add(image)
-    if len(mounted) > 0:
-        requester.stderr.write(MSG_MOUNTED % \
-                (other_user, ', '.join(mounted)))
+    if len(in_use) > 0:
+        requester.stderr.write(MSG_IN_USE % \
+                (other_user, ', '.join(in_use)))
         return
     problematic = set()
     for image in candidates:

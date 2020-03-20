@@ -132,8 +132,7 @@ def fix_absolute_symlinks(image_root, dirpath):
             path = os.path.join(root, name)
             fix_if_absolute_symlink(image_root, path)
 
-def setup(image):
-    mount_path = image.mount_path
+def setup(mount_path):
     # ensure FILES var is completely defined
     if FILES['/root/.ssh/authorized_keys'] is None:
         # ensure server has a pub key
@@ -181,7 +180,7 @@ def setup(image):
         # update template files specified there
         spec.update_templates(mount_path, image_spec, TEMPLATE_ENV)
         # update features matching those of the server
-        spec.enable_matching_features(image, image_spec)
+        spec.enable_matching_features(mount_path, image_spec)
     # copy server spec file, just in case
     spec.copy_server_spec_file(mount_path)
     # fix PTP conf regarding unicast default mode too verbose on LAN

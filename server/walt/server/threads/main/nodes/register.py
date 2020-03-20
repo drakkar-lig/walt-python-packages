@@ -9,7 +9,7 @@ def finalize_registration(images, db, dhcpd, **kwargs):
     # mount needed images
     images.update_image_mounts()
     # refresh the dhcpd and tftp conf
-    tftp.update(db)
+    tftp.update(db, images)
     dhcpd.update()
 
 def update_images_and_finalize(images, image_fullname, **kwargs):

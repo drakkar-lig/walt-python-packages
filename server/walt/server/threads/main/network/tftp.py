@@ -1,10 +1,9 @@
 import os, shutil
 from walt.common.tools import failsafe_makedirs, failsafe_symlink
-from walt.server.threads.main.images.image import get_mount_path
 
 NODES_PATH='/var/lib/walt/nodes/'
 
-def update(db):
+def update(db, images):
     # create dir if it does not exist yet
     failsafe_makedirs(NODES_PATH)
     # list existing entries, in case some of them are obsolete
@@ -21,7 +20,8 @@ def update(db):
     # - walt node name
     for db_node in db.select('nodes'):
         if db_node.image is not None:
-            image_path = get_mount_path(db_node.image)
+            image = images[db_node.image]
+            image_path = image.mount_path
             mac = db_node.mac
             model = db_node.model
             mac_dash = mac.replace(':', '-')

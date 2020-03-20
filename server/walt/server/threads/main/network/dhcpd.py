@@ -4,7 +4,6 @@ from walt.server.threads.main.network.netsetup import NetSetup
 from walt.server.threads.main.network.tools import ip, net, get_walt_subnet, get_dns_servers
 from operator import itemgetter
 from itertools import groupby
-from walt.server.threads.main.images.image import get_mount_path
 from walt.common.tools import do
 
 DHCPD_CONF_FILE = '/etc/dhcp/dhcpd.conf'

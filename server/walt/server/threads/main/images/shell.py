@@ -58,18 +58,17 @@ class ImageShellSession(object):
                 continue
             if event['Status'] == 'cleanup' and event['Name'] == self.container_name:
                 break
+        # if we modified an image in use, umount/mount it in order to make changes
+        # available to nodes
+        need_remount = (self.image.fullname == image_fullname) and self.image.in_use
+        if need_remount:
+            self.images.umount_used_image(self.image)
         print('committing %s...' % self.container_name)
         self.docker.local.commit(self.container_name, image_fullname)
+        if need_remount:
+            self.images.update_image_mounts()
         if self.image.fullname == image_fullname:
             # same name, we are modifying the image
-            # if image is mounted, umount/mount it in order to make changes
-            # available to nodes
-            if self.image.mounted:
-                # umount
-                self.images.umount_used_image(self.image)
-                # re-mount
-                self.images.update_image_mounts()
-            # done.
             requester.stdout.write('Image %s updated.\n' % new_image_name)
             self.image.task_label = None
             return 'OK_BUT_REBOOT_NODES'

@@ -33,7 +33,7 @@ class NodeImageManager(object):
     def update(self, startup = False):
         self.store.refresh(startup)
         self.store.update_image_mounts()
-        tftp.update(self.db)
+        tftp.update(self.db, self.store)
     def search(self, requester, task, keyword, tty_mode):
         return search(self.blocking, requester, task, keyword, tty_mode)
     def clone(self, requester, task, **kwargs):
@@ -96,7 +96,7 @@ class NodeImageManager(object):
                     mac=node_mac,
                     image=image_fullname)
         self.store.update_image_mounts(requester = requester)
-        tftp.update(self.db)
+        tftp.update(self.db, self.store)
         self.db.commit()
         self.dhcpd.update()
         # inform requester

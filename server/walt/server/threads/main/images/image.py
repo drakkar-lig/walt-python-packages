@@ -1,10 +1,5 @@
-import os, re, time, shutil, shlex
-from plumbum.cmd import chroot
-from walt.server.threads.main.network.tools import get_server_ip
+import re
 from walt.server.threads.main.filesystem import Filesystem
-from walt.server.threads.main.images.setup import setup
-from walt.common.tools import \
-        failsafe_makedirs, succeeds
 
 # IMPORTANT TERMINOLOGY NOTES:
 #
@@ -49,15 +44,11 @@ from walt.common.tools import \
 # Such a clonable link is formatted as follows:
 # [server|hub]:<user>/<name>
 
-IMAGE_MOUNT_PATH='/var/lib/walt/images/%s/fs'
 ERROR_BAD_IMAGE_NAME='''\
 Bad name: expected format is <name> or <name>:<tag>.
 Only lowercase letters, digits and dash(-) characters are allowed in <name> and <tag>.
 '''
 
-def get_mount_path(image_fullname):
-    sub_path = re.sub('[^a-zA-Z0-9/-]+', '_', image_fullname)
-    return IMAGE_MOUNT_PATH % sub_path
 def parse_image_fullname(image_fullname):
     image_user, image_name = image_fullname.split('/')
     if image_name.endswith(':latest'):
@@ -84,23 +75,30 @@ def validate_image_name(requester, image_name):
 FS_CMD_PATTERN = 'podman run --rm --entrypoint %%(prog)s %(image)s %%(prog_args)s'
 
 class NodeImage(object):
-    def __init__(self, db, docker, fullname, image_id = None, **metadata):
-        self.db = db
-        self.docker = docker
+    def __init__(self, store, fullname):
+        self.store = store
+        self.db = store.db
+        self.docker = store.docker
         self.rename(fullname)
-        self.mount_path = None
-        self.mounted = False
-        self.server_ip = get_server_ip()
         self.filesystem = Filesystem(FS_CMD_PATTERN % dict(image = self.fullname))
         self.task_label = None
-        self.set_metadata(image_id, **metadata)
-    def set_metadata(self, image_id, created_at = None, labels = None, editable = None, **kwargs):
-        self.image_id = image_id
-        self.created_at = created_at
-        self.labels = labels
-        self.editable = editable
     def rename(self, fullname):
         self.fullname, self.user, self.name = parse_image_fullname(fullname)
+    @property
+    def metadata(self):
+        return self.docker.local.get_metadata(self.fullname)
+    @property
+    def image_id(self):
+        return self.metadata['image_id']
+    @property
+    def created_at(self):
+        return self.metadata['created_at']
+    @property
+    def labels(self):
+        return self.metadata['labels']
+    @property
+    def editable(self):
+        return self.metadata['editable']
     @property
     def ready(self):
         return self.db.select_unique('images', fullname=self.fullname).ready
@@ -108,53 +106,24 @@ class NodeImage(object):
     def ready(self, is_ready):
         self.db.update('images', 'fullname', fullname=self.fullname, ready=is_ready)
         self.db.commit()
-        if is_ready:
-            self.update_metadata()
-    def update_metadata(self):
-        self.set_metadata(**self.docker.local.get_metadata(self.fullname))
     def get_node_models(self):
         if self.labels is None:
             return None
         if 'walt.node.models' not in self.labels:
             return None
         return self.labels['walt.node.models'].split(',')
-    def __del__(self):
-        if self.mounted:
-            self.unmount()
-    def ensure_temporary_mount(self):
-        class TemporaryMount:
-            def __init__(self, image):
-                self.image = image
-                self.mount_required = not image.mounted
-            def __enter__(self):
-                if self.mount_required:
-                    self.image.os_mount()
-            def __exit__(self, type, value, traceback):
-                if self.mount_required:
-                    self.image.os_unmount()
-        return TemporaryMount(self)
-    def chroot(self, cmd):
-        with self.ensure_temporary_mount():
-            args = shlex.split(cmd)
-            return chroot(self.mount_path, *args, retcode = None).strip()
-    def os_mount(self):
-        self.mount_path = get_mount_path(self.fullname)
-        failsafe_makedirs(self.mount_path)
-        self.docker.local.image_mount(self.fullname, self.mount_path)
-        self.mounted = True
-    def mount(self, requester = None):
-        print('Mounting %s...' % self.fullname)
-        self.os_mount()
-        setup(self)
-        print('Mounting %s... done' % self.fullname)
-    def os_unmount(self):
-        self.docker.local.image_umount(self.fullname, self.mount_path)
-        os.rmdir(self.mount_path)
-        self.mounted = False
+    @property
+    def mount_path(self):
+        return self.store.get_mount_path(self.image_id)
+    @property
+    def in_use(self):
+        return self.store.image_is_used(self.fullname)
+    @property
+    def mounted(self):
+        return self.store.image_is_mounted(self.image_id)
+    def mount(self):
+        self.store.mount(self.image_id, self.fullname)
     def unmount(self):
-        print('Un-mounting %s...' % self.fullname, end=' ')
-        self.os_unmount()
-        print('done')
+        self.store.unmount(self.image_id, self.fullname)
     def squash(self):
         self.docker.local.squash(self.fullname)
-        self.update_metadata()

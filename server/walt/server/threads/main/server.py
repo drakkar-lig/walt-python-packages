@@ -116,7 +116,7 @@ class Server(object):
     def rename_device(self, requester, old_name, new_name):
         self.devices.rename(requester, old_name, new_name)
         self.dhcpd.update()
-        tftp.update(self.db)
+        tftp.update(self.db, self.images.store)
 
     def device_rescan(self, requester, remote_ip, device_set):
         devices = self.devices.parse_device_set(requester, device_set)
@@ -124,7 +124,7 @@ class Server(object):
             return False   # error already reported
         self.topology.rescan(requester=requester, remote_ip=remote_ip, devices=devices)
         self.dhcpd.update()
-        tftp.update(self.db)
+        tftp.update(self.db, self.images.store)
 
     def forget_device(self, device_name):
         self.logs.forget_device(device_name)

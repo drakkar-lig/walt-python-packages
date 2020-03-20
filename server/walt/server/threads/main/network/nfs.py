@@ -17,13 +17,17 @@ def get_fsid(image):
 def generate_exports_file(images, nodes):
     with open('/etc/exports', 'w') as f:
         f.write("# Root filesystem images\n")
+        # note: we may have duplicate images refering to the same
+        # mountpoint, we should export them only once.
+        mounted = set()
         for image in images:
-            if image.ready:
+            if image.ready and image.mounted and image.mount_path not in mounted:
                 f.write((IMAGE_EXPORT_PATTERN % dict(
                     image_mountpoint=image.mount_path,
                     walt_subnet=get_walt_subnet(),
                     fsid=get_fsid(image)))
                         + "\n")
+                mounted.add(image.mount_path)
         f.write("# Persistent node directories\n")
         for node in nodes:
             persist_path = PERSISTENT_PATH % dict(node_mac=node.mac)

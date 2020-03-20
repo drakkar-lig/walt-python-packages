@@ -3,7 +3,7 @@ from walt.common.tools import read_json
 from walt.server.threads.main.network.tools import get_server_ip
 from walt.server.tools import update_template
 from walt.common.tools import failsafe_makedirs
-
+from plumbum.cmd import chroot
 
 SERVER_SPEC_PATH = '/etc/walt/server.spec'
 IMAGE_SPEC_PATH = '/etc/walt/image.spec'
@@ -13,7 +13,11 @@ SERVER_SPEC = read_json(SERVER_SPEC_PATH)
 def read_image_spec(image_path):
     return read_json(image_path + IMAGE_SPEC_PATH)
 
-def enable_matching_features(image, image_spec):
+def do_chroot(self, mount_path, cmd):
+    args = shlex.split(cmd)
+    return chroot(mount_path, *args, retcode = None).strip()
+
+def enable_matching_features(mount_path, image_spec):
     try:
         server_feature_set = set(SERVER_SPEC.get('features', []))
         image_feature_set = set(image_spec.get('features', []))
@@ -23,7 +27,7 @@ def enable_matching_features(image, image_spec):
             enabling_cmd = image_spec['features'][feature]
             print("""enabling '%s' feature by running '%s'.""" % \
                             (feature, enabling_cmd))
-            print(image.chroot(enabling_cmd))
+            print(do_chroot(mount_path, enabling_cmd))
     except Exception as e:
         print("""WARNING: Caught exception '%s'""" % str(e))
 

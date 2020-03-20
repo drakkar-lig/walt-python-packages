@@ -22,7 +22,7 @@ def show(db, docker, images, requester, refresh):
         node_models = image.get_node_models()
         tabular_data.append([
                     image.name,
-                    str(image.mounted),
+                    str(image.in_use),
                     created_at if created_at else 'N/A',
                     str(image.ready),
                     format_node_models_list(node_models) if node_models else 'N/A'])
@@ -42,5 +42,5 @@ def show(db, docker, images, requester, refresh):
         requester.stdout.write('Done.\n')
         # restart the process
         return show(db, docker, images, requester, refresh)
-    header = [ 'Name', 'Mounted', 'Created', 'Ready', 'Compatibility' ]
+    header = [ 'Name', 'In-use', 'Created', 'Ready', 'Compatibility' ]
     return columnate(tabular_data, header)

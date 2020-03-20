@@ -11,7 +11,7 @@ def do_rename(images, docker, image, new_name):
 def rename(images, docker, requester, image_name, new_name):
     if not validate_image_name(requester, new_name):
         return
-    image = images.get_user_unmounted_image_from_name(requester, image_name)
+    image = images.get_user_unused_image_from_name(requester, image_name)
     if image:   # otherwise issue is already reported
         if not images.get_user_image_from_name(requester, new_name, expected=False):
             do_rename(images, docker, image, new_name)

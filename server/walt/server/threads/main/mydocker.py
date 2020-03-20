@@ -46,10 +46,17 @@ def mount_exists(mountpoint):
     return True
 
 class DockerLocalClient:
+    def __init__(self):
+        self.names_cache = {}
+        self.metadata_cache = {}
     def tag(self, old_fullname, new_fullname):
         if self.image_exists(new_fullname):
             # take care not making previous version of image a dangling image
             podman.rmi(new_fullname)
+        if old_fullname in self.names_cache:
+            self.names_cache[new_fullname] = self.names_cache[old_fullname]
+        else:
+            self.names_cache.pop(new_fullname, None)
         podman.tag(old_fullname, 'docker.io/' + new_fullname)
     def rmi(self, fullname, ignore_missing = False):
         self.untag(fullname, ignore_missing = ignore_missing)
@@ -57,17 +64,18 @@ class DockerLocalClient:
         if ignore_missing and not self.image_exists(fullname):
             return  # nothing to do
         podman.rmi(fullname)
-    def parse_buildah_image_name(self, buildah_image_name):
-        # buildah may manage several repos, we do not need it here, discard this repo prefix
-        fullname = buildah_image_name.split('/', 1)[1]
-        return fullname
+        self.names_cache.pop(fullname, None)
     def deep_inspect(self, image_id_or_fullname):
-        image_info = podman.inspect('--format', '{ "labels": {{json .Labels}}, "num_layers": {{len .RootFS.Layers}} }', image_id_or_fullname)
+        image_info = podman.inspect('--format',
+            '{ "labels": {{json .Labels}}, "num_layers": {{len .RootFS.Layers}}, "created_at": "{{.Created}}" }',
+            image_id_or_fullname)
         image_info = json.loads(image_info)
         editable = (image_info['num_layers'] < MAX_IMAGE_LAYERS)
+        created_at = parse_date(image_info['created_at'])
         return {
             'labels': image_info['labels'],
-            'editable': editable
+            'editable': editable,
+            'created_at': created_at
         }
     def image_exists(self, fullname):
         try:
@@ -75,44 +83,55 @@ class DockerLocalClient:
             return True
         except CalledProcessError:
             return False
-    def get_images(self):
-        images_info = {}
-        for line in buildah.images('--format', '{{.ID}}|{{.Name}}:{{.Tag}}|{{.CreatedAtRaw}}',
+    def refresh_cache(self):
+        self.names_cache = {}
+        for line in buildah.images('--format', '{{.ID}}|{{.Name}}:{{.Tag}}',
                                    '--filter', 'dangling=false',
                                    '--no-trunc').splitlines():
-            sha_id, buildah_image_name, created_at = line.split('|')
+            sha_id, buildah_image_name = line.split('|')
             image_id = sha_id[7:]   # because it starts with "sha256:"
-            fullname = self.parse_buildah_image_name(buildah_image_name)
+            # buildah may manage several repos, we do not need it here, discard this repo prefix
+            fullname = buildah_image_name.split('/', 1)[1]
             if not '/' in fullname:
                 continue
             if 'clone-temp/walt-image:' in fullname:
                 continue
-            if image_id not in images_info:
-                images_info[image_id] = {
-                    'fullnames': [ fullname ],
-                    'created_at': created_at
-                }
-            else:
-                images_info[image_id]['fullnames'].append(fullname)
-        for image_id, image_info in images_info.items():
-            deep_image_info = self.deep_inspect(image_id)
-            if 'walt.node.models' not in deep_image_info['labels']:
+            self.names_cache[fullname] = image_id
+        old_metadata_cache = self.metadata_cache
+        self.metadata_cache = {}
+        for image_id in set(self.names_cache.values()):
+            if image_id in self.metadata_cache:
                 continue
-            for fullname in image_info['fullnames']:
-                yield dict(
-                    fullname = fullname,
-                    image_id = image_id,
-                    created_at = parse_date(image_info['created_at']),
-                    **deep_image_info)
-    def get_metadata(self, image_fullname):
-        line = buildah.images('--format', '{{.ID}}|{{.CreatedAtRaw}}', '--no-trunc', image_fullname).strip()
-        sha_id, created_at = line.split('|')
-        image_id = sha_id[7:]   # because it starts with "sha256:"
-        deep_image_info = self.deep_inspect(image_id)
-        return dict(
-            image_id = image_id,
-            created_at = parse_date(created_at),
-            **deep_image_info)
+            if image_id in old_metadata_cache:
+                self.metadata_cache[image_id] = old_metadata_cache[image_id]
+                continue
+            self.metadata_cache[image_id] = self.get_metadata(image_id)
+    def get_images(self):
+        self.refresh_cache()
+        for fullname, image_id in self.names_cache.items():
+            if 'walt.node.models' not in self.metadata_cache[image_id]['labels']:
+                continue
+            yield fullname
+    def get_metadata(self, image_id_or_fullname):
+        if ':' in image_id_or_fullname:
+            # fullname
+            fullname = image_id_or_fullname
+            image_id = self.names_cache.get(fullname)
+            if image_id is None:
+                self.refresh_cache()
+            image_id = self.names_cache.get(fullname)
+            if image_id is None:
+                return None
+        else:
+            # image_id
+            image_id = image_id_or_fullname
+        metadata = self.metadata_cache.get(image_id)
+        if metadata is None:
+            metadata = dict(
+                image_id = image_id,
+                **self.deep_inspect(image_id))
+            self.metadata_cache[image_id] = metadata
+        return metadata
     def stop_container(self, cont_name):
         podman.rm("-f", "-i", cont_name)
     def commit(self, cid_or_cname, dest_fullname, tool=podman, opts=()):
@@ -120,32 +139,33 @@ class DockerLocalClient:
             # take care not making previous version of image a dangling image
             image_tempname = 'localhost/walt-squashed-' + dest_fullname
             args = opts + (cid_or_cname, image_tempname)
-            tool.commit(*args)
+            image_id = tool.commit(*args).strip()
             tool.rm(cid_or_cname)
             podman.rmi('docker.io/' + dest_fullname)
             podman.tag(image_tempname, 'docker.io/' + dest_fullname)
             podman.rmi(image_tempname)
         else:
             args = opts + (cid_or_cname, 'docker.io/' + dest_fullname)
-            tool.commit(*args)
+            image_id = tool.commit(*args).strip()
             tool.rm(cid_or_cname)
+        self.names_cache[dest_fullname] = image_id
     def events(self):
         return podman.events.stream('--format', 'json', converter = (lambda line: json.loads(line)))
-    def image_mount(self, image_fullname, mount_path):
+    def image_mount(self, image_id, mount_path):
         # if server daemon was killed and restarted, the mount may still be there
         if mount_exists(mount_path):
             return False    # nothing to do
-        cont_name = 'mount:' + image_fullname
+        cont_name = 'mount:' + image_id
         try:
-            buildah('from', '--pull-never', '--name', cont_name, image_fullname)
+            buildah('from', '--pull-never', '--name', cont_name, image_id)
         except CalledProcessError:
             print('Note: walt server was probably not stopped properly and container still exists. Going on.')
         dir_name = buildah.mount(cont_name)
         remount_with_nfs_export_option(dir_name)
         mount('--bind', dir_name, mount_path)
         return True
-    def image_umount(self, image_fullname, mount_path):
-        cont_name = 'mount:' + image_fullname
+    def image_umount(self, image_id, mount_path):
+        cont_name = 'mount:' + image_id
         while True:
             try:
                 umount(mount_path)

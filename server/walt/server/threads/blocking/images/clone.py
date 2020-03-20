@@ -117,7 +117,7 @@ def verify_compatibility_issue(image_store, requester, clonable_link,
                     ws_image_fullname, remote_image_fullname,
                     docker, target_node_models, nodes_manager, **args):
     ws_image = image_store[ws_image_fullname]
-    if not ws_image.mounted:
+    if not ws_image.in_use:
         return  # no problem
     # there is a risk of overwritting the mounted ws image with
     # a target image that is incompatible.
