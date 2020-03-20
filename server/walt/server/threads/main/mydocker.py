@@ -10,6 +10,7 @@ DOCKER_HUB_TIMEOUT=None
 REGISTRY='docker.io'
 LOGIN_PULL_TEMPLATE = "https://auth.docker.io/token?service=registry.docker.io&scope=repository:{repository}:pull"
 GET_MANIFEST_TEMPLATE = "https://registry.hub.docker.com/v2/{repository}/manifests/{tag}"
+MAX_IMAGE_LAYERS = 128
 
 def parse_date(created_at):
     # strptime does not support parsing nanosecond precision
@@ -46,21 +47,34 @@ def mount_exists(mountpoint):
 
 class DockerLocalClient:
     def tag(self, old_fullname, new_fullname):
-        buildah.tag(old_fullname, 'docker.io/' + new_fullname)
+        if self.image_exists(new_fullname):
+            # take care not making previous version of image a dangling image
+            podman.rmi(new_fullname)
+        podman.tag(old_fullname, 'docker.io/' + new_fullname)
     def rmi(self, fullname, ignore_missing = False):
         self.untag(fullname, ignore_missing = ignore_missing)
     def untag(self, fullname, ignore_missing = False):
-        if ignore_missing:
-            try:
-                buildah.rmi(fullname)
-            except CalledProcessError:
-                pass
-        else:
-            buildah.rmi(fullname)
+        if ignore_missing and not self.image_exists(fullname):
+            return  # nothing to do
+        podman.rmi(fullname)
     def parse_buildah_image_name(self, buildah_image_name):
         # buildah may manage several repos, we do not need it here, discard this repo prefix
         fullname = buildah_image_name.split('/', 1)[1]
         return fullname
+    def deep_inspect(self, image_id_or_fullname):
+        image_info = podman.inspect('--format', '{ "labels": {{json .Labels}}, "num_layers": {{len .RootFS.Layers}} }', image_id_or_fullname)
+        image_info = json.loads(image_info)
+        editable = (image_info['num_layers'] < MAX_IMAGE_LAYERS)
+        return {
+            'labels': image_info['labels'],
+            'editable': editable
+        }
+    def image_exists(self, fullname):
+        try:
+            podman.image.exists(fullname)
+            return True
+        except CalledProcessError:
+            return False
     def get_images(self):
         images_info = {}
         for line in buildah.images('--format', '{{.ID}}|{{.Name}}:{{.Tag}}|{{.CreatedAtRaw}}',
@@ -81,55 +95,46 @@ class DockerLocalClient:
             else:
                 images_info[image_id]['fullnames'].append(fullname)
         for image_id, image_info in images_info.items():
-            image_labels = podman.inspect('--format', '{{json .Labels}}', image_id)
-            image_labels = json.loads(image_labels)
-            if 'walt.node.models' not in image_labels:
+            deep_image_info = self.deep_inspect(image_id)
+            if 'walt.node.models' not in deep_image_info['labels']:
                 continue
             for fullname in image_info['fullnames']:
-                yield {
-                    'fullname': fullname,
-                    'image_id': image_id,
-                    'created_at': parse_date(image_info['created_at']),
-                    'labels': image_labels
-                }
+                yield dict(
+                    fullname = fullname,
+                    image_id = image_id,
+                    created_at = parse_date(image_info['created_at']),
+                    **deep_image_info)
     def get_metadata(self, image_fullname):
         line = buildah.images('--format', '{{.ID}}|{{.CreatedAtRaw}}', '--no-trunc', image_fullname).strip()
         sha_id, created_at = line.split('|')
         image_id = sha_id[7:]   # because it starts with "sha256:"
-        image_labels = podman.inspect('--format', '{{json .Labels}}', image_id)
-        image_labels = json.loads(image_labels)
-        return {
-            'image_id': image_id,
-            'created_at': parse_date(created_at),
-            'labels': image_labels
-        }
-    def container_is_running(self, cont_name):
-        output = podman.ps('-q', '--filter', 'name=' + cont_name)
-        return len(output.strip()) > 0
+        deep_image_info = self.deep_inspect(image_id)
+        return dict(
+            image_id = image_id,
+            created_at = parse_date(created_at),
+            **deep_image_info)
     def stop_container(self, cont_name):
-        if self.container_is_running(cont_name):
-            try:
-                podman.kill(cont_name)
-            except:
-                pass
-            try:
-                podman.wait(cont_name)
-            except:
-                pass
-        try:
-            podman.rm(cont_name)
-        except:
-            pass
-    def commit(self, cid_or_cname, dest_fullname):
-        podman.commit(
-                cid_or_cname,
-                'docker.io/' + dest_fullname)
+        podman.rm("-f", "-i", cont_name)
+    def commit(self, cid_or_cname, dest_fullname, tool=podman, opts=()):
+        if self.image_exists(dest_fullname):
+            # take care not making previous version of image a dangling image
+            image_tempname = 'localhost/walt-squashed-' + dest_fullname
+            args = opts + (cid_or_cname, image_tempname)
+            tool.commit(*args)
+            tool.rm(cid_or_cname)
+            podman.rmi('docker.io/' + dest_fullname)
+            podman.tag(image_tempname, 'docker.io/' + dest_fullname)
+            podman.rmi(image_tempname)
+        else:
+            args = opts + (cid_or_cname, 'docker.io/' + dest_fullname)
+            tool.commit(*args)
+            tool.rm(cid_or_cname)
     def events(self):
         return podman.events.stream('--format', 'json', converter = (lambda line: json.loads(line)))
     def image_mount(self, image_fullname, mount_path):
         # if server daemon was killed and restarted, the mount may still be there
         if mount_exists(mount_path):
-            return  # nothing to do
+            return False    # nothing to do
         cont_name = 'mount:' + image_fullname
         try:
             buildah('from', '--pull-never', '--name', cont_name, image_fullname)
@@ -138,6 +143,7 @@ class DockerLocalClient:
         dir_name = buildah.mount(cont_name)
         remount_with_nfs_export_option(dir_name)
         mount('--bind', dir_name, mount_path)
+        return True
     def image_umount(self, image_fullname, mount_path):
         cont_name = 'mount:' + image_fullname
         while True:
@@ -149,6 +155,10 @@ class DockerLocalClient:
                 continue
         buildah.umount(cont_name)
         buildah.rm(cont_name)
+    def squash(self, image_fullname):
+        cont_name = 'squash:' + image_fullname
+        buildah('from', '--pull-never', '--name', cont_name, image_fullname)
+        self.commit(cont_name, image_fullname, tool=buildah, opts=('--squash',))
 
 class DockerDaemonClient:
     def images(self):

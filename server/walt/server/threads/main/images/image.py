@@ -94,10 +94,11 @@ class NodeImage(object):
         self.filesystem = Filesystem(FS_CMD_PATTERN % dict(image = self.fullname))
         self.task_label = None
         self.set_metadata(image_id, **metadata)
-    def set_metadata(self, image_id, created_at = None, labels = None, **kwargs):
+    def set_metadata(self, image_id, created_at = None, labels = None, editable = None, **kwargs):
         self.image_id = image_id
         self.created_at = created_at
         self.labels = labels
+        self.editable = editable
     def rename(self, fullname):
         self.fullname, self.user, self.name = parse_image_fullname(fullname)
     @property
@@ -113,6 +114,8 @@ class NodeImage(object):
         self.set_metadata(**self.docker.local.get_metadata(self.fullname))
     def get_node_models(self):
         if self.labels is None:
+            return None
+        if 'walt.node.models' not in self.labels:
             return None
         return self.labels['walt.node.models'].split(',')
     def __del__(self):
@@ -152,4 +155,6 @@ class NodeImage(object):
         print('Un-mounting %s...' % self.fullname, end=' ')
         self.os_unmount()
         print('done')
-
+    def squash(self):
+        self.docker.local.squash(self.fullname)
+        self.update_metadata()

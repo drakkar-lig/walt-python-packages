@@ -2,6 +2,7 @@ from walt.server.threads.main.images.shell import ImageShellSession
 from walt.server.threads.main.images.search import search
 from walt.server.threads.main.images.clone import clone
 from walt.server.threads.main.images.publish import publish
+from walt.server.threads.main.images.squash import squash
 from walt.server.threads.main.images.metadata import update_hub_metadata
 from walt.server.threads.main.images.show import show
 from walt.server.threads.main.images.rename import rename
@@ -39,6 +40,8 @@ class NodeImageManager(object):
         return clone(self.blocking, requester, task, **kwargs)
     def publish(self, requester, task, image_name, **kwargs):
         return publish(self.store, self.blocking, requester, task, image_name, **kwargs)
+    def squash(self, requester, task, image_name):
+        return squash(self.store, self.blocking, requester, task, image_name)
     def show(self, requester, refresh):
         return show(self.db, self.docker, self.store, requester, refresh)
     def rename(self, requester, image_name, new_name):
@@ -107,6 +110,10 @@ class NodeImageManager(object):
     def create_shell_session(self, requester, image_name, task_label):
         image = self.store.get_user_image_from_name(requester, image_name)
         if image is None:
+            return None
+        if not image.editable:
+            requester.stderr.write(('Cannot open image %(image_name)s because it has already reached its max number of layers.\n' +
+                                    '(tip: walt image squash %(image_name)s)\n') % dict(image_name = image_name))
             return None
         if image.task_label:
             requester.stderr.write('Cannot open image %s because a %s is already running.\n' % \

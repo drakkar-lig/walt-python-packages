@@ -23,6 +23,10 @@ define_test "walt image duplicate" as {
     image_exists $(test_suite_image)-2
 }
 
+define_test "walt image squash" as {
+    walt image squash $(test_suite_image)-2
+}
+
 define_test "walt image cp" as {
     test_walt_cp image $(test_suite_image)
 }

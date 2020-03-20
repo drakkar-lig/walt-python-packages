@@ -136,3 +136,9 @@ class WalTImageCp(WalTApplication):
                 print()
                 print('Aborted.')
 
+@WalTImage.subcommand("squash")
+class WalTImageSquash(WalTApplication):
+    """squash all layers of an image into one"""
+    def main(self, image_name):
+        with ClientToServerLink() as server:
+            server.squash_image(image_name)

@@ -21,3 +21,4 @@ Sub-commands:
     search     search for remote WalT node OS images
     shell      modify an image through an interactive shell
     show       display your working set of walt images
+    squash     squash all layers of an image into one

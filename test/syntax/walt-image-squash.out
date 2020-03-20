@@ -1,0 +1,8 @@
+squash all layers of an image into one
+
+Usage:
+    walt image squash [SWITCHES] image_name
+
+Meta-switches:
+    -h, --help      Prints this help message and quits
+
