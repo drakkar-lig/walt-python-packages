@@ -69,7 +69,7 @@ class APISessionManager(object):
             if res == None:
                 return None
             return res[1]
-        except REQUESTER_API_IGNORED:
+        except APISessionManager.REQUESTER_API_IGNORED:
             pass
         return None
 
