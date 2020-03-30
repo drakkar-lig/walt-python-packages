@@ -7,6 +7,7 @@ from snimpy.snmp import SNMPException
 from walt.common.tools import get_mac_address
 from walt.server import const
 from walt.server.threads.main import snmp
+from walt.server.threads.main.snmp import NoSNMPVariantFound
 from walt.server.threads.main.devices.grouper import Grouper
 from walt.server.threads.main.network.tools import \
         ip_in_walt_network, ip_in_walt_adm_network, lldp_update, get_server_ip
@@ -339,7 +340,12 @@ class TopologyManager(object):
         if host_ip is None:
             self.print_message(requester, "Querying %-25s FAILED (unknown management IP!)" % host_name)
             return
-        snmp_proxy = snmp.Proxy(host_ip, host_snmp_conf, lldp=True)
+        # get a SNMP proxy object
+        try:
+            snmp_proxy = snmp.Proxy(host_ip, host_snmp_conf, lldp=True)
+        except NoSNMPVariantFound:
+            self.print_message(requester, "Querying %-25s FAILED (while trying to probe SNMP variant)" % host_name)
+            return
         # get neighbors
         try:
             neighbors = snmp_proxy.lldp.get_neighbors().items()
