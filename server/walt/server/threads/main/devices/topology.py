@@ -68,8 +68,7 @@ class Topology(object):
         return len(self.links) == 0
 
     def register_neighbor(self, local_mac, local_port, neighbor_mac):
-        mac1 = min(local_mac, neighbor_mac)
-        mac2 = max(local_mac, neighbor_mac)
+        mac1, mac2 = sorted((local_mac, neighbor_mac))
         link = self.links.get((mac1, mac2))
         if link == None:
             # first time we see this link
@@ -100,11 +99,18 @@ class Topology(object):
                                     confirmed = link_info[2])
         db.commit()
 
-    def unconfirm_all(self):
+    def unconfirm(self, devices):
         new_links = {}
+        # any device connected to one of the specified
+        # switches or server should now have its 'confirmed' flag
+        # set to false.
+        device_macs = set(dev.mac for dev in devices)
         for k in self.links:
+            mac1, mac2 = k
             port1, port2, confirmed = self.links[k]
-            new_links[k] = port1, port2, False
+            if mac1 in device_macs or mac2 in device_macs:
+                confirmed = False
+            new_links[k] = port1, port2, confirmed
         self.links = new_links
 
     def __iter__(self):
@@ -167,9 +173,43 @@ class Topology(object):
                     locations[(mac2, port2)] = mac1
         self.links = new_links
 
-    def cleanup(self):
-        # this will remove obsolete links from moved devices,
+    def cleanup(self, nodes_mac):
+        # This procedure will remove obsolete links from moved devices,
         # and ensure we have no loops.
+        # As a first criterion, we consider that nodes cannot have more
+        # than 1 neighbor in the topology.
+        found_nodes = {}
+        for macs, info in self.links.copy().items():
+            mac1, mac2, port1, port2, confirmed = macs + info
+            is_node = (mac1 in nodes_mac), (mac2 in nodes_mac)
+            if is_node[0] and is_node[1]:  # 1 and 2 are nodes ??
+                # strange, should not have a link between two nodes
+                self.links.remove((mac1, mac2))
+                continue
+            if is_node[0]:   # dev 1 is a node
+                if mac1 in found_nodes:
+                    # node 1 cannot be connected at 2 different places
+                    if confirmed:
+                        prev_mac2 = found_nodes[mac1]
+                        self.links.remove(tuple(sorted((mac1, prev_mac2))))
+                    else:
+                        self.links.remove((mac1, mac2))
+                else:
+                    found_nodes[mac1] = mac2
+                continue
+            if is_node[1]:   # dev 2 is a node
+                if mac2 in found_nodes:
+                    # node 2 cannot be connected at 2 different places
+                    if confirmed:
+                        prev_mac1 = found_nodes[mac2]
+                        self.links.remove(tuple(sorted((prev_mac1, mac2))))
+                    else:
+                        self.links.remove((mac1, mac2))
+                else:
+                    found_nodes[mac2] = mac1
+                continue
+        # The following will clear any remaining conflicts and ensure we
+        # have no loops.
         # 1)  we initialize a set of 'accepted' connected groups of nodes,
         #     using the links that were detected during last
         #     scan, and record the set of unconfirmed links.
@@ -374,6 +414,9 @@ class TopologyManager(object):
                 self.add_or_update_device(**info)
 
     def rescan(self, requester, remote_ip, devices):
+        # note: the last parameter of this method is called "devices" and
+        # not "switches" because the server may also be included in this
+        # list of devices to be probed.
         self.last_scan = time.time()
 
         # explore the network equipments
@@ -383,11 +426,14 @@ class TopologyManager(object):
         # retrieve past topology data from db
         db_topology = Topology()
         db_topology.load_from_db(self.db)
-        db_topology.unconfirm_all()
+        db_topology.unconfirm(devices)
 
         # merge (with priority to new data)
         new_topology.merge_other(db_topology)
-        new_topology.cleanup()
+
+        # cleanup conflicting data (obsolete vs confirmed)
+        nodes_mac = set(n.mac for n in self.db.select('nodes'))
+        new_topology.cleanup(nodes_mac)
 
         # commit to db
         new_topology.save_to_db(self.db)
