@@ -211,10 +211,11 @@ class CSAPI(APISession):
         return context.images.validate_cp(context.requester.do_sync, src, dst)
 
     @api_expose_method
-    def squash_image(self, context, image_name):
-        context.images.squash(requester = context.requester.do_sync,
-                          task = context.task,
-                          image_name = image_name)
+    def squash_image(self, context, image_name, confirmed):
+        return context.images.squash(requester = context.requester.do_sync,
+                                     task = context.task,
+                                     image_name = image_name,
+                                     confirmed = confirmed)
 
     @api_expose_method
     def add_checkpoint(self, context, cp_name, pickled_date):

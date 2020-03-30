@@ -40,8 +40,8 @@ class NodeImageManager(object):
         return clone(self.blocking, requester, task, **kwargs)
     def publish(self, requester, task, image_name, **kwargs):
         return publish(self.store, self.blocking, requester, task, image_name, **kwargs)
-    def squash(self, requester, task, image_name):
-        return squash(self.store, self.blocking, requester, task, image_name)
+    def squash(self, requester, task, image_name, confirmed):
+        return squash(self.store, self.blocking, requester, task, image_name, confirmed)
     def show(self, requester, refresh):
         return show(self.db, self.docker, self.store, requester, refresh)
     def rename(self, requester, image_name, new_name):
@@ -52,8 +52,13 @@ class NodeImageManager(object):
         duplicate(self.store, self.docker, requester, image_name, new_name)
     def validate_cp(self, requester, src, dst):
         return validate_cp("image", self, requester, src, dst)
-    def validate_cp_entity(self, requester, image_name):
-        return self.has_image(requester, image_name, False)
+    def validate_cp_entity(self, requester, image_name, index):
+        if not self.has_image(requester, image_name, False):
+            return 'FAILED'
+        if index == 1:  # image is destination, it will be modified
+            if self.store.warn_if_would_reboot_nodes(requester, image_name):
+                return 'NEEDS_CONFIRM'
+        return 'OK'
     def get_cp_entity_filesystem(self, requester, image_name):
         return self.store.get_user_image_from_name(requester, image_name).filesystem
     def get_cp_entity_attrs(self, requester, image_name):

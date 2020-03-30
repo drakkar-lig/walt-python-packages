@@ -25,6 +25,10 @@ WARNING: Removing image %s from db because walt does not have it in its own repo
 MSG_IMAGE_READY_BUT_MISSING = """\
 Image %s is marked ready in db, but walt does not have it in its own repo! Aborting."""
 
+MSG_WOULD_REBOOT_NODES = """\
+This operation would reboot %d node(s) currently using the image.
+"""
+
 IMAGE_MOUNT_PATH='/var/lib/walt/images/%s/fs'
 
 def get_mount_path(image_id):
@@ -189,6 +193,13 @@ class NodeImageStore(object):
         else:
             reboot_message = MSG_WOULD_OVERWRITE_IMAGE_REBOOTED_NODES % num_nodes
         requester.stderr.write(MSG_WOULD_OVERWRITE_IMAGE % reboot_message)
+    def warn_if_would_reboot_nodes(self, requester, image_name):
+        image_fullname = format_image_fullname(requester.get_username(), image_name)
+        num_nodes = self.num_nodes_using_image(image_fullname)
+        if num_nodes == 0:
+            return False    # no node would reboot
+        requester.stderr.write(MSG_WOULD_REBOOT_NODES % num_nodes)
+        return True     # yes it would reboot some nodes
     def image_is_mounted(self, image_id):
         return image_id in self.mounts
     def get_mount_path(self, image_id):

@@ -68,6 +68,7 @@ def validate_cp(image_or_node_label, caller,
     operand_index_per_type = {}
     filesystems = []
     paths = []
+    needs_confirm = False
     for index, operand in enumerate([src, dst]):
         parts = operand.rsplit(':', 1)  # caution, we may have <image>:<tag>:<path>
         operand_type = len(parts)-1
@@ -78,14 +79,17 @@ def validate_cp(image_or_node_label, caller,
             paths.append(operand.rstrip('/'))
         else:
             image_tag_or_node, path = parts
-            if not caller.validate_cp_entity(requester, image_tag_or_node):
-                return
+            status = caller.validate_cp_entity(requester, image_tag_or_node, index)
+            if status == 'NEEDS_CONFIRM':
+                needs_confirm = True
+            elif status == 'FAILED':
+                return { 'status': status }
             filesystem = caller.get_cp_entity_filesystem(
                                     requester, image_tag_or_node)
             if not filesystem.ping():
                 requester.stderr.write(\
                     "Could not reach %s. Try again later.\n" % image_tag_or_node)
-                return
+                return { 'status': 'FAILED' }
             filesystems.append(filesystem)
             paths.append(path.rstrip('/'))
     if len(operand_index_per_type) != 2:
@@ -94,7 +98,7 @@ def validate_cp(image_or_node_label, caller,
         requester.stderr.write(HELP_INVALID % dict(
             image_or_node_label = image_or_node_label
         ))
-        return
+        return { 'status': 'FAILED' }
     src_fs, dst_fs = filesystems
     src_path, dst_path = [
             path if path.startswith('/') else './' + path
@@ -103,12 +107,13 @@ def validate_cp(image_or_node_label, caller,
                                 src_path, src_fs,
                                 dst_path, dst_fs)
     if info.pop('valid') == False:
-        return
+        return { 'status': 'FAILED' }
     # all seems fine
     client_operand_index = operand_index_per_type[TYPE_CLIENT]
     src_dir = os.path.dirname(src_path)
     src_name = os.path.basename(src_path)
     info.update(
+        status = ('NEEDS_CONFIRM' if needs_confirm else 'OK'),
         src_dir = src_dir,
         src_name = src_name,
         tmp_name = src_name + '.' + get_random_suffix(),

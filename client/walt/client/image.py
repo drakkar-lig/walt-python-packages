@@ -117,6 +117,13 @@ class WalTImageCp(WalTApplication):
             info = server.validate_image_cp(src, dst)
             if info == None:
                 return
+            if info['status'] == 'NEEDS_CONFIRM':
+                if confirm():
+                    info['status'] = 'OK'
+                else:
+                    return  # give up
+            if info['status'] == 'FAILED':
+                return
             session_info = server.create_image_shell_session(
                             info['image_name'], 'file transfer')
             if session_info == None:
@@ -141,4 +148,7 @@ class WalTImageSquash(WalTApplication):
     """squash all layers of an image into one"""
     def main(self, image_name):
         with ClientToServerLink() as server:
-            server.squash_image(image_name)
+            status = server.squash_image(image_name, False)
+            if status == 'NEEDS_CONFIRM':
+                if confirm():
+                    server.squash_image(image_name, True)

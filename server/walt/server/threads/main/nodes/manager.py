@@ -465,8 +465,11 @@ class NodesManager(object):
     def validate_cp(self, requester, src, dst):
         return validate_cp("node", self, requester, src, dst)
 
-    def validate_cp_entity(self, requester, node_name):
-        return self.get_node_info(requester, node_name) != None
+    def validate_cp_entity(self, requester, node_name, index):
+        if self.get_node_info(requester, node_name) is None:
+            return 'FAILED'
+        else:
+            return 'OK'
 
     def get_cp_entity_filesystem(self, requester, node_name):
         node_ip = self.get_node_ip(requester, node_name)
