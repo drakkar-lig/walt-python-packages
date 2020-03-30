@@ -53,7 +53,7 @@ class NodeImageManager(object):
     def validate_cp(self, requester, src, dst):
         return validate_cp("image", self, requester, src, dst)
     def validate_cp_entity(self, requester, image_name):
-        return self.has_image(requester, image_name)
+        return self.has_image(requester, image_name, False)
     def get_cp_entity_filesystem(self, requester, image_name):
         return self.store.get_user_image_from_name(requester, image_name).filesystem
     def get_cp_entity_attrs(self, requester, image_name):
@@ -63,8 +63,8 @@ class NodeImageManager(object):
     def cleanup(self):
         # un-mount images
         self.store.cleanup()
-    def has_image(self, requester, image_name):
-        if image_name == 'default':
+    def has_image(self, requester, image_name, default_allowed):
+        if default_allowed and image_name == 'default':
             return True
         else:
             return self.store.get_user_image_from_name(requester, image_name) != None

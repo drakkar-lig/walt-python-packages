@@ -109,8 +109,8 @@ class CSAPI(APISession):
         context.server.rename_device(context.requester.do_sync, old_name, new_name)
 
     @api_expose_method
-    def has_image(self, context, image_name):
-        return context.images.has_image(context.requester.do_sync, image_name)
+    def has_image(self, context, image_name, default_allowed):
+        return context.images.has_image(context.requester.do_sync, image_name, default_allowed)
 
     @api_expose_method
     def set_image(self, context, node_set, image_name):

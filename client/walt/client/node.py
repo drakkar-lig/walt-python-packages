@@ -60,7 +60,7 @@ class WalTNode(WalTCategoryApplication):
     @staticmethod
     def boot_nodes(node_set, image_name_or_default):
         with ClientToServerLink() as server:
-            if server.has_image(image_name_or_default):
+            if server.has_image(image_name_or_default, True):
                 # the list of nodes the keyword "my-nodes" refers to
                 # may be altered by the server.set_image() call, thus
                 # we have to get a real list of nodes before starting
