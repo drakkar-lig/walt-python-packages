@@ -106,10 +106,12 @@ def error_image_belongs_to_ws(requester, username, **args):
     return False
 
 def verify_overwrite(image_store, requester, clonable_link,
-                    ws_image_fullname, force, **args):
+                    ws_image_fullname, force, image_name, **args):
     if not force:
         image_store.warn_overwrite_image(requester, ws_image_fullname)
         force_clone = "walt image clone --force " + clonable_link
+        if image_name is not None:
+            force_clone += ' ' + image_name
         requester.stderr.write(MSG_USE_FORCE % force_clone)
         return False
 
@@ -219,7 +221,7 @@ def workflow_run(workflow, **context):
 
 # walt image clone implementation
 # -------------------------------
-def perform_clone(requester, docker, nodes_manager, clonable_link, image_store, force):
+def perform_clone(requester, docker, nodes_manager, clonable_link, image_store, force, image_name):
     username = requester.get_username()
     if not username:
         return # client already disconnected, give up
@@ -228,13 +230,19 @@ def perform_clone(requester, docker, nodes_manager, clonable_link, image_store, 
     if remote_location == None:
         return # error already reported
 
-    ws_image_fullname = "%s/%s" % (username, remote_image_name)
+    if image_name is None:
+        # if not specified, name it the same as remote image
+        ws_image_fullname = "%s/%s" % (username, remote_image_name)
+    else:
+        ws_image_fullname = "%s/%s" % (username, image_name)
+        if ':' not in image_name:
+            ws_image_fullname += ':latest'
     remote_image_fullname = "%s/%s" % (remote_user, remote_image_name)
 
     # analyse our context
     existing_server_image = remote_image_fullname in image_store
     existing_ws_image = ws_image_fullname in image_store
-    same_user = (username == remote_user)
+    same_image = (remote_image_fullname == ws_image_fullname)
     image_is_local = (remote_location == LOCATION_WALT_SERVER)
 
     # check that the requested image really exists,
@@ -261,10 +269,10 @@ def perform_clone(requester, docker, nodes_manager, clonable_link, image_store, 
     # --------------------
     # obvious facts:
     # * if image_is_local is True, existing_server_image is True
-    # * if same_user is True, existing_server_image == existing_ws_image
+    # * if same_image is True, existing_server_image == existing_ws_image
     # that's why not all workflow entries are possible.
     workflow_selector = {
-        # image_is_local, existing_server_image, existing_ws_image, same_user
+        # image_is_local, existing_server_image, existing_ws_image, same_image
         (True, True, False, False): [ tag_server_image_to_requester ],
         (True, True, True, False):  [ verify_compatibility_issue, verify_overwrite,
                                                         remove_ws_image, tag_server_image_to_requester ],
@@ -286,13 +294,14 @@ def perform_clone(requester, docker, nodes_manager, clonable_link, image_store, 
                                                         pull_image ],
     }
     workflow = [ save_initial_images ]     # this is always called first
-    workflow += workflow_selector[(image_is_local, existing_server_image, existing_ws_image, same_user)]
+    workflow += workflow_selector[(image_is_local, existing_server_image, existing_ws_image, same_image)]
     workflow += [ update_walt_image ]      # this is always called at the end (unless an error occurs before)
     print('clone workflow is:', ', '.join([ f.__name__ for f in workflow ]))
 
     # proceed
     # -------
     context = dict(
+        image_name = image_name,
         remote_location = remote_location,
         username = username,
         ws_image_fullname = ws_image_fullname,
