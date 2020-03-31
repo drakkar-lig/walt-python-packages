@@ -29,19 +29,6 @@ Nodes use a network booting procedure (TFTP + NFS) to boot the operating system 
 in a selected WALT image.
 
 
-## Network switch remote administration features
-
-The WALT server, if allowed, may send SNMP queries to a given switch, for one of these two purposes:
-* retrieve LLDP data (Link Layer Discovery Protocol), for network discovery
-* activate / deactivate PoE on one of the ports (for remotely hard-rebooting a walt node)
-
-These two requests are disabled by default. You can activate and configure them for a given switch
-using `walt device admin <switch>`.
-
-Of course this is only possible if the switch provides related features.
-Check-out [`walt help show switch-install`](switch-install.md) for more info.
-
-
 ## walt-net and walt-out networks
 
 As shown in the figure, there are two main requirements regarding network setup:
@@ -53,6 +40,24 @@ As shown in the figure, there are two main requirements regarding network setup:
 
 Of course we can cascade several switches to extend `walt-net`, as shown on the figure.
 Caution: connecting a walt node directly to the server (with no intermediate switch) will not work!
+
+Isolating networks `walt-net` and `walt-out` allows better experiment reproducibility. Thus, in the
+default configuration, they are isolated one from each other. However, one can alter this configuration
+and allow a specific set of nodes to access internet. Check-out [`walt help show node-netsetup`](node-netsetup.md)
+for more info.
+
+
+## Network switch remote administration features
+
+The WALT server, if allowed, may send SNMP queries to a given switch, for one of these two purposes:
+* retrieve LLDP data (Link Layer Discovery Protocol), for network discovery
+* activate / deactivate PoE on one of the ports (for remotely hard-rebooting a walt node)
+
+These two requests are disabled by default. You can activate and configure them for a given switch
+using `walt device admin <switch>`.
+
+Of course this is only possible if the switch provides related features.
+Check-out [`walt help show switch-install`](switch-install.md) for more info.
 
 
 ## walt-adm: optional network admin network

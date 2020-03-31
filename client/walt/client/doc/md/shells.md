@@ -16,6 +16,7 @@ Their purpose is very different.
 
 Be warned that a WalT node is a very **volatile** environment. Each time a node reboots, it loses all modifications made on files (created, suppressed, modified), and restarts from the original files of the image it boots.
 This ensures that a node booting a given image will always act the same.
+(See [`walt help show node-bootup`](node-bootup.md) for a more technical explanation on this aspect.)
 
 ## `walt image shell`: modification of operating system
 

@@ -56,3 +56,11 @@ See [`walt help show vpn`](vpn.md) for more info.
 
 For specific needs, it is possible to build your own WalT image from scratch.
 See [`walt help show image-from-scratch`](image-from-scratch.md) for more info.
+
+And if you want to connect a new kind of node which WalT does not currently
+supports, check-out [`walt help show new-node-support`](new-node-support.md).
+
+## How it works
+
+See [`walt help show node-bootup`](node-bootup.md) for detailed understanding
+of walt core.

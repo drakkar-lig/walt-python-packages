@@ -9,6 +9,9 @@ This means that the walt image is never transfered as a whole to the node: it re
 
 Given this fact, walt nodes just need a network bootloader configured appropriately.
 
+WalT can handle various kinds of nodes, and users can even add support for a new kind of
+node easily. Check-out [`walt help show new-node-support`](new-node-support.md) for more info.
+
 Installation files can be found at https://github.com/drakkar-lig/walt-project/releases/latest.
 
 The following sections will show how to set up a new node, depending on its model.
@@ -27,6 +30,23 @@ Then, any PC can be turned into a walt node:
 
 It should be compatible with most BIOS-based and UEFI-based machines, and old 32-bits PCs, provided
 the network bootloader can handle the network card.
+
+
+## Virtual nodes
+
+WalT allows you to create virtual nodes. Virtual nodes are actually `kvm` virtual machines running
+on the server. When you list nodes, virtual nodes will be displayed the same as PC nodes, because
+their virtual hardware reflects the one of a standard PC.
+
+In order to create a virtual node simply run:
+```
+$ walt node create <node-name>
+```
+
+And in order to remove it, run:
+```
+$ walt node remove <node-name>
+```
 
 
 ## Raspberry Pi boards

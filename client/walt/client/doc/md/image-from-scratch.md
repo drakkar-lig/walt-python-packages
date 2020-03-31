@@ -9,9 +9,12 @@ This procedure is dedicated to advanced users that are familiar with operating s
 A WalT image is just a [docker image](https://docs.docker.com/engine/getstarted/); as such, you can use docker usual procedure to build it:
 * create a Dockerfile
 * use the `docker build` command
-* use the `docker push` command to push it to the docker hub
 
-After this, you should let WalT rescan your docker hub account by typing:
+Then, you can import it in walt internal repository.
+First, use command `walt image search`. Your new image will be listed with location `docker daemon` and clone URL prefix `docker:`.
+Then, use `walt image clone` with the clone URL just obtained.
+
+Important note: if ever you push directly your image to the docker hub, using `docker push` command, you should let WalT rescan your docker hub account by typing:
 ```
 $ walt advanced rescan-hub-account
 ```
@@ -91,6 +94,8 @@ The TFTP service installed on WalT server redirects TFTP requests for a file at 
 For example, a `rpi-b-plus` node sending a TFTP request for file `/start.uboot` will actually get file `[image_root]/boot/rpi-b-plus/start.uboot`.
 
 As a result, the image should provide a directory `/boot/<node_model>` for each node model handled. This directory should contain the second-stage boot script and resources needed by this script (kernel, maybe an initrd, maybe a device tree blob, etc.), or symbolic links if these resources are stored elsewhere in the image.
+
+For detailed information of the node bootup procedure, see [`walt help show node-bootup`](node-bootup.md).
 
 ### 5- kernel features
 
