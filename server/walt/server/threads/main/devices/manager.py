@@ -19,7 +19,13 @@ The name must be at least 2-chars long.
 """
 
 DEVICES_QUERY = """\
-SELECT name, ip, mac, type from devices
+SELECT name, ip, mac,
+       CASE WHEN type = 'node' AND virtual THEN 'node (virtual)'
+            WHEN type = 'node' AND mac like '52:54:00:%%' THEN 'node (vpn)'
+            WHEN type = 'node' THEN 'node (physical)'
+            ELSE type
+       END as type
+FROM devices
 WHERE type %(unknown_op)s 'unknown'
 ORDER BY type, name;"""
 

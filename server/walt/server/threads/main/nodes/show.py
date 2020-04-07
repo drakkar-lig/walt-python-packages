@@ -6,6 +6,7 @@ NODE_SHOW_QUERY = """
         split_part(n.image, '/', 1) as image_owner,
         split_part(n.image, '/', 2) as image_name,
         i.ready as image_ready,
+        d.virtual as virtual, d.mac as mac,
         d.ip as ip, n.netsetup as netsetup,
         (case when n.booted then 'yes' else 'NO' end) as booted
     FROM devices d, nodes n, images i
@@ -45,6 +46,33 @@ def short_image_name(image_name):
         image_name = image_name[:-7]
     return image_name
 
+def node_type(mac, virtual):
+    if mac.startswith('52:54:00'):
+        if virtual:
+            return 'virtual'
+        else:
+            return 'vpn'
+    else:
+        return 'physical'
+
+def get_table_value(record, col_title):
+    if col_title == 'type':
+        return node_type(record.mac, record.virtual)
+    elif col_title == 'image':
+        return short_image_name(record.image_name)
+    elif col_title == 'netsetup':
+        return NetSetup(record.netsetup).readable_string()
+    elif col_title == 'clonable_image_link':
+        return 'walt:%s/%s' % (record.image_owner, short_image_name(record.image_name))
+    else:
+        return getattr(record, col_title)
+
+def generate_table(title, footnote, records, *col_titles):
+    table = [ tuple(get_table_value(record, col_title) for col_title in col_titles) \
+              for record in records ]
+    header = list(col_titles)
+    return format_paragraph(title, columnate(table, header=header), footnote)
+
 def show(db, username, show_all):
     res_user, res_free, res_other, res_not_ready = [], [], [], []
     res = db.execute(NODE_SHOW_QUERY)
@@ -66,28 +94,14 @@ def show(db, username, show_all):
         footnote = None
         if not show_all:
             footnote = MSG_RERUN_WITH_ALL
-        table = [(record.name, record.model,
-                  short_image_name(record.image_name), record.ip,
-                  NetSetup(record.netsetup).readable_string(), record.booted)
-                 for record in res_user]
-        header = ['name', 'model', 'image', 'ip', 'netsetup', 'booted']
-        result_msg += format_paragraph(
-                        TITLE_NODE_SHOW_USER_NODES_PART,
-                        columnate(table, header=header),
-                        footnote)
+        result_msg += generate_table(TITLE_NODE_SHOW_USER_NODES_PART, footnote, res_user,
+                        'name', 'type', 'model', 'image', 'ip', 'netsetup', 'booted')
     if not show_all:
         return result_msg
     if len(res_free) > 0:
         # display free nodes
-        footnote = None
-        table = [(record.name, record.model, record.ip,
-                  NetSetup(record.netsetup).readable_string(), record.booted)
-                 for record in res_free]
-        header = ['name', 'model', 'ip', 'netsetup', 'booted']
-        result_msg += format_paragraph(
-                        TITLE_NODE_SHOW_FREE_NODES_PART,
-                        columnate(table, header=header),
-                        footnote)
+        result_msg += generate_table(TITLE_NODE_SHOW_FREE_NODES_PART, None, res_free,
+                        'name', 'type', 'model', 'ip', 'netsetup', 'booted')
     if len(res_other) + len(res_user) + len(res_free) + len(res_not_ready) == 0:
         return MSG_NO_NODES + '\n'
     if len(res_free) + len(res_other) + len(res_not_ready) == 0:
@@ -95,24 +109,11 @@ def show(db, username, show_all):
     else:
         if len(res_other) > 0:
             # display nodes of other users
-            table = [(record.name, record.model, record.image_owner,
-                      'server:%s/%s' % \
-                        (record.image_owner, short_image_name(record.image_name)),
-                      record.ip, NetSetup(record.netsetup).readable_string(),
-                      record.booted)
-                     for record in res_other]
-            header = ['name', 'model', 'image_owner', 'clonable_image_link', 'ip', 'netsetup', 'booted']
-            result_msg += format_paragraph(
-                        TITLE_NODE_SHOW_OTHER_NODES_PART,
-                        columnate(table, header=header))
+            result_msg += generate_table(TITLE_NODE_SHOW_OTHER_NODES_PART, None, res_other,
+                            'name', 'type', 'model', 'image_owner', 'clonable_image_link', 'ip', 'netsetup', 'booted')
         if len(res_not_ready) > 0:
             # display nodes whose image is currently being downloaded
-            table = [(record.name, record.model, record.ip,
-                      NetSetup(record.netsetup).readable_string())
-                     for record in res_not_ready]
-            header = ['name', 'model', 'ip', 'netsetup']
-            result_msg += format_paragraph(
-                        TITLE_NODE_SHOW_NOT_READY_NODES_PART,
-                        columnate(table, header=header))
+            result_msg += generate_table(TITLE_NODE_SHOW_NOT_READY_NODES_PART, None, res_not_ready,
+                            'name', 'type', 'model', 'ip', 'netsetup')
     return result_msg
 
