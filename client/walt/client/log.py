@@ -19,11 +19,27 @@ DEFAULT_FORMAT_STRING= \
 SECONDS_PER_UNIT = {'s':1, 'm':60, 'h':3600, 'd':86400}
 NUM_LOGS_CONFIRM_TRESHOLD = 1000
 
+MSG_INVALID_CHECKPOINT_NAME="""\
+Invalid checkpoint name:
+* Only alnum and dash(-) characters are allowed.
+* dash(-) is not allowed as the 1st character.
+"""
+
 def isatty():
     return sys.stdout.isatty() and sys.stdin.isatty()
 
 def validate_checkpoint_name(name):
     return re.match('^[a-zA-Z0-9]+[a-zA-Z0-9\-]+$', name)
+
+def compute_relative_date(server_time, rel_date):
+    try:
+        delay = datetime.timedelta(
+                seconds = int(rel_date[1:-1]) * \
+                    SECONDS_PER_UNIT[rel_date[-1]])
+    except:
+        print("Invalid relative date. Should be: -<int>[dhms] (e.g. '-6h' for 'six hours ago')")
+        sys.exit(1)
+    return pickle.dumps(server_time - delay)
 
 class LogsFlowFromServer(object):
     def __init__(self, walt_server_host):
@@ -78,10 +94,8 @@ class WalTLogShowOrWait(WalTApplication):
                 if part == '':
                     history.append(None)
                 elif part.startswith('-'):
-                    delay = datetime.timedelta(
-                                seconds = int(part[1:-1]) * \
-                                    SECONDS_PER_UNIT[part[-1]])
-                    history.append(pickle.dumps(server_time - delay))
+                    rel_date = compute_relative_date(server_time, part)
+                    history.append(rel_date)
                 elif validate_checkpoint_name(part):
                     cptime = server.get_pickled_checkpoint_time(part)
                     if cptime == None:
@@ -191,26 +205,26 @@ class WalTLogShow(WalTLogShowOrWait):
 @WalTLog.subcommand("add-checkpoint")
 class WalTLogAddCheckpoint(WalTApplication):
     """Record a checkpoint (reference point in time)"""
-    date = cli.SwitchAttr("--date", str, default=None)
-
+    date = cli.SwitchAttr("--date", str, default=None,
+                          help="specify date (see walt help show log-checkpoint)")
     def main(self, checkpoint_name):
-        if self.date:
-            try:
-                self.date = pickle.dumps(datetime.datetime.strptime(\
-                                self.date, DATE_FORMAT_STRING))
-            except:
-                print('Could not parse the date specified.')
-                print('Expected format is: %s' % DATE_FORMAT_STRING_HUMAN)
-                print('Example: %s' % DATE_FORMAT_STRING_EXAMPLE)
-                return
-        if not validate_checkpoint_name(checkpoint_name):
-            sys.stderr.write("""\
-Invalid checkpoint name:
-* Only alnum and dash(-) characters are allowed.
-* dash(-) is not allowed as the 1st character.
-""")
-            return
         with ClientToServerLink() as server:
+            if self.date:
+                if self.date.startswith('-'):
+                    server_time = pickle.loads(server.get_pickled_time())
+                    self.date = compute_relative_date(server_time, self.date)
+                else:
+                    try:
+                        self.date = pickle.dumps(datetime.datetime.strptime(\
+                                        self.date, DATE_FORMAT_STRING))
+                    except:
+                        print('Could not parse the date specified.')
+                        print('Expected format is: %s' % DATE_FORMAT_STRING_HUMAN)
+                        print('Example: %s' % DATE_FORMAT_STRING_EXAMPLE)
+                        return
+            if not validate_checkpoint_name(checkpoint_name):
+                sys.stderr.write(MSG_INVALID_CHECKPOINT_NAME)
+                return
             server.add_checkpoint(checkpoint_name, self.date)
 
 @WalTLog.subcommand("remove-checkpoint")
