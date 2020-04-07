@@ -52,7 +52,7 @@ class DockerLocalClient:
     def tag(self, old_fullname, new_fullname):
         if self.image_exists(new_fullname):
             # take care not making previous version of image a dangling image
-            podman.rmi(new_fullname)
+            podman.rmi('docker.io/' + new_fullname)
         if old_fullname in self.names_cache:
             self.names_cache[new_fullname] = self.names_cache[old_fullname]
         else:
@@ -63,12 +63,15 @@ class DockerLocalClient:
     def untag(self, fullname, ignore_missing = False):
         if ignore_missing and not self.image_exists(fullname):
             return  # nothing to do
-        podman.rmi(fullname)
+        podman.rmi('docker.io/' + fullname)
         self.names_cache.pop(fullname, None)
     def deep_inspect(self, image_id_or_fullname):
+        podman_id = image_id_or_fullname
+        if '/' in podman_id:
+            podman_id = 'docker.io/' + podman_id
         image_info = podman.inspect('--format',
             '{ "labels": {{json .Labels}}, "num_layers": {{len .RootFS.Layers}}, "created_at": "{{.Created}}" }',
-            image_id_or_fullname)
+            podman_id)
         image_info = json.loads(image_info)
         editable = (image_info['num_layers'] < MAX_IMAGE_LAYERS)
         created_at = parse_date(image_info['created_at'])
@@ -79,7 +82,7 @@ class DockerLocalClient:
         }
     def image_exists(self, fullname):
         try:
-            podman.image.exists(fullname)
+            podman.image.exists('docker.io/' + fullname)
             return True
         except CalledProcessError:
             return False
@@ -199,10 +202,6 @@ class DockerDaemonClient:
         label = 'Downloading %s' % image_fullname
         stream = podman.pull.stream('docker-daemon:' + image_fullname, out_stream='stderr')
         indicate_progress(sys.stdout, label, stream, self.checker)
-        # images are saved with prefix "localhost/" when pulled from docker daemon.
-        # to simplify, walt names all podman images with prefix "docker.io/".
-        podman.image.tag(image_fullname, 'docker.io/' + image_fullname)
-        podman.image.rm('localhost/' + image_fullname)
 
 class DockerHubClient:
     def checker(self, line):

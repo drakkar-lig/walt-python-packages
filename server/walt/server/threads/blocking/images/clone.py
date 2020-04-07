@@ -25,16 +25,16 @@ from walt.common.tools import format_sentence
 
 MSG_IMAGE_NOT_REMOTE_BELONGS_TO_WS = """\
 Invalid clonable image link.
-Images of the form 'server:%s/<image_name>' already belong to
+Images of the form 'walt:%s/<image_name>' already belong to
 your working set and thus are not clonable.
 """
 MSG_USE_FORCE = """\
 If this is what you want, rerun with --force:
-$ walt image clone --force %s
+$ %s
 """
 MSG_INVALID_CLONABLE_LINK = """\
 Invalid clonable image link. Format must be:
-[server|hub]:<user>/<image_name>[:<tag>]
+[walt|docker|hub]:<user>/<image_name>[:<tag>]
 (tip: walt image search [<keyword>])
 """
 MSG_INCOMPATIBLE_MODELS = """\
@@ -109,7 +109,8 @@ def verify_overwrite(image_store, requester, clonable_link,
                     ws_image_fullname, force, **args):
     if not force:
         image_store.warn_overwrite_image(requester, ws_image_fullname)
-        requester.stderr.write(MSG_USE_FORCE % clonable_link)
+        force_clone = "walt image clone --force " + clonable_link
+        requester.stderr.write(MSG_USE_FORCE % force_clone)
         return False
 
 # check possible compatibility issue regarding node models
@@ -161,9 +162,9 @@ def update_walt_image(image_store, ws_image_fullname, **args):
     if ws_image_fullname in image_store:
         # an image with the target name exists
         existing_dest_image = image_store[ws_image_fullname]
-        # if image is mounted, umount/mount it in order to make
+        # if image is in use, umount/mount it in order to make
         # the nodes reboot with the new version
-        if existing_dest_image.mounted:
+        if existing_dest_image.in_use:
             # umount
             image_store.umount_used_image(existing_dest_image)
             # re-mount
