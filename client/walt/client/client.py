@@ -16,6 +16,7 @@ from walt.client.startup import init_config
 from walt.client.logo import try_add_logo
 from walt.client.application import WalTToolboxApplication
 from walt.client.link import ClientToServerLink
+from walt.client.timeout import timeout_init_handler
 
 WALT_COMMAND_HELP_PREFIX = '''\
 
@@ -52,6 +53,7 @@ def run():
         init_config()
         with ClientToServerLink() as server:
             check_auto_update(server, 'walt-client')
+        timeout_init_handler()
         WalT.run()
     except socket.error:
         sys.exit('Network connection to WalT server failed!')

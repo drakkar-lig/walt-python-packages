@@ -7,6 +7,7 @@ from walt.client.application import WalTCategoryApplication, WalTApplication
 from walt.client.config import conf
 from walt.client.link import ClientToServerLink
 from walt.client.tools import confirm
+from walt.client.timeout import start_timeout, stop_timeout, timeout_reached, cli_timeout_switch
 
 DATE_FORMAT_STRING= '%Y-%m-%d %H:%M:%S'
 DATE_FORMAT_STRING_HUMAN= '<YYYY>-<MM>-<DD> <hh>:<mm>:<ss>'
@@ -111,16 +112,24 @@ class WalTLogShowOrWait(WalTApplication):
 
     @staticmethod
     def start_streaming(format_string, history_range, realtime, senders, streams,
-                        logline_regexp, stop_test):
+                        logline_regexp, stop_test, timeout = -1):
         conn = LogsFlowFromServer(conf['server'])
         conn.request_log_dump(  history = history_range,
                                 realtime = realtime,
                                 senders = senders,
                                 streams = streams,
                                 logline_regexp = logline_regexp)
+        if timeout > 0:
+            start_timeout(timeout)
         while True:
             try:
                 record = conn.read_log_record()
+                # sigalarm is caught by pickle, it will just abort the read
+                # and record will be None.
+                # Since we cannot get a TimeoutException, we check with timeout_reached().
+                if timeout > 0 and timeout_reached():
+                    print('Timeout was reached.')
+                    break
                 if record == None:
                     break
                 print(format_string.format(**record))
@@ -134,6 +143,8 @@ class WalTLogShowOrWait(WalTApplication):
                 print('Could not display the log record.')
                 print('Verify your format string.')
                 break
+        if timeout > 0:
+            stop_timeout()
 
 @WalTLog.subcommand("show")
 class WalTLogShow(WalTLogShowOrWait):
@@ -231,6 +242,7 @@ class WalTLogWait(WalTLogShowOrWait):
                 argname = 'SECONDS',
                 default = 0,
                 help= """also look in recent past logs if they matched""")
+    timeout = cli_timeout_switch()
 
     def main(self, logline_regexp):
         if not WalTLogShowOrWait.verify_regexps(self.streams, logline_regexp):
@@ -259,4 +271,4 @@ class WalTLogWait(WalTLogShowOrWait):
                 else:
                     return False    # no, we are not done yet
         WalTLogShowOrWait.start_streaming(self.format_string, history_range, True,
-                                    senders, self.streams, logline_regexp, stop_test)
+                                    senders, self.streams, logline_regexp, stop_test, self.timeout)

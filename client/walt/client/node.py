@@ -13,6 +13,7 @@ from walt.client.interactive import run_node_cmd, \
 from walt.client.transfer import run_transfer_with_node
 from walt.client.expose import TCPExposer
 from walt.client.application import WalTCategoryApplication, WalTApplication
+from walt.client.timeout import start_timeout, stop_timeout, TimeoutException, cli_timeout_switch
 
 POE_REBOOT_DELAY            = 2  # seconds
 
@@ -27,13 +28,21 @@ Node bootup notification still pending (press ctrl-C to proceed anyway)'
 class WalTNode(WalTCategoryApplication):
     """WalT node management sub-commands"""
     @staticmethod
-    def wait_for_nodes(server, node_set, busy_label = WAIT_NODES_BUSY_LABEL):
-        server.set_busy_label(busy_label)
+    def wait_for_nodes(server, node_set, busy_label = WAIT_NODES_BUSY_LABEL, timeout = -1):
         try:
+            server.set_busy_label(busy_label)
+            if timeout > 0:
+                start_timeout(timeout)
             server.wait_for_nodes(node_set)
+            if timeout > 0:
+                stop_timeout()
+            server.set_default_busy_label()
         except KeyboardInterrupt:
             print()
-        server.set_default_busy_label()
+            server.set_default_busy_label()
+        except TimeoutException:
+            server.set_default_busy_label()
+            print('Timeout was reached.')
 
     @staticmethod
     def run_cmd(node_set, several_nodes_allowed, cmdargs,
@@ -242,10 +251,11 @@ class WalTNodeCp(WalTApplication):
 @WalTNode.subcommand("wait")
 class WalTNodeWait(WalTApplication):
     """wait for bootup notification of a node (or set of nodes)"""
+    timeout = cli_timeout_switch()
     def main(self, node_set):
         with ClientToServerLink() as server_link:
             busy_label = 'Node bootup notification pending'
-            WalTNode.wait_for_nodes(server_link, node_set, busy_label)
+            WalTNode.wait_for_nodes(server_link, node_set, busy_label, self.timeout)
 
 @WalTNode.subcommand("expose")
 class WalTNodeExpose(WalTApplication):
