@@ -130,11 +130,6 @@ class CSAPI(APISession):
         return serialize_ordered_dict(device_info._asdict())
 
     @api_expose_method
-    def apply_switch_conf(self, context, device_name, conf):
-        conf = deserialize_ordered_dict(conf)
-        return context.devices.apply_switch_conf(context.requester.do_sync, device_name, conf)
-
-    @api_expose_method
     def fix_image_owner(self, context, other_user):
         return context.images.fix_owner(context.requester.do_sync, other_user)
 
@@ -250,6 +245,10 @@ class CSAPI(APISession):
     def set_device_config(self, context, device_set, conf_args):
         context.server.settings.set_device_config(context.requester.do_sync, device_set, conf_args)
         context.server.dhcpd.update()
+
+    @api_expose_method
+    def get_device_config(self, context, device_set):
+        context.server.settings.get_device_config(context.requester.do_sync, device_set)
 
     @api_expose_method
     def vpn_wait_grant_request(self, context):

@@ -12,8 +12,7 @@ Help about WalT in general:
     walt help show
 
 Sub-commands:
-    admin   configure WalT regarding network switches and unknown devices
-    config  Set devices configuration
+    config  Get or set devices configuration
     forget  let the WalT system forget about an obsolete device
     ping    check that a device is reachable on WalT network
     rename  rename a device

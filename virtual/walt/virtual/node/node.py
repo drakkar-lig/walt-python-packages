@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import sys, subprocess, time, random, platform
+import sys, subprocess, time, random, platform, re
 from contextlib import contextmanager
 from walt.common.apilink import ServerAPILink
 from walt.common.logs import LoggedApplication
@@ -26,14 +26,14 @@ else:
 
 MANUFACTURER = "QEMU"
 QEMU_PROG = "qemu-system-" + HOST_CPU
-QEMU_RAM = 512
-QEMU_CORES = 4
+DEFAULT_QEMU_RAM = 512
+DEFAULT_QEMU_CORES = 4
 QEMU_ARGS = QEMU_PROG + " \
                 -enable-kvm " + \
                 QEMU_MACHINE_DEF + "\
-                -m " + str(QEMU_RAM) + "\
+                -m %(ram)d \
+                -smp %(cpu_cores)d \
                 -name %(name)s \
-                -smp " + str(QEMU_CORES) + "\
                 -nographic \
                 -netdev bridge,br=walt-net,id=mynet \
                 -device " + QEMU_NET_DRIVER + ",mac=%(mac)s,netdev=mynet \
@@ -74,6 +74,8 @@ def get_env_start(info):
     if None in env.values():
         print(USAGE % dict(prog = sys.argv[0]))
         sys.exit()
+    env['cpu_cores'] = info._cpu_cores
+    env['ram'] = info._ram
     if info._udhcpc:
         env['fake-network-setup'] = udhcpc_fake_netboot
     else:
@@ -135,6 +137,8 @@ class WalTVirtualNode(LoggedApplication):
     _udhcpc = False         # default
     _attach_usb = False     # default
     _reboot_command = None  # default
+    _cpu_cores = DEFAULT_QEMU_CORES
+    _ram = DEFAULT_QEMU_RAM
 
     """run a virtual node"""
     def main(self):
@@ -170,6 +174,22 @@ class WalTVirtualNode(LoggedApplication):
     def hostname(self, hostname):
         """specify node's hostname"""
         self._hostname = hostname
+
+    @cli.switch("--cpu-cores", int)
+    def set_cpu_cores(self, cpu_cores):
+        """specify node's number of cpu cores"""
+        self._cpu_cores = cpu_cores
+
+    @cli.switch("--ram", str)
+    def set_ram(self, ram):
+        """specify node's ram amount (e.g. 512M or 1G)"""
+        if re.match(r'\d+[MG]', ram) is None:
+            raise ValueError('Invalid RAM amount specified (should be for instance 512M or 1G).')
+        # convert to megabytes
+        ram_megabytes = int(ram[:-1])
+        if ram[-1] == 'G':
+            ram_megabytes *= 1024
+        self._ram = ram_megabytes
 
     @cli.switch("--net-conf-udhcpc")
     def set_net_conf_udhcpc(self):

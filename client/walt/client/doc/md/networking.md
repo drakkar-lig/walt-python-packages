@@ -54,7 +54,7 @@ The WALT server, if allowed, may send SNMP queries to a given switch, for one of
 * activate / deactivate PoE on one of the ports (for remotely hard-rebooting a walt node)
 
 These two requests are disabled by default. You can activate and configure them for a given switch
-using `walt device admin <switch>`.
+using `walt device config <switch> <parameter>...` (see [`walt help show device-config`](device-config.md)).
 
 Of course this is only possible if the switch provides related features.
 Check-out [`walt help show switch-install`](switch-install.md) for more info.

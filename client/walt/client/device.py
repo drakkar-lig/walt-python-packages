@@ -1,7 +1,6 @@
 from plumbum import cli
 from walt.client.link import ClientToServerLink
 from walt.client.interactive import run_device_ping
-from walt.client.device.admin import WalTDeviceAdmin
 from walt.client.tools import confirm
 from walt.common.tools import deserialize_ordered_dict
 from walt.client.application import WalTCategoryApplication, WalTApplication
@@ -98,17 +97,18 @@ class WalTDeviceForget(WalTApplication):
     def force(self):
         self._force = True
 
-# this one has much code and has its own module
-WalTDevice.subcommand("admin", WalTDeviceAdmin)
-
 @WalTDevice.subcommand("config")
 class WalTDeviceConfig(WalTApplication):
-    """Set devices configuration"""
+    """Get or set devices configuration"""
     def main(self, device_set, *configuration):
         with ClientToServerLink() as server:
             device_set = server.develop_device_set(device_set)
             if device_set is None:
                 return
-            if not WalTDevice.confirm_devices_not_owned(server, device_set):
-                return
-            server.set_device_config(device_set, configuration)
+            if len(configuration) > 0:
+                if not WalTDevice.confirm_devices_not_owned(server, device_set):
+                    return
+                server.set_device_config(device_set, configuration)
+            else:
+                # no settings specified => list current settings
+                server.get_device_config(device_set)

@@ -1,4 +1,4 @@
-Set devices configuration
+Get or set devices configuration
 
 Usage:
     walt device config [SWITCHES] device_set configuration...

@@ -7,7 +7,7 @@ NODE_SHOW_QUERY = """
         split_part(n.image, '/', 2) as image_name,
         i.ready as image_ready,
         d.virtual as virtual, d.mac as mac,
-        d.ip as ip, n.netsetup as netsetup,
+        d.ip as ip, COALESCE((d.conf->'netsetup')::int, 0) as netsetup,
         (case when n.booted then 'yes' else 'NO' end) as booted
     FROM devices d, nodes n, images i
     WHERE   d.type = 'node'

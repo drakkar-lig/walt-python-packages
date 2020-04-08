@@ -57,9 +57,9 @@ DEVICE_SET_QUERIES = {
             ORDER BY type, name;""",
         'explorable-switches': """
             SELECT  d.mac as mac
-            FROM devices d, switches s
-            WHERE   d.mac = s.mac
-            AND     s.lldp_explore = True
+            FROM devices d
+            WHERE   d.type = 'switch'
+            AND     COALESCE((d.conf->'lldp.explore')::boolean, False) = True
             ORDER BY d.name;"""
 }
 
@@ -75,7 +75,7 @@ TITLE_SOME_UNKNOWN_DEVICES = """\
 WalT also detected the following devices but could not detect their type:"""
 
 FOOTNOTE_SOME_UNKNOWN_DEVICES = """\
-Use 'walt device admin <name>' to fix this."""
+If one of them is actually a switch, use 'walt device config <name> type=switch' to fix this."""
 
 class DevicesManager(object):
 
@@ -125,7 +125,7 @@ class DevicesManager(object):
         device_type = device_info.type
         if device_type == 'node':
             node_info = self.db.select_unique("nodes", mac=mac)
-            if node_info.netsetup == NetSetup.NAT:
+            if device_info.conf.get('netsetup', 0) == NetSetup.NAT:
                 gateway = self.server_ip
             else:
                 gateway = ''
@@ -252,24 +252,6 @@ class DevicesManager(object):
                         self.db.pretty_printed_select(q),
                         FOOTNOTE_SOME_UNKNOWN_DEVICES)
         return msg
-
-    def apply_switch_conf(self, requester, device_name, conf):
-        device_info = self.get_device_info(requester, device_name)
-        if device_info == None:
-            return None # error already reported
-        if device_info.type not in ('switch', 'unknown'):
-            requester.stderr.write(
-                'Cannot proceed because device is a %s.\n' % device_info.type)
-            return
-        device_info = device_info._asdict()
-        device_info.update(
-                requester = requester,
-                type = 'switch',  # if it was 'unknown'
-                ip = conf['ip'],
-                lldp_explore = conf['allow_lldp_explore'],
-                poe_reboot_nodes = conf['allow_poe_reboot'],
-                snmp_conf = None if conf['snmp'] is None else json.dumps(conf['snmp']))
-        self.add_or_update(**device_info)
 
     def includes_devices_not_owned(self, requester, device_set, warn):
         username = requester.get_username()

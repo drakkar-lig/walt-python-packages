@@ -53,13 +53,30 @@ features, you must:
   line will report the default name WALT gave to your switch. It should be `switch-<hhhhhh>` if WALT
   could detect it is a switch, or `unknown-<hhhhhh>` otherwise.
 * Run `walt device rename "<type>-<hhhhhh>" "<your-switch-name>"` for convenience.
-* Run `walt device admin <your-switch-name>` and answer questions. This will allow you to tell WALT whether it
-  is allowed to request LLDP neighbor tables, and to alter status of PoE on its ports. You will also have to
-  specify SNMP connection paramaters to this switch. On the netgear gs110tp for instance, in its default
-  configuration, you should specify SNMP version "2" and community "private".
-* Run `walt device rescan`.
-* Run `walt device tree`. Your switch should appear in the topology tree.
+* If the device type is `unknown`, run `walt device config <your-switch-name> type=switch`.
+* If your switch supports LLDP and/or PoE use `walt device config <your-switch-name> <settings>` to configure it. See next section.
+* If LLDP is enabled, run `walt device rescan` and `walt device tree`. Your switch should appear in the topology tree.
 
-In any case, keep in mind that topology exploration and PoE reboots are optional features. It should not prevent
-you from working with nodes.
+Notes:
+- LLDP only works between two devices (two switches, or a switch and a node) when both devices have LLDP enabled.
+  On a node, this means the running walt image must embed a LLDP daemon.
+- LLDP detection may need a few minutes.
+- In any case, keep in mind that topology exploration and PoE reboots are optional features. It should not prevent
+  you from working with nodes.
 
+
+## Switch configuration settings
+
+If you want to enable LLDP or PoE reboots, WalT server will have to communicate with the switch by using SNMP.
+Thus you should specify SNMP configuration parameters `snmp.version` (with value `1` or `2`) and `snmp.community`.
+Then, you can enable LLDP by specifying `lldp.explore=true`.
+And finally you can enable node hard-reboots using PoE by specifying `poe.reboots=true`.
+Note that you cannot enable `poe.reboots` without enabling `lldp.explore` (since WalT needs to know on which PoE
+switch port a node is connected in order to hard-reboot it).
+
+For instance, on the netgear gs110tp in its default configuration, one may run:
+```
+$ walt device config <switch-name> snmp.version=2 snmp.community='private' lldp.explore=true poe.reboots=true
+```
+
+For general information about this command, see [`walt help show device-config`](device-config.md).

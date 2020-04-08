@@ -1,17 +1,11 @@
 source $TESTS_DIR/includes/common.sh
 
 SQL_CONFIGURED_SWITCH="""\
-select d.name, s.lldp_explore, s.poe_reboot_nodes, s.snmp_conf::json -> 'version', s.snmp_conf::json ->> 'community'
-from switches s, devices d
-where s.snmp_conf is not null
-  and s.mac = d.mac
-limit 1;
-"""
-
-SQL_NODE_AND_NETSETUP="""\
-select d.name, n.netsetup
-from nodes n, devices d
-where n.mac = d.mac
+select d.name, (d.conf->'lldp.explore')::text
+from devices d
+where d.conf->'snmp.version' is not NULL
+  and d.conf->'snmp.community' is not NULL
+  and d.type = 'switch'
 limit 1;
 """
 
@@ -21,72 +15,16 @@ from devices d
 limit 1;
 """
 
-print_admin_responses() {
-    lldp_explore="$1"
-    poe_reboot_nodes="$2"
-    version="$3"
-    community="$4"
-
-    # Notes:
-    # - PoE questions are only asked if LLDP is enabled
-    # - SNMP conf is only asked if LLDP is enabled
-    # - There is a final confirm requested at the end
-
-    if [ "$lldp_explore" = "t" ]    # t == true
+negate() {
+    if [ "$1" = "true" ]
     then
-        echo y
-
-        if [ "$poe_reboot_nodes" = "t" ]    # t == true
-        then
-            echo y
-            echo y
-        else
-            echo n
-        fi
-
-        echo $version
-        echo $community
+        echo "false"
     else
-        echo n
+        echo "true"
     fi
-
-    echo y
 }
 
 define_test "walt device config" as {
-    output="$(
-        psql walt -t -c "$SQL_NODE_AND_NETSETUP" | tr -d '|'
-    )"
-
-    if [ "$output" = "" ]
-    then
-        echo "did not find a node to run this test on" >&2
-        return 1
-    fi
-
-    set -- $output
-    name="$1"
-
-    if [ "$2" = "0" ]
-    then
-        netsetup="LAN"
-        other_netsetup="NAT"
-    else
-        netsetup="NAT"
-        other_netsetup="LAN"
-    fi
-
-    # try to change setting, then restore it
-    walt device config "$name" netsetup $other_netsetup
-
-    # verify it is really updated
-    walt node show --all | grep "^$name " | grep -w "$other_netsetup"
-
-    # restore
-    walt device config "$name" netsetup $netsetup
-}
-
-define_test "walt device admin" as {
     output="$(
         psql walt -t -c "$SQL_CONFIGURED_SWITCH" | tr -d '|'
     )"
@@ -99,9 +37,17 @@ define_test "walt device admin" as {
 
     set -- $output
     name="$1"
-    shift
+    orig_lldp_explore="$2"
+    other_lldp_explore="$(negate $orig_lldp_explore)"
 
-    print_admin_responses "$@" | walt device admin "$name"
+    # try to change setting, then restore it
+    walt device config "$name" lldp.explore=$other_lldp_explore
+
+    # verify it is really updated
+    walt device config "$name" | grep "lldp.explore=" | grep "$other_lldp_explore"
+
+    # restore
+    walt device config "$name" lldp.explore=$orig_lldp_explore
 }
 
 define_test "walt device ping" as {

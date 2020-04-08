@@ -1,8 +1,0 @@
-configure WalT regarding network switches and unknown devices
-
-Usage:
-    walt device admin [SWITCHES] device_name
-
-Meta-switches:
-    -h, --help      Prints this help message and quits
-

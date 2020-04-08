@@ -16,7 +16,8 @@ class ServerDB(PostgresDB):
                     ip TEXT,
                     name TEXT,
                     type TEXT,
-                    virtual BOOLEAN DEFAULT FALSE);""")
+                    virtual BOOLEAN DEFAULT FALSE,
+                    conf JSONB DEFAULT '{}');""")
         self.execute("""CREATE TABLE IF NOT EXISTS topology (
                     mac1 TEXT REFERENCES devices(mac),
                     port1 INTEGER,
@@ -30,17 +31,10 @@ class ServerDB(PostgresDB):
                     mac TEXT REFERENCES devices(mac),
                     image TEXT REFERENCES images(fullname),
                     model TEXT,
-                    booted BOOLEAN DEFAULT FALSE,
-                    netsetup INTEGER DEFAULT 0);""")
+                    booted BOOLEAN DEFAULT FALSE);""")
         self.execute("""CREATE TABLE IF NOT EXISTS switches (
                     mac TEXT REFERENCES devices(mac),
-                    model TEXT,
-                    lldp_explore BOOLEAN DEFAULT FALSE,
-                    poe_reboot_nodes BOOLEAN DEFAULT FALSE,
-                    snmp_conf TEXT);""")
-        self.execute("""CREATE TABLE IF NOT EXISTS config (
-                    item TEXT PRIMARY KEY,
-                    value TEXT);""")
+                    model TEXT);""")
         self.execute("""CREATE TABLE IF NOT EXISTS logstreams (
                     id SERIAL PRIMARY KEY,
                     sender_mac TEXT REFERENCES devices(mac),
@@ -53,6 +47,43 @@ class ServerDB(PostgresDB):
                     username TEXT,
                     timestamp TIMESTAMP,
                     name TEXT);""")
+        # migration v4 -> v5
+        if not self.column_exists('devices', 'conf'):
+            self.execute("""ALTER TABLE devices
+                            ADD COLUMN conf JSONB DEFAULT '{}';""")
+            self.execute("""UPDATE devices d
+                            SET conf = conf || (
+                                    '{"lldp.explore":' || s.lldp_explore || ',' ||
+                                    ' "poe.reboots":' || s.poe_reboot_nodes || '}'
+                                )::jsonb
+                            FROM switches s
+                            WHERE s.mac = d.mac;""")
+            self.execute("""UPDATE devices d
+                            SET conf = conf || (
+                                    '{"snmp.version": ' || (s.snmp_conf::jsonb->'version')::text || ',' ||
+                                    ' "snmp.community": ' || (s.snmp_conf::jsonb->'community')::text || '}'
+                                )::jsonb
+                            FROM switches s
+                            WHERE s.mac = d.mac AND s.snmp_conf IS NOT NULL;""")
+            self.execute("""ALTER TABLE switches
+                            DROP COLUMN snmp_conf,
+                            DROP COLUMN lldp_explore,
+                            DROP COLUMN poe_reboot_nodes;""")
+            self.execute("""UPDATE devices d
+                            SET conf = conf || ('{"netsetup":' || n.netsetup || '}')::jsonb
+                            FROM nodes n
+                            WHERE n.mac = d.mac;""")
+            self.execute("""ALTER TABLE nodes
+                            DROP COLUMN netsetup;""")
+            self.commit()
+
+    def column_exists(self, table_name, column_name):
+        col_info = self.select_unique(
+                            'information_schema.columns',
+                            table_schema='public',
+                            table_name=table_name,
+                            column_name=column_name)
+        return col_info is not None
 
     # Some types of events are numerous and commiting the
     # database each time would be costly.
@@ -127,22 +158,3 @@ class ServerDB(PostgresDB):
             DELETE FROM devices d WHERE d.name = %s;
         """,  (dev_name,)*7)
         self.commit()
-
-    def get_config(self, item, default = None):
-        res = self.select_unique("config", item=item)
-        if res == None:
-            if default == None:
-                raise RuntimeError(\
-                    "Failed get_config(): item not found and no default provided.")
-            self.insert("config", item=item, value=default)
-            self.commit()
-            return default
-        else:
-            return res.value
-
-    def set_config(self, item, value):
-        res = self.select_unique("config", item=item)
-        if res == None:
-            self.insert("config", item=item, value=value)
-        else:
-            self.update("config", "item", item=item, value=value)

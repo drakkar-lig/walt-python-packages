@@ -19,8 +19,8 @@ NOTE_EXPLAIN_UNKNOWN = "type of devices marked with <? ... ?> is unknown"
 TIP_ADD_FLAG_ALL = "use 'walt device tree --all' to see all devices detected"
 TIP_DEVICE_SHOW = "use 'walt device show' for device details"
 TIP_DEVICE_RESCAN = "use 'walt device rescan' to update"
-TIP_DEVICE_ADMIN_1 = "use 'walt device admin <device>' to let WalT know a given device is a switch"
-TIP_DEVICE_ADMIN_2 = "use 'walt device admin <switch>' to let WalT explore forbidden switches"
+TIP_DEVICE_ADMIN_1 = "use 'walt device config <device> type=switch' to let WalT know a given device is a switch"
+TIP_DEVICE_ADMIN_2 = "use 'walt device config ...' (see walt help show device-config) to let WalT explore forbidden switches"
 TIPS_MIN = (TIP_DEVICE_SHOW, TIP_DEVICE_ADMIN_2, TIP_DEVICE_RESCAN)
 
 NOTE_LAST_NETWORK_SCAN = "\
@@ -338,7 +338,7 @@ class Topology(object):
         # (those subtrees where already ignored when scanning,
         # but this will display an appropriate message to the user)
         for sw_mac in lldp_forbidden:
-            t.prune(sw_mac, '[...] ~> forbidden (cf. walt device admin)')
+            t.prune(sw_mac, '[...] ~> forbidden (cf. walt device config)')
 
 class TopologyManager(object):
 
@@ -363,11 +363,12 @@ class TopologyManager(object):
                 self.collect_connected_devices(requester, topology,
                     "walt server", "localhost", device.mac, const.SERVER_SNMP_CONF)
             elif device.type == 'switch':
-                if not device.lldp_explore:
+                if not device.conf.get('lldp.explore', False):
                     self.print_message(requester,
-                        'Querying %-25s FORBIDDEN (tip: walt device admin)' % device.name)
+                        'Querying %-25s FORBIDDEN (see: walt help show device-config)' % device.name)
                     continue
-                snmp_conf = json.loads(device.snmp_conf)
+                snmp_conf = { 'version': device.conf.get('snmp.version'),
+                              'community': device.conf.get('snmp.community') }
                 self.collect_connected_devices(requester, topology,
                     device.name, device.ip, device.mac, snmp_conf)
             else:
@@ -472,7 +473,8 @@ class TopologyManager(object):
         # compute device mac to label and type associations
         device_labels = { d.mac: d.name for d in self.db.select('devices') }
         device_types = { d.mac: d.type for d in self.db.select('devices') }
-        lldp_forbidden = set(d.mac for d in self.db.select('switches', lldp_explore = False))
+        lldp_forbidden = set(d.mac for d in self.db.select('devices', type = 'switch') \
+                             if d.conf.get('lldp.explore', False) is False)
         # compute and return the topology tree
         stdout_encoding = requester.stdout.get_encoding()
         return db_topology.printed_tree(self.last_scan, stdout_encoding,
@@ -488,7 +490,8 @@ class TopologyManager(object):
             self.db.update('nodes', 'mac', mac=device_mac, booted=False)
             self.db.commit()
         # let's request the switch to enable or disable the PoE
-        snmp_conf = json.loads(switch_info.snmp_conf)
+        snmp_conf = { 'version': switch_info.conf.get('snmp.version'),
+                      'community': switch_info.conf.get('snmp.community') }
         proxy = snmp.Proxy(switch_info.ip, snmp_conf, poe=True)
         proxy.poe.set_port(switch_port, poweron)
         return True

@@ -1,4 +1,4 @@
-Set nodes configuration
+Get or set nodes configuration
 
 Usage:
     walt node config [SWITCHES] node_set configuration...

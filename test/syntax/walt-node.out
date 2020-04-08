@@ -14,7 +14,7 @@ Help about WalT in general:
 Sub-commands:
     blink   make a node blink for a given number of seconds
     boot    let a (set of) node(s) boot an operating system image
-    config  Set nodes configuration
+    config  Get or set nodes configuration
     cp      transfer files/dirs (client machine <-> node)
     create  create a virtual WalT node
     deploy  alias to 'boot' subcommand

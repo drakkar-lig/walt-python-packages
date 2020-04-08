@@ -275,12 +275,16 @@ class WalTNodeExpose(WalTApplication):
 
 @WalTNode.subcommand("config")
 class WalTNodeConfig(WalTApplication):
-    """Set nodes configuration"""
+    """Get or set nodes configuration"""
     def main(self, node_set, *configuration):
         with ClientToServerLink() as server:
             node_set = server.develop_node_set(node_set)
             if node_set is None:
                 return
-            if not WalTDevice.confirm_devices_not_owned(server, node_set):
-                return
-            server.set_device_config(node_set, configuration)
+            if len(configuration) > 0:
+                if not WalTDevice.confirm_devices_not_owned(server, node_set):
+                    return
+                server.set_device_config(node_set, configuration)
+            else:
+                # no settings specified => list current settings
+                server.get_device_config(node_set)

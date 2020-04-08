@@ -95,7 +95,7 @@ define_test "walt node reboot" as {
 define_test "walt node config" as {
     # check that when setting netsetup=NAT and rebooting
     # the node gets its default route.
-    walt node config $(test_suite_node) netsetup NAT
+    walt node config $(test_suite_node) netsetup=NAT
     walt node reboot $(test_suite_node)
     walt node wait $(test_suite_node)
     walt node run $(test_suite_node) ip route | grep default

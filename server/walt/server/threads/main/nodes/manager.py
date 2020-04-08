@@ -1,4 +1,4 @@
-import socket, random, subprocess, shlex, signal, os, sys
+import socket, random, subprocess, shlex, signal, os, sys, re
 from collections import defaultdict
 from snimpy import snmp
 from walt.common.tcp import Requests
@@ -15,6 +15,8 @@ from walt.server.threads.main.transfer import validate_cp
 from walt.server.threads.main.network.tools import ip, get_walt_subnet, get_server_ip
 from walt.server.tools import to_named_tuple
 
+VNODE_DEFAULT_RAM = "512M"
+VNODE_DEFAULT_CPU_CORES = 4
 NODE_CONNECTION_TIMEOUT = 1
 
 MSG_CONNECTIVITY_UNKNOWN = """\
@@ -24,7 +26,7 @@ MSG_CONNECTIVITY_UNKNOWN = """\
 MSG_POE_REBOOT_UNABLE_EXPLAIN = """\
 %%s is(are) connected on switch '%(sw_name)s' which has PoE disabled. Cannot proceed!
 If '%(sw_name)s' is PoE-capable, you can activate PoE hard-reboots by running:
-$ walt device admin %(sw_name)s
+$ walt device config %(sw_name)s poe.reboots=true
 """
 
 MSG_POE_REBOOT_FAILED = """\
@@ -36,7 +38,8 @@ MSG_NOT_VIRTUAL = "WARNING: %s is not a virtual node. IGNORED.\n"
 FS_CMD_PATTERN = SSH_COMMAND + ' root@%(node_ip)s "%%(prog)s %%(prog_args)s"'
 
 CMD_START_VNODE = 'screen -S walt.node.%(name)s -d -m   \
-       walt-virtual-node --mac %(mac)s --ip %(ip)s --model %(model)s --hostname %(name)s --server-ip %(server_ip)s'
+       walt-virtual-node --mac %(mac)s --ip %(ip)s --model %(model)s --hostname %(name)s --server-ip %(server_ip)s \
+                         --cpu-cores %(cpu_cores)d --ram %(ram)s'
 CMD_ADD_SSH_KNOWN_HOST = "  mkdir -p /root/.ssh && ssh-keygen -F %(ip)s || \
                             ssh-keyscan -t ecdsa %(ip)s >> /root/.ssh/known_hosts"
 
@@ -126,7 +129,7 @@ class NodesManager(object):
         for node_ip in self.db.execute("""\
                 SELECT ip FROM nodes
                 INNER JOIN devices ON devices.mac = nodes.mac
-                WHERE netsetup = %d;
+                WHERE COALESCE((conf->'netsetup')::int, 0) = %d;
                 """ % NetSetup.NAT):
             do("iptables --insert WALT --source '%s' --jump ACCEPT" % node_ip)
 
@@ -240,7 +243,9 @@ class NodesManager(object):
             ip = node.ip,
             model = node.model,
             name = node.name,
-            server_ip = get_server_ip()
+            server_ip = get_server_ip(),
+            cpu_cores = node.conf.get('cpu.cores', VNODE_DEFAULT_CPU_CORES),
+            ram = node.conf.get('ram', VNODE_DEFAULT_RAM)
         )
         print(cmd)
         subprocess.Popen(shlex.split(cmd))
@@ -312,7 +317,7 @@ class NodesManager(object):
             sw_info, sw_port = self.topology.get_connectivity_info( \
                                     node.mac)
             if sw_info:
-                if sw_info.poe_reboot_nodes == True:
+                if sw_info.conf.get('poe.reboots', False) == True:
                     nodes_ok.append(node)
                 else:
                     nodes_forbidden[sw_info.name].append(node)
@@ -482,45 +487,3 @@ class NodesManager(object):
         return dict(node_name = node_name,
                     node_ip = ip,
                     node_owned = owned)
-
-    def netsetup_handler(self, requester, device_set, netsetup_value):
-        # Interpret the node set, some of them may be strict devices
-        device_infos = self.devices.parse_device_set(requester, device_set)
-        if device_infos is None:
-            yield False
-
-        # Check the node set
-        not_nodes = [di for di in device_infos if di.type != "node"]
-        if len(not_nodes) > 0:
-            msg = format_sentence("%s is(are) not a() node(nodes), "
-                                  "so it(they) does(do) not support the 'netsetup' setting.\n",
-                                  [d.name for d in not_nodes],
-                                  None, 'Device', 'Devices')
-            requester.stderr.write(msg)
-            yield False
-
-        # Interpret the value
-        new_netsetup_state = None
-        try:
-            new_netsetup_state = NetSetup(netsetup_value)
-        except ValueError:
-            requester.stderr.write(
-                "'%s' is not a valid setting value for netsetup." % (netsetup_value))
-            yield False
-
-        # Yield information that all things have ran correctly
-        yield True
-
-        # Effectively configure nodes
-        for node_info in device_infos:
-            if node_info.netsetup == new_netsetup_state:
-                # skip this node: already configured
-                continue
-            # Update the database
-            self.db.update("nodes", "mac", mac=node_info.mac, netsetup=new_netsetup_state)
-            # Update iptables
-            do("iptables %(action)s WALT --source '%(ip)s' --jump ACCEPT" %
-               dict(ip=node_info.ip,
-                    action="--insert" if new_netsetup_state == NetSetup.NAT else "--delete"))
-            # Validate the modifications
-            self.db.commit()
