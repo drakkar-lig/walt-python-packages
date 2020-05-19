@@ -7,5 +7,5 @@ Meta-switches:
     -h, --help            Prints this help message and quits
 
 Switches:
-    --date VALUE:str      Sets an attribute
+    --date VALUE:str      specify date (see walt help show log-checkpoint)
 

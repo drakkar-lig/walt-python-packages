@@ -1,7 +1,7 @@
 clone a remote image into your working set
 
 Usage:
-    walt image clone [SWITCHES] clonable_image_link
+    walt image clone [SWITCHES] clonable_image_link [image_name=None]
 
 Meta-switches:
     -h, --help      Prints this help message and quits

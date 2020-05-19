@@ -4,5 +4,8 @@ Usage:
     walt node wait [SWITCHES] node_set
 
 Meta-switches:
-    -h, --help      Prints this help message and quits
+    -h, --help                 Prints this help message and quits
+
+Switches:
+    --timeout SECONDS:int      stop if still waiting after this number of seconds; the default is -1
 

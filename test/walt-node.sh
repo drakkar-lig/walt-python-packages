@@ -59,6 +59,11 @@ define_test "walt node run" as {
 define_test "walt node expose" as {
     node="$(test_suite_node)"
 
+    which nc || {
+        echo 'This test requires the "nc" command.' >&2
+        return 1
+    }
+
     # run a echo server on the node for 5 seconds
     {
         timeout -s INT 5 walt node run "$node" -- busybox nc -l -p 80 -e /bin/cat
