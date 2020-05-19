@@ -7,6 +7,7 @@ from subprocess import run, CalledProcessError, PIPE, Popen
 import time, re, os, sys, requests, json, itertools
 
 DOCKER_HUB_TIMEOUT=None
+DELAY_BEFORE_RETRY=3
 REGISTRY='docker.io'
 LOGIN_PULL_TEMPLATE = "https://auth.docker.io/token?service=registry.docker.io&scope=repository:{repository}:pull"
 GET_MANIFEST_TEMPLATE = "https://registry.hub.docker.com/v2/{repository}/manifests/{tag}"
@@ -180,7 +181,13 @@ class DockerLocalClient:
         buildah.rm(cont_name)
     def squash(self, image_fullname):
         cont_name = 'squash:' + image_fullname
-        buildah('from', '--pull-never', '--name', cont_name, image_fullname)
+        try:
+            buildah('from', '--pull-never', '--name', cont_name, image_fullname)
+        except CalledProcessError:
+            print('Note: walt server was probably not stopped properly and container still exists.')
+            print('      removing container and restarting command.')
+            buildah.rm(cont_name)
+            buildah('from', '--pull-never', '--name', cont_name, image_fullname)
         self.commit(cont_name, image_fullname, tool=buildah, opts=('--squash',))
 
 class DockerDaemonClient:
@@ -258,16 +265,28 @@ class DockerHubClient:
         for elem in requests.get(url, timeout=DOCKER_HUB_TIMEOUT).json():
             tag = requests.utils.unquote(elem['name'])
             yield tag
-    def get_manifest(self, fullname):
+    def get_manifest(self, fullname, retries = 2):
         print(('retrieving manifest from hub: ' + fullname))
-        reponame, tag = fullname.split(':')
-        token = requests.get(LOGIN_PULL_TEMPLATE.format(repository=reponame), json=True).json()["token"]
-        result = requests.get(
-            GET_MANIFEST_TEMPLATE.format(repository=reponame, tag=tag),
-            headers={"Authorization": "Bearer {}".format(token),
-                     "Accept": "application/vnd.oci.image.manifest.v1+json" },
-            json=True
-        ).json()
+        succeeded = True
+        try:
+            reponame, tag = fullname.split(':')
+            token = requests.get(LOGIN_PULL_TEMPLATE.format(repository=reponame), json=True).json()["token"]
+            result = requests.get(
+                GET_MANIFEST_TEMPLATE.format(repository=reponame, tag=tag),
+                headers={"Authorization": "Bearer {}".format(token),
+                         "Accept": "application/vnd.oci.image.manifest.v1+json" },
+                json=True
+            ).json()
+        except:
+            succeeded = False
+        if not succeeded:
+            print('get_manifest(%s) failed!' % fullname)
+            if retries == 0:
+                raise
+            else:
+                time.sleep(DELAY_BEFORE_RETRY)
+                print('retrying.')
+                return self.get_manifest(fullname, retries-1)
         if 'errors' in result:
             print(result)
             raise Exception('Downloading manifest failed.')
