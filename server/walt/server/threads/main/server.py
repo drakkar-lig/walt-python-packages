@@ -118,13 +118,21 @@ class Server(object):
         self.dhcpd.update()
         tftp.update(self.db, self.images.store)
 
-    def device_rescan(self, requester, remote_ip, device_set):
+    def device_rescan(self, requester, task, remote_ip, device_set):
         devices = self.devices.parse_device_set(requester, device_set)
         if devices == None:
             return False   # error already reported
-        self.topology.rescan(requester=requester, remote_ip=remote_ip, devices=devices)
-        self.dhcpd.update()
-        tftp.update(self.db, self.images.store)
+        # make devices pickle-able
+        devices = [d._asdict() for d in devices]
+        # the result of the task the hub thread submitted to us
+        # will not be available right now
+        task.set_async()
+        # function that will be called when blocking thread has done the job
+        def cb(res):
+            self.dhcpd.update()
+            tftp.update(self.db, self.images.store)
+            task.return_result(res)
+        self.blocking.rescan_topology(requester, cb, remote_ip=remote_ip, devices=devices)
 
     def forget_device(self, device_name):
         self.logs.forget_device(device_name)

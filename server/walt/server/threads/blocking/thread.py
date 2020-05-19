@@ -4,6 +4,7 @@ from walt.server.threads.blocking.images.publish import publish
 from walt.server.threads.blocking.images.squash import squash
 from walt.server.threads.blocking.images.metadata import update_hub_metadata
 from walt.server.threads.blocking.images.search import search
+from walt.server.threads.blocking.devices.topology import rescan
 from walt.server.threads.blocking.logs import stream_db_logs
 
 class BlockingTasksService(object):
@@ -36,6 +37,10 @@ class BlockingTasksService(object):
 
     def pull_image(self, context, image_fullname):
         res = self.server.docker.hub.pull(image_fullname)
+        context.task.return_result(res)
+
+    def rescan_topology(self, context, *args, **kwargs):
+        res = rescan(context.requester.do_sync, self.server, *args, **kwargs)
         context.task.return_result(res)
 
 class ServerBlockingThread(EvThread):

@@ -38,3 +38,5 @@ class BlockingTasksManager(RPCThreadConnector):
         self.session(logs_handler).do_async.stream_db_logs(
                             **logs_handler.params)
 
+    def rescan_topology(self, requester, result_cb, *args, **kwargs):
+        self.session(requester).do_async.rescan_topology(*args, **kwargs).then(result_cb)
