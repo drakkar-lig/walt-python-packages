@@ -7,5 +7,5 @@ Meta-switches:
     -h, --help      Prints this help message and quits
 
 Switches:
-    --hard          try hard-reboot (PoE) if soft-reboot fails
+    --hard          allow PoE-reboots only (power-cycle)
 

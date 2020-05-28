@@ -5,6 +5,7 @@ from walt.server.threads.blocking.images.squash import squash
 from walt.server.threads.blocking.images.metadata import update_hub_metadata
 from walt.server.threads.blocking.images.search import search
 from walt.server.threads.blocking.devices.topology import rescan
+from walt.server.threads.blocking.devices.poe import nodes_set_poe
 from walt.server.threads.blocking.logs import stream_db_logs
 
 class BlockingTasksService(object):
@@ -41,6 +42,10 @@ class BlockingTasksService(object):
 
     def rescan_topology(self, context, *args, **kwargs):
         res = rescan(context.requester.do_sync, self.server, *args, **kwargs)
+        context.task.return_result(res)
+
+    def nodes_set_poe(self, context, *args, **kwargs):
+        res = nodes_set_poe(self.server, *args, **kwargs)
         context.task.return_result(res)
 
 class ServerBlockingThread(EvThread):

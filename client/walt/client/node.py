@@ -15,13 +15,6 @@ from walt.client.expose import TCPExposer
 from walt.client.application import WalTCategoryApplication, WalTApplication
 from walt.client.timeout import start_timeout, stop_timeout, TimeoutException, cli_timeout_switch
 
-POE_REBOOT_DELAY            = 2  # seconds
-
-MSG_SOFT_REBOOT_FAILED = """\
-%s did not acknowledge the reboot request. Probably it(they) was(were) not fully booted yet."""
-MSG_SOFT_REBOOT_FAILED_TIP = """\
-Retry 'walt node reboot %(nodes_ko)s' in a moment (and add option --hard if it still fails)."""
-
 WAIT_NODES_BUSY_LABEL='\
 Node bootup notification still pending (press ctrl-C to proceed anyway)'
 
@@ -81,43 +74,7 @@ class WalTNode(WalTCategoryApplication):
                     return
                 if not server.set_image(node_set, image_name_or_default):
                     return
-                WalTNode.reboot_nodes(server, node_set)
-
-    @staticmethod
-    @contextlib.contextmanager
-    def PoETemporarilyOff(server, node_set):
-        node_set_off = server.poweroff(
-            node_set, warn_poe_issues=True)
-        yield node_set_off is not None
-        if node_set_off:
-            server.poweron(
-                node_set_off, warn_poe_issues=True)
-
-    @staticmethod
-    def reboot_nodes(server, node_set, hard=False):
-        if not hard:
-            WalTNode.wait_for_nodes(server, node_set)
-        server.set_busy_label('Trying soft-reboot')
-        nodes_ok, nodes_ko = server.softreboot(node_set, hard)
-        # if it fails and --hard was specified,
-        # try to power-cycle physical nodes using PoE and restart VM of
-        # virtual nodes
-        if len(nodes_ko) > 0:
-            if hard:
-                virtnodes, physnodes = server.virtual_or_physical(nodes_ko)
-                if len(virtnodes) > 0:
-                    server.set_busy_label('Hard-rebooting virtual nodes')
-                    server.hard_reboot_vnodes(virtnodes)
-                if len(physnodes) > 0:
-                    server.set_busy_label('Trying hard-reboot (PoE)')
-                    with WalTNode.PoETemporarilyOff(server, physnodes) as really_off:
-                        if really_off:
-                            time.sleep(POE_REBOOT_DELAY)
-            else:
-                print((format_sentence_about_nodes(
-                        MSG_SOFT_REBOOT_FAILED,
-                        nodes_ko.split(','))))
-                print((MSG_SOFT_REBOOT_FAILED_TIP % dict(nodes_ko = nodes_ko)))
+                server.reboot_nodes(node_set)
 
 @WalTNode.subcommand("show")
 class WalTNodeShow(WalTApplication):
@@ -180,15 +137,15 @@ class WalTNodeBlink(WalTApplication):
 @WalTNode.subcommand("reboot")
 class WalTNodeReboot(WalTApplication):
     """reboot a (set of) node(s)"""
-    _hard = False # default
+    _hard_only = False # default
     def main(self, node_set):
         with ClientToServerLink() as server:
             if not WalTDevice.confirm_devices_not_owned(server, node_set):
                 return
-            WalTNode.reboot_nodes(server, node_set, self._hard)
-    @cli.autoswitch(help='try hard-reboot (PoE) if soft-reboot fails')
+            server.reboot_nodes(node_set, self._hard_only)
+    @cli.autoswitch(help='allow PoE-reboots only (power-cycle)')
     def hard(self):
-        self._hard = True
+        self._hard_only = True
 
 @WalTNode.subcommand("boot")
 class WalTNodeBoot(WalTApplication):

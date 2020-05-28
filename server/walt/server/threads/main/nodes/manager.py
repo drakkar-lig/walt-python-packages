@@ -3,7 +3,7 @@ from collections import defaultdict
 from snimpy import snmp
 from walt.common.tcp import Requests
 from walt.common.tools import do, format_sentence_about_nodes, failsafe_makedirs, format_sentence
-from walt.server.const import SSH_COMMAND, WALT_NODE_NET_SERVICE_PORT
+from walt.server.const import SSH_COMMAND
 from walt.server.threads.main.filesystem import Filesystem
 from walt.server.threads.main.network.netsetup import NetSetup
 from walt.server.threads.main.nodes.register import handle_registration_request
@@ -11,27 +11,14 @@ from walt.server.threads.main.nodes.show import show
 from walt.server.threads.main.nodes.wait import WaitInfo
 from walt.server.threads.main.nodes.clock import NodesClockSyncInfo
 from walt.server.threads.main.nodes.expose import ExposeManager
+from walt.server.threads.main.nodes.netservice import node_request
+from walt.server.threads.main.nodes.reboot import reboot_nodes
 from walt.server.threads.main.transfer import validate_cp
 from walt.server.threads.main.network.tools import ip, get_walt_subnet, get_server_ip
 from walt.server.tools import to_named_tuple
 
 VNODE_DEFAULT_RAM = "512M"
 VNODE_DEFAULT_CPU_CORES = 4
-NODE_CONNECTION_TIMEOUT = 1
-
-MSG_CONNECTIVITY_UNKNOWN = """\
-%s: Unknown PoE switch port. Cannot proceed! Try 'walt device rescan'.
-"""
-
-MSG_POE_REBOOT_UNABLE_EXPLAIN = """\
-%%s is(are) connected on switch '%(sw_name)s' which has PoE disabled. Cannot proceed!
-If '%(sw_name)s' is PoE-capable, you can activate PoE hard-reboots by running:
-$ walt device config %(sw_name)s poe.reboots=true
-"""
-
-MSG_POE_REBOOT_FAILED = """\
-FAILED to turn node %(node_name)s %(state)s using PoE: SNMP request to %(sw_name)s (%(sw_ip)s) failed.
-"""
 
 MSG_NOT_VIRTUAL = "WARNING: %s is not a virtual node. IGNORED.\n"
 
@@ -43,52 +30,15 @@ CMD_START_VNODE = 'screen -S walt.node.%(name)s -d -m   \
 CMD_ADD_SSH_KNOWN_HOST = "  mkdir -p /root/.ssh && ssh-keygen -F %(ip)s || \
                             ssh-keyscan -t ecdsa %(ip)s >> /root/.ssh/known_hosts"
 
-class ServerToNodeLink:
-    def __init__(self, ip_address):
-        self.node_ip = ip_address
-        self.conn = None
-        self.rfile = None
-
-    def connect(self):
-        try:
-            self.conn = socket.create_connection(
-                    (self.node_ip, WALT_NODE_NET_SERVICE_PORT),
-                    NODE_CONNECTION_TIMEOUT)
-            self.rfile = self.conn.makefile()
-        except socket.timeout:
-            return (False, 'Connection timeout.')
-        except socket.error:
-            return (False, 'Connection failed.')
-        return (True,)
-
-    def request(self, req):
-        try:
-            self.conn.send(req.encode('ascii') + b'\n')
-            resp = self.rfile.readline().split(' ',1)
-            resp = tuple(part.strip() for part in resp)
-            if resp[0] == 'OK':
-                return (True,)
-            elif len(resp) == 2:
-                return (False, resp[1])
-            else:
-                return (False, 'Node did not acknowledge "%s" request.' % req)
-        except socket.timeout:
-            return (False, 'Connection timeout.')
-        except socket.error:
-            return (False, 'Connection failed.')
-
-    def __del__(self):
-        if self.conn:
-            self.rfile.close()
-            self.conn.close()
-
 class NodesManager(object):
-    def __init__(self, tcp_server, ev_loop, db, devices, topology, **kwargs):
+    def __init__(self, tcp_server, ev_loop, db, blocking, devices, topology, **kwargs):
         self.db = db
         self.devices = devices
         self.topology = topology
+        self.blocking = blocking
         self.other_kwargs = kwargs
         self.wait_info = WaitInfo()
+        self.ev_loop = ev_loop
         self.clock = NodesClockSyncInfo(ev_loop)
         self.expose_manager = ExposeManager(tcp_server, ev_loop)
 
@@ -179,6 +129,7 @@ class NodesManager(object):
                 db = self.db,
                 mac = mac,
                 model = model,
+                blocking = self.blocking,
                 **self.other_kwargs
         )
 
@@ -196,17 +147,25 @@ class NodesManager(object):
             return None
         return link
 
-    def blink(self, requester, node_name, blink_status):
-        link = self.connect(requester, node_name)
-        if link == None:
-            return False # error was already reported
-        res = link.request('BLINK %d' % int(blink_status))
-        del link
-        if not res[0]:
+    def blink_callback(self, results, requester, task):
+        # we have just one node, so one entry in results
+        result_msg = tuple(results.keys())[0]
+        node = results[result_msg][0]
+        if result_msg == 'OK':
+            task.return_result(True)
+        else:
             requester.stderr.write('Blink request to %s failed: %s\n' % \
-                    (node_name, res[1]))
-            return False
-        return True
+                    (node.name, result_msg))
+            task.return_result(False)
+
+    def blink(self, requester, task, node_name, blink_status):
+        req = 'BLINK %d' % int(blink_status)
+        node = self.get_node_info(requester, node_name)
+        if node == None:
+            return False # error already reported
+        task.set_async()
+        cb_kwargs = dict(requester = requester, task = task)
+        node_request(self.ev_loop, (node,), req, self.blink_callback, cb_kwargs)
 
     def show(self, username, show_all):
         return show(self.db, username, show_all)
@@ -291,12 +250,6 @@ class NodesManager(object):
                 self.devices.get_complete_device_info(n.mac)
                 for n in nodes)
 
-    def reboot_nodes_for_image(self, requester, image_fullname):
-        nodes_using_image = self.get_nodes_using_image(image_fullname)
-        if len(nodes_using_image) > 0:
-            node_set = ','.join(n.name for n in nodes_using_image)
-            self.softreboot(requester, node_set, False)
-
     def prepare_ssh_access_for_ip(self, ip):
         cmd = CMD_ADD_SSH_KNOWN_HOST % dict(ip = ip)
         do(cmd)
@@ -308,77 +261,14 @@ class NodesManager(object):
         for node in nodes:
             self.prepare_ssh_access_for_ip(node.ip)
 
-    def filter_poe_rebootable(self, requester, nodes,
-                warn_unknown_connectivity, warn_poe_forbidden):
-        nodes_ok = []
-        nodes_unknown = []
-        nodes_forbidden = defaultdict(list)
-        for node in nodes:
-            sw_info, sw_port = self.topology.get_connectivity_info( \
-                                    node.mac)
-            if sw_info:
-                if sw_info.conf.get('poe.reboots', False) == True:
-                    nodes_ok.append(node)
-                else:
-                    nodes_forbidden[sw_info.name].append(node)
-            else:
-                nodes_unknown.append(node)
-        if len(nodes_unknown) > 0 and warn_unknown_connectivity:
-            requester.stderr.write(format_sentence_about_nodes(
-                MSG_CONNECTIVITY_UNKNOWN, [n.name for n in nodes_unknown]))
-        if len(nodes_forbidden) > 0 and warn_poe_forbidden:
-            for sw_name, sw_nodes in nodes_forbidden.items():
-                explain = MSG_POE_REBOOT_UNABLE_EXPLAIN % dict(
-                    sw_name = sw_name
-                )
-                requester.stderr.write(format_sentence_about_nodes(
-                    explain,
-                    [n.name for n in sw_nodes]))
-        return nodes_ok, nodes_unknown, nodes_forbidden
-
-    def setpower(self, requester, node_set, poweron, warn_poe_issues):
-        """Hard-reboot nodes by setting the PoE switch port off and back on"""
-        # we have to verify that:
-        # - we know where each node is connected (PoE switch port)
-        # - PoE remote control is allowed on this switch
+    def reboot_node_set(self, requester, task, node_set, hard_only):
         nodes = self.parse_node_set(requester, node_set)
         if nodes == None:
-            return None # error already reported
-        nodes_ok, nodes_unknown, nodes_forbidden = \
-                    self.filter_poe_rebootable( \
-                                requester, nodes,
-                                warn_poe_issues,
-                                warn_poe_issues)
-        if len(nodes_ok) == 0:
-            return None
-        # otherwise, at least one node can be reached, so do it.
-        s_state = {True:'on',False:'off'}[poweron]
-        nodes_really_ok = []
-        for node in nodes_ok:
-            try:
-                self.topology.setpower(node.mac, poweron)
-                nodes_really_ok.append(node)
-            except snmp.SNMPException:
-                sw_info, sw_port = \
-                    self.topology.get_connectivity_info(node.mac)
-                requester.stderr.write(MSG_POE_REBOOT_FAILED % dict(
-                        node_name = node.name,
-                        state = s_state,
-                        sw_name = sw_info.name,
-                        sw_ip = sw_info.ip))
-        if len(nodes_really_ok) > 0:
-            requester.stdout.write(format_sentence_about_nodes(
-                '%s was(were) powered ' + s_state + '.' ,
-                [n.name for n in nodes_really_ok]) + '\n')
-            # return successful nodes as a node_set
-            return self.devices.as_device_set(n.name for n in nodes_really_ok)
-        else:
-            return None
+            return None  # error already reported
+        task.set_async()
+        self.reboot_nodes(requester, task.return_result, nodes, hard_only)
 
-    def softreboot(self, requester, node_set, hide_issues):
-        nodes = self.parse_node_set(requester, node_set)
-        if nodes == None:
-            return None # error already reported
+    def reboot_nodes(self, requester, task_callback, nodes, hard_only):
         # first, we pass the 'booted' flag of all nodes to false
         # (if we manage to reboot them, they will be unreachable
         #  for a little time; if we do not manage to reboot them,
@@ -386,57 +276,13 @@ class NodesManager(object):
         for node in nodes:
             self.db.update('nodes', 'mac', mac = node.mac, booted = False);
         self.db.commit()
-        nodes_ko, nodes_ok = [], []
-        for node in nodes:
-            link = self.connect(requester, node.name, hide_issues)
-            if link == None:
-                nodes_ko.append(node.name)
-                continue
-            res = link.request('REBOOT')
-            del link
-            if not res[0]:
-                if not hide_issues:
-                    requester.stderr.write('Soft-reboot request to %s failed: %s\n' % \
-                        (node.name, res[1]))
-                nodes_ko.append(node.name)
-                continue
-            nodes_ok.append(node.name)
-        if len(nodes_ok) > 0:
-            requester.stdout.write(format_sentence_about_nodes(
-                '%s was(were) rebooted.' , nodes_ok) + '\n')
-        # return nodes OK and KO in node_set form
-        return self.devices.as_device_set(nodes_ok), self.devices.as_device_set(nodes_ko)
-
-    def virtual_or_physical(self, requester, node_set):
-        nodes = self.parse_node_set(requester, node_set)
-        if nodes == None:
-            return None # error already reported
-        vnodes, pnodes = [], []
-        for node in nodes:
-            if node.virtual:
-                vnodes.append(node.name)
-            else:
-                pnodes.append(node.name)
-        # return the 2 sets in node_set form
-        return self.devices.as_device_set(vnodes), self.devices.as_device_set(pnodes)
-
-    def hard_reboot_vnodes(self, requester, node_set):
-        nodes = self.parse_node_set(requester, node_set)
-        if nodes == None:
-            return None # error already reported
-        nodes_ok = []
-        for node in nodes:
-            if not node.virtual:
-                requester.stderr.write(MSG_NOT_VIRTUAL % node.name)
-                continue
-            # terminate VM by quitting screen session
-            self.try_kill_vnode(node.name)
-            # restart VM
-            self.start_vnode(node)
-            nodes_ok.append(node.name)
-        if len(nodes_ok) > 0:
-            requester.stdout.write(format_sentence_about_nodes(
-                '%s was(were) rebooted.' , nodes_ok) + '\n')
+        reboot_nodes(   nodes_manager = self,
+                        blocking = self.blocking,
+                        ev_loop = self.ev_loop,
+                        requester = requester,
+                        task_callback = task_callback,
+                        nodes = nodes,
+                        hard_only = hard_only)
 
     def parse_node_set(self, requester, node_set):
         device_set = self.devices.parse_device_set(requester, node_set)

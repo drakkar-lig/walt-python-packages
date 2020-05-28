@@ -40,3 +40,6 @@ class BlockingTasksManager(RPCThreadConnector):
 
     def rescan_topology(self, requester, result_cb, *args, **kwargs):
         self.session(requester).do_async.rescan_topology(*args, **kwargs).then(result_cb)
+
+    def nodes_set_poe(self, requester, result_cb, *args, **kwargs):
+        self.session(requester).do_async.nodes_set_poe(*args, **kwargs).then(result_cb)

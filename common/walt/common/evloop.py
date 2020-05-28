@@ -1,15 +1,15 @@
 #!/usr/bin/env python
 import os, sys
-from select import poll, select, POLLIN, POLLPRI
+from select import poll, select, POLLIN, POLLPRI, POLLOUT
 from time import time
 from heapq import heappush, heappop
 
 POLL_OPS_READ = POLLIN | POLLPRI
+POLL_OPS_WRITE = POLLOUT
 
-def is_read_event_ok(ev):
-    # check that there is something to read
-    # (i.e. POLLIN or POLLPRI)
-    return (ev & (POLL_OPS_READ) > 0)
+def is_event_ok(ev):
+    # check that there is something to read or write
+    return (ev & (POLL_OPS_READ | POLL_OPS_WRITE) > 0)
 
 # EventLoop allows to monitor incoming data on a set of
 # file descriptors, and call the appropriate listener when 
@@ -26,15 +26,18 @@ class EventLoop(object):
         self.planned_events = []
         self.poller = poll()
 
-    def plan_event(self, ts, target, repeat_delay = None, **kwargs):
+    def plan_event(self, ts, target = None, callback = None, repeat_delay = None, **kwargs):
         # Note: We have the risk of planning several events at the same time.
         # (e.g. clock sync at node bootup.)
         # In this case, other elements of the tuple will be taken into account
         # for the sort, which will result in an exception (kwargs is a dict and
         # dict is not an orderable type). In order to avoid this, we insert
         # id(kwargs) as a second element in the tuple.
+        if target is not None:
+            callback = target.handle_planned_event
+        assert callback is not None, "Must specify either target or callback"
         heappush(self.planned_events,
-                 (ts, id(kwargs), target, repeat_delay, kwargs))
+                 (ts, id(kwargs), callback, repeat_delay, kwargs))
 
     def get_timeout(self):
         if len(self.planned_events) == 0:
@@ -75,15 +78,15 @@ class EventLoop(object):
             now = time()
             while len(self.planned_events) > 0 and \
                         self.planned_events[0][0] <= now:
-                ts, kwargs_id, target, repeat_delay, kwargs = \
+                ts, kwargs_id, callback, repeat_delay, kwargs = \
                                     heappop(self.planned_events)
-                target.handle_planned_event(**kwargs)
+                callback(**kwargs)
                 if repeat_delay:
                     next_ts = ts + repeat_delay
                     if next_ts < now:                   # we are very late
                         next_ts = now + repeat_delay    # reschedule
                     self.plan_event(
-                        next_ts, target, repeat_delay, **kwargs)
+                        next_ts, callback = callback, repeat_delay = repeat_delay, **kwargs)
             # if a listener provides a method is_valid(),
             # check it and remove it if result is False
             for listener in list(self.listeners.values()):
@@ -110,7 +113,7 @@ class EventLoop(object):
             fd, ev = res[0]
             listener = self.listeners[fd]
             # if error, we will remove the listener below
-            should_close = not is_read_event_ok(ev)
+            should_close = not is_event_ok(ev)
             if not should_close:
                 # no error, let the listener
                 # handle the event

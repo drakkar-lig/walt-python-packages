@@ -40,8 +40,8 @@ class NodeImageManager(object):
         return clone(self.blocking, requester, task, **kwargs)
     def publish(self, requester, task, image_name, **kwargs):
         return publish(self.store, self.blocking, requester, task, image_name, **kwargs)
-    def squash(self, requester, task, image_name, confirmed):
-        return squash(self.store, self.blocking, requester, task, image_name, confirmed)
+    def squash(self, requester, task_callback, image_name, confirmed):
+        return squash(self.store, self.blocking, requester, task_callback, image_name, confirmed)
     def show(self, requester, refresh):
         return show(self.db, self.docker, self.store, requester, refresh)
     def rename(self, requester, image_name, new_name):

@@ -480,21 +480,21 @@ class TopologyManager(object):
         return db_topology.printed_tree(self.last_scan, stdout_encoding,
                        root_mac, device_labels, device_types, lldp_forbidden, show_all)
 
-    def setpower(self, device_mac, poweron):
-        # we have to know on which PoE switch port the node is
-        switch_info, switch_port = self.get_connectivity_info(device_mac)
-        if not switch_info:
-            return False
-        # if powering off and device is a node, we must reset the booted flag
-        if not poweron:
-            self.db.update('nodes', 'mac', mac=device_mac, booted=False)
-            self.db.commit()
-        # let's request the switch to enable or disable the PoE
-        snmp_conf = { 'version': switch_info.conf.get('snmp.version'),
-                      'community': switch_info.conf.get('snmp.community') }
-        proxy = snmp.Proxy(switch_info.ip, snmp_conf, poe=True)
-        proxy.poe.set_port(switch_port, poweron)
-        return True
+    def nodes_set_poe(self, nodes, poe_status):
+        nodes_ok, errors = [], {}
+        for node in nodes:
+            # we have to know on which PoE switch port the node is
+            switch_info, switch_port = self.get_connectivity_info(node.mac)
+            # let's request the switch to enable or disable the PoE
+            snmp_conf = { 'version': switch_info.conf.get('snmp.version'),
+                          'community': switch_info.conf.get('snmp.community') }
+            try:
+                proxy = snmp.Proxy(switch_info.ip, snmp_conf, poe=True)
+                proxy.poe.set_port(switch_port, poe_status)
+                nodes_ok.append(node)
+            except Exception as e:
+                errors[node.name] = str(e)
+        return nodes_ok, errors
 
     def get_connectivity_info(self, device_mac):
         # we look for a record where mac1 or mac2 equals device_mac
