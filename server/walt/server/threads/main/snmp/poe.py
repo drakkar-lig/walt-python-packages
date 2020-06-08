@@ -1,6 +1,6 @@
 #!/usr/bin/env python
-from walt.server.threads.main.snmp.base import load_mib, unload_mib, get_loaded_mibs, \
-                                            Variant, VariantsSet, VariantProxy
+from walt.server.threads.main.snmp.base import Variant, VariantsSet, VariantProxy
+from walt.server.threads.main.snmp.mibs import load_mib, unload_mib, get_loaded_mibs
 
 POE_PORT_ENABLED=1
 POE_PORT_DISABLED=2

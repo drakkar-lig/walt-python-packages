@@ -33,21 +33,6 @@ class PortsBitField(SNMPBitField):
     def __init__(self, snmpfield):
         SNMPBitField.__init__(self, snmpfield, shift = 1)
 
-def load_mib(mib):
-    if not mib in manager.loaded:
-        manager.load(mib)
-
-def unload_mib(mib):
-    manager.loaded.remove(mib)
-
-def get_loaded_mibs():
-    return manager.loaded
-
-def unload_any_of_these_mibs(mibs):
-    for mib in mibs:
-        if mib in manager.loaded:
-            unload_mib(mib)
-
 def decode_ipv4_address(octet_string):
     return '.'.join(str(i) for i in octet_string)
 

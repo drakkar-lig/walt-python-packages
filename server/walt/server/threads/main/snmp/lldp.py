@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import re
-from walt.server.threads.main.snmp.base import load_mib, unload_mib, decode_ipv4_address, \
+from walt.server.threads.main.snmp.mibs import load_mib, unload_mib
+from walt.server.threads.main.snmp.base import decode_ipv4_address, \
                     decode_mac_address, enum_label, Variant, VariantsSet, VariantProxy
 
 class StandardLLDP(Variant):
