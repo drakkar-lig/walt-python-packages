@@ -1,17 +1,18 @@
 
 # Admin documentation
 
-This section explains all you need to know if you want to install your own WalT platform.
+This section explains what you need to know to install and maintain your own WalT platform.
 
 ## Presentation of WalT network structure
 
 See [`walt help show networking`](networking.md).
 
-## Installation procedures
+## Installation and upgrade procedures
 
-### Server installation
+### Server installation or upgrade
 
-See [`walt help show server-install`](server-install.md).
+To install a new WalT server from the provided installation image, see [`walt help show server-install`](server-install.md).
+If you want to upgrade your existing WalT server, see [`walt help show server-upgrade`](server-upgrade.md).
 
 ### Switches installation
 

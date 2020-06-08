@@ -3,7 +3,7 @@ Welcome to WalT integrated help.
 
 # Admin documentation
 
-For installation procedures (server, network switches, nodes, VPN) and a general view of WalT network structure checkout [`walt help show admin`](admin.md).
+For installation and upgrade procedures (server, network switches, nodes, VPN) and a general view of WalT network structure, checkout [`walt help show admin`](admin.md).
 
 # User documentation
 
