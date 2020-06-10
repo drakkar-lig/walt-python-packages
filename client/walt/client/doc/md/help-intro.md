@@ -3,24 +3,7 @@ Welcome to WalT integrated help.
 
 # Admin documentation
 
-## Presentation of WalT network structure
-
-See [`walt help show networking`](networking.md).
-
-## Installation
-
-### Server installation
-
-See [`walt help show server-install`](server-install.md).
-
-### Switches installation
-
-See [`walt help show switch-install`](switch-install.md).
-
-### Nodes installation
-
-See [`walt help show node-install`](node-install.md).
-
+For installation procedures (server, network switches, nodes, VPN) and a general view of WalT network structure checkout [`walt help show admin`](admin.md).
 
 # User documentation
 
@@ -46,11 +29,6 @@ If you are not sure when to use which command, see [`walt help show shells`](she
 
 WalT provides a logging system to manage your experiment logs.
 See [`walt help show logging`](logging.md) for more info.
-
-### Built-in VPN
-
-WalT provides a built-in VPN system allowing you to deploy distant nodes.
-See [`walt help show vpn`](vpn.md) for more info.
 
 ## Advanced users
 
