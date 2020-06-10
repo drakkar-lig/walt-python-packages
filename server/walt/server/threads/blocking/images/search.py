@@ -41,7 +41,10 @@ class Search(object):
                 return True
         self.validate = validate
     def validate_fullname(self, fullname, location):
-        user, image_name = fullname.split('/')
+        parts = fullname.split('/')
+        if len(parts) != 2:
+            return False
+        user, image_name = parts
         return self.validate(image_name, user, location)
     # search yields results in the form (<user>, <image_name>, <location>),
     # sorted by <user>, then <image_name>, and <location>.
