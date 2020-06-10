@@ -75,6 +75,13 @@ class ServerDB(PostgresDB):
                             WHERE n.mac = d.mac;""")
             self.execute("""ALTER TABLE nodes
                             DROP COLUMN netsetup;""")
+            # When migrating to v5, walt image storage management moves from docker to podman.
+            # In order to avoid duplicating many old and unused images to podman storage, we
+            # remove the reference of unused images from database.
+            self.execute("""DELETE FROM images
+                            WHERE fullname NOT IN (
+                                SELECT DISTINCT image FROM nodes
+                            );""")
             self.commit()
 
     def column_exists(self, table_name, column_name):

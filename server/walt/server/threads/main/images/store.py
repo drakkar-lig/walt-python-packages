@@ -22,6 +22,9 @@ MSG_WOULD_OVERWRITE_IMAGE_REBOOTED_NODES='\
 MSG_REMOVING_FROM_DB = """\
 WARNING: Removing image %s from db because walt does not have it in its own repo."""
 
+MSG_PULLING_FROM_DOCKER = """\
+NOTE: Pulling image %s from docker daemon to podman storage (migration v4->v5)."""
+
 MSG_IMAGE_READY_BUT_MISSING = """\
 Image %s is marked ready in db, but walt does not have it in its own repo! Aborting."""
 
@@ -44,9 +47,11 @@ class NodeImageStore(object):
         db_images = { db_img.fullname: db_img.ready \
                         for db_img in self.db.select('images') }
         # gather local images
-        docker_images = set(self.docker.local.get_images())
+        podman_images = set(self.docker.local.get_images())
+        if startup:
+            docker_images = set(self.docker.daemon.images())
         # import new images from docker into the database
-        for fullname in docker_images:
+        for fullname in podman_images:
             if fullname not in db_images:
                 self.db.insert('images', fullname=fullname, ready=True)
                 db_images[fullname] = True
@@ -54,15 +59,20 @@ class NodeImageStore(object):
         for db_fullname in db_images:
             db_ready = db_images[db_fullname]
             if db_fullname not in self.images:
-                if db_fullname in docker_images:
+                if db_fullname in podman_images:
                     # add missing image in this store
                     self.images[db_fullname] = NodeImage(self, db_fullname)
                 else:
-                    # if the daemon is starting, remove images from db not listed
-                    # by podman.
+                    # if the daemon is starting, check if we should pull images
+                    # from docker daemon to podman storage (migration v4->v5)
                     if startup:
-                        print((MSG_REMOVING_FROM_DB % db_fullname))
-                        self.db.delete('images', fullname = db_fullname)
+                        if db_fullname in docker_images:
+                            print(MSG_PULLING_FROM_DOCKER % db_fullname)
+                            self.docker.daemon.pull(db_fullname)
+                            self.images[db_fullname] = NodeImage(self, db_fullname)
+                        else:
+                            print(MSG_REMOVING_FROM_DB % db_fullname)
+                            self.db.delete('images', fullname = db_fullname)
                     else:
                         assert (db_ready == False), \
                             MSG_IMAGE_READY_BUT_MISSING % db_fullname
