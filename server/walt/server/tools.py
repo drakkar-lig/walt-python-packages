@@ -1,6 +1,6 @@
 from collections import namedtuple
-from itertools import takewhile
-import pickle, re, resource
+from walt.server.autoglob import autoglob
+import pickle, resource
 
 COLUMNATE_SPACING = 2
 
@@ -160,16 +160,7 @@ def try_encode(s, encoding):
         return False
 
 def format_node_models_list(node_models):
-    if len(node_models) == 1:
-        return node_models[0]
-    prefix_len = len(tuple(takewhile(lambda s: len(set(s)) == 1, zip(*node_models))))
-    prefix = node_models[0][:prefix_len]
-    regex_result = prefix + '[' + '|'.join(m[prefix_len:] for m in node_models) + ']'
-    simple_result = ','.join(node_models)
-    if len(regex_result) < len(simple_result):
-        return regex_result
-    else:
-        return simple_result
+    return autoglob(node_models)
 
 # max number of file descriptors this process is allowed to open
 SOFT_RLIMIT_NOFILE = 16384
