@@ -4,6 +4,7 @@ from walt.client.config import conf
 from walt.client.filesystem import Filesystem
 from walt.common.api import api, api_expose_method, api_expose_attrs
 from walt.common.apilink import ServerAPILink, BaseAPIService
+from walt.client.term import TTYSettings
 
 @api
 class ExposedStream(object):
@@ -43,6 +44,10 @@ class WaltClientService(BaseAPIService):
     @api_expose_method
     def get_username(self):
         return conf['username']
+    @api_expose_method
+    def get_win_size(self):
+        tty = TTYSettings()
+        return { 'cols': tty.cols, 'rows': tty.rows }
 
 class ClientToServerLink(ServerAPILink):
     # optimization:

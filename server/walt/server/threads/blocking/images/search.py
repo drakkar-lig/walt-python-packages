@@ -160,7 +160,10 @@ def perform_search(docker, image_store, requester, keyword, tty_mode):
     if tty_mode:
         # allow escape-codes to reprint lines, if a new row has columns
         # with a size larger than previous ones.
-        for s in columnate_iterate_tty(it, SEARCH_HEADER):
+        # (unless terminal size is too small)
+        tty_size = requester.get_win_size()
+        for s in columnate_iterate_tty(it, header = SEARCH_HEADER,
+                       tty_rows = tty_size['rows'], tty_cols = tty_size['cols']):
             found = True
             requester.stdout.write(s)
     else:
