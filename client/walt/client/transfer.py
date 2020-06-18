@@ -49,14 +49,17 @@ class SmartWriter:
     def get_msg(self):
         return self.buf_out.decode('utf-8').strip()
 
-def run_transfer(req_id, dst_dir, dst_name, src_dir, src_name, tmp_name,
-                            client_operand_index, **entity_params):
+def set_root(tarinfo):
+    tarinfo.uid = tarinfo.gid = 0
+    tarinfo.uname = tarinfo.gname = "root"
+    return tarinfo
+
+def run_transfer(req_id, dst_dir, dst_name, src_path,
+                    client_operand_index, **entity_params):
     params = dict(
         dst_dir = dst_dir,
         dst_name = dst_name,
-        src_dir = src_dir,
-        src_name = src_name,
-        tmp_name = tmp_name,
+        src_path = src_path,
         **entity_params
     )
     # connect to server
@@ -73,7 +76,7 @@ def run_transfer(req_id, dst_dir, dst_name, src_dir, src_name, tmp_name,
             # client is sending
             writer = SmartWriter(f)
             with tarfile.open(mode='w|', fileobj=writer, dereference=True) as archive:
-                archive.add(os.path.join(src_dir, src_name), arcname=tmp_name)
+                archive.add(src_path, arcname=dst_name, filter=set_root)
             # let the other end know we are done writing
             writer.shutdown_write()
             # wait the other end to close
@@ -89,7 +92,4 @@ def run_transfer(req_id, dst_dir, dst_name, src_dir, src_name, tmp_name,
             # client is receiving
             with tarfile.open(mode='r|', fileobj=f) as archive:
                 archive.extractall(path=dst_dir)
-            tmp_path = os.path.join(dst_dir, tmp_name)
-            dst_path = os.path.join(dst_dir, dst_name)
-            os.rename(tmp_path, dst_path)
     f.close()

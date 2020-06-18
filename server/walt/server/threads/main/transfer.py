@@ -31,7 +31,7 @@ def analyse_file_types(requester, image_tag_or_node, src_path, src_fs, dst_path,
         # directory exists
         parent_path = os.path.dirname(dst_path)
         if dst_fs.get_file_type(parent_path) == 'd':
-            # ok
+            # walt node cp <path> <node>:<existing_dir>/<new_entry>
             dst_type = 'd'
             dst_name = os.path.basename(dst_path)
             dst_dir = parent_path
@@ -51,9 +51,16 @@ def analyse_file_types(requester, image_tag_or_node, src_path, src_fs, dst_path,
         dst_name = os.path.basename(dst_path)
         dst_dir = os.path.dirname(dst_path)
     elif dst_dir is None:
-        # copying to a directory, keeping the source name
-        dst_name = os.path.basename(src_path)
-        dst_dir = dst_path
+        if os.path.basename(src_path) is '.':
+            # walt node cp '.' <node>:/<existing_dir>
+            # dir content should be merged into <existing_dir>
+            dst_name = os.path.basename(dst_path)
+            dst_dir = os.path.dirname(dst_path)
+        else:
+            # walt node cp <path> <node>:/<existing_dir>
+            # we have to keep the source name
+            dst_name = os.path.basename(src_path)
+            dst_dir = dst_path
     kwargs.update(
         valid = True,
         dst_dir = dst_dir,
@@ -110,16 +117,13 @@ def validate_cp(image_or_node_label, caller,
         return { 'status': 'FAILED' }
     # all seems fine
     client_operand_index = operand_index_per_type[TYPE_CLIENT]
-    src_dir = os.path.dirname(src_path)
-    src_name = os.path.basename(src_path)
     info.update(
         status = ('NEEDS_CONFIRM' if needs_confirm else 'OK'),
-        src_dir = src_dir,
-        src_name = src_name,
-        tmp_name = src_name + '.' + get_random_suffix(),
+        src_path = src_path,
         client_operand_index = client_operand_index,
         **caller.get_cp_entity_attrs(requester, image_tag_or_node)
     )
+    print(info)
     return info
 
 def docker_wrap_cmd(cmd, input_needed = False):
@@ -133,19 +137,20 @@ def ssh_wrap_cmd(cmd):
     return SSH_COMMAND + ' root@%(node_ip)s "' + cmd + '"'
 
 TarSendCommand='''\
-        cd %(src_dir)s && ln -s %(src_name)s %(tmp_name)s && \
-        tar c -h %(tmp_name)s && false || rm -rf %(tmp_name)s '''
+        mkdir -p /tmp/%(tmp_name)s && cd /tmp/%(tmp_name)s && \
+        ln -s %(src_path)s %(dst_name)s && \
+        tar c -h %(dst_name)s && cd / && rm -rf /tmp/%(tmp_name)s '''
 
 TarReceiveCommand='''\
-        cd %(dst_dir)s && tar x && \
-        chown -Rh root:root %(tmp_name)s && \
-        mv %(tmp_name)s %(dst_name)s && false || \
-        rm -rf %(tmp_name)s '''
+        cd %(dst_dir)s && tar x'''
 
 class ImageTarSender(ParallelProcessSocketListener):
     REQ_ID = Requests.REQ_TAR_FROM_IMAGE
     def get_command(self, **params):
-        return docker_wrap_cmd(TarSendCommand) % params
+        return docker_wrap_cmd(TarSendCommand) % dict(
+            tmp_name = '.' + get_random_suffix(),
+            **params
+        )
 
 class ImageTarReceiver(ParallelProcessSocketListener):
     REQ_ID = Requests.REQ_TAR_TO_IMAGE
@@ -156,7 +161,10 @@ class ImageTarReceiver(ParallelProcessSocketListener):
 class NodeTarSender(ParallelProcessSocketListener):
     REQ_ID = Requests.REQ_TAR_FROM_NODE
     def get_command(self, **params):
-        return ssh_wrap_cmd(TarSendCommand) % params
+        return ssh_wrap_cmd(TarSendCommand) % dict(
+            tmp_name = '.' + get_random_suffix(),
+            **params
+        )
 
 class NodeTarReceiver(ParallelProcessSocketListener):
     REQ_ID = Requests.REQ_TAR_TO_NODE
