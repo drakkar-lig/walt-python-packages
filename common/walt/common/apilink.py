@@ -193,4 +193,8 @@ class ServerAPILink(object):
         # do not close the connection right now, it might be reused
         # thanks to the @reusable decorator of ServerAPIConnection
         pass
+    def set_busy_label(self, label):
+        self.conn.set_busy_label(label)
+    def set_default_busy_label(self):
+        self.conn.set_default_busy_label()
 

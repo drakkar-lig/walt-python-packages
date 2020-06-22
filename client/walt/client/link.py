@@ -41,6 +41,7 @@ class WaltClientService(BaseAPIService):
         self.stdout = ExposedStream(sys.stdout)
         self.stderr = ExposedStream(sys.stderr)
         self.filesystem = Filesystem()
+        self.link = None
     @api_expose_method
     def get_username(self):
         return conf['username']
@@ -48,6 +49,12 @@ class WaltClientService(BaseAPIService):
     def get_win_size(self):
         tty = TTYSettings()
         return { 'cols': tty.cols, 'rows': tty.rows }
+    @api_expose_method
+    def set_busy_label(self, busy_label):
+        self.link.set_busy_label(busy_label)
+    @api_expose_method
+    def set_default_busy_label(self):
+        self.link.set_default_busy_label()
 
 class ClientToServerLink(ServerAPILink):
     # optimization:
@@ -56,5 +63,6 @@ class ClientToServerLink(ServerAPILink):
     # ServerAPILink)
     service = WaltClientService()
     def __init__(self):
+        ClientToServerLink.service.link = self
         ServerAPILink.__init__(self,
                 conf['server'], 'CSAPI', ClientToServerLink.service)

@@ -21,7 +21,8 @@ from walt.server.threads.main.transfer import TransferManager
 from walt.server.threads.main.apisession import APISession
 from walt.server.threads.main.network import tftp
 from walt.server.threads.main.vpn import VPNManager
-
+from walt.server.threads.main.transfer import validate_cp, \
+                    format_node_to_booted_image_transfer_cmd
 
 class Server(object):
 
@@ -187,23 +188,22 @@ class Server(object):
 
     def reboot_nodes_after_image_change(self, requester, task_callback, nodes_using_image):
         requester.stdout.write('Trying to reboot nodes... (they should already be rebooting, but just in case)\n')
-        # we do not try softreboot because the nodes are probably try to reboot already
+        # we do not try softreboot because the nodes are probably trying to reboot already
         # since the image they were booting was unmounted
         self.nodes.reboot_nodes(requester, task_callback, nodes_using_image, hard_only=True)
 
-    def image_shell_session_save(self, requester, task, session, new_name, name_confirmed):
+    def image_shell_session_save(self, requester, cb_return, session, new_name, name_confirmed):
         status = session.save(requester, new_name, name_confirmed)
         if status == 'OK_BUT_REBOOT_NODES':
             image_fullname = format_image_fullname(requester.get_username(), new_name)
             nodes_using_image = self.nodes.get_nodes_using_image(image_fullname)
             if len(nodes_using_image) == 0:
-                return 'OK_SAVED'
+                cb_return('OK_SAVED')
             else:
-                task.set_async()    # we will need some time
-                task_callback = lambda res: task.return_result('OK_SAVED')
-                self.reboot_nodes_after_image_change(requester, task_callback, nodes_using_image)
+                cb_reboot = lambda res: cb_return('OK_SAVED')
+                self.reboot_nodes_after_image_change(requester, cb_reboot, nodes_using_image)
         else:
-            return status
+            cb_return(status)
 
     def squash_image(self, requester, task, image_name, confirmed):
         task.set_async()
@@ -219,3 +219,31 @@ class Server(object):
                                   task_callback = task_callback,
                                   image_name = image_name,
                                   confirmed = confirmed)
+
+    def validate_cp(self, requester, image_or_node_label, src, dst):
+        return validate_cp(image_or_node_label, self, requester, src, dst)
+
+    def node_cp_to_booted_image(self, requester, task, node_name, **path_info):
+        node_info = self.nodes.get_node_info(requester, node_name)
+        if node_info is None:
+            return  # error already reported
+        session = self.images.create_shell_session(
+                                requester, node_info.image, 'file transfer')
+        if session == None:
+            return  # issue already reported
+        cmd = format_node_to_booted_image_transfer_cmd(
+            node_ip = node_info.ip,
+            image_fullname = node_info.image,
+            container_name = session.container_name,
+            **path_info
+        )
+        task.set_async()
+        # callbacks that will be called when blocking thread has done the job
+        def cb_unblock_client(res):
+            task.return_result(None)
+        def cb(res):
+            requester.set_default_busy_label()
+            self.image_shell_session_save(
+                requester, cb_unblock_client, session, session.image.name, True)
+        requester.set_busy_label('Transfering')
+        self.blocking.run_shell_cmd(requester, cb, cmd)

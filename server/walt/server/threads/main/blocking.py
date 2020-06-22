@@ -43,3 +43,6 @@ class BlockingTasksManager(RPCThreadConnector):
 
     def nodes_set_poe(self, requester, result_cb, *args, **kwargs):
         self.session(requester).do_async.nodes_set_poe(*args, **kwargs).then(result_cb)
+
+    def run_shell_cmd(self, requester, result_cb, cmd):
+        self.session(requester).do_async.run_shell_cmd(cmd).then(result_cb)

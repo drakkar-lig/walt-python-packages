@@ -189,21 +189,38 @@ class WalTNodeRun(WalTApplication):
 
 @WalTNode.subcommand("cp")
 class WalTNodeCp(WalTApplication):
-    """transfer files/dirs (client machine <-> node)"""
+    """transfer files/dirs to or from a node"""
+    USAGE="""\
+    walt node cp <local-path> <node>:<path>
+    walt node cp <node>:<path> <local-path>
+    walt node cp <node>:<path> booted-image
+    """
     def main(self, src, dst):
         with ClientToServerLink() as server:
             info = server.validate_node_cp(src, dst)
             if info == None:
                 return
-            if not info['node_owned'] and not confirm():
+            if info['status'] == 'NEEDS_CONFIRM':
+                if confirm():
+                    info['status'] = 'OK'
+                else:
+                    return  # give up
+            if info['status'] == 'FAILED':
                 return
             node_name = info['node_name']
             WalTNode.wait_for_nodes(server, node_name)
-            try:
-                run_transfer_with_node(**info)
-            except (KeyboardInterrupt, EOFError):
-                print()
-                print('Aborted.')
+            if dst == 'booted-image':
+                path_info = dict(
+                    src_path = info['src_path'],
+                    dst_dir = info['dst_dir'],
+                    dst_name = info['dst_name'])
+                server.node_cp_to_booted_image(node_name, **path_info)
+            else:
+                try:
+                    run_transfer_with_node(**info)
+                except (KeyboardInterrupt, EOFError):
+                    print()
+                    print('Aborted.')
 
 @WalTNode.subcommand("wait")
 class WalTNodeWait(WalTApplication):

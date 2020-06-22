@@ -15,7 +15,7 @@ Sub-commands:
     blink   make a node blink for a given number of seconds
     boot    let a (set of) node(s) boot an operating system image
     config  Get or set nodes configuration
-    cp      transfer files/dirs (client machine <-> node)
+    cp      transfer files/dirs to or from a node
     create  create a virtual WalT node
     deploy  alias to 'boot' subcommand
     expose  expose a network port of a node on the local machine

@@ -122,11 +122,14 @@ class NodeImageStore(object):
     # If expected is True or False and the result does not match expectation,
     # an error message will be printed.
     def get_user_image_from_name(self, requester, image_name, expected = True, ready_only = True):
-        username = requester.get_username()
-        if not username:
-            return None    # client already disconnected, give up
-        found = None
-        fullname = format_image_fullname(username, image_name)
+        if '/' in image_name:
+            fullname = image_name
+        else:
+            username = requester.get_username()
+            if not username:
+                return None    # client already disconnected, give up
+            found = None
+            fullname = format_image_fullname(username, image_name)
         for image in self.images.values():
             if image.fullname == fullname:
                 found = image
@@ -204,7 +207,10 @@ class NodeImageStore(object):
             reboot_message = MSG_WOULD_OVERWRITE_IMAGE_REBOOTED_NODES % num_nodes
         requester.stderr.write(MSG_WOULD_OVERWRITE_IMAGE % reboot_message)
     def warn_if_would_reboot_nodes(self, requester, image_name):
-        image_fullname = format_image_fullname(requester.get_username(), image_name)
+        if '/' in image_name:
+            image_fullname = image_name
+        else:
+            image_fullname = format_image_fullname(requester.get_username(), image_name)
         num_nodes = self.num_nodes_using_image(image_fullname)
         if num_nodes == 0:
             return False    # no node would reboot

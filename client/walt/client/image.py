@@ -113,6 +113,10 @@ class WalTImageDuplicate(WalTApplication):
 @WalTImage.subcommand("cp")
 class WalTImageCp(WalTApplication):
     """transfer files (client machine <-> image)"""
+    USAGE="""\
+    walt image cp <local-path> <image>:<path>
+    walt image cp <image>:<path> <local-path>
+    """
     def main(self, src, dst):
         with ClientToServerLink() as server:
             info = server.validate_image_cp(src, dst)

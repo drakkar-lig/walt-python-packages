@@ -1,8 +1,9 @@
 transfer files (client machine <-> image)
 
 Usage:
-    walt image cp [SWITCHES] src dst
-
+    walt image cp <local-path> <image>:<path>
+    walt image cp <image>:<path> <local-path>
+    
 Meta-switches:
     -h, --help      Prints this help message and quits
 

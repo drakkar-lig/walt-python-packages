@@ -83,7 +83,11 @@ class CSAPI(APISession):
 
     @api_expose_method
     def validate_node_cp(self, context, src, dst):
-        return context.nodes.validate_cp(context.requester.do_sync, src, dst)
+        return context.server.validate_cp(context.requester.do_sync, 'node', src, dst)
+
+    @api_expose_method
+    def node_cp_to_booted_image(self, context, node_name, **path_info):
+        return context.server.node_cp_to_booted_image(context.requester.do_sync, context.task, node_name, **path_info)
 
     @api_expose_method
     def wait_for_nodes(self, context, node_set):
@@ -172,8 +176,9 @@ class CSAPI(APISession):
     @api_expose_method
     def image_shell_session_save(self, context, session_id, new_name, name_confirmed):
         session = self.get_session_object(session_id)
+        context.task.set_async()
         return context.server.image_shell_session_save(
-                    context.requester.do_sync, context.task, session, new_name, name_confirmed)
+                    context.requester.do_sync, context.task.return_result, session, new_name, name_confirmed)
 
     @api_expose_method
     def remove_image(self, context, image_name):
@@ -189,7 +194,7 @@ class CSAPI(APISession):
 
     @api_expose_method
     def validate_image_cp(self, context, src, dst):
-        return context.images.validate_cp(context.requester.do_sync, src, dst)
+        return context.server.validate_cp(context.requester.do_sync, 'image', src, dst)
 
     @api_expose_method
     def squash_image(self, context, image_name, confirmed):

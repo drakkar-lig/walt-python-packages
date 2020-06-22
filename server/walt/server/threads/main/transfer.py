@@ -5,23 +5,38 @@ from walt.server.const import SSH_COMMAND
 import os, random
 
 TYPE_CLIENT = 0
-TYPE_IMAGE = 1
+TYPE_IMAGE_OR_NODE = 1
+TYPE_BOOTED_IMAGE = 2
 
-HELP_INVALID = """\
+HELP_INVALID = dict(
+    node = """\
 Usage:
-$ walt $(image_or_node_label) cp <local_file_path> <$(image_or_node_label)>:<file_path>
+$ walt node cp <local_file_path> <node>:<file_path>
 or
-$ walt $(image_or_node_label) cp <$(image_or_node_label)>:<file_path> <local_file_path>
+$ walt node cp <node>:<file_path> <local_file_path>
+or
+$ walt node cp <node>:<file_path> booted-image
 
 Regular files as well as directories are accepted.
-"""
+The 3rd form (with keyword 'booted-image') allows to transfer files directly from the selected node
+to the image it has booted. It is a shortcut to using 'walt node cp' and 'walt image cp' in sequence.
+
+""",
+    image = """\
+Usage:
+$ walt image cp <local_file_path> <image>:<file_path>
+or
+$ walt image cp <image>:<file_path> <local_file_path>
+
+Regular files as well as directories are accepted.
+""")
 
 NODE_TFTP_ROOT = "/var/lib/walt/nodes/%(node_mac)s/tftp"
 
 def get_random_suffix():
     return ''.join(random.choice('0123456789ABCDEF') for i in range(8))
 
-def analyse_file_types(requester, image_tag_or_node, src_path, src_fs, dst_path, dst_fs, **kwargs):
+def analyse_file_types(requester, operand_types, src_path, src_fs, dst_path, dst_fs, **kwargs):
     bad = dict(valid = False)
     dst_dir = None
     src_type = src_fs.get_file_type(src_path)
@@ -50,6 +65,11 @@ def analyse_file_types(requester, image_tag_or_node, src_path, src_fs, dst_path,
         dst_type = 'd'
         dst_name = os.path.basename(dst_path)
         dst_dir = os.path.dirname(dst_path)
+    elif operand_types[1] == TYPE_BOOTED_IMAGE:
+        # walt node cp <node>:/<existing_dir> booted-image
+        # dir content should be merged into <existing_dir> in booted image
+        dst_name = os.path.basename(dst_path)
+        dst_dir = os.path.dirname(dst_path)
     elif dst_dir is None:
         if os.path.basename(src_path) is '.':
             # walt node cp '.' <node>:/<existing_dir>
@@ -68,60 +88,87 @@ def analyse_file_types(requester, image_tag_or_node, src_path, src_fs, dst_path,
     )
     return kwargs
 
-def validate_cp(image_or_node_label, caller,
+def get_manager(server, image_or_node_label):
+    if image_or_node_label == 'node':
+        return server.nodes
+    else:
+        return server.images
+
+def validate_cp(image_or_node_label, server,
                 requester, src, dst):
     invalid = False
-    operands = []
-    operand_index_per_type = {}
+    operand_types = []
+    client_operand_index = -1
     filesystems = []
     paths = []
     needs_confirm = False
+    info = {}
     for index, operand in enumerate([src, dst]):
         parts = operand.rsplit(':', 1)  # caution, we may have <image>:<tag>:<path>
-        operand_type = len(parts)-1
-        operands.append(operand)
-        operand_index_per_type[operand_type] = index
-        if operand_type == TYPE_CLIENT:
-            filesystems.append(requester.filesystem)
-            paths.append(operand.rstrip('/'))
-        else:
-            image_tag_or_node, path = parts
-            status = caller.validate_cp_entity(requester, image_tag_or_node, index)
-            if status == 'NEEDS_CONFIRM':
+        if operand == 'booted-image' or len(parts) > 1:
+            if operand == 'booted-image':
+                operand_type = TYPE_BOOTED_IMAGE
+                if image_or_node_label == 'image':
+                    requester.stderr.write(\
+                        "Keyword 'booted-image' is only available with command 'walt node cp'.\n")
+                    return { 'status': 'FAILED' }
+                elif index == 0:
+                    requester.stderr.write(\
+                        "Keyword 'booted-image' can only be used as destination, not source.\n")
+                    return { 'status': 'FAILED' }
+                elif operand_types[0] != TYPE_IMAGE_OR_NODE:
+                    invalid = True
+                    break
+                image_tag_or_node, path = 'booted-image', paths[0]
+                manager = server.images
+            else:
+                operand_type = TYPE_IMAGE_OR_NODE
+                image_tag_or_node, path = parts
+                manager = get_manager(server, image_or_node_label)
+            status = manager.validate_cp_entity(requester, image_tag_or_node, index, **info)
+            if status == 'FAILED':
+                return { 'status': 'FAILED' }
+            elif status == 'NEEDS_CONFIRM':
                 needs_confirm = True
-            elif status == 'FAILED':
-                return { 'status': status }
-            filesystem = caller.get_cp_entity_filesystem(
-                                    requester, image_tag_or_node)
+            filesystem = manager.get_cp_entity_filesystem(
+                                    requester, image_tag_or_node, **info)
             if not filesystem.ping():
                 requester.stderr.write(\
                     "Could not reach %s. Try again later.\n" % image_tag_or_node)
                 return { 'status': 'FAILED' }
+            info.update(
+                **manager.get_cp_entity_attrs(requester, image_tag_or_node, **info))
             filesystems.append(filesystem)
             paths.append(path.rstrip('/'))
-    if len(operand_index_per_type) != 2:
-        invalid = True
+        else:
+            operand_type = TYPE_CLIENT
+            filesystems.append(requester.filesystem)
+            paths.append(operand.rstrip('/'))
+            client_operand_index = index
+        operand_types.append(operand_type)
+    if not invalid:
+        if tuple(operand_types) not in (
+                (TYPE_CLIENT, TYPE_IMAGE_OR_NODE),
+                (TYPE_IMAGE_OR_NODE, TYPE_CLIENT),
+                (TYPE_IMAGE_OR_NODE, TYPE_BOOTED_IMAGE)):
+            invalid = True
     if invalid:
-        requester.stderr.write(HELP_INVALID % dict(
-            image_or_node_label = image_or_node_label
-        ))
+        requester.stderr.write(HELP_INVALID[image_or_node_label])
         return { 'status': 'FAILED' }
     src_fs, dst_fs = filesystems
     src_path, dst_path = [
             path if path.startswith('/') else './' + path
             for path in paths ]
-    info = analyse_file_types(  requester, image_tag_or_node,
+    info.update(**analyse_file_types(  requester, operand_types,
                                 src_path, src_fs,
-                                dst_path, dst_fs)
+                                dst_path, dst_fs))
     if info.pop('valid') == False:
         return { 'status': 'FAILED' }
     # all seems fine
-    client_operand_index = operand_index_per_type[TYPE_CLIENT]
     info.update(
         status = ('NEEDS_CONFIRM' if needs_confirm else 'OK'),
         src_path = src_path,
-        client_operand_index = client_operand_index,
-        **caller.get_cp_entity_attrs(requester, image_tag_or_node)
+        client_operand_index = client_operand_index
     )
     print(info)
     return info
@@ -219,3 +266,11 @@ class TransferManager(object):
                     cls = cls,
                     ev_loop = ev_loop)
 
+def format_node_to_booted_image_transfer_cmd(**params):
+    node_send_cmd = ssh_wrap_cmd(TarSendCommand) % dict(
+        tmp_name = '.' + get_random_suffix(),
+        **params
+    )
+    image_recv_cmd = docker_wrap_cmd(
+            TarReceiveCommand, input_needed = True) % params
+    return node_send_cmd + ' | ' + image_recv_cmd

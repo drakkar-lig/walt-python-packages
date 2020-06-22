@@ -13,7 +13,6 @@ from walt.server.threads.main.nodes.clock import NodesClockSyncInfo
 from walt.server.threads.main.nodes.expose import ExposeManager
 from walt.server.threads.main.nodes.netservice import node_request
 from walt.server.threads.main.nodes.reboot import reboot_nodes
-from walt.server.threads.main.transfer import validate_cp
 from walt.server.threads.main.network.tools import ip, get_walt_subnet, get_server_ip
 from walt.server.tools import to_named_tuple
 
@@ -313,23 +312,21 @@ class NodesManager(object):
             return None
         return self.devices.as_device_set(n.name for n in nodes)
 
-    def validate_cp(self, requester, src, dst):
-        return validate_cp("node", self, requester, src, dst)
-
-    def validate_cp_entity(self, requester, node_name, index):
+    def validate_cp_entity(self, requester, node_name, index, **info):
         if self.get_node_info(requester, node_name) is None:
             return 'FAILED'
         else:
             return 'OK'
 
-    def get_cp_entity_filesystem(self, requester, node_name):
+    def get_cp_entity_filesystem(self, requester, node_name, **info):
         node_ip = self.get_node_ip(requester, node_name)
         self.prepare_ssh_access_for_ip(node_ip)
         return Filesystem(FS_CMD_PATTERN % dict(node_ip = node_ip))
 
-    def get_cp_entity_attrs(self, requester, node_name):
+    def get_cp_entity_attrs(self, requester, node_name, **info):
         owned = not self.devices.includes_devices_not_owned(requester, node_name, True)
-        ip = self.get_node_ip(requester, node_name)
-        return dict(node_name = node_name,
-                    node_ip = ip,
+        node_info = self.get_node_info(requester, node_name)
+        return dict(node_name = node_info.name,
+                    node_ip = node_info.ip,
+                    node_image = node_info.image,
                     node_owned = owned)

@@ -101,8 +101,10 @@ class BusyIndicator(object):
         self.label = label
         self.last_time = None
         self.next_time = None
-        self.msg_len = None
+        self.msg_len = 0
+        self.char_idx = 0
     def start(self):
+        self.char_idx = 0
         self.last_time = None
         self.next_time = datetime.now() + PROGRESS_INDICATOR_PERIOD
     def write_stdout(self, s):
@@ -110,15 +112,15 @@ class BusyIndicator(object):
         sys.stdout.flush()
     def update(self):
         if datetime.now() > self.next_time:
-            if self.last_time == None:
-                msg = self.label + "... *"
-                self.write_stdout(msg)
-                self.msg_len = len(msg)
-            else:
-                self.write_stdout("*")
-                self.msg_len += 1
+            wheel_char = "\\|/-"[self.char_idx]
+            if self.last_time is not None:
+                self.write_stdout("\r")
+            msg = self.label + "... " + wheel_char
+            self.write_stdout(msg)
+            self.msg_len = len(msg)
             self.last_time = datetime.now()
             self.next_time = self.last_time + PROGRESS_INDICATOR_PERIOD
+            self.char_idx = (self.char_idx+1) % 4
     def done(self):
         if self.last_time != None:
             self.write_stdout("\r" + (' ' * self.msg_len) + "\r")

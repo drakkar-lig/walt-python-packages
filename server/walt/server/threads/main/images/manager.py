@@ -8,7 +8,6 @@ from walt.server.threads.main.images.show import show
 from walt.server.threads.main.images.rename import rename
 from walt.server.threads.main.images.remove import remove
 from walt.server.threads.main.images.duplicate import duplicate
-from walt.server.threads.main.transfer import validate_cp
 from walt.server.threads.main.images.fixowner import fix_owner
 from walt.server.threads.main.images.store import NodeImageStore
 from walt.server.threads.main.network import tftp
@@ -50,18 +49,31 @@ class NodeImageManager(object):
         remove(self.store, self.docker, requester, image_name)
     def duplicate(self, requester, image_name, new_name):
         duplicate(self.store, self.docker, requester, image_name, new_name)
-    def validate_cp(self, requester, src, dst):
-        return validate_cp("image", self, requester, src, dst)
-    def validate_cp_entity(self, requester, image_name, index):
-        if not self.has_image(requester, image_name, False):
-            return 'FAILED'
-        if index == 1:  # image is destination, it will be modified
-            if self.store.warn_if_would_reboot_nodes(requester, image_name):
+    def validate_cp_entity(self, requester, image_name, index, **info):
+        if image_name == 'booted-image':
+            username = requester.get_username()
+            image_fullname = info['node_image']
+            image = self.store[image_fullname]
+            if image.user != username:
+                # modifying the image of others is not possible
+                requester.stderr.write('Cannot proceed because the booted image does not belong to you.\n')
+                return 'FAILED'
+            if self.store.warn_if_would_reboot_nodes(requester, image_fullname):
                 return 'NEEDS_CONFIRM'
+        else:
+            if not self.has_image(requester, image_name, False):
+                return 'FAILED'
+            if index == 1:  # image is destination, it will be modified
+                if self.store.warn_if_would_reboot_nodes(requester, image_name):
+                    return 'NEEDS_CONFIRM'
         return 'OK'
-    def get_cp_entity_filesystem(self, requester, image_name):
-        return self.store.get_user_image_from_name(requester, image_name).filesystem
-    def get_cp_entity_attrs(self, requester, image_name):
+    def get_cp_entity_filesystem(self, requester, image_name, **info):
+        if image_name == 'booted-image':
+            image_fullname = info['node_image']
+            return self.store[image_fullname].filesystem
+        else:
+            return self.store.get_user_image_from_name(requester, image_name).filesystem
+    def get_cp_entity_attrs(self, requester, image_name, **info):
         return dict(image_name=image_name)
     def fix_owner(self, requester, other_user):
         fix_owner(self.store, self.docker, requester, other_user)

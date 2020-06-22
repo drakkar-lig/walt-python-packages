@@ -1,8 +1,10 @@
-transfer files/dirs (client machine <-> node)
+transfer files/dirs to or from a node
 
 Usage:
-    walt node cp [SWITCHES] src dst
-
+    walt node cp <local-path> <node>:<path>
+    walt node cp <node>:<path> <local-path>
+    walt node cp <node>:<path> booted-image
+    
 Meta-switches:
     -h, --help      Prints this help message and quits
 
