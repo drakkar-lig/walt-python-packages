@@ -17,13 +17,16 @@ In order to get familiar with main WalT concepts, see [`walt help show tutorial`
 
 To understand why a given user owns a given node or not, and for related aspects of terminology, see [`walt help show node-terminology`](node-terminology.md).
 
-### Working with shells
+### Working with nodes and images
 
 WalT provides:
-* direct access to nodes (using `walt node shell`)
-* access to the underlying operating system image (using `walt image shell`)
+* direct access to nodes (using `walt node shell`, `walt node cp` for instance)
+* access to the underlying operating system image (using `walt image shell`, `walt image cp`, etc.)
 
-If you are not sure when to use which command, see [`walt help show shells`](shells.md).
+For details, see:
+* [`walt help show shells`](shells.md)
+* [`walt help show node-cp`](node-cp.md)
+* [`walt help show image-cp`](image-cp.md)
 
 ### Log management
 
