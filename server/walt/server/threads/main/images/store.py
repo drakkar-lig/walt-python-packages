@@ -42,7 +42,7 @@ class NodeImageStore(object):
         self.docker = docker
         self.db = db
         self.images = {}
-        self.mounts = defaultdict(set)
+        self.mounts = set()
     def refresh(self, startup = False):
         db_images = { db_img.fullname: db_img.ready \
                         for db_img in self.db.select('images') }
@@ -156,33 +156,34 @@ class NodeImageStore(object):
         if images_in_use == None:
             images_in_use = self.get_images_in_use()
         images_found = []
+        new_mounts = set()
         nodes_found = self.db.select("nodes")
         # ensure all needed images are mounted
         for fullname in images_in_use:
             if fullname in self.images:
                 img = self.images[fullname]
                 if not img.mounted:
-                    img.mount()
+                    self.mount(img.image_id, img.fullname)
                 images_found.append(img)
+                new_mounts.add(img.image_id)
             else:
                 sys.stderr.write(MSG_IMAGE_IS_USED_BUT_NOT_FOUND % fullname)
         # update nfs and tftp configuration
         nfs.update_exported_filesystems(images_found, nodes_found)
         tftp.update(self.db, self)
         # unmount images that are not needed anymore
-        for fullname in self.images:
-            if fullname not in images_in_use:
-                img = self.images[fullname]
-                if img.mounted:
-                    img.unmount()
+        # note: this must be done after nfs unmount (otherwise directories would
+        # be locked by the NFS export)
+        for fullname, img in self.images.items():
+            if img.mounted and img.image_id not in new_mounts:
+                self.unmount(img.image_id, img.fullname)
     def cleanup(self):
-        # release nfs mounts
-        nfs.update_exported_filesystems([], [])
-        # unmount images
-        for fullname in self.images:
-            img = self.images[fullname]
-            if img.mounted:
-                img.unmount()
+        if len(self.mounts) > 0:
+            # release nfs mounts
+            exports.update_exported_filesystems([], [])
+            # unmount images
+            for image_id in self.mounts.copy():
+                self.unmount(image_id)
     def get_images_in_use(self):
         res = set([ item.image for item in \
             self.db.execute("""
@@ -223,32 +224,26 @@ class NodeImageStore(object):
             return get_mount_path(image_id)
         else:
             return None
-    def mount(self, image_id, fullname):
-        if fullname in self.mounts[image_id]:
+    def mount(self, image_id, fullname = None):
+        if image_id in self.mounts:
             return  # already mounted
-        self.mounts[image_id].add(fullname)
-        if len(self.mounts[image_id]) == 1:
-            # first image to mount this ID, do it
-            print('Mounting %s...' % fullname)
-            mount_path = get_mount_path(image_id)
-            failsafe_makedirs(mount_path)
-            self.docker.local.image_mount(image_id, mount_path)
-            setup(mount_path)
-            print('Mounting %s... done' % fullname)
-    def unmount(self, image_id, fullname):
-        if image_id not in self.mounts or fullname not in self.mounts[image_id]:
+        self.mounts.add(image_id)
+        desc = fullname if fullname else image_id
+        print('Mounting %s...' % desc)
+        mount_path = get_mount_path(image_id)
+        failsafe_makedirs(mount_path)
+        self.docker.local.image_mount(image_id, mount_path)
+        setup(mount_path)
+        print('Mounting %s... done' % desc)
+    def unmount(self, image_id, fullname = None):
+        if image_id not in self.mounts:
             return  # not mounted
-        self.mounts[image_id].remove(fullname)
-        if len(self.mounts[image_id]) == 0:
-            # last image unmounted with this ID, do it
-            print('Un-mounting %s...' % fullname, end=' ')
-            mount_path = get_mount_path(image_id)
-            self.docker.local.image_umount(image_id, mount_path)
-            os.rmdir(mount_path)
-            print('done')
-            del self.mounts[image_id]
+        self.mounts.remove(image_id)
+        desc = fullname if fullname else image_id
+        print('Un-mounting %s...' % desc, end=' ')
+        mount_path = get_mount_path(image_id)
+        self.docker.local.image_umount(image_id, mount_path)
+        os.rmdir(mount_path)
+        print('done')
     def __del__(self):
-        mounts_copy = { image_id: set(fullnames) for image_id, fullnames in self.mounts.items() }
-        for image_id, fullnames in mounts_copy.items():
-            for fullname in fullnames:
-                self.unmount(image_id, fullname)
+        self.cleanup()

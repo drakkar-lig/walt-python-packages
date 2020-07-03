@@ -121,9 +121,5 @@ class NodeImage(object):
     @property
     def mounted(self):
         return self.store.image_is_mounted(self.image_id)
-    def mount(self):
-        self.store.mount(self.image_id, self.fullname)
-    def unmount(self):
-        self.store.unmount(self.image_id, self.fullname)
     def squash(self):
         self.docker.local.squash(self.fullname)
