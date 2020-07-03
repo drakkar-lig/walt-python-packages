@@ -3,7 +3,8 @@ from datetime import datetime
 from collections import defaultdict
 
 from walt.server.threads.main.images.image import NodeImage, format_image_fullname
-from walt.server.threads.main.network import nfs, tftp
+from walt.server.threads.main.network import tftp
+from walt.server.threads.main import exports
 from walt.server.threads.main.images.setup import setup
 from walt.common.tools import failsafe_makedirs
 
@@ -169,7 +170,7 @@ class NodeImageStore(object):
             else:
                 sys.stderr.write(MSG_IMAGE_IS_USED_BUT_NOT_FOUND % fullname)
         # update nfs and tftp configuration
-        nfs.update_exported_filesystems(images_found, nodes_found)
+        exports.update_exported_filesystems(images_found, nodes_found)
         tftp.update(self.db, self)
         # unmount images that are not needed anymore
         # note: this must be done after nfs unmount (otherwise directories would
