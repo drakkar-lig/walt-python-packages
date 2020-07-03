@@ -23,7 +23,7 @@ fifo_out=$(mktemp -u); mkfifo $fifo_out
 # to communicate with the server
 while [ 1 ]
 do
-    nc -l -p %(walt_node_net_service_port)s
+    busybox nc -l -p %(walt_node_net_service_port)s
 done < $fifo_out > $fifo_in &
 
 # pipe fd 5 to standard output of nc (we will read

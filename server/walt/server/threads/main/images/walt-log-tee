@@ -92,5 +92,5 @@ exec 6<&1
     # connection, which will cause the nc process
     # below to disconnect.
     echo CLOSE
-} | nc $walt_server_ip $walt_server_logs_port
+} | busybox nc $walt_server_ip $walt_server_logs_port
 
