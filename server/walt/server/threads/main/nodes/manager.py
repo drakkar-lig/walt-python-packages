@@ -1,6 +1,8 @@
 import socket, random, subprocess, shlex, signal, os, sys, re
+from pathlib import Path
 from collections import defaultdict
 from snimpy import snmp
+from time import time
 from walt.common.tcp import Requests
 from walt.common.tools import do, format_sentence_about_nodes, failsafe_makedirs, format_sentence
 from walt.server.const import SSH_COMMAND
@@ -18,14 +20,18 @@ from walt.server.tools import to_named_tuple
 
 VNODE_DEFAULT_RAM = "512M"
 VNODE_DEFAULT_CPU_CORES = 4
+# We record virtual nodes serial console output here
+# (we avoid using the logging system for this in order to avoid adding network traffic)
+VNODE_LOG_DIR = Path('/var/lib/walt/logs/vnodes/')
 
 MSG_NOT_VIRTUAL = "WARNING: %s is not a virtual node. IGNORED.\n"
 
 FS_CMD_PATTERN = SSH_COMMAND + ' root@%(node_ip)s "%%(prog)s %%(prog_args)s"'
 
-CMD_START_VNODE = 'screen -S walt.node.%(name)s -d -m   \
-       walt-virtual-node --mac %(mac)s --ip %(ip)s --model %(model)s --hostname %(name)s --server-ip %(server_ip)s \
-                         --cpu-cores %(cpu_cores)d --ram %(ram)s'
+VNODE_CMD = "walt-virtual-node --mac %(mac)s --ip %(ip)s --model %(model)s --hostname %(name)s \
+                               --server-ip %(server_ip)s --cpu-cores %(cpu_cores)d --ram %(ram)s"
+CMD_START_VNODE = 'screen -S walt.node.%(name)s -d -m \
+                     script -f -t%(ttyrec_file)s.time -c "' + VNODE_CMD + '" %(ttyrec_file)s'
 CMD_ADD_SSH_KNOWN_HOST = "  mkdir -p /root/.ssh && ssh-keygen -F %(ip)s || \
                             ssh-keyscan -t ecdsa %(ip)s >> /root/.ssh/known_hosts"
 
@@ -196,6 +202,7 @@ class NodesManager(object):
             failsafe_makedirs('/etc/qemu')
             with open('/etc/qemu/bridge.conf', 'w') as f:
                 f.write('allow walt-net\n')
+        VNODE_LOG_DIR.mkdir(parents=True, exist_ok=True)
         cmd = CMD_START_VNODE % dict(
             mac = node.mac,
             ip = node.ip,
@@ -203,7 +210,8 @@ class NodesManager(object):
             name = node.name,
             server_ip = get_server_ip(),
             cpu_cores = node.conf.get('cpu.cores', VNODE_DEFAULT_CPU_CORES),
-            ram = node.conf.get('ram', VNODE_DEFAULT_RAM)
+            ram = node.conf.get('ram', VNODE_DEFAULT_RAM),
+            ttyrec_file = VNODE_LOG_DIR / (node.name + str(int(time())) + '.tty')
         )
         print(cmd)
         subprocess.Popen(shlex.split(cmd))
