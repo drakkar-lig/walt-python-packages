@@ -141,11 +141,11 @@ class DockerLocalClient:
     def commit(self, cid_or_cname, dest_fullname, tool=podman, opts=()):
         if self.image_exists(dest_fullname):
             # take care not making previous version of image a dangling image
-            image_tempname = 'localhost/walt-squashed-' + dest_fullname
+            image_tempname = 'localhost/walt-commit-' + dest_fullname
             args = opts + (cid_or_cname, image_tempname)
             image_id = tool.commit(*args).strip()
             tool.rm(cid_or_cname)
-            podman.rmi('docker.io/' + dest_fullname)
+            podman.rmi('-f', 'docker.io/' + dest_fullname)
             podman.tag(image_tempname, 'docker.io/' + dest_fullname)
             podman.rmi(image_tempname)
         else:
