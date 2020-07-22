@@ -8,5 +8,16 @@ do
     sleep 1
 done
 
+# call script /bin/on-bootup if image provides it
+if [ -f "mnt/nfsroot/bin/on-bootup" ]
+then
+    if [ -x "mnt/nfsroot/bin/on-bootup" ]
+    then
+        cd mnt/nfsroot && chroot . bin/on-bootup
+    else
+        echo "WARNING: cannot run /bin/on-bootup (execute permission missing)." >&2
+    fi
+fi
+
 # send notification to server
 /bin/walt-rpc node_bootup_event >/dev/null
