@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 import sys, os
 from collections import OrderedDict
 sys.path.append(os.getcwd())
