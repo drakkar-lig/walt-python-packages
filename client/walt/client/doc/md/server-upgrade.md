@@ -20,6 +20,11 @@ $ systemctl stop walt-server
 $ systemctl disable walt-server
 ```
 
+It is recommended to save the database, just in case the database version upgrade would fail.
+```
+$ pg_dump -Fc walt > walt-db.dump
+```
+
 Then we can remove obsolete python2 version of walt components and obsolete docker version:
 ```
 $ python -m pip uninstall walt-server walt-virtual walt-client walt-common

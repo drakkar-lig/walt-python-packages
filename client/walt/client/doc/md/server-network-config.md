@@ -282,3 +282,9 @@ For instance, you may install WALT in a building with a server equipped with onl
 In this case you could connect `walt-net` and `walt-adm` on a single physical interface (using VLANs) and
 `walt-out` on the other. This should be easily done by combining scenario 2 and 3b.
 
+We currently do not support other OS network management systems (such as systemd-networkd).
+However, our sole requirement is that interface `walt-net` (and `walt-adm` if relevant) have its
+configuration described in file `/etc/walt/server.conf`.
+There is no such requirement on other unrelated interfaces (such as the one providing internet
+connectivity), and the admin may configure them with any system he likes.
+
