@@ -4,7 +4,7 @@ import sys, json, re, time
 from dateutil.relativedelta import relativedelta
 from snimpy.snmp import SNMPException
 
-from walt.common.tools import get_mac_address
+from walt.common.tools import get_mac_address, format_sentence
 from walt.server import const
 from walt.server.threads.main import snmp
 from walt.server.threads.main.snmp import NoSNMPVariantFound
@@ -32,8 +32,8 @@ this view comes from last network scan (use 'walt device rescan' to update)"
 MSG_NO_NEIGHBORS = """\
 WalT Server did not detect any neighbor!
 """
-MSG_UNKNOWN_USE_RESCAN = """\
-Sorry, topology is unknown. Use "walt device rescan" first.
+MSG_UNKNOWN_TOPOLOGY = """\
+Sorry, topology is unknown. Ensure a switch is connected to server (on walt-net interface) and run "walt device rescan".
 """
 
 def format_explanation(item_type, items):
@@ -448,28 +448,37 @@ class TopologyManager(object):
         # - if we still find several ones, we favor the ones which type is known
         #   as a switch
         server_mac = get_mac_address(const.WALT_INTF)
-        root_mac = None
+        unknown_neighbors = []
         for port, neighbor_mac, neighbor_port, confirmed in \
                 db_topology.get_neighbors(server_mac):
-            root_mac = neighbor_mac
             info = self.devices.get_complete_device_info(neighbor_mac)
             if info.ip is None:
-                continue  # Throw this node
-            if info.type != "switch":
-                continue  # Throw this node
+                continue  # ignore this device
             if not (ip_in_walt_network(info.ip) or ip_in_walt_adm_network(info.ip)):
-                continue  # Throw this node
-            break  # Found it!
-        return root_mac
+                continue  # ignore this device
+            if info.type == 'unknown':
+                unknown_neighbors.append(info.name)
+                continue  # possibly the switch we are looking for
+            if info.type == 'switch':
+                return (True, neighbor_mac)  # Found it!
+        # if we are here we did not find what we want
+        out = MSG_UNKNOWN_TOPOLOGY
+        if len(unknown_neighbors) > 0:
+            out += format_sentence("Note: %s was(were) detected, but its(their) type is unknown.\n" +
+                                   "If it(one of them) is a switch, use:\n" +
+                                   "$ walt device config <device> type=switch\n",
+                                   unknown_neighbors, None, 'device', 'devices')
+        return (False, out)
 
     def tree(self, requester, show_all):
         db_topology = Topology()
         db_topology.load_from_db(self.db)
         if db_topology.is_empty():
-            return MSG_UNKNOWN_USE_RESCAN
-        root_mac = self.get_tree_root_mac(db_topology)
-        if root_mac == None:
-            return MSG_NO_NEIGHBORS + format_explanation('tip', TIPS_MIN)
+            return MSG_UNKNOWN_TOPOLOGY
+        tree_root_info = self.get_tree_root_mac(db_topology)
+        if tree_root_info[0] is False:  # failed
+            return tree_root_info[1]    # return error message
+        root_mac = tree_root_info[1]
         # compute device mac to label and type associations
         device_labels = { d.mac: d.name for d in self.db.select('devices') }
         device_types = { d.mac: d.type for d in self.db.select('devices') }

@@ -273,11 +273,11 @@ class DevicesManager(object):
                     [d.name for d in not_owned], "No device", "Device", "Devices") + '\n')
             return True
 
-    def parse_device_set(self, requester, device_set):
+    def parse_device_set(self, requester, device_set, allow_empty=False):
         if ',' in device_set:
             devices = []
             for subset in device_set.split(','):
-                subset_devices = self.parse_device_set(requester, subset)
+                subset_devices = self.parse_device_set(requester, subset, True)
                 if subset_devices is None:
                     return None
                 devices += subset_devices
@@ -311,7 +311,7 @@ class DevicesManager(object):
                 device_macs = [ dev_info.mac ]
             # get complete devices info
             devices = [self.get_complete_device_info(mac) for mac in device_macs]
-            if len(devices) == 0:
+            if len(devices) == 0 and not allow_empty:
                 requester.stderr.write('No matching devices found! (tip: walt help show node-terminology)\n')
                 return None
             return sorted(devices)
