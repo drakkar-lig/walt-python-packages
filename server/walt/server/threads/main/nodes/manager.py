@@ -88,20 +88,24 @@ class NodesManager(object):
                 """ % NetSetup.NAT):
             do("iptables --insert WALT --source '%s' --jump ACCEPT" % node_ip)
 
-    def try_kill_vnode(self, node_name):
+    def get_vnode_screen_session_name(self, node_name):
         # get screen session
-        # caution: "screen -S walt.node.vnode1 -X kill" may be ambiguous and
+        # caution: we need the complete session name, with pid prefix
+        # since for instance "screen -S walt.node.vnode1 -X kill" may be ambiguous and
         # kill screen session of vnode10 instead of vnode1.
-        # That's why we identify the full session name with "grep -ow".
         try:
-            session_name = subprocess.check_output(
+            return subprocess.check_output(
                 'screen -ls | grep -ow "[[:digit:]]*.walt.node.%(name)s"' % \
                 dict(name = node_name), shell=True).strip().decode(sys.stdout.encoding)
+        except subprocess.CalledProcessError:
+            # no screen session (killed or not started yet)
+            return None
+
+    def try_kill_vnode(self, node_name):
+        session_name = self.get_vnode_screen_session_name(node_name)
+        if session_name is not None:
             do('screen -S "%(session)s" -X quit' % \
                 dict(session = session_name))
-        except subprocess.CalledProcessError:
-            # screen session was probably manually killed
-            return
 
     def cleanup(self):
         # stop virtual nodes
@@ -202,6 +206,10 @@ class NodesManager(object):
             failsafe_makedirs('/etc/qemu')
             with open('/etc/qemu/bridge.conf', 'w') as f:
                 f.write('allow walt-net\n')
+        # in case a screen session already exists for this vnode
+        # (e.g. walt server process was killed), kill it
+        self.try_kill_vnode(node.name)
+        # start vnode
         VNODE_LOG_DIR.mkdir(parents=True, exist_ok=True)
         cmd = CMD_START_VNODE % dict(
             mac = node.mac,
