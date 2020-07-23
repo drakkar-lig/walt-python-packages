@@ -158,7 +158,7 @@ def on_sigterm_throw_exception():
     signal.signal(signal.SIGTERM, signal_handler)
 
 MAX_PRINTED_NODES = 10
-CONJUGATE_REGEXP = r'\b(\w*)\((\w*)\)'
+CONJUGATE_REGEXP = r'\b(\w*)\(([^)]*)\)'
 
 def format_sentence(sentence, items,
             label_none, label_singular, label_plural):
