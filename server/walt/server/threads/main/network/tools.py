@@ -95,6 +95,8 @@ def get_dns_servers():
     with open('/etc/resolv.conf', 'r') as f:
         for line in f:
             line = line.strip()
+            if len(line) == 0:
+                continue
             if line[0] == '#':
                 continue
             if line.startswith('nameserver'):
