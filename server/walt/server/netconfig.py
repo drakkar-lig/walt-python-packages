@@ -1,11 +1,12 @@
 import os, sys, os.path
 import random
-from walt.common.tools import do
+from walt.common.tools import do, failsafe_makedirs
 from walt.server import conf
 
-IFACE_STATE_FILE='/var/lib/walt/.%(iface)s.state'
-IFACE_MAC_FILE='/var/lib/walt/.%(iface)s.mac'
-DOT1Q_FILTER='''\
+WALT_STATUS_DIR  = '/var/lib/walt'
+IFACE_STATE_FILE = WALT_STATUS_DIR + '/.%(iface)s.state'
+IFACE_MAC_FILE   = WALT_STATUS_DIR + '/.%(iface)s.mac'
+DOT1Q_FILTER     = '''\
 ebtables -t filter -A FORWARD -p 802_1Q \
     -i %(src)s -o %(dst)s -j DROP'''
 
@@ -118,8 +119,15 @@ def down(iface):
     remove_state_file(iface)
 
 def run():
+    if len(sys.argv) < 2:
+        sys.exit('Missing 1st argument: "up" or "down".')
     action = sys.argv[1]
-    iface = os.environ['IFACE']
+    if action not in ('up', 'down'):
+        sys.exit('1st argument must be "up" or "down".')
+    iface = os.environ.get('IFACE')
+    if iface is None:
+        sys.exit('IFACE environment variable is missing.')
+    failsafe_makedirs(WALT_STATUS_DIR)
     if action == 'up':
         network_conf = conf['network']
         up(iface, network_conf)
