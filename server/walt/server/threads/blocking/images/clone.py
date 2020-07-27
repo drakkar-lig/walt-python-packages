@@ -160,21 +160,6 @@ def pull_image(docker, requester, remote_location, remote_image_fullname, **args
     elif remote_location == LOCATION_DOCKER_DAEMON:
         docker.daemon.pull(remote_image_fullname, requester)
 
-def update_walt_image(image_store, ws_image_fullname, **args):
-    if ws_image_fullname in image_store:
-        # an image with the target name exists
-        existing_dest_image = image_store[ws_image_fullname]
-        # if image is in use, umount/mount it in order to make
-        # the nodes reboot with the new version
-        if existing_dest_image.in_use:
-            # umount
-            image_store.umount_used_image(existing_dest_image)
-            # re-mount
-            image_store.update_image_mounts()
-    else:
-        # add this new image in the store
-        image_store.register_image(ws_image_fullname, True)
-
 class WorkflowCleaner:
     def __init__(self, context):
         self.context = context
@@ -185,7 +170,7 @@ class WorkflowCleaner:
             self.cleanup(True, **self.context)
         else:                   # not ok, an exception occured!
             self.cleanup(False, **self.context)
-    def cleanup(self, ok, docker, saved_images,
+    def cleanup(self, ok, docker, image_store, saved_images,
                 ws_image_fullname, remote_image_fullname,
                 existing_server_image, existing_ws_image, **args):
         if not ok:  # only if an exception occured
@@ -195,6 +180,12 @@ class WorkflowCleaner:
             # restore the backups
             for image_fullname, backup_fullname in saved_images.items():
                 docker.local.tag(backup_fullname, image_fullname)
+        # if ok, update the image store
+        # (otherwise we just restored things from backup, so there was no change)
+        if ok:
+            docker.local.clear_name_cache()
+            image_store.refresh()
+            image_store.update_image_mounts()
         # in any case cleanup the backup tags
         for backup_fullname in saved_images.values():
             docker.local.untag(backup_fullname)
@@ -295,7 +286,6 @@ def perform_clone(requester, docker, nodes_manager, clonable_link, image_store, 
     }
     workflow = [ save_initial_images ]     # this is always called first
     workflow += workflow_selector[(image_is_local, existing_server_image, existing_ws_image, same_image)]
-    workflow += [ update_walt_image ]      # this is always called at the end (unless an error occurs before)
     print('clone workflow is:', ', '.join([ f.__name__ for f in workflow ]))
 
     # proceed

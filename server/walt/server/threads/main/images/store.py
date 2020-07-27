@@ -175,9 +175,8 @@ class NodeImageStore(object):
         # unmount images that are not needed anymore
         # note: this must be done after nfs unmount (otherwise directories would
         # be locked by the NFS export)
-        for fullname, img in self.images.items():
-            if img.mounted and img.image_id not in new_mounts:
-                self.unmount(img.image_id, img.fullname)
+        for image_id in self.mounts - new_mounts:
+            self.unmount(image_id)
     def cleanup(self):
         if len(self.mounts) > 0:
             # release nfs mounts

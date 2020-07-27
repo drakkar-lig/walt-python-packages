@@ -50,6 +50,8 @@ class DockerLocalClient:
     def __init__(self):
         self.names_cache = {}
         self.metadata_cache = {}
+    def clear_name_cache(self):
+        self.names_cache = {}
     def tag(self, old_fullname, new_fullname):
         if self.image_exists(new_fullname):
             # take care not making previous version of image a dangling image
@@ -64,6 +66,9 @@ class DockerLocalClient:
     def untag(self, fullname, ignore_missing = False):
         if ignore_missing and not self.image_exists(fullname):
             return  # nothing to do
+        # caution: we are not using "podman untag" because its behaviour is
+        # unexpected (at least in version 1.9.3: when an image has several docker tags,
+        # it removes all docker tags irrespectively of the one specified).
         podman.rmi('docker.io/' + fullname)
         self.names_cache.pop(fullname, None)
     def deep_inspect(self, image_id_or_fullname):
