@@ -19,10 +19,12 @@ CONF_PATTERN = """
 # global parameters
 authoritative; # allow sending DHCP NAKs
 next-server %(walt_server_ip)s;
+option tftp-server-name "%(walt_server_ip)s";
 option broadcast-address %(subnet_broadcast)s;
 
 class "rpi-pxe" {
-    match if ((binary-to-ascii(16,8,":",substring(hardware, 1, 3)) = "b8:27:eb") and
+    match if (((binary-to-ascii(16,8,":",substring(hardware, 1, 3)) = "b8:27:eb") or
+               (binary-to-ascii(16,8,":",substring(hardware, 1, 3)) = "dc:a6:32")) and
               (option vendor-class-identifier = "PXEClient:Arch:00000:UNDI:002001"));
     option vendor-class-identifier "PXEClient";
     option vendor-encapsulated-options "Raspberry Pi Boot";
