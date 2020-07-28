@@ -4,7 +4,7 @@ import pickle
 from walt.common.constants import WALT_SERVER_TCP_PORT
 from walt.common.devices.registry import get_device_info_from_mac
 from walt.common.tcp import TCPServer
-from walt.common.tools import format_sentence_about_nodes
+from walt.common.tools import format_sentence
 from walt.server.threads.main.blocking import BlockingTasksManager
 from walt.server.threads.main.db import ServerDB
 from walt.server.threads.main.images.image import format_image_fullname
@@ -186,22 +186,22 @@ class Server(object):
                                   stream_ids = stream_ids,
                                   **kwargs)
 
-    def reboot_nodes_after_image_change(self, requester, task_callback, nodes_using_image):
-        requester.stdout.write('Trying to reboot nodes... (they should already be rebooting, but just in case)\n')
-        # we do not try softreboot because the nodes are probably trying to reboot already
-        # since the image they were booting was unmounted
-        self.nodes.reboot_nodes(requester, task_callback, nodes_using_image, hard_only=True)
+    def reboot_nodes_after_image_change(self, requester, task_callback, image_fullname):
+        nodes = self.nodes.get_nodes_using_image(image_fullname)
+        if len(nodes) == 0:
+            task_callback(None) # nothing to do
+            return
+        requester.stdout.write(format_sentence(
+                'Trying to reboot %s using this image...\n', [n.name for n in nodes],
+                None, 'node', 'nodes'))
+        self.nodes.reboot_nodes(requester, task_callback, nodes, False)
 
     def image_shell_session_save(self, requester, cb_return, session, new_name, name_confirmed):
         status = session.save(requester, new_name, name_confirmed)
         if status == 'OK_BUT_REBOOT_NODES':
             image_fullname = format_image_fullname(requester.get_username(), new_name)
-            nodes_using_image = self.nodes.get_nodes_using_image(image_fullname)
-            if len(nodes_using_image) == 0:
-                cb_return('OK_SAVED')
-            else:
-                cb_reboot = lambda res: cb_return('OK_SAVED')
-                self.reboot_nodes_after_image_change(requester, cb_reboot, nodes_using_image)
+            cb_reboot = lambda res: cb_return('OK_SAVED')
+            self.reboot_nodes_after_image_change(requester, cb_reboot, image_fullname)
         else:
             cb_return(status)
 
@@ -210,9 +210,8 @@ class Server(object):
         def task_callback(status):
             if status == 'OK_BUT_REBOOT_NODES':
                 image_fullname = format_image_fullname(requester.get_username(), image_name)
-                nodes_using_image = self.nodes.get_nodes_using_image(image_fullname)
                 task_callback_2 = lambda res: task.return_result('OK')
-                self.reboot_nodes_after_image_change(requester, task_callback_2, nodes_using_image)
+                self.reboot_nodes_after_image_change(requester, task_callback_2, image_fullname)
             else:
                 task.return_result(status)
         return self.images.squash(requester = requester,

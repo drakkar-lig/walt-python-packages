@@ -318,10 +318,16 @@ def perform_clone(requester, docker, nodes_manager, clonable_link, image_store, 
 
     if res:
         requester.stdout.write('Done.\n')
+        if existing_ws_image:
+            return ('OK_BUT_REBOOT_NODES', ws_image_fullname)
+        else:
+            return ('OK',)
+    else:
+        return ('FAILED',)
 
 # this implements walt image clone
 def clone(requester, server, **kwargs):
-    perform_clone(  requester = requester,
+    return perform_clone(  requester = requester,
                     docker = server.docker,
                     image_store = server.images.store,
                     nodes_manager = server.nodes,

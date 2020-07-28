@@ -35,8 +35,8 @@ class NodeImageManager(object):
         tftp.update(self.db, self.store)
     def search(self, requester, task, keyword, tty_mode):
         return search(self.blocking, requester, task, keyword, tty_mode)
-    def clone(self, requester, task, **kwargs):
-        return clone(self.blocking, requester, task, **kwargs)
+    def clone(self, **kwargs):
+        return clone(blocking = self.blocking, **kwargs)
     def publish(self, requester, task, image_name, **kwargs):
         return publish(self.store, self.blocking, requester, task, image_name, **kwargs)
     def squash(self, requester, task_callback, image_name, confirmed):

@@ -129,6 +129,7 @@ class CSAPI(APISession):
     @api_expose_method
     def clone_image(self, context, clonable_link, force=False, image_name=None):
         context.images.clone(requester = context.requester.do_sync,
+                          server = context.server,
                           task = context.task,
                           clonable_link = clonable_link,
                           force = force,
