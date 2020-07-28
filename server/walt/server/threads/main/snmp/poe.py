@@ -90,6 +90,11 @@ class StandardPoE(Variant):
         snmp_proxy.pethPsePortAdminEnable[poe_port] = port_state
 
     @classmethod
+    def check_poe_in_use(cls, snmp_proxy, port_mapping, switch_port):
+        poe_port = port_mapping[switch_port]
+        return int(snmp_proxy.pethPsePortDetectionStatus[poe_port]) == 3  # 'deliveringPower'
+
+    @classmethod
     def get_poe_port_mapping(cls, snmp_proxy, host):
         return get_poe_port_mapping(snmp_proxy, host)
 
@@ -126,6 +131,11 @@ class TPLinkPoE(Variant):
         snmp_proxy.tpPoePortStatus[poe_port] = port_state
 
     @classmethod
+    def check_poe_in_use(cls, snmp_proxy, port_mapping, switch_port):
+        poe_port = port_mapping[switch_port]
+        return int(snmp_proxy.tpPoePowerStatus[poe_port]) == 2  # 'on'
+
+    @classmethod
     def get_poe_port_mapping(cls, snmp_proxy, host):
         return { int(k): int(k) for k in dict(snmp_proxy.tpPoePortStatus).keys() }
 
@@ -139,3 +149,5 @@ class PoEProxy(VariantProxy):
         self.port_mapping = self.variant.get_poe_port_mapping(snmp_proxy, host)
     def set_port(self, switch_port, active_or_not):
         self.variant.set_port(self.snmp, self.port_mapping, switch_port, active_or_not)
+    def check_poe_in_use(self, switch_port):
+        return self.variant.check_poe_in_use(self.snmp, self.port_mapping, switch_port)

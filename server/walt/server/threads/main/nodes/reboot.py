@@ -57,7 +57,7 @@ def softreboot_callback(results, remaining_nodes, **env):
                 softrebooted.append(node.name)
         else:
             for node in nodes:
-                softreboot_errors[node.name] = result_msg
+                softreboot_errors[node.name] = result_msg.lower()
     env.update(remaining_nodes = remaining_nodes,
                softrebooted = softrebooted,
                softreboot_errors = softreboot_errors)
