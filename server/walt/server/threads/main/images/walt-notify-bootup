@@ -9,11 +9,11 @@ do
 done
 
 # call script /bin/on-bootup if image provides it
-if [ -f "mnt/nfsroot/bin/on-bootup" ]
+if [ -f "mnt/fs_union/bin/on-bootup" ]
 then
-    if [ -x "mnt/nfsroot/bin/on-bootup" ]
+    if [ -x "mnt/fs_union/bin/on-bootup" ]
     then
-        cd mnt/nfsroot && chroot . bin/on-bootup
+        cd mnt/fs_union && chroot . bin/on-bootup
     else
         echo "WARNING: cannot run /bin/on-bootup (execute permission missing)." >&2
     fi
