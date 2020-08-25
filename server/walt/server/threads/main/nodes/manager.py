@@ -30,7 +30,7 @@ FS_CMD_PATTERN = SSH_COMMAND + ' root@%(node_ip)s "%%(prog)s %%(prog_args)s"'
 
 VNODE_CMD = "walt-virtual-node --mac %(mac)s --ip %(ip)s --model %(model)s --hostname %(name)s \
                                --server-ip %(server_ip)s --cpu-cores %(cpu_cores)d --ram %(ram)s"
-CMD_START_VNODE = 'screen -S walt.node.%(name)s -d -m \
+CMD_START_VNODE = 'screen -S walt.node.%(hypmac)s -d -m \
                      script -f -t%(ttyrec_file)s.time -c "' + VNODE_CMD + '" %(ttyrec_file)s'
 CMD_ADD_SSH_KNOWN_HOST = "  mkdir -p /root/.ssh && ssh-keygen -F %(ip)s || \
                             ssh-keyscan -t ecdsa %(ip)s >> /root/.ssh/known_hosts"
@@ -88,21 +88,19 @@ class NodesManager(object):
                 """ % NetSetup.NAT):
             do("iptables --insert WALT --source '%s' --jump ACCEPT" % node_ip)
 
-    def get_vnode_screen_session_name(self, node_name):
+    def get_vnode_screen_session_name(self, node_mac):
         # get screen session
-        # caution: we need the complete session name, with pid prefix
-        # since for instance "screen -S walt.node.vnode1 -X kill" may be ambiguous and
-        # kill screen session of vnode10 instead of vnode1.
+        hypmac = node_mac.replace(':','-')
         try:
             return subprocess.check_output(
-                'screen -ls | grep -ow "[[:digit:]]*.walt.node.%(name)s"' % \
-                dict(name = node_name), shell=True).strip().decode(sys.stdout.encoding)
+                'screen -ls | grep -ow "[[:digit:]]*.walt.node.%(hypmac)s"' % \
+                dict(hypmac = hypmac), shell=True).strip().decode(sys.stdout.encoding)
         except subprocess.CalledProcessError:
             # no screen session (killed or not started yet)
             return None
 
-    def try_kill_vnode(self, node_name):
-        session_name = self.get_vnode_screen_session_name(node_name)
+    def try_kill_vnode(self, node_mac):
+        session_name = self.get_vnode_screen_session_name(node_mac)
         if session_name is not None:
             do('screen -S "%(session)s" -X quit' % \
                 dict(session = session_name))
@@ -110,7 +108,7 @@ class NodesManager(object):
     def cleanup(self):
         # stop virtual nodes
         for vnode in self.db.select('devices', type = 'node', virtual = True):
-            self.try_kill_vnode(vnode.name)
+            self.try_kill_vnode(vnode.mac)
         self.cleanup_netsetup()
 
     def cleanup_netsetup(self):
@@ -130,8 +128,8 @@ class NodesManager(object):
         do("iptables --flush WALT")
         do("iptables --delete-chain WALT")
 
-    def forget_vnode(self, node_name):
-        self.try_kill_vnode(node_name)
+    def forget_vnode(self, node_mac):
+        self.try_kill_vnode(node_mac)
 
     def register_node(self, mac, model):
         handle_registration_request(
@@ -208,18 +206,20 @@ class NodesManager(object):
                 f.write('allow walt-net\n')
         # in case a screen session already exists for this vnode
         # (e.g. walt server process was killed), kill it
-        self.try_kill_vnode(node.name)
+        self.try_kill_vnode(node.mac)
         # start vnode
         VNODE_LOG_DIR.mkdir(parents=True, exist_ok=True)
+        hypmac = node.mac.replace(':', '-')
         cmd = CMD_START_VNODE % dict(
             mac = node.mac,
+            hypmac = hypmac,
             ip = node.ip,
             model = node.model,
             name = node.name,
             server_ip = get_server_ip(),
             cpu_cores = node.conf.get('cpu.cores', VNODE_DEFAULT_CPU_CORES),
             ram = node.conf.get('ram', VNODE_DEFAULT_RAM),
-            ttyrec_file = VNODE_LOG_DIR / (node.name + str(int(time())) + '.tty')
+            ttyrec_file = VNODE_LOG_DIR / (hypmac + str(int(time())) + '.tty')
         )
         print(cmd)
         subprocess.Popen(shlex.split(cmd))

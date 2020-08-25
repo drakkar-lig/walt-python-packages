@@ -161,7 +161,7 @@ class Server(object):
         info = self.nodes.get_virtual_node_info(requester, name)
         if info is None:
             return  # error already reported
-        self.nodes.forget_vnode(name)
+        self.nodes.forget_vnode(info.mac)
         self.forget_device(name)
 
     def count_logs(self, history, streams = None, senders = None, **kwargs):
