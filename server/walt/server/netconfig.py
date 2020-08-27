@@ -62,7 +62,6 @@ def create_vlan_iface(raw_iface, vlan, vlan_iface, state_file):
 
 def create_bridge_iface(br_iface, interfaces, state_file):
     do('ip link add %s type bridge' % br_iface)
-    do('brctl stp %s on' % br_iface)
     if os.path.exists(get_mac_file(br_iface)):
         with open_mac_file(br_iface, 'r') as mac_file:
             mac = mac_file.readline()
