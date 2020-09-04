@@ -197,9 +197,9 @@ class Server(object):
         self.nodes.reboot_nodes(requester, task_callback, nodes, False)
 
     def image_shell_session_save(self, requester, cb_return, session, new_name, name_confirmed):
+        image_fullname = format_image_fullname(requester.get_username(), new_name)
         status = session.save(requester, new_name, name_confirmed)
         if status == 'OK_BUT_REBOOT_NODES':
-            image_fullname = format_image_fullname(requester.get_username(), new_name)
             cb_reboot = lambda res: cb_return('OK_SAVED')
             self.reboot_nodes_after_image_change(requester, cb_reboot, image_fullname)
         else:
