@@ -14,10 +14,10 @@ case "$branch" in
     master) tag_prefix='upload_'
             repo_option=''
             ;;
-    test)   tag_prefix='testupload_'
+    dev)    tag_prefix='testupload_'
             repo_option='--repository-url https://test.pypi.org/legacy/'
             ;;
-    *)      >&2 echo "Only branches 'master' and 'test' are allowed. You are on branch '$branch'."
+    *)      >&2 echo "Only branches 'master' and 'dev' are allowed. You are on branch '$branch'."
             exit;;
 esac
 
