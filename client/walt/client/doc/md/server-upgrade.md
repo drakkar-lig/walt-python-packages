@@ -6,7 +6,7 @@ This section explains how to upgrade a WalT server.
 We consider that the server was first installed with our provided installation image (see [`walt help show server-install`](server-install.md)).
 When a new version of WalT server software is available, you can follow these steps to update it.
 
-# Version 4 (may 2019) to 5 (july 2020)
+# Version 4 (may 2019) to 5 (september 2020)
 
 This is a major upgrade. Main changes that affect this procedure are:
 1. OS version was updated (debian **stretch** to debian **buster**)
@@ -49,6 +49,9 @@ $ apt dist-upgrade
 ```
 
 When asked:
+- you should answer "yes" when asked about upgrading libc
+- you should answer "yes" when asked about automatically restarting services
+- you can ignore the message about postgresql-common pakage (we will do the database upgrade below)
 - you must keep local version of configuration files.
 - you can safely reinstall the new version of grub on the disk boot sector (usually /dev/sda)
 
@@ -70,9 +73,15 @@ Finally, we can install our new version of walt:
 $ pip3 install walt-server walt-client
 ```
 
-And we can restart walt service.
-Note that on first start, WalT service will have to copy docker images to its own repository now managed by `podman`.
-This can take a long time. Thus you should first start it manually, and then re-enable it as a systemd service:
+Now, we must reboot the server. Note: this is mandatory (otherwise walt server will fail to
+mount images).
+```
+$ reboot
+```
+
+Now we can start the upgraded walt service.
+Note that on this first start, WalT service will have to copy docker images to its own repository now managed by `podman`.
+This can take a long time. For a clear view, we recommend to first start it manually:
 ```
 $ walt-server-daemon    # manual start
 ```

@@ -155,6 +155,7 @@ $ cat > /etc/walt/server.spec << EOF
     # -----------------------------
     "features": [ "ptp" ]
 }
+EOF
 $
 ```
 

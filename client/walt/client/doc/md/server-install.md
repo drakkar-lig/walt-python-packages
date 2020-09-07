@@ -45,7 +45,7 @@ If you prefer to use a machine already installed with debian OS, see [`walt help
 ## Configuring the network on the server
 
 See [`walt help show server-network-config`](server-network-config.md).
-Once the network is configured, reboot the server.
+Once the network is configured, **reboot the server**.
 When started, verify that network configuration was applied as you wish.
 
 
@@ -72,8 +72,23 @@ The `walt` command line tool is installed on the server.
 
 In order to be able to use it, you need valid docker hub credentials. If you do not have such an account
 yet, register at https://hub.docker.com/signup.
+Then, start `walt` tool and answer questions:
+```
+$ walt
+Starting configuration procedure...
+ip or hostname of WalT server: localhost
+Docker hub credentials are missing, incomplete or invalid.
+(Please get an account at hub.docker.com if not done yet.)
+username: <docker-hub-user>
+password: <docker-hub-password>
 
-Now, we can first test that the system is running well by creating a virtual node.
+Configuration was stored in /root/.waltrc.
+
+Resuming normal operations...
+[...]
+```
+
+Now, we can test that the system is running well by creating a virtual node.
 ```
 $ walt node create vnode1
 $ walt node shell vnode1
