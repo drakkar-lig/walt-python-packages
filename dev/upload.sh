@@ -47,7 +47,7 @@ fi
 
 # build and check that packages are fine
 rm -rf */dist
-do_subpackages python setup.py sdist bdist_wheel
+do_subpackages python3 setup.py sdist bdist_wheel
 
 # everything seems fine, let's start the real work
 
@@ -69,7 +69,7 @@ git push --tag $remote $branch
 
 # rebuild updated packages
 rm -rf */dist
-do_subpackages python setup.py sdist bdist_wheel
+do_subpackages python3 setup.py sdist bdist_wheel
 
 # upload: upload packages
 do_subpackages twine upload $repo_option dist/*
