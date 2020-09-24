@@ -167,9 +167,16 @@ mount_persistent()
            "${PERSIST_PATH}" fs_union/persist
 }
 
+has_mount()
+{
+    mp="$1"
+    $MOUNT | grep -q "[[:space:]]${mp}[[:space:]]"
+}
+
 update_mounts()
 {
     $MOUNT -o bind /dev $ROOTFS/mnt/fs_union/dev
+    has_mount /run && $MOUNT -o bind /run $ROOTFS/mnt/fs_union/run
     $UMOUNT /proc
 }
 
