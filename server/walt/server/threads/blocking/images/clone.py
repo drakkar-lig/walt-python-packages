@@ -75,8 +75,9 @@ def get_temp_image_fullname():
     return 'clone-temp/walt-image:' + str(uuid.uuid4()).split('-')[0]
 
 def exit_no_such_image(requester):
-    return requester.stderr.write(
+    requester.stderr.write(
             'No such remote image. Use walt image search <keyword>.\n')
+    return ('FAILED',)
 
 # workflow functions
 # ------------------
@@ -215,11 +216,11 @@ def workflow_run(workflow, **context):
 def perform_clone(requester, docker, nodes_manager, clonable_link, image_store, force, image_name):
     username = requester.get_username()
     if not username:
-        return # client already disconnected, give up
+        return ('FAILED',) # client already disconnected, give up
     remote_location, remote_user, remote_image_name = parse_clonable_link(
                                                 requester, clonable_link)
     if remote_location == None:
-        return # error already reported
+        return ('FAILED',) # error already reported
 
     if image_name is None:
         # if not specified, name it the same as remote image
