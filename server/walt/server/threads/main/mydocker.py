@@ -142,6 +142,9 @@ class DockerLocalClient:
     def stop_container(self, cont_name):
         podman.rm("-f", "-i", cont_name)
     def commit(self, cid_or_cname, dest_fullname, tool=podman, opts=()):
+        # we commit with 'docker' format to make these images compatible with
+        # older walt server versions
+        opts += ('-f', 'docker')
         if self.image_exists(dest_fullname):
             # take care not making previous version of image a dangling image
             image_tempname = 'localhost/walt-commit-' + dest_fullname
