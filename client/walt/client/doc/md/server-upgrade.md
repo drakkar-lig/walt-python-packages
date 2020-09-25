@@ -6,12 +6,13 @@ This section explains how to upgrade a WalT server.
 We consider that the server was first installed with our provided installation image (see [`walt help show server-install`](server-install.md)).
 When a new version of WalT server software is available, you can follow these steps to update it.
 
-# Version 4 (may 2019) to 5 (september 2020)
+
+# Upgrading from version 4 (may 2019)
 
 This is a major upgrade. Main changes that affect this procedure are:
 1. OS version was updated (debian **stretch** to debian **buster**)
 2. WalT software now uses `python3` instead of `python2`
-3. WalT server now uses `buildah` and `podman` instead of `docker` for image management
+3. WalT server now uses `buildah`, `podman`, `skopeo` instead of `docker` for image management
 
 Let's start.
 First, we must stop and disable walt server daemon.
@@ -57,7 +58,7 @@ When asked:
 
 Next, we must install missing or up-to-date components:
 ```
-$ apt install buildah podman docker-ce docker-ce-cli containerd.io python3-dev
+$ apt install buildah podman skopeo docker-ce docker-ce-cli containerd.io python3-dev
 $ curl -s https://bootstrap.pypa.io/get-pip.py -o get-pip.py && python3 get-pip.py
 ```
 
@@ -70,7 +71,7 @@ $ pg_dropcluster 9.6 main
 
 Finally, we can install our new version of walt:
 ```
-$ pip3 install walt-server walt-client
+$ pip3 install --upgrade walt-server walt-client
 ```
 
 Now, we must reboot the server. Note: this is mandatory (otherwise walt server will fail to
@@ -93,4 +94,39 @@ $ systemctl start walt-server
 $ systemctl enable walt-server
 ```
 
-Your server is now upgraded.
+Your server is now upgraded to current version.
+
+
+# Upgrading from version 5 (september 2020)
+
+WALT now uses an additional tool called `skopeo`:
+
+```
+$ apt update
+$ apt install skopeo
+```
+
+We can now upgrade walt software itself. This depends whether you are using the development mode
+or the production mode.
+If directory `/root/walt-python-packages` directory exists on your server, you are in
+development mode, otherwise in production mode.
+
+Production mode:
+```
+$ pip3 install --upgrade walt-server walt-client
+```
+
+Development mode:
+```
+$ cd /root/walt-python-packages
+$ git checkout dev
+$ git pull
+$ make install
+```
+
+Then you can restart walt service:
+```
+$ systemctl restart walt-server
+```
+
+Your server is now upgraded to current version.

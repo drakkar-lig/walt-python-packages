@@ -1,6 +1,6 @@
 from walt.common.crypto.blowfish import BlowFish
 from walt.server.tools import indicate_progress
-from walt.server.exttools import buildah, podman, mount, umount, findmnt, docker
+from walt.server.exttools import buildah, podman, skopeo, mount, umount, findmnt, docker
 from walt.server import const
 from datetime import datetime
 from subprocess import run, CalledProcessError, PIPE, Popen
@@ -9,8 +9,6 @@ import time, re, os, sys, requests, json, itertools
 DOCKER_HUB_TIMEOUT=None
 DELAY_BEFORE_RETRY=3
 REGISTRY='docker.io'
-LOGIN_PULL_TEMPLATE = "https://auth.docker.io/token?service=registry.docker.io&scope=repository:{repository}:pull"
-GET_MANIFEST_TEMPLATE = "https://registry.hub.docker.com/v2/{repository}/manifests/{tag}"
 MAX_IMAGE_LAYERS = 128
 
 def parse_date(created_at):
@@ -270,47 +268,18 @@ class DockerHubClient:
         for elem in requests.get(url, timeout=DOCKER_HUB_TIMEOUT).json():
             tag = requests.utils.unquote(elem['name'])
             yield tag
-    def get_manifest(self, fullname, retries = 2):
-        print(('retrieving manifest from hub: ' + fullname))
-        succeeded = True
-        try:
-            reponame, tag = fullname.split(':')
-            token = requests.get(LOGIN_PULL_TEMPLATE.format(repository=reponame), json=True).json()["token"]
-            result = requests.get(
-                GET_MANIFEST_TEMPLATE.format(repository=reponame, tag=tag),
-                headers={"Authorization": "Bearer {}".format(token),
-                         "Accept": "application/vnd.oci.image.manifest.v1+json" },
-                json=True
-            ).json()
-        except:
-            succeeded = False
-        if not succeeded:
-            print('get_manifest(%s) failed!' % fullname)
-            if retries == 0:
-                raise
-            else:
-                time.sleep(DELAY_BEFORE_RETRY)
-                print('retrying.')
-                return self.get_manifest(fullname, retries-1)
-        if 'errors' in result:
-            print(result)
-            raise Exception('Downloading manifest failed.')
-        return result
+    def get_config(self, fullname):
+        print('retrieving config from hub: ' + fullname)
+        return json.loads(skopeo.inspect('--config', 'docker://docker.io/' + fullname))
     def get_labels(self, fullname):
-        manifest = self.get_manifest(fullname)
-        if 'history' in manifest:
-            # legacy docker manifest format
-            v1Compatibility_field = json.loads(manifest['history'][0]["v1Compatibility"])
-            labels = v1Compatibility_field["config"]["Labels"]
-            if labels is None:
-                return {}
-            else:
-                return labels
-        elif 'annotations' in manifest:
-            # new OCI manifest format
-            return manifest['annotations']
-        else:
+        config = self.get_config(fullname)
+        if 'config' not in config:
+            print('{fullname}: unknown image config format.'.format(fullname=fullname))
             return {}
+        if'Labels' not in config['config']:
+            print('{fullname}: image has no labels.'.format(fullname=fullname))
+            return {}
+        return config['config']['Labels']
 
 class DockerClient(object):
     def __init__(self):

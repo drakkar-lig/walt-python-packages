@@ -45,6 +45,7 @@ class StreamExtTool():
 
 buildah = ExtTool('buildah')
 podman = ExtTool('podman')
+skopeo = ExtTool('skopeo')
 mount = ExtTool('mount')
 umount = ExtTool('umount')
 findmnt = ExtTool('findmnt')

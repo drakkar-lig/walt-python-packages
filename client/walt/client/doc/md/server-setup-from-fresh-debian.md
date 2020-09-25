@@ -41,7 +41,7 @@ $ echo "deb $URL/ /" > /etc/apt/sources.list.d/libcontainers.list
 ```
 $ apt-get update
 $ apt-get install --upgrade --no-install-recommends \
-        docker-ce docker-ce-cli containerd.io podman buildah
+        docker-ce docker-ce-cli containerd.io podman buildah skopeo
 ```
 
 ## 4- Install python package manager
