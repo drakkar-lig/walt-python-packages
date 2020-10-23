@@ -123,13 +123,13 @@ class NodeImageStore(object):
     # If expected is True or False and the result does not match expectation,
     # an error message will be printed.
     def get_user_image_from_name(self, requester, image_name, expected = True, ready_only = True):
+        found = None
         if '/' in image_name:
             fullname = image_name
         else:
             username = requester.get_username()
             if not username:
                 return None    # client already disconnected, give up
-            found = None
             fullname = format_image_fullname(username, image_name)
         for image in self.images.values():
             if image.fullname == fullname:
