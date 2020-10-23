@@ -1,3 +1,4 @@
+import os
 from walt.common.thread import EvThread
 from walt.server.threads.main.network.setup import setup
 from walt.server.threads.main.server import Server
@@ -20,13 +21,16 @@ class ServerMainThread(EvThread):
         self.notify_systemd()
         self.server.ui.set_status('Ready.')
         self.server.update()
-    
+
     def notify_systemd(self):
-        try:
+        if 'NOTIFY_SOCKET' in os.environ:
             import sdnotify
             sdnotify.SystemdNotifier().notify("READY=1")
-        except:
-            pass
+            # note: podman hangs (at least on debian buster) if we
+            # do not disable systemd notify mechanism.
+            # at this point we no longer need it, so let's discard
+            # the env variable.
+            del os.environ['NOTIFY_SOCKET']
 
     def cleanup(self):
         self.server.cleanup()
