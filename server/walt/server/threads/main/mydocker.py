@@ -79,6 +79,8 @@ class DockerLocalClient:
         image_info = json.loads(image_info)
         editable = (image_info['num_layers'] < MAX_IMAGE_LAYERS)
         created_at = parse_date(image_info['created_at'])
+        if image_info['labels'] is None:
+            image_info['labels'] = {}
         return {
             'labels': image_info['labels'],
             'editable': editable,
