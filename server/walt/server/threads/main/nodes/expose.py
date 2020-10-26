@@ -31,8 +31,8 @@ class NodeExposeSocketListener:
         try:
             self.node_sock_file = self.open_channel_to_node()
         except:
-            self.client_sock_file.write(b'Could not connect to %s:%d!\n' % \
-                                    self.node_ip_and_port)
+            self.client_sock_file.write(('Could not connect to %s:%d!\n' % \
+                                    self.node_ip_and_port).encode('utf-8'))
             return False    # we should close
         # create a new listener on the event loop for reading
         # what the node outputs
