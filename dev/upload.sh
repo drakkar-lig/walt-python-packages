@@ -62,9 +62,9 @@ dev/info-updater.py
 echo "info.py, version.py files updated"
 
 newTag="$tag_prefix$new_upload"
-git commit -a -m "$newTag (automated by $0)"
+git commit -a -m "$newTag (automated by 'make upload')"
 
-git tag -m "$newTag (automated by $0)" -a $newTag
+git tag -m "$newTag (automated by 'make upload')" -a $newTag
 git push --tag $remote $branch
 
 # rebuild updated packages
