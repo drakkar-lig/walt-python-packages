@@ -53,7 +53,7 @@ $ curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py && python3 get-pip.py
 ## 5- Install walt software
 
 Here you have two options:
-- Install the last official version of walt (well tested but sometimes outdated)
+- Install the last official version of walt (recommended)
 - Install the development version of walt (with last features and quick access to source code,
   but less thoroughly tested)
 

@@ -99,6 +99,13 @@ Your server is now upgraded to current version.
 
 # Upgrading from version 5 (september 2020)
 
+An apt registry key has changed:
+
+```
+$ KUBIC_REPO=https://download.opensuse.org/repositories/devel:kubic:libcontainers:stable/Debian_10
+$ curl -fsSL $KUBIC_REPO/Release.key | apt-key add -
+```
+
 WALT now uses an additional tool called `skopeo`:
 
 ```
