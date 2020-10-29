@@ -46,6 +46,7 @@ PACKAGE_SPECIFIC_INFO = {
     "walt-server": dict(
         subdir = 'server',
         requires = [    'plumbum>=1.4.2', 'snimpy>=0.8.3',
+                        'pysnmp>=4.4.12',
                         'ipaddress>=1.0.7','requests>=2.3.0',
                         'sdnotify>=0.3.0',
                         'python-dateutil>=2.4.2',

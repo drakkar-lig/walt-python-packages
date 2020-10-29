@@ -84,6 +84,11 @@ class StandardPoE(Variant):
         unload_mib(b"POWER-ETHERNET-MIB")
 
     @classmethod
+    def check_poe_enabled(cls, snmp_proxy, port_mapping, switch_port):
+        poe_port = port_mapping[switch_port]
+        return int(snmp_proxy.pethPsePortAdminEnable[poe_port]) == POE_PORT_ENABLED
+
+    @classmethod
     def set_port(cls, snmp_proxy, port_mapping, switch_port, active_or_not):
         port_state = POE_PORT_ENABLED if active_or_not else POE_PORT_DISABLED
         poe_port = port_mapping[switch_port]
@@ -125,6 +130,11 @@ class TPLinkPoE(Variant):
         unload_mib(b"TPLINK-MIB")
 
     @classmethod
+    def check_poe_enabled(cls, snmp_proxy, port_mapping, switch_port):
+        poe_port = port_mapping[switch_port]
+        return int(snmp_proxy.tpPoePortStatus[poe_port]) == 1
+
+    @classmethod
     def set_port(cls, snmp_proxy, port_mapping, switch_port, active_or_not):
         port_state = 1 if active_or_not else 0
         poe_port = port_mapping[switch_port]
@@ -147,6 +157,8 @@ class PoEProxy(VariantProxy):
     def __init__(self, snmp_proxy, host):
         VariantProxy.__init__(self, snmp_proxy, host, POE_VARIANTS)
         self.port_mapping = self.variant.get_poe_port_mapping(snmp_proxy, host)
+    def check_poe_enabled(self, switch_port):
+        return self.variant.check_poe_enabled(self.snmp, self.port_mapping, switch_port)
     def set_port(self, switch_port, active_or_not):
         self.variant.set_port(self.snmp, self.port_mapping, switch_port, active_or_not)
     def check_poe_in_use(self, switch_port):

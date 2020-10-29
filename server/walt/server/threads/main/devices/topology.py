@@ -500,16 +500,20 @@ class TopologyManager(object):
             try:
                 proxy = snmp.Proxy(switch_info.ip, snmp_conf, poe=True)
                 # before trying to turn PoE power off, check if this switch port
-                # is actually delivering power.
+                # is actually delivering power (the node may be connected to a
+                # PoE capable switch, but powered by an alternate source).
                 if poe_status is False:
-                    if not proxy.poe.check_poe_in_use(switch_port):
+                    if proxy.poe.check_poe_enabled(switch_port) and \
+                            not proxy.poe.check_poe_in_use(switch_port):
                         errors[node.name] = 'node seems not PoE-powered'
                         continue
                 # turn poe power on or off
                 proxy.poe.set_port(switch_port, poe_status)
                 nodes_ok.append(node)
+            except SNMPException as e:
+                errors[node.name] = 'SNMP issue'
             except Exception as e:
-                errors[node.name] = str(e).lower()
+                errors[node.name] = e.__class__.__name__
         return nodes_ok, errors
 
     def get_connectivity_info(self, device_mac):
