@@ -20,6 +20,7 @@ class PostgresDB():
         # allow name-based access to columns
         self.c = self.conn.cursor(cursor_factory = NamedTupleCursor)
         self.server_cursors = {}
+        self.schema_cache = {}
 
     def __del__(self):
         self.conn.commit()
@@ -62,8 +63,12 @@ class PostgresDB():
         del self.server_cursors[name]
 
     def get_column_names(self, table):
-        self.c.execute("SELECT * FROM %s LIMIT 0" % table)
-        return tuple(col_desc[0] for col_desc in self.c.description)
+        res = self.schema_cache.get(table)
+        if res is None:
+            self.c.execute("SELECT * FROM %s LIMIT 0" % table)
+            res = tuple(col_desc[0] for col_desc in self.c.description)
+            self.schema_cache[table] = res
+        return res
 
     # from a dictionary of the form <col_name> -> <value>
     # we want to filter-out keys that are not column names,
@@ -128,8 +133,9 @@ class PostgresDB():
     # db.update("topology", "mac", switch_mac=swmac, switch_port=swport)
     def update(self, table, primary_key_name, **kwargs):
         cols, values = self.get_cols_and_values(table, kwargs)
-        values.append(kwargs[primary_key_name])
-        self.c.execute("""
+        if len(cols) > 1:   # if updating at least one field (pk counts as 1 in cols)
+            values.append(kwargs[primary_key_name])
+            self.c.execute("""
                 UPDATE %s 
                 SET %s
                 WHERE %s = %%s;""" % (
@@ -137,7 +143,9 @@ class PostgresDB():
                     ','.join("%s = %%s" % col for col in cols),
                     primary_key_name),
                     values)
-        return self.c.rowcount  # number of rows updated
+            return self.c.rowcount  # number of rows updated
+        else:
+            return 0
 
     def select_no_fetch(self, table, **kwargs):
         cols, values = self.get_cols_and_values(table, kwargs)
@@ -149,7 +157,11 @@ class PostgresDB():
     # allow statements like:
     # mem_db.select("network", ip=ip)
     def select(self, table, **kwargs):
-        return self.select_no_fetch(table, **kwargs).fetchall()
+        try:
+            return self.select_no_fetch(table, **kwargs).fetchall()
+        except psycopg2.ProgrammingError:
+            # workaround psycopg sometimes issuing a "no results to fetch" error
+            return []
 
     # same as above but expect only one matching record
     # and return it.
