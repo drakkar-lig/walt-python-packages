@@ -184,16 +184,16 @@ class Topology(object):
             is_node = (mac1 in nodes_mac), (mac2 in nodes_mac)
             if is_node[0] and is_node[1]:  # 1 and 2 are nodes ??
                 # strange, should not have a link between two nodes
-                self.links.remove((mac1, mac2))
+                self.links.pop((mac1, mac2), None)
                 continue
             if is_node[0]:   # dev 1 is a node
                 if mac1 in found_nodes:
                     # node 1 cannot be connected at 2 different places
                     if confirmed:
                         prev_mac2 = found_nodes[mac1]
-                        self.links.remove(tuple(sorted((mac1, prev_mac2))))
+                        self.links.pop(tuple(sorted((mac1, prev_mac2))), None)
                     else:
-                        self.links.remove((mac1, mac2))
+                        self.links.pop((mac1, mac2), None)
                 else:
                     found_nodes[mac1] = mac2
                 continue
@@ -202,9 +202,9 @@ class Topology(object):
                     # node 2 cannot be connected at 2 different places
                     if confirmed:
                         prev_mac1 = found_nodes[mac2]
-                        self.links.remove(tuple(sorted((prev_mac1, mac2))))
+                        self.links.pop(tuple(sorted((prev_mac1, mac2))), None)
                     else:
-                        self.links.remove((mac1, mac2))
+                        self.links.pop((mac1, mac2), None)
                 else:
                     found_nodes[mac2] = mac1
                 continue
