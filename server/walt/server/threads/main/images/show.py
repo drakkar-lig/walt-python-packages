@@ -32,14 +32,13 @@ def show(db, docker, images, requester, refresh):
         node_models = set(n.model for n in db.select('nodes'))
         if len(node_models) == 0:   # no nodes
             return MSG_WS_IS_EMPTY
-        requester.stdout.write('Cloning default images... ')
-        requester.stdout.flush()
+        requester.set_busy_label('Cloning default images')
         for model in node_models:
             default_image = images.get_default_image_fullname(model)
             ws_image = username + '/' + default_image.split('/')[1]
             docker.local.tag(default_image, ws_image)
             images.register_image(ws_image, True)
-        requester.stdout.write('Done.\n')
+        requester.set_default_busy_label()
         # restart the process
         return show(db, docker, images, requester, refresh)
     header = [ 'Name', 'In-use', 'Created', 'Ready', 'Compatibility' ]
