@@ -1,6 +1,6 @@
 from walt.common.tools import failsafe_makedirs
 from walt.server.threads.main.network.tools import get_walt_subnet
-from walt.server.threads.main.network import nfs, netbootfs
+from walt.server.threads.main.network import nfs, nbfs
 
 PERSISTENT_PATH = "/var/lib/walt/nodes/%(node_mac)s/persist"
 
@@ -28,4 +28,4 @@ def update_exported_filesystems(images, nodes):
     subnet = get_walt_subnet()
     root_paths, persist_paths = get_exports_info(images, nodes)
     nfs.update_exports(root_paths.items(), persist_paths, subnet)
-    netbootfs.update_exports(root_paths.keys(), subnet)
+    nbfs.update_exports(root_paths.keys(), subnet)
