@@ -1,4 +1,4 @@
-import os, shutil
+import os, shutil, shlex
 from walt.common.tools import read_json
 from walt.server.threads.main.network.tools import get_server_ip
 from walt.server.tools import update_template
@@ -13,7 +13,7 @@ SERVER_SPEC = read_json(SERVER_SPEC_PATH)
 def read_image_spec(image_path):
     return read_json(image_path + IMAGE_SPEC_PATH)
 
-def do_chroot(self, mount_path, cmd):
+def do_chroot(mount_path, cmd):
     args = shlex.split(cmd)
     return chroot(mount_path, *args, retcode = None).strip()
 
