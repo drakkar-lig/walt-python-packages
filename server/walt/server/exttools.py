@@ -37,11 +37,17 @@ class StreamExtTool():
         stream = getattr(popen, out_stream)
         def read_stream():
             while True:
-                line = stream.readline()
-                if line == '':
-                    return
-                yield converter(line.strip())
-        return iter(read_stream())
+                try:
+                    line = stream.readline()
+                    if line == '':
+                        return
+                    yield converter(line.strip())
+                except GeneratorExit:
+                    stream.close()
+                    popen.terminate()
+                    popen.wait()
+                    raise
+        return read_stream()
 
 buildah = ExtTool('buildah')
 podman = ExtTool('podman')

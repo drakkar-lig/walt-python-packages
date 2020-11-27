@@ -81,6 +81,8 @@ class ImageShellSession(object):
             return 'OK_SAVED'
 
     def cleanup(self):
+        print('shell cleanup')
+        self.docker_events.close()
         self.docker.local.stop_container(self.container_name)
         self.image.task_label = None
 
