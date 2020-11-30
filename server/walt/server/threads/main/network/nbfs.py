@@ -1,5 +1,6 @@
 from pathlib import Path
 import os, signal
+from walt.server.spec import server_has_feature
 
 NBFSD_PID_PATH = Path('/var/lib/nbfs/nbfsd.pid')
 NBFS_EXPORTS_PATH = Path('/etc/nbfs/exports')
@@ -29,10 +30,11 @@ def get_nbfsd_pid():
         return None
 
 def update_exports(root_paths, subnet):
-    nbfsd_pid = get_nbfsd_pid()
-    if nbfsd_pid is None:
-        # nbfsd probably not installed or running
-        return
-    generate_exports_file(root_paths, subnet)
-    # notify nbfsd it should re-read its exports file
-    os.kill(nbfsd_pid, signal.SIGHUP)
+    if server_has_feature('nbfs'):
+        generate_exports_file(root_paths, subnet)
+        nbfsd_pid = get_nbfsd_pid()
+        if nbfsd_pid is None:
+            # nbfsd probably not installed or running
+            return
+        # notify nbfsd it should re-read its exports file
+        os.kill(nbfsd_pid, signal.SIGHUP)

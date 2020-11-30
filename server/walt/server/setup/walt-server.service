@@ -27,6 +27,7 @@ TimeoutStartSec=0
 EnvironmentFile=-/etc/default/walt-server
 EnvironmentFile=-/etc/sysconfig/walt-server
 ExecStart=/usr/local/bin/walt-server-daemon $DAEMON_ARGS
+ExecReload=kill -HUP $MAINPID
 Restart=on-failure
 
 [Install]

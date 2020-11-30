@@ -2,13 +2,11 @@ import os, shutil, shlex
 from walt.common.tools import read_json
 from walt.server.threads.main.network.tools import get_server_ip
 from walt.server.tools import update_template
+from walt.server.spec import get_server_features, SERVER_SPEC_PATH
 from walt.common.tools import failsafe_makedirs
 from plumbum.cmd import chroot
 
-SERVER_SPEC_PATH = '/etc/walt/server.spec'
 IMAGE_SPEC_PATH = '/etc/walt/image.spec'
-
-SERVER_SPEC = read_json(SERVER_SPEC_PATH)
 
 def read_image_spec(image_path):
     return read_json(image_path + IMAGE_SPEC_PATH)
@@ -19,7 +17,7 @@ def do_chroot(mount_path, cmd):
 
 def enable_matching_features(mount_path, image_spec):
     try:
-        server_feature_set = set(SERVER_SPEC.get('features', []))
+        server_feature_set = get_server_features()
         image_feature_set = set(image_spec.get('features', []))
         # intersection of sets
         available_feature_set = server_feature_set & image_feature_set
