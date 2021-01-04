@@ -184,18 +184,27 @@ def ssh_wrap_cmd(cmd):
     return SSH_COMMAND + ' root@%(node_ip)s "' + cmd + '"'
 
 TarSendCommand='''\
-        mkdir -p /tmp/%(tmp_name)s && cd /tmp/%(tmp_name)s && \
-        ln -s %(src_path)s %(dst_name)s && \
+        mkdir -p /tmp/%(tmp_name)s && \
+        ln -s %(src_path)s /tmp/%(tmp_name)s/%(dst_name)s && \
+        cd /tmp/%(tmp_name)s && \
         tar c -h %(dst_name)s && cd / && rm -rf /tmp/%(tmp_name)s '''
+
+def get_absolute_path(path):
+    if not path.startswith('/'):
+        # relative path, turn to absolute
+        return '$PWD/' + path
+    return path
 
 TarReceiveCommand='''\
         cd %(dst_dir)s && tar x'''
 
 class ImageTarSender(ParallelProcessSocketListener):
     REQ_ID = Requests.REQ_TAR_FROM_IMAGE
-    def get_command(self, **params):
+    def get_command(self, src_path, **params):
+        src_path = get_absolute_path(src_path)
         return docker_wrap_cmd(TarSendCommand) % dict(
             tmp_name = '.' + get_random_suffix(),
+            src_path = src_path,
             **params
         )
 
@@ -207,9 +216,11 @@ class ImageTarReceiver(ParallelProcessSocketListener):
 
 class NodeTarSender(ParallelProcessSocketListener):
     REQ_ID = Requests.REQ_TAR_FROM_NODE
-    def get_command(self, **params):
+    def get_command(self, src_path, **params):
+        src_path = get_absolute_path(src_path)
         return ssh_wrap_cmd(TarSendCommand) % dict(
             tmp_name = '.' + get_random_suffix(),
+            src_path = src_path,
             **params
         )
 
@@ -266,9 +277,11 @@ class TransferManager(object):
                     cls = cls,
                     ev_loop = ev_loop)
 
-def format_node_to_booted_image_transfer_cmd(**params):
+def format_node_to_booted_image_transfer_cmd(src_path, **params):
+    src_path = get_absolute_path(src_path)
     node_send_cmd = ssh_wrap_cmd(TarSendCommand) % dict(
         tmp_name = '.' + get_random_suffix(),
+        src_path = src_path,
         **params
     )
     image_recv_cmd = docker_wrap_cmd(
