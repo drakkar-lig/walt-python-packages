@@ -72,7 +72,7 @@ def validate_image_name(requester, image_name):
     requester.stderr.write(ERROR_BAD_IMAGE_NAME)
     return False
 
-FS_CMD_PATTERN = 'podman run --rm --entrypoint %%(prog)s %(image)s %%(prog_args)s'
+FS_CMD_PATTERN = 'podman run --rm -w /root --entrypoint %%(prog)s %(image)s %%(prog_args)s'
 
 class NodeImage(object):
     def __init__(self, store, fullname):

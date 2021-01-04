@@ -176,7 +176,7 @@ def validate_cp(image_or_node_label, server,
 def docker_wrap_cmd(cmd, input_needed = False):
     input_opt = '-i' if input_needed else ''
     return '''\
-        podman run -q %(input_opt)s --name %%(container_name)s \
+        podman run -q %(input_opt)s --name %%(container_name)s -w /root \
         --entrypoint /bin/sh %%(image_fullname)s -c "%(cmd)s; sync; sync"
     ''' % dict(cmd = cmd, input_opt = input_opt)
 

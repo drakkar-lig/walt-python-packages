@@ -15,7 +15,7 @@ HOSTNAME='image-shell'
 RUN_SHELL_COMMAND='if [ -e /bin/bash ]; then exec /bin/bash; else exec /bin/sh; fi'
 DUMP_CPUINFO_COMMAND='if [ -e /etc/cpuinfo ]; then cat /etc/cpuinfo; fi'
 
-docker_run_options=""
+docker_run_options="-w /root"
 
 # If the image has a file named /etc/cpuinfo, it should be bind-mounted
 # to /proc/cpuinfo (fixes emulation support for some programs such as yum).
