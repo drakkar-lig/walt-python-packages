@@ -56,7 +56,7 @@ class ImageShellSession(object):
             event = next(self.docker_events)
             if 'Status' not in event or 'Name' not in event:
                 continue
-            if event['Status'] == 'cleanup' and event['Name'] == self.container_name:
+            if event['Status'] in ('cleanup', 'died') and event['Name'] == self.container_name:
                 break
         # if we modified an image in use, umount/mount it in order to make changes
         # available to nodes
