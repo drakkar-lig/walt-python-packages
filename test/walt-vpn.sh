@@ -25,13 +25,17 @@ EOF
 
 define_test "walt vpn setup-proxy" as {
     cd $(mktemp -d)
-    # check that the command creates a non-empty file proxy-setup.sh
-    walt vpn setup-proxy && [ -s proxy-setup.sh ] && rm proxy-setup.sh
+    # check that the command creates a script file proxy-setup.sh
+    walt vpn setup-proxy && [ -s proxy-setup.sh ] && \
+        [ "$(head -c 2 proxy-setup.sh)" = "#!" ] && rm proxy-setup.sh
 }
 
 define_test "walt vpn setup-node" as {
     cd $(mktemp -d)
-    # check that the command creates a non-empty file rpi3bp-vpn.dd
+    # check that the command creates a file rpi3bp-vpn.dd
+    # with appropriate MBR signature at byte offset 510 & 511
     echo entrypoint.walt.org | walt vpn setup-node && \
-        [ -s rpi3bp-vpn.dd ] && rm rpi3bp-vpn.dd
+        [ -s rpi3bp-vpn.dd ] && \
+        [ "$(xxd -s 510 -l 2 -p rpi3bp-vpn.dd)" = "55aa" ] && \
+        rm rpi3bp-vpn.dd
 }
