@@ -40,7 +40,8 @@ $ curl -fsSL $DOCKER_REPO/gpg | apt-key add -
 $ KUBIC_REPO=https://download.opensuse.org/repositories/devel:kubic:libcontainers:stable/Debian_10
 $ curl -fsSL $KUBIC_REPO/Release.key | apt-key add -
 $ echo "deb [arch=amd64] $DOCKER_REPO buster stable" > /etc/apt/sources.list.d/docker.list
-$ echo "deb $KUBIC_REPO/ /" > /etc/apt/sources.list.d/devel:kubic:libcontainers:stable.list
+$ echo "deb $KUBIC_REPO/ /" > /etc/apt/sources.list.d/libcontainers.list
+$ echo "deb http://deb.debian.org/debian buster-backports main" >> /etc/apt/sources.list.d/libcontainers.list
 ```
 
 And we can start the OS upgrade:
@@ -58,6 +59,7 @@ When asked:
 
 Next, we must install missing or up-to-date components:
 ```
+$ apt install -t buster-backports --upgrade libseccomp2
 $ apt install buildah podman skopeo docker-ce docker-ce-cli containerd.io python3-dev
 $ curl -s https://bootstrap.pypa.io/get-pip.py -o get-pip.py && python3 get-pip.py
 ```
@@ -106,10 +108,17 @@ $ KUBIC_REPO=https://download.opensuse.org/repositories/devel:kubic:libcontainer
 $ curl -fsSL $KUBIC_REPO/Release.key | apt-key add -
 ```
 
+We have to fix a dependency issue regarding podman and libseccomp2:
+
+```
+$ echo "deb http://deb.debian.org/debian buster-backports main" >> /etc/apt/sources.list.d/libcontainers.list
+$ apt update
+$ apt install -t buster-backports --upgrade libseccomp2
+```
+
 WALT now uses an additional tool called `skopeo`:
 
 ```
-$ apt update
 $ apt install skopeo
 ```
 
@@ -141,7 +150,15 @@ Your server is now upgraded to current version.
 
 # Upgrading from version 6 (october 2020)
 
-We just have to upgrade walt software itself. This depends whether you are using the development mode
+We have to fix a dependency issue regarding podman and libseccomp2:
+
+```
+$ echo "deb http://deb.debian.org/debian buster-backports main" >> /etc/apt/sources.list.d/libcontainers.list
+$ apt update
+$ apt install -t buster-backports --upgrade libseccomp2
+```
+
+We can now upgrade walt software itself. This depends whether you are using the development mode
 or the production mode.
 If directory `/root/walt-python-packages` directory exists on your server, you are in
 development mode, otherwise in production mode.
