@@ -72,5 +72,5 @@ rm -rf */dist
 do_subpackages python3 setup.py sdist bdist_wheel
 
 # upload: upload packages
-do_subpackages twine upload $repo_option dist/*
+twine upload $repo_option */dist/*
 
