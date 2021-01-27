@@ -74,15 +74,18 @@ class DockerLocalClient:
         if '/' in podman_id:
             podman_id = 'docker.io/' + podman_id
         image_info = podman.inspect('--format',
-            '{ "labels": {{json .Labels}}, "num_layers": {{len .RootFS.Layers}}, "created_at": "{{.Created}}" }',
+            '{ "labels": "{{.Labels}}", "num_layers": {{len .RootFS.Layers}}, "created_at": "{{.Created}}" }',
             podman_id)
         image_info = json.loads(image_info)
+        # unfortunately some recent versions of podman do not work with {{json .Labels}} format,
+        # so we parse the default format obtained with {{.Labels}}.
+        # we get a value such as "map[walt.node.models:pc-x86-64 walt.server.minversion:4]"
+        labels = image_info['labels'].split('[')[1].split(']')[0]
+        labels = { l:v for l, v in (lv.split(':') for lv in labels.split()) }
         editable = (image_info['num_layers'] < MAX_IMAGE_LAYERS)
         created_at = parse_date(image_info['created_at'])
-        if image_info['labels'] is None:
-            image_info['labels'] = {}
         return {
-            'labels': image_info['labels'],
+            'labels': labels,
             'editable': editable,
             'created_at': created_at
         }
