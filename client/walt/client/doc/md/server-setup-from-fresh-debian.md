@@ -34,12 +34,15 @@ $ echo "deb [arch=amd64] $URL buster stable" > /etc/apt/sources.list.d/docker.li
 $ URL="https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/Debian_10"
 $ curl -sSL $URL/Release.key | sudo apt-key add -
 $ echo "deb $URL/ /" > /etc/apt/sources.list.d/libcontainers.list
+$ echo "deb http://deb.debian.org/debian buster-backports main" \
+            >> /etc/apt/sources.list.d/libcontainers.list
 ```
 
 ## 3- Install a second set of packages
 
 ```
 $ apt-get update
+$ apt-get install -t buster-backports --upgrade libseccomp2
 $ apt-get install --upgrade --no-install-recommends \
         docker-ce docker-ce-cli containerd.io podman buildah skopeo
 ```
