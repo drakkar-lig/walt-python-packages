@@ -78,7 +78,33 @@ $ make install
 
 ```
 $ sed -i -e 's/INTERFACESv4=.*/INTERFACESv4="walt-net"/g' /etc/default/isc-dhcp-server
-$ update-rc.d isc-dhcp-server disable 2 3 4 5
+$ cat > /etc/systemd/system/isc-dhcp-server.service << EOF
+[Unit]
+Documentation=man:systemd-sysv-generator(8)
+SourcePath=/etc/init.d/isc-dhcp-server
+Description=LSB: DHCP server
+Before=multi-user.target
+Before=graphical.target
+After=remote-fs.target
+After=network-online.target
+After=slapd.service
+After=nss-lookup.target
+Wants=network-online.target
+
+[Service]
+Type=forking
+PIDFile=/run/dhcpd.pid
+Restart=on-failure
+RestartSec=5
+TimeoutSec=5min
+IgnoreSIGPIPE=no
+KillMode=process
+GuessMainPID=no
+RemainAfterExit=yes
+SuccessExitStatus=5 6
+ExecStart=/etc/init.d/isc-dhcp-server start
+ExecStop=/etc/init.d/isc-dhcp-server stop
+EOF
 ```
 
 ## 7- Update tftpd configuration
@@ -90,6 +116,7 @@ TFTP_DIRECTORY="/var/lib/walt"
 TFTP_ADDRESS="0.0.0.0:69"
 TFTP_OPTIONS="-v -v --secure --map-file /etc/tftpd/map"
 EOF
+$
 $ mkdir /etc/tftpd
 $ cat > /etc/tftpd/map << EOF
 # these first lines ensures compatibility of legacy
@@ -108,10 +135,10 @@ $
 $ cat > /etc/default/ptpd << EOF
 # Set to "yes" to actually start ptpd automatically
 START_DAEMON=yes
-
 # Add command line options for ptpd
 PTPD_OPTS="-c /etc/ptpd.conf"
 EOF
+$
 $ cat > /etc/ptpd.conf << EOF
 ptpengine:interface=walt-net
 ptpengine:preset=masteronly

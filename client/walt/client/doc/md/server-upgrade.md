@@ -71,6 +71,38 @@ $ pg_upgradecluster 9.6 main
 $ pg_dropcluster 9.6 main
 ```
 
+We have to update dhcpd configuration:
+```
+$ sed -i -e 's/INTERFACES=.*/INTERFACESv4="walt-net"/g' /etc/default/isc-dhcp-server
+$ cat > /etc/systemd/system/isc-dhcp-server.service << EOF
+[Unit]
+Documentation=man:systemd-sysv-generator(8)
+SourcePath=/etc/init.d/isc-dhcp-server
+Description=LSB: DHCP server
+Before=multi-user.target
+Before=graphical.target
+After=remote-fs.target
+After=network-online.target
+After=slapd.service
+After=nss-lookup.target
+Wants=network-online.target
+
+[Service]
+Type=forking
+PIDFile=/run/dhcpd.pid
+Restart=on-failure
+RestartSec=5
+TimeoutSec=5min
+IgnoreSIGPIPE=no
+KillMode=process
+GuessMainPID=no
+RemainAfterExit=yes
+SuccessExitStatus=5 6
+ExecStart=/etc/init.d/isc-dhcp-server start
+ExecStop=/etc/init.d/isc-dhcp-server stop
+EOF
+```
+
 Finally, we can install our new version of walt:
 ```
 $ pip3 install --upgrade walt-server walt-client
@@ -122,6 +154,38 @@ WALT now uses an additional tool called `skopeo`:
 $ apt install skopeo
 ```
 
+We also have to update dhcpd configuration:
+```
+$ sed -i -e 's/INTERFACES=.*/INTERFACESv4="walt-net"/g' /etc/default/isc-dhcp-server
+$ cat > /etc/systemd/system/isc-dhcp-server.service << EOF
+[Unit]
+Documentation=man:systemd-sysv-generator(8)
+SourcePath=/etc/init.d/isc-dhcp-server
+Description=LSB: DHCP server
+Before=multi-user.target
+Before=graphical.target
+After=remote-fs.target
+After=network-online.target
+After=slapd.service
+After=nss-lookup.target
+Wants=network-online.target
+
+[Service]
+Type=forking
+PIDFile=/run/dhcpd.pid
+Restart=on-failure
+RestartSec=5
+TimeoutSec=5min
+IgnoreSIGPIPE=no
+KillMode=process
+GuessMainPID=no
+RemainAfterExit=yes
+SuccessExitStatus=5 6
+ExecStart=/etc/init.d/isc-dhcp-server start
+ExecStop=/etc/init.d/isc-dhcp-server stop
+EOF
+```
+
 We can now upgrade walt software itself. This depends whether you are using the development mode
 or the production mode.
 If directory `/root/walt-python-packages` directory exists on your server, you are in
@@ -156,6 +220,38 @@ We have to fix a dependency issue regarding podman and libseccomp2:
 $ echo "deb http://deb.debian.org/debian buster-backports main" >> /etc/apt/sources.list.d/libcontainers.list
 $ apt update
 $ apt install -t buster-backports --upgrade libseccomp2
+```
+
+We also have to update dhcpd configuration:
+```
+$ sed -i -e 's/INTERFACES=.*/INTERFACESv4="walt-net"/g' /etc/default/isc-dhcp-server
+$ cat > /etc/systemd/system/isc-dhcp-server.service << EOF
+[Unit]
+Documentation=man:systemd-sysv-generator(8)
+SourcePath=/etc/init.d/isc-dhcp-server
+Description=LSB: DHCP server
+Before=multi-user.target
+Before=graphical.target
+After=remote-fs.target
+After=network-online.target
+After=slapd.service
+After=nss-lookup.target
+Wants=network-online.target
+
+[Service]
+Type=forking
+PIDFile=/run/dhcpd.pid
+Restart=on-failure
+RestartSec=5
+TimeoutSec=5min
+IgnoreSIGPIPE=no
+KillMode=process
+GuessMainPID=no
+RemainAfterExit=yes
+SuccessExitStatus=5 6
+ExecStart=/etc/init.d/isc-dhcp-server start
+ExecStop=/etc/init.d/isc-dhcp-server stop
+EOF
 ```
 
 We can now upgrade walt software itself. This depends whether you are using the development mode
