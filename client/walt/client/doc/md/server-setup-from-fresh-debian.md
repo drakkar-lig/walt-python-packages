@@ -22,7 +22,7 @@ $ apt-get install --upgrade --no-install-recommends \
         lldpd snmp snmpd openssh-server snmp-mibs-downloader iputils-ping \
         libsmi2-dev isc-dhcp-server nfs-kernel-server uuid-runtime postgresql \
         ntpdate ntp lockfile-progs ptpd tftpd-hpa ebtables qemu-kvm bridge-utils \
-        screen ifupdown gcc python3-dev git make sudo
+        screen ifupdown gcc python3-dev git make sudo expect netcat
 ```
 
 ## 2- Define secondary package repositories
