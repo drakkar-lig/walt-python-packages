@@ -55,6 +55,7 @@ class Server(object):
         self.vpn = VPNManager()
 
     def prepare(self):
+        tftp.prepare()
         self.tcp_server.join_event_loop(self.ev_loop)
         self.db.plan_auto_commit(self.ev_loop)
         # ensure the dhcp server is running,

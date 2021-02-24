@@ -1,4 +1,5 @@
 include walt/server/threads/main/images/walt-*
+include walt/server/threads/main/network/walt-*.kpxe
 include walt/server/threads/main/vpn-proxy-setup.sh
 include walt/server/setup/*.service
 include walt/server/threads/main/snmp/mibs/*.mib

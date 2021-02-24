@@ -16,18 +16,47 @@ CONF_PATTERN = """
 # and updated when needed.
 #
 
+option client-architecture code 93 = unsigned integer 16;
+
 # global parameters
 authoritative; # allow sending DHCP NAKs
 next-server %(walt_server_ip)s;
 option tftp-server-name "%(walt_server_ip)s";
 option broadcast-address %(subnet_broadcast)s;
 
-class "rpi-pxe" {
-    match if (((binary-to-ascii(16,8,":",substring(hardware, 1, 3)) = "b8:27:eb") or
-               (binary-to-ascii(16,8,":",substring(hardware, 1, 3)) = "dc:a6:32")) and
-              (option vendor-class-identifier = "PXEClient:Arch:00000:UNDI:002001"));
-    option vendor-class-identifier "PXEClient";
-    option vendor-encapsulated-options "Raspberry Pi Boot";
+# get the vendor class identifier if available
+if exists vendor-class-identifier {
+    set vci = option vendor-class-identifier;
+} else {
+    set vci = "";
+}
+
+# get the user class identifier if available
+if exists user-class {
+    set uci = option user-class;
+} else {
+    set uci = "";
+}
+
+# handle various forms of PXE booting
+if (vci = "PXEClient:Arch:00000:UNDI:002001") {
+    if (substring(uci, 0, 9) = "walt.node") {
+        # we get here when ipxe is running its walt bootup script on the node.
+        # the VCI is still the one of PXE, but the UCI as been modified to
+        # indicate a walt node.
+        # This script specifies itself the script to boot from TFTP, so
+        # no filename is given here.
+    }
+    elsif ((binary-to-ascii(16,8,":",substring(hardware, 1, 3)) = "b8:27:eb") or
+           (binary-to-ascii(16,8,":",substring(hardware, 1, 3)) = "dc:a6:32")) {
+        # native rpi3b+ network boot
+        option vendor-class-identifier "PXEClient";
+        option vendor-encapsulated-options "Raspberry Pi Boot";
+    }
+    elsif option client-architecture = 00:00 {
+        # x86 PXE boot
+        filename "pxe/walt-x86-undionly.kpxe";
+    }
 }
 
 # walt unregistered devices
@@ -42,20 +71,6 @@ subnet %(subnet_ip)s netmask %(subnet_netmask)s {
     min-lease-time 6000000;
     max-lease-time 6000000;
     default-lease-time 6000000;
-
-    # get the vendor class identifier if available
-    if exists vendor-class-identifier {
-        set vci = option vendor-class-identifier;
-    } else {
-        set vci = "";
-    }
-
-    # get the user class identifier if available
-    if exists user-class {
-        set uci = option user-class;
-    } else {
-        set uci = "";
-    }
 
     # when we assign a new IP address, let walt register
     # this new device

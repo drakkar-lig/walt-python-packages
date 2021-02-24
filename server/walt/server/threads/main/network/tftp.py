@@ -1,7 +1,17 @@
 import os, shutil
 from walt.common.tools import failsafe_makedirs, failsafe_symlink
+from pkg_resources import resource_filename
+from pathlib import Path
 
-NODES_PATH='/var/lib/walt/nodes/'
+TFTP_ROOT = '/var/lib/walt/'
+PXE_PATH = TFTP_ROOT + 'pxe/'
+NODES_PATH = TFTP_ROOT + 'nodes/'
+
+def prepare():
+    if not Path(PXE_PATH).exists():
+        failsafe_makedirs(PXE_PATH)
+        orig_path = resource_filename(__name__, 'walt-x86-undionly.kpxe')
+        shutil.copy(orig_path, PXE_PATH)
 
 def update(db, images):
     # create dir if it does not exist yet
