@@ -1,0 +1,22 @@
+# walt-server - WalT platform server daemon
+#
+# The WalT platform provides a lightweight distributed testbed for
+# sensor networks, distributed protocols, distributed data
+# management.
+
+[Unit]
+Description=WalT server DHCP service
+# needs main daemon to be running
+After=walt-server.service
+
+[Service]
+Environment=PYTHONUNBUFFERED=1
+# After the initialization phase, we will notify systemd
+# that we are started successfully.
+Type=notify
+NotifyAccess=all
+ExecStart=/usr/local/bin/walt-server-dhcpd
+Restart=on-failure
+
+[Install]
+WantedBy=walt-server.service

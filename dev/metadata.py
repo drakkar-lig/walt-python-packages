@@ -51,6 +51,8 @@ PACKAGE_SPECIFIC_INFO = {
                         'sdnotify>=0.3.0',
                         'python-dateutil>=2.4.2',
                         'psycopg2-binary>=2.8.2',
+                        'gevent>=21.1.2',
+                        'bottle>=0.12.19',
                         'walt-common==%(upload)s',
                         'walt-virtual==%(upload)s'],
         version_str = '%(upload)s',
@@ -60,6 +62,7 @@ PACKAGE_SPECIFIC_INFO = {
                 'console_scripts': [
                     'walt-server-setup = walt.server.setup:run',
                     'walt-server-daemon = walt.server.daemon:run',
+                    'walt-server-dhcpd = walt.server.dhcpd:run',
                     'walt-dhcp-event = walt.server.dhcpevent:run',
                     'walt-net-config = walt.server.netconfig:run'
                 ]
