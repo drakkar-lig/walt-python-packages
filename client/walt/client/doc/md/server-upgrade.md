@@ -106,6 +106,7 @@ EOF
 Finally, we can install our new version of walt:
 ```
 $ pip3 install --upgrade walt-server walt-client
+$ walt-server-setup
 ```
 
 Now, we must reboot the server. Note: this is mandatory (otherwise walt server will fail to
@@ -194,6 +195,7 @@ development mode, otherwise in production mode.
 Production mode:
 ```
 $ pip3 install --upgrade walt-server walt-client
+$ walt-server-setup
 ```
 
 Development mode:
@@ -202,6 +204,7 @@ $ cd /root/walt-python-packages
 $ git checkout dev
 $ git pull
 $ make install
+$ walt-server-setup
 ```
 
 Then you can restart walt service:
@@ -262,6 +265,7 @@ development mode, otherwise in production mode.
 Production mode:
 ```
 $ pip3 install --upgrade walt-server walt-client
+$ walt-server-setup
 ```
 
 Development mode:
@@ -270,6 +274,37 @@ $ cd /root/walt-python-packages
 $ git checkout dev
 $ git pull
 $ make install
+$ walt-server-setup
+```
+
+Then you can restart walt service:
+```
+$ systemctl restart walt-server
+```
+
+Your server is now upgraded to current version.
+
+
+# Upgrading from version 7 (february 2021)
+
+We just have to upgrade walt software itself. This depends whether you are using the development mode
+or the production mode.
+If directory `/root/walt-python-packages` directory exists on your server, you are in
+development mode, otherwise in production mode.
+
+Production mode:
+```
+$ pip3 install --upgrade walt-server walt-client
+$ walt-server-setup
+```
+
+Development mode:
+```
+$ cd /root/walt-python-packages
+$ git checkout dev
+$ git pull
+$ make install
+$ walt-server-setup
 ```
 
 Then you can restart walt service:

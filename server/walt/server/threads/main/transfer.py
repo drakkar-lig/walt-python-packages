@@ -31,7 +31,7 @@ $ walt image cp <image>:<file_path> <local_file_path>
 Regular files as well as directories are accepted.
 """)
 
-NODE_TFTP_ROOT = "/var/lib/walt/nodes/%(node_mac)s/tftp"
+NODE_TFTP_ROOT = "/var/lib/walt/nodes/%(node_id)s/tftp"
 
 def get_random_suffix():
     return ''.join(random.choice('0123456789ABCDEF') for i in range(8))
@@ -231,7 +231,14 @@ class NodeTarReceiver(ParallelProcessSocketListener):
 
 class NodeFakeTFTPGet(ParallelProcessSocketListener):
     REQ_ID = Requests.REQ_FAKE_TFTP_GET
-    def prepare(self, **params):
+    def prepare(self, node_mac=None, node_ip=None, **params):
+        if node_mac is not None:
+            params['node_id'] = node_mac
+        elif node_ip is not None:
+            params['node_id'] = node_ip
+        else:
+            self.send_client('NO MAC OR IP SPECIFIED\n')
+            return False
         full_path = (NODE_TFTP_ROOT + '%(path)s') % params
         if os.path.exists(full_path):
             self.send_client('OK\n')
