@@ -55,6 +55,11 @@ def remote_revert_cd(env):
     env['REMOTEDIRSTACK'] = env['REMOTEDIRSTACK'][:-1]  # pop
 
 def execute_line(env, line):
+    # if flag 'should-boot' was just set to True and False was returned in an
+    # attempt to stop the process, we might still be called again to handle
+    # the right part of a current 'or' condition.
+    if env['should-boot']:
+        return False    # stop!!
     line = line.strip()
     # pass comments
     if line.startswith('#'):
@@ -129,7 +134,7 @@ def execute_line(env, line):
         initrd_copy = env['TMPDIR'] + '/initrd'
         with open(initrd_copy, 'wb') as f:
             f.write(content)
-        env["qemu-args"] += " -initrd " + initrd_copy
+        env['boot-initrd'] = initrd_copy
         return True
     # handle "kernel" and "boot" directives
     if words[0] in ('boot', 'kernel'):
@@ -142,11 +147,11 @@ def execute_line(env, line):
             kernel_copy = env['TMPDIR'] + '/kernel'
             with open(kernel_copy, 'wb') as f:
                 f.write(content)
-            env["qemu-args"] += " -kernel " + kernel_copy
-            env["qemu-args"] += " -append '" + kernel_cmdline + "'"
+            env['boot-kernel'] = kernel_copy
+            env['boot-kernel-cmdline'] = kernel_cmdline
         if words[0] == 'boot':
-            env["qemu-cmd"] = env["qemu-args"] % env
-            return False    # reboot when it exits
+            env['should-boot'] = True
+            return False    # stop
         else:
             return True
     # handle "sleep" directive
@@ -156,11 +161,15 @@ def execute_line(env, line):
         return True
     # handle "reboot" directive
     if words[0] == 'reboot':
-        return False
+        return False    # stop
     # unknown directive!
-    raise NotImplementedError('Unknown directive "' + words[0] + '". Aborted.')
+    raise NotImplementedError('[fake-ipxe] Unknown directive "' + words[0] + '". Aborted.')
 
 def ipxe_boot(env):
+    result = False
+    print('[fake-ipxe] note: this is not the real iPXE bootloader!')
+    print('[fake-ipxe] note: support is limited to a basic command set.')
+    env['should-boot'] = False
     with tempfile.TemporaryDirectory() as TMPDIR:
         net_setup_func = env['fake-network-setup']
         with net_setup_func(env) as setup_result:
@@ -175,14 +184,9 @@ def ipxe_boot(env):
                 })
                 # start ipxe emulated netboot
                 execute_line(env, "chain /start.ipxe")
-        # if 'qemu-cmd' was specified in env, this means
-        # all went well and we can start qemu
         # note: we just left the with context because we no
         # longer need the temporary network setup that was
         # possibly established.
-        if 'qemu-cmd' in env:
-            cmd = env["qemu-cmd"]
-            print(cmd)
-            subprocess.call(cmd, shell=True)
-            if 'reboot-command' in env:
-                subprocess.call(env['reboot-command'], shell=True)
+        if env['should-boot']:
+            boot_function = env['boot-function']
+            boot_function(env)

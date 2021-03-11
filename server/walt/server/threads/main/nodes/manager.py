@@ -210,6 +210,7 @@ class NodesManager(object):
         # start vnode
         VNODE_LOG_DIR.mkdir(parents=True, exist_ok=True)
         hypmac = node.mac.replace(':', '-')
+        print(VNODE_CMD)
         cmd = CMD_START_VNODE % dict(
             mac = node.mac,
             hypmac = hypmac,
