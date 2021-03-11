@@ -3,7 +3,7 @@ import sys, subprocess, time, random, platform, re
 from contextlib import contextmanager
 from walt.common.apilink import ServerAPILink
 from walt.common.logs import LoggedApplication
-from walt.virtual.node.fakeipxe import ipxe_boot
+from walt.common.fakeipxe import ipxe_boot
 from walt.virtual.node.udhcpc import udhcpc_fake_netboot
 from plumbum import cli
 from pathlib import Path
@@ -32,13 +32,14 @@ QEMU_ARGS = QEMU_PROG + " \
                 -enable-kvm " + \
                 QEMU_MACHINE_DEF + "\
                 -m %(ram)d \
-                -smp %(cpu_cores)d \
+                -smp %(cpu-cores)d \
                 -name %(name)s \
                 -nographic \
                 -netdev bridge,br=walt-net,id=mynet \
                 -device " + QEMU_NET_DRIVER + ",mac=%(mac)s,netdev=mynet \
                 -serial mon:stdio \
-                -no-reboot"
+                -no-reboot \
+                -kernel %(boot-kernel)s"
 
 def get_qemu_usb_args():
     model_file = Path('/proc/device-tree/model')
@@ -66,6 +67,7 @@ Usage: %(prog)s [--attach-usb] --mac <node_mac> --ip <node_ip> --model <node_mod
 """
 
 def get_env_start(info):
+    # define initial env variables for ipxe_boot()
     if info._udhcpc:
         required_args = ('mac', 'model')
     else:
@@ -74,24 +76,38 @@ def get_env_start(info):
     if None in env.values():
         print(USAGE % dict(prog = sys.argv[0]))
         sys.exit()
-    env['cpu_cores'] = info._cpu_cores
-    env['ram'] = info._ram
+    env.update({
+        "manufacturer": MANUFACTURER,
+        "product": QEMU_PRODUCT,
+        "vci": 'walt.node.' + env['model']
+    })
+    # define callbacks for ipxe_boot()
     if info._udhcpc:
         env['fake-network-setup'] = udhcpc_fake_netboot
     else:
         env['fake-network-setup'] = api_fake_netboot
-    qemu_args = QEMU_ARGS
-    if info._attach_usb:
-        qemu_args += ' ' + get_qemu_usb_args()
-    env.update({
-        "manufacturer": MANUFACTURER,
-        "product": QEMU_PRODUCT,
-        "qemu-args": ' '.join(qemu_args.split()),
-        "vci": 'walt.node.' + env['model']
-    })
-    if info._reboot_command is not None:
-        env['reboot-command'] = info._reboot_command
+    env['boot-function'] = boot_kvm
+    # the following data is not necessary for ipxe_boot() function
+    # but will be used when launching the boot-function boot_kvm()
+    env['cpu-cores'] = info._cpu_cores
+    env['ram'] = info._ram
+    env['attach-usb'] = info._attach_usb
+    env['reboot-command'] = info._reboot_command
     return env
+
+def boot_kvm(env):
+    qemu_args = QEMU_ARGS
+    if env['attach-usb']:
+        qemu_args += ' ' + get_qemu_usb_args()
+    if 'boot-initrd' in env:
+        qemu_args += ' -initrd %(boot-initrd)s'
+    if 'boot-kernel-cmdline' in env:
+        qemu_args += " -append '%(boot-kernel-cmdline)s'"
+    cmd = qemu_args % env
+    print(' '.join(cmd.split()))  # print with multiple spaces shrinked
+    subprocess.call(cmd, shell=True)
+    if env['reboot-command'] is not None:
+        subprocess.call(env['reboot-command'], shell=True)
 
 @contextmanager
 def api_fake_netboot(env):
