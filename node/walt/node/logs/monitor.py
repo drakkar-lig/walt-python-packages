@@ -29,20 +29,22 @@ def monitor_cmd(pid, env, args, tty_slave_fd, uid, gid, tty_size, **kwargs):
     os.setgid(gid)
     os.setuid(uid)
     # cmdline is: bash walt-monitor <cmd-args>
-    os.execvpe(args[2], args[2:], env)
+    # for some reason, os.execvpe(args[2], args[2:], env) does not
+    # work here, with python3, so we preserve the current process.
+    os.spawnvpe(os.P_WAIT, args[2], args[2:], env)
 
 def parent_handler(pid, pipe_r, tty_master_fd, args, **kwargs):
     logstream = "%s.%d.monitor" % (
         os.path.basename(args[2]), pid
     )
     logs_conn = LogsFlowToServer(logstream)
-    logs_conn.log(line='START', timestamp=time.time())
+    logs_conn.log(line=b'START', timestamp=time.time())
     tty_out = os.open('/tmp/walt-monitor-stdout-%d.fifo' % pid, os.O_WRONLY)
     tty_in = os.open('/tmp/walt-monitor-stdin-%d.fifo' % pid, os.O_RDONLY)
     fds = [pipe_r, tty_master_fd, tty_in]
     # set non blocking for efficiency
     set_non_blocking(tty_master_fd)
-    logline = ''
+    logline = b''
     logline_ts = None
     while True:
         r, w, e = select.select(fds,[],[])
@@ -53,11 +55,11 @@ def parent_handler(pid, pipe_r, tty_master_fd, args, **kwargs):
                 logline += s
                 if logline_ts == None:
                     logline_ts = ts
-                while '\n' in logline:
-                    complete_logline, logline = logline.split('\n', 1)
+                while b'\n' in logline:
+                    complete_logline, logline = logline.split(b'\n', 1)
                     # send to server
                     logs_conn.log(line=complete_logline, timestamp=logline_ts)
-                    if logline == '':
+                    if logline == b'':
                         logline_ts = None
                     else:
                         logline_ts = ts
@@ -65,7 +67,7 @@ def parent_handler(pid, pipe_r, tty_master_fd, args, **kwargs):
             fd_copy(tty_in, tty_master_fd, 1) or fds.remove(tty_in)
         elif pipe_r in r:
             break
-    logs_conn.log(line='END', timestamp=time.time())
+    logs_conn.log(line=b'END', timestamp=time.time())
     logs_conn.close()
     # this will stop walt-monitor
     os.close(tty_out)
