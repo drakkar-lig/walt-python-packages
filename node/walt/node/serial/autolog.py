@@ -6,6 +6,8 @@ from walt.common.evloop import EventLoop
 from walt.common.tools import failsafe_makedirs
 from walt.node.const import SERVER_LOGS_FIFO
 
+ENCODING = sys.stdout.encoding
+
 """
 Read a serial device connected to a sensor mote and
 manage logs.
@@ -47,7 +49,7 @@ vizwalt  af4e:TxStart:gghhiijjkkll
 
 class SensorLogsMonitor(object):
     def __init__(self, serial_dev_path):
-        self.f = open(serial_dev_path, 'r', 0)
+        self.f = open(serial_dev_path, 'rb', 0)
         self.walt_logs = open(SERVER_LOGS_FIFO, 'w')
         # Data does not comes in immediately after we have the
         # device open. Wait a little to make sure we get
@@ -72,7 +74,7 @@ class SensorLogsMonitor(object):
     # when the event loop detects an event for us,
     # read the log line and process it
     def handle_event(self, ts):
-        rawline = self.f.readline()
+        rawline = self.f.readline().decode(ENCODING)
         if rawline == '':  # empty read
             return False # remove from loop => exit
         self.in_dbg_log.write(rawline)

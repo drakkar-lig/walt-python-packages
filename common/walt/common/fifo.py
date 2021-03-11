@@ -43,7 +43,7 @@ class ReadableFifo(object):
         ctrl_r, self.ctrl_w = os.pipe()
         t = Thread(target=self.reader_thread, args=(data_w, ctrl_r))
         t.start()
-        self.file_r = os.fdopen(data_r, 'r', 0)
+        self.file_r = os.fdopen(data_r, 'rb', 0)
     def reader_thread(self, data_w, ctrl_r):
         should_stop = False
         while not should_stop:

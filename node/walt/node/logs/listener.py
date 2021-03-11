@@ -1,9 +1,11 @@
+import sys
 from threading import Thread
 from walt.common.fifo import open_readable_fifo
 from walt.node.logs.monitor import handle_monitor_request
 from walt.node.logs.cache import LogsConnCache
 from walt.node.logs.flow import LogsFlowToServer
 
+ENCODING = sys.stdout.encoding
 WALT_LOGS_FIFO = '/var/lib/walt/logs.fifo'
 
 class LogsFifoListener(object):
@@ -23,24 +25,26 @@ class LogsFifoListener(object):
     # read the request and process it
     def handle_event(self, ts):
         req = self.fifo.readline()
-        if req == '':
+        if req == b'':
             # malformed
             return
         req = req.split()
-        if req[0] == 'MONITOR':
+        if req[0] == b'MONITOR':
             # we have to communicate with a walt-monitor process.
             # this will take time, let's create a thread to
             # handle this.
             t = Thread(target = handle_monitor_request,
                        args = req[1:])
             t.start()
-        elif req[0] == 'LOG':
-            stream_name, line = req[1], ' '.join(req[2:])
+        elif req[0] == b'LOG':
+            stream_name, line = req[1], b' '.join(req[2:])
+            stream_name = stream_name.decode(ENCODING)
             self.conn_cache.get(stream_name).log(
                         line=line.strip(), timestamp=ts)
-        elif req[0] == 'TSLOG':
+        elif req[0] == b'TSLOG':
             ts, stream_name, line = \
-                float(req[1]), req[2], ' '.join(req[3:])
+                float(req[1]), req[2], b' '.join(req[3:])
+            stream_name = stream_name.decode(ENCODING)
             self.conn_cache.get(stream_name).log(
                         line=line.strip(), timestamp=ts)
 

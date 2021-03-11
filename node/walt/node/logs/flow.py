@@ -14,7 +14,7 @@ class LogsFlowToServer(object):
     def log(self, line, timestamp = None):
         if timestamp == None:
             timestamp = time()
-        self.stream.write('%.6f %s\n' % (timestamp, remove_non_utf8(line)))
+        self.stream.write(b'%.6f %s\n' % (timestamp, remove_non_utf8(line)))
         self.stream.flush()
         self.last_used = time()
     def close(self):
