@@ -1,12 +1,27 @@
 #!/usr/bin/env python
-import sys, subprocess, tempfile, shlex, time, os.path
+import sys, subprocess, tempfile, shlex, time, os.path, requests
+from urllib.parse import urlparse
+from collections import namedtuple
 from walt.common.tcp import write_pickle, client_sock_file, \
                             Requests
 from walt.common.constants import WALT_SERVER_TCP_PORT
 
 OS_ENCODING = sys.stdout.encoding
 
-def fake_tftp_read(env, path):
+# Notes:
+# fake TFTP is implemented by using a direct TCP connection
+# to the server API.
+# HTTP is implemented by using a real HTTP connection to
+# walt-server-httpd. Daemon walt-server-httpd then itself
+# performs a direct TCP connection to the server API.
+#
+# The server API handles the requests in a synchronous way,
+# whereas walt-server-httpd can handle them in parallel.
+# Thus in a network with several distant nodes (cf. vpn or kexec)
+# and a high latency, HTTP method will probably be faster,
+# because the synchronous part is handled on localhost.
+
+def fake_tftp_read(env, abs_path):
     # connect to server
     f = client_sock_file(env['next-server'], WALT_SERVER_TCP_PORT)
     # send the request id
@@ -16,13 +31,13 @@ def fake_tftp_read(env, path):
     # write the parameters
     write_pickle(dict(
             node_mac=env['mac'],
-            path=remote_absname(env, path)), f)
+            path=abs_path), f)
     # receive status
     status = f.readline().decode('UTF-8').strip()
     if status == 'OK':
         # read size
         size = int(f.readline().strip())
-        print(path, size)
+        print(abs_path, size)
         # receive content
         content = b''
         while len(content) < size:
@@ -31,25 +46,66 @@ def fake_tftp_read(env, path):
         content = None
     # close file and return
     f.close()
-    print(path + " " + status)
+    print(abs_path + " " + status)
     return content
+
+def http_read(url):
+    try:
+        res = requests.get(url)
+        if res.ok:
+            print(url, 'OK')
+            return res.content
+        else:
+            print(url, res.reason)
+            return None
+    except:
+        print(url, 'Connection failed')
+        return None
+
+CanonicalPathBase = namedtuple('CanonicalPathBase', ['proto', 'abs_path'])
+
+class CanonicalPath(CanonicalPathBase):
+    @classmethod
+    def from_url(cls, env, url):
+        url_info = urlparse(url)
+        path = url_info.path
+        if url_info.scheme == 'http':
+            return cls('http', path)
+        elif url_info.scheme == 'tftp':
+            return cls('tftp', path)
+        elif url_info.scheme == '':
+            if path[0] == '/':  # absolute path
+                return cls('tftp', path)
+            else:
+                # path relative to current dir
+                cur_dir = remote_curdir(env)
+                abs_path = os.path.join(cur_dir.abs_path, path)
+                return cls(cur_dir.proto, abs_path)
+        else:
+            raise NotImplementedError('[fake-ipxe] Unknown protocol: ' + \
+                            url_info.scheme)
+    def to_url(self, env):
+        url = self.proto + '://' + env['next-server'] + self.abs_path
+        # virtual nodes are running on the server, so the peer IP
+        # detected on web server side will not match the node IP.
+        # so we specify this ip as an URL parameter.
+        if self.proto == 'http':
+            url += '?node_ip=' + env['ip']
+        return url
+    def read(self, env):
+        url = self.to_url(env)
+        if self.proto == 'http':
+            return http_read(url)
+        else:   # tftp
+            return fake_tftp_read(env, self.abs_path)
+    def dirname(self):
+        return CanonicalPath(self.proto, os.path.dirname(self.abs_path))
 
 def remote_curdir(env):
     return env['REMOTEDIRSTACK'][-1]    # top of the stack
 
-def remote_absname(env, path):
-    if path[0] == '/':
-        return path     # already absolute
-    else:
-        return os.path.join(remote_curdir(env), path)
-
-def remote_dirname(env, path):
-    if path[0] != '/':
-        path = remote_absname(env, path)
-    return os.path.dirname(path)
-
-def remote_cd(env, path):
-    env['REMOTEDIRSTACK'].append(remote_absname(env, path))
+def remote_cd(env, canon_path):
+    env['REMOTEDIRSTACK'].append(canon_path)
 
 def remote_revert_cd(env):
     env['REMOTEDIRSTACK'] = env['REMOTEDIRSTACK'][:-1]  # pop
@@ -110,13 +166,13 @@ def execute_line(env, line):
         return True
     # handle "chain" directive
     if words[0] == 'chain':
-        path = ' '.join(words[1:])
-        content = fake_tftp_read(env, path)
+        path = CanonicalPath.from_url(env, ' '.join(words[1:]))
+        content = path.read(env)
         if content is None:
             return False
         # when executing a script, relative paths will be interpreted
         # as being relative to the path of the script itself
-        remote_cd(env, remote_dirname(env, path))
+        remote_cd(env, path.dirname())
         for line in content.decode(OS_ENCODING).splitlines():
             if not execute_line(env, line):
                 return False
@@ -127,8 +183,8 @@ def execute_line(env, line):
         return True     # nothing to do here
     # handle "initrd" directive
     if words[0] == 'initrd':
-        initrd_path = ' '.join(words[1:])
-        content = fake_tftp_read(env, initrd_path)
+        initrd_path = CanonicalPath.from_url(env, ' '.join(words[1:]))
+        content = initrd_path.read(env)
         if content is None:
             return False
         initrd_copy = env['TMPDIR'] + '/initrd'
@@ -139,9 +195,9 @@ def execute_line(env, line):
     # handle "kernel" and "boot" directives
     if words[0] in ('boot', 'kernel'):
         if len(words) > 1:
-            kernel_path = words[1]
+            kernel_path = CanonicalPath.from_url(env, words[1])
             kernel_cmdline = " ".join(words[2:])
-            content = fake_tftp_read(env, kernel_path)
+            content = kernel_path.read(env)
             if content is None:
                 return False
             kernel_copy = env['TMPDIR'] + '/kernel'
@@ -183,6 +239,7 @@ def ipxe_boot(env):
                     'next-server': env['server_ip']
                 })
                 # start ipxe emulated netboot
+                remote_cd(env, CanonicalPath('tftp', '/'))  # default dir
                 execute_line(env, "chain /start.ipxe")
         # note: we just left the with context because we no
         # longer need the temporary network setup that was

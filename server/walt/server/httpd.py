@@ -57,9 +57,15 @@ def run():
         return WELCOME_PAGE
     @app.route('/boot/<path:path>')
     def serve(path):
-        client_ip = bottle.request.environ.get('REMOTE_ADDR')
-        client_ip = client_ip.lstrip('::ffff:')
-        status, content = fake_tftp_read(client_ip, '/'+path)
+        # for a virtual node actually running on the server,
+        # the IP address of the socket peer does not match
+        # the node IP. For this case, URL may indicate the
+        # node_ip as an URL parameter.
+        node_ip = bottle.request.query.get('node_ip')
+        if node_ip is None:
+            node_ip = bottle.request.environ.get('REMOTE_ADDR')
+            node_ip = node_ip.lstrip('::ffff:')
+        status, content = fake_tftp_read(node_ip, '/'+path)
         if status == 'OK':
             return content
         elif status == 'NO SUCH FILE':

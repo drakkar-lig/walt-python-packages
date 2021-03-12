@@ -47,7 +47,7 @@ PACKAGE_SPECIFIC_INFO = {
         subdir = 'server',
         requires = [    'plumbum>=1.4.2', 'snimpy>=0.8.3',
                         'pysnmp>=4.4.12',
-                        'ipaddress>=1.0.7','requests>=2.3.0',
+                        'ipaddress>=1.0.7','requests>=2.21.0',
                         'sdnotify>=0.3.0',
                         'python-dateutil>=2.4.2',
                         'psycopg2-binary>=2.8.2',
@@ -94,7 +94,7 @@ PACKAGE_SPECIFIC_INFO = {
     ),
     "walt-common": dict(
         subdir = 'common',
-        requires = ['plumbum>=1.4.2'],
+        requires = ['plumbum>=1.4.2','requests>=2.21.0'],
         version_str = '%(upload)s',
         setup = dict(
             description = "WalT common python modules."
