@@ -244,3 +244,15 @@ The `walt node blink <node-name>` command may be used to visually identify a nod
 
 This will work only if the image provides an executable file at `/bin/blink`. Calling `/bin/blink 1` should make the led start to blink, `/bin/blink 0` should make it stop.
 
+### 6- custom reboot script
+
+If the image provides an executable command `/bin/walt-reboot`, then this command will be called when (soft-)rebooting the node.
+
+Providing this file may be useful in various cases. For instance:
+* Ensuring a result file is flushed in `/persist` before rebooting
+* Providing a faster way to reboot, e.g. kexec
+
+If `/bin/walt-reboot` returns, even successfully, the calling script `walt-net-service` will consider the reboot failed and run `busybox reboot -f`.
+
+Caution: if providing an advanced way to reboot (e.g. kexec), one must take care not blindly rebooting the same kernel and initrd: the node may have been associated to a different image.
+
