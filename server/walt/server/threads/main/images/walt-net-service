@@ -2,8 +2,14 @@
 set -e
 MSG_NO_BLINK_EXEC='/bin/blink unavailable or not executable on image'
 MSG_BLINK_FAILED='/bin/blink returned a non-zero error code'
+MSG_WALT_REBOOT_NO_EXEC='/bin/walt-reboot is not executable on image'
 
 final_root="$1"
+
+# Uncomment this for debug log in /persist
+#set -x
+#exec >> "$final_root/persist/walt-net-service.log"
+#exec 2>&1
 
 on_exit()
 {
@@ -32,6 +38,28 @@ done < $fifo_out > $fifo_in &
 # results there)
 exec 6>$fifo_out 5<$fifo_in
 
+do_walt_reboot() {
+    cd "$final_root"
+    echo "Calling bin/walt-reboot"
+    chroot . bin/walt-reboot
+    # if we are here, this means bin/walt-reboot failed
+    # to reboot the OS.
+    echo -n "Command 'bin/walt-reboot' failed. "
+    echo "Falling back to standard 'reboot -f'."
+    cd /
+    reboot -f
+}
+
+# Caution with optional files /bin/walt-reboot & /bin/blink:
+# Tests such as
+# [ -e "$final_root/bin/walt-reboot" ]
+# will not work when these files are symlinks to an
+# absolute target, since the target path should also be
+# interpreted from the chroot.
+# Therefore
+# chroot "$final_root" [ -e "/bin/walt-reboot" ]
+# is the correct expression.
+
 # loop and handle coming requests
 while read req args <&5
 do
@@ -41,12 +69,21 @@ do
     }
     # reboot the node when we receive REBOOT
     [ "$req" = "REBOOT" ] && {
-        echo OK >&6
-        reboot -f
+        chroot "$final_root" [ -e "/bin/walt-reboot" ] && {
+            chroot "$final_root" [ -x "/bin/walt-reboot" ] && {
+                echo OK >&6
+                do_walt_reboot
+            } || {
+                echo KO $MSG_WALT_REBOOT_NO_EXEC >&6
+            }
+        } || {
+            echo OK >&6
+            reboot -f
+        }
     }
     # start /bin/blink [0|1] when we receive BLINK [0|1]
     [ "$req" = "BLINK" ] && {
-        [ -e "$final_root/bin/blink" ] && {
+        chroot "$final_root" [ -x "/bin/blink" ] && {
             cd "$final_root"
             chroot . bin/blink $args && {
                 # all is fine
