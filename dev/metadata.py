@@ -34,7 +34,7 @@ PACKAGE_SPECIFIC_INFO = {
             description = "WalT optional software embedded in images.",
             entry_points = {
                 'console_scripts': [
-                    'walt-setup-systemd = walt.node.setup.systemd:run',
+                    'walt-node-setup = walt.node.setup.systemd:run',
                     'walt-serial-autolog = walt.node.serial.autolog:run',
                     'walt-logs-daemon = walt.node.logs.daemon:run',
                     'walt-ipxe-kexec-reboot = walt.node.ipxekexec:run'
