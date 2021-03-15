@@ -27,10 +27,10 @@ We wrote this tool because some commands act differently when then detect their 
 
 ## Installation
 
-If your image does not provide `walt-log-monitor`, but it already provides python and systemd, then you can get it by installing python package `walt-node`:
+If your image does not provide `walt-log-monitor`, but it already provides python3.6+ and systemd, then you can get it by installing python package `walt-node`:
 ```
-[image-shell]$ pip install walt-node
-[image-shell]$ walt-setup-systemd
+[image-shell]$ pip3 install walt-node
+[image-shell]$ walt-node-setup
 ```
 
 ## Simple example

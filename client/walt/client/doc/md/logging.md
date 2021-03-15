@@ -63,7 +63,7 @@ These tools are actually copied by the server, before an image is made accessibl
 Another tool is provided on a subset of WalT images:
 * `walt-log-monitor`  (see [`walt help show log-monitor`](log-monitor.md))
 
-This one is not always available because it is based on a python package, and some minimal images may not provide python. In order to install it in your own images, if it is missing, you can use `pip install walt-node`.
+This one is not always available because it is based on a python package and systemd, and some minimal images may not provide python3 or systemd. See [`walt help show log-monitor`](log-monitor.md) for installing it when it is missing.
 
 ## How to query / display / work with experiment logs
 

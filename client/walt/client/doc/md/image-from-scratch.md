@@ -230,13 +230,16 @@ $ apt-get install avahi-daemon libnss-mdns
 
 ### 4- walt-node python package
 
-If your image provides python2.7 and systemd, you can install the walt-node python package:
+If your image provides python3.6+ and systemd, you can install the walt-node python package:
 
 ```
-$ pip install walt-node
+$ pip3 install walt-node
+$ walt-node-setup
 ```
 
-This will provide enhanced walt logging features (see [`walt help show logging`](logging.md)). Note that without this package, you can still use the standard logging features.
+This will provide:
+* Enhanced walt logging features (see [`walt help show logging`](logging.md)). Note that without this package, you can still use the standard logging features.
+* Tool `walt-ipxe-kexec-reboot`, allowing to implement faster reboots. This only works if the image is based on iPXE boot scripts and has kexec tool installed. To enable this, link this command to `/bin/walt-reboot` (see below).
 
 ### 5- led-blinking script
 
