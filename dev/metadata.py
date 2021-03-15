@@ -36,7 +36,8 @@ PACKAGE_SPECIFIC_INFO = {
                 'console_scripts': [
                     'walt-setup-systemd = walt.node.setup.systemd:run',
                     'walt-serial-autolog = walt.node.serial.autolog:run',
-                    'walt-logs-daemon = walt.node.logs.daemon:run'
+                    'walt-logs-daemon = walt.node.logs.daemon:run',
+                    'walt-ipxe-kexec-reboot = walt.node.ipxekexec:run'
                 ]
             },
             scripts = [ 'sh/walt-log-monitor', 'sh/walt-monitor' ],
