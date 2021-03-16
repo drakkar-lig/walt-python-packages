@@ -35,7 +35,7 @@ class Server(object):
         self.devices = DevicesManager(self.db)
         self.topology = TopologyManager(self.devices, self.add_or_update_device)
         self.dhcpd = DHCPServer(self.db)
-        self.images = NodeImageManager(self.db, self.blocking, self.dhcpd, self.docker)
+        self.images = NodeImageManager(self)
         self.tcp_server = TCPServer(WALT_SERVER_TCP_PORT)
         self.logs = LogsManager(self.db, self.tcp_server, self.blocking, self.ev_loop)
         self.interaction = InteractionManager(\
