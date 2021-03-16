@@ -17,7 +17,7 @@ from walt.server.threads.main.filesystem import Filesystem
 #   <name>. In this case <tag> equals 'latest'.
 # * walt knows whether or not a docker image is a walt
 #   image by checking if it has a builtin label
-#   'walt-image="true"'.
+#   'walt.node.models=<list-of-models>'.
 #   (cf. LABEL instruction of Dockerfile)
 #
 # In the client side source code
@@ -39,10 +39,18 @@ from walt.server.threads.main.filesystem import Filesystem
 # returned by search | no  | yes | yes | yes | no  | yes |
 # <u> may clone it   | no  | yes | yes | yes | no  | yes |
 #
+# Since version 5, walt has its own storage of walt images,
+# different than the storage used by docker tool on the machine.
+#
+# Thus clonable / searchable images may either be on the docker
+# hub, or local on the machine but managed by the docker daemon.
+# In the table above, category 'In the docker hub' can actually
+# match those two categories of images.
+#
 # In order to clone an image, the user must specify
 # a 'clonable image link' as an argument to 'walt image clone'.
 # Such a clonable link is formatted as follows:
-# [server|hub]:<user>/<name>
+# [walt|hub|docker]:<user>/<name>
 
 ERROR_BAD_IMAGE_NAME='''\
 Bad name: expected format is <name> or <name>:<tag>.
