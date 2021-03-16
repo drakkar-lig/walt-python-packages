@@ -8,7 +8,8 @@ from walt.common.tools import do, format_sentence_about_nodes, failsafe_makedirs
 from walt.server.const import SSH_COMMAND
 from walt.server.threads.main.filesystem import Filesystem
 from walt.server.threads.main.network.netsetup import NetSetup
-from walt.server.threads.main.nodes.register import handle_registration_request
+from walt.server.threads.main.nodes.register import handle_registration_request, \
+                                                    restore_interrupted_registration
 from walt.server.threads.main.nodes.show import show
 from walt.server.threads.main.nodes.wait import WaitInfo
 from walt.server.threads.main.nodes.clock import NodesClockSyncInfo
@@ -136,6 +137,14 @@ class NodesManager(object):
                 db = self.db,
                 mac = mac,
                 model = model,
+                blocking = self.blocking,
+                **self.other_kwargs
+        )
+
+    def restore_interrupted_registration(self, image_fullname):
+        restore_interrupted_registration(
+                db = self.db,
+                image_fullname = image_fullname,
                 blocking = self.blocking,
                 **self.other_kwargs
         )
