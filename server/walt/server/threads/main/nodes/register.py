@@ -45,3 +45,11 @@ def handle_registration_request(
     else:
         finalize_registration(**full_kwargs)
 
+def restore_interrupted_registration(blocking, image_fullname, **kwargs):
+    full_kwargs = dict(
+        image_fullname = image_fullname,
+        **kwargs
+    )
+    def callback(res):
+        update_images_and_finalize(**full_kwargs)
+    blocking.pull_image(image_fullname, callback)

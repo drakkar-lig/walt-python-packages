@@ -21,12 +21,12 @@ Sorry, this image is not compatible with %s.
 """
 
 class NodeImageManager(object):
-    def __init__(self, db, blocking_manager, dhcpd, docker):
-        self.db = db
-        self.blocking = blocking_manager
-        self.dhcpd = dhcpd
-        self.docker = docker
-        self.store = NodeImageStore(self.docker, self.db)
+    def __init__(self, server):
+        self.db = server.db
+        self.blocking = server.blocking
+        self.dhcpd = server.dhcpd
+        self.docker = server.docker
+        self.store = NodeImageStore(server)
     def prepare(self):
         pass
     def update(self, startup = False):

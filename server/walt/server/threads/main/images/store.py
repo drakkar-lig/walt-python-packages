@@ -20,8 +20,8 @@ This operation would overwrite it%s.
 MSG_WOULD_OVERWRITE_IMAGE_REBOOTED_NODES='\
  (and reboot %d node(s))'
 
-MSG_REMOVING_FROM_DB = """\
-WARNING: Removing image %s from db because walt does not have it in its own repo."""
+MSG_RESTORING_PULL = """\
+NOTE: Daemon was interrupted while pulling image %s. Restoring this background process."""
 
 MSG_PULLING_FROM_DOCKER = """\
 NOTE: Pulling image %s from docker daemon to podman storage (migration v4->v5)."""
@@ -39,9 +39,10 @@ def get_mount_path(image_id):
     return IMAGE_MOUNT_PATH % image_id
 
 class NodeImageStore(object):
-    def __init__(self, docker, db):
-        self.docker = docker
-        self.db = db
+    def __init__(self, server):
+        self.server = server
+        self.docker = server.docker
+        self.db = server.db
         self.images = {}
         self.mounts = set()
     def refresh(self, startup = False):
@@ -51,7 +52,7 @@ class NodeImageStore(object):
         podman_images = set(self.docker.local.get_images())
         if startup:
             docker_images = set(self.docker.daemon.images())
-        # import new images from docker into the database
+        # import new images from podman into the database
         for fullname in podman_images:
             if fullname not in db_images:
                 self.db.insert('images', fullname=fullname, ready=True)
@@ -72,8 +73,9 @@ class NodeImageStore(object):
                             self.docker.daemon.pull(db_fullname)
                             self.images[db_fullname] = NodeImage(self, db_fullname)
                         else:
-                            print(MSG_REMOVING_FROM_DB % db_fullname)
-                            self.db.delete('images', fullname = db_fullname)
+                            print(MSG_RESTORING_PULL % db_fullname)
+                            self.images[db_fullname] = NodeImage(self, db_fullname)
+                            self.server.nodes.restore_interrupted_registration(db_fullname)
                     else:
                         assert (db_ready == False), \
                             MSG_IMAGE_READY_BUT_MISSING % db_fullname
@@ -163,10 +165,11 @@ class NodeImageStore(object):
         for fullname in images_in_use:
             if fullname in self.images:
                 img = self.images[fullname]
-                if not img.mounted:
-                    self.mount(img.image_id, img.fullname)
-                images_found.append(img)
-                new_mounts.add(img.image_id)
+                if img.ready:
+                    if not img.mounted:
+                        self.mount(img.image_id, img.fullname)
+                    images_found.append(img)
+                    new_mounts.add(img.image_id)
             else:
                 sys.stderr.write(MSG_IMAGE_IS_USED_BUT_NOT_FOUND % fullname)
         # update nfs and tftp configuration
