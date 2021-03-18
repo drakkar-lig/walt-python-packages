@@ -106,8 +106,6 @@ class DockerLocalClient:
             fullname = buildah_image_name.split('/', 1)[1]
             if not '/' in fullname:
                 continue
-            if 'clone-temp/walt-image:' in fullname:
-                continue
             self.names_cache[fullname] = image_id
         old_metadata_cache = self.metadata_cache
         self.metadata_cache = {}
@@ -121,6 +119,10 @@ class DockerLocalClient:
     def get_images(self):
         self.refresh_cache()
         for fullname, image_id in self.names_cache.items():
+            if 'clone-temp/walt-image:' in fullname:
+                continue
+            if 'mounts/walt-image:' in fullname:
+                continue
             if 'walt.node.models' not in self.metadata_cache[image_id]['labels']:
                 continue
             yield fullname
@@ -173,6 +175,11 @@ class DockerLocalClient:
         cont_name = 'mount:' + image_id
         try:
             buildah('from', '--pull-never', '--name', cont_name, image_id)
+            # in some cases the code may remove the last tag of an image whilst it is
+            # still mounted, waiting for grace time expiry. this fails.
+            # in order to avoid this we attach a new tag to all images we mount.
+            image_name = 'docker.io/mounts/walt-image:' + image_id
+            podman.tag(str(image_id), image_name)
         except CalledProcessError:
             print('Note: walt server was probably not stopped properly and container still exists. Going on.')
         dir_name = buildah.mount(cont_name)
@@ -190,6 +197,8 @@ class DockerLocalClient:
                 continue
         buildah.umount(cont_name)
         buildah.rm(cont_name)
+        image_name = 'docker.io/mounts/walt-image:' + image_id
+        podman.rmi(image_name)
     def squash(self, image_fullname):
         cont_name = 'squash:' + image_fullname
         try:
