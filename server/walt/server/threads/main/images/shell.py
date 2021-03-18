@@ -58,15 +58,15 @@ class ImageShellSession(object):
                 continue
             if event['Status'] in ('cleanup', 'died') and event['Name'] == self.container_name:
                 break
-        # if we modified an image in use, umount/mount it in order to make changes
-        # available to nodes
-        need_remount = (self.image.fullname == image_fullname) and self.image.in_use
-        if need_remount:
-            self.images.umount_used_image(self.image)
+        # commit
         print('committing %s...' % self.container_name)
         self.docker.local.commit(self.container_name, image_fullname)
-        if need_remount:
-            self.images.update_image_mounts()
+        # if not overriding, register new image
+        if self.image.fullname != image_fullname:
+            self.images.register_image(image_fullname, True)
+        # mount new image, and plan unmount of previous one if overriden
+        self.images.update_image_mounts()
+        # inform user and return
         if self.image.fullname == image_fullname:
             # same name, we are modifying the image
             requester.stdout.write('Image %s updated.\n' % new_image_name)
@@ -75,7 +75,6 @@ class ImageShellSession(object):
         else:
             # we are saving changes to a new image, leaving the initial one
             # unchanged
-            self.images.register_image(image_fullname, True)
             requester.stdout.write('New image %s saved.\n' % new_image_name)
             self.image.task_label = None
             return 'OK_SAVED'
