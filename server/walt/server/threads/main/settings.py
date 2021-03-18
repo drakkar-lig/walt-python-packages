@@ -18,7 +18,9 @@ class SettingsManager:
             'poe.reboots':      { 'category': 'switches', 'value-check': self.correct_poe_reboots_value, 'default': False,
                                     'pretty_print': lambda bool_val: str(bool_val).lower() },
             'snmp.version':     { 'category': 'switches', 'value-check': self.correct_snmp_version_value, 'default': None },
-            'snmp.community':   { 'category': 'switches', 'value-check': self.correct_snmp_community_value, 'default': None }
+            'snmp.community':   { 'category': 'switches', 'value-check': self.correct_snmp_community_value, 'default': None },
+            'kexec.allow':      { 'category': 'nodes', 'value-check': self.correct_kexec_allow_value, 'default': True,
+                                    'pretty_print': lambda bool_val: str(bool_val).lower() }
         }
         self.category_checks = {
             'nodes':            self.applies_to_nodes,
@@ -26,6 +28,9 @@ class SettingsManager:
             'unknown-devices':  self.applies_to_unknown_devices,
             'switches':         self.applies_to_switches
         }
+
+    def correct_kexec_allow_value(self, requester, device_infos, setting_name, setting_value, all_settings):
+        return self.correct_bool_value(requester, setting_name, setting_value)
 
     def correct_snmp_community_value(self, requester, device_infos, setting_name, setting_value, all_settings):
         return True
@@ -225,7 +230,7 @@ class SettingsManager:
                 should_reboot_nodes = True  # update in DB (below) is enough
             elif setting_name == 'ram':
                 should_reboot_nodes = True  # update in DB (below) is enough
-            elif setting_name in ('lldp.explore', 'poe.reboots'):
+            elif setting_name in ('lldp.explore', 'poe.reboots', 'kexec.allow'):
                 setting_value = (setting_value.lower() == 'true')   # convert value to boolean
                 db_settings[setting_name] = setting_value
             elif setting_name == 'snmp.version':
