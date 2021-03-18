@@ -72,7 +72,7 @@ def parse_clonable_link(requester, clonable_link):
         return None, None, None
 
 def get_temp_image_fullname():
-    return 'clone-temp/walt-image:' + str(uuid.uuid4()).split('-')[0]
+    return 'walt/clone-temp:' + str(uuid.uuid4()).split('-')[0]
 
 def exit_no_such_image(requester):
     requester.stderr.write(
