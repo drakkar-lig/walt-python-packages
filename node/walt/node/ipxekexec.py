@@ -37,13 +37,22 @@ def get_mac():
     sys.exit(1)
 
 def add_network_info(env):
-    with ServerAPILink(env['server_ip'], 'VSAPI') as server:
-        info = server.get_device_info(env['mac'])
-        print(info)
-        if info is None:
-            return False
-        env.update(ip=info['ip'], netmask=info['netmask'],
-                   gateway=info['gateway'])
+    try:
+        with ServerAPILink(env['server_ip'], 'VSAPI') as server:
+            info = server.get_device_info(env['mac'])
+            print(info)
+            if info is None:
+                return False
+            # check if kexec has been disabled for this node
+            if not info['conf'].get('kexec.allow', True):
+                print('Kexec is not allowed for this node (cf. walt node config)')
+                return False
+            env.update(ip=info['ip'], netmask=info['netmask'],
+                       gateway=info['gateway'])
+            return True
+    except:
+        print('Issue while trying to get node info from server.')
+        return False
 
 # in the context of a reboot, network is already setup,
 # and we just retrieve network information (ip, gateway, etc.)
@@ -51,8 +60,7 @@ def add_network_info(env):
 # and routing data).
 @contextmanager
 def void_network_setup(env):
-    add_network_info(env)
-    yield True
+    yield add_network_info(env)
 
 def get_env_start():
     # define initial env variables for ipxe_boot()
