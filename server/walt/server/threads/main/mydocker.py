@@ -7,7 +7,7 @@ from subprocess import run, CalledProcessError, PIPE, Popen
 import time, re, os, sys, requests, json, itertools, uuid
 
 DOCKER_HUB_TIMEOUT=None
-DELAY_BEFORE_RETRY=3
+SKOPEO_RETRIES=10
 REGISTRY='docker.io'
 MAX_IMAGE_LAYERS = 128
 
@@ -297,7 +297,13 @@ class DockerHubClient:
             yield tag
     def get_config(self, fullname):
         print('retrieving config from hub: ' + fullname)
-        return json.loads(skopeo.inspect('--config', 'docker://docker.io/' + fullname))
+        for _ in range(SKOPEO_RETRIES):
+            try:
+                data = skopeo.inspect('--config', 'docker://docker.io/' + fullname)
+                return json.loads(data)
+            except:
+                continue
+        raise Exception('Failed to download config for image: ' + fullname)
     def get_labels(self, fullname):
         config = self.get_config(fullname)
         if 'config' not in config:
