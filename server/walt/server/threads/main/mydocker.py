@@ -4,7 +4,7 @@ from walt.server.exttools import buildah, podman, skopeo, mount, umount, findmnt
 from walt.server import const
 from datetime import datetime
 from subprocess import run, CalledProcessError, PIPE, Popen
-import time, re, os, sys, requests, json, itertools
+import time, re, os, sys, requests, json, itertools, uuid
 
 DOCKER_HUB_TIMEOUT=None
 DELAY_BEFORE_RETRY=3
@@ -44,6 +44,12 @@ def mount_exists(mountpoint):
         return False
     return True
 
+def add_repo(fullname):
+    if fullname.startswith('walt/'):
+        return 'localhost/' + fullname
+    else:
+        return 'docker.io/' + fullname
+
 class DockerLocalClient:
     def __init__(self):
         self.names_cache = {}
@@ -53,12 +59,12 @@ class DockerLocalClient:
     def tag(self, old_fullname, new_fullname):
         if self.image_exists(new_fullname):
             # take care not making previous version of image a dangling image
-            podman.rmi('docker.io/' + new_fullname)
+            podman.rmi(add_repo(new_fullname))
         if old_fullname in self.names_cache:
             self.names_cache[new_fullname] = self.names_cache[old_fullname]
         else:
             self.names_cache.pop(new_fullname, None)
-        podman.tag(old_fullname, 'docker.io/' + new_fullname)
+        podman.tag(old_fullname, add_repo(new_fullname))
     def rmi(self, fullname, ignore_missing = False):
         self.untag(fullname, ignore_missing = ignore_missing)
     def untag(self, fullname, ignore_missing = False):
@@ -67,12 +73,12 @@ class DockerLocalClient:
         # caution: we are not using "podman untag" because its behaviour is
         # unexpected (at least in version 1.9.3: when an image has several docker tags,
         # it removes all docker tags irrespectively of the one specified).
-        podman.rmi('docker.io/' + fullname)
+        podman.rmi(add_repo(fullname))
         self.names_cache.pop(fullname, None)
     def deep_inspect(self, image_id_or_fullname):
         podman_id = image_id_or_fullname
         if '/' in podman_id:
-            podman_id = 'docker.io/' + podman_id
+            podman_id = add_repo(podman_id)
         image_info = podman.inspect('--format',
             '{ "labels": "{{.Labels}}", "num_layers": {{len .RootFS.Layers}}, "created_at": "{{.Created}}" }',
             podman_id)
@@ -91,7 +97,7 @@ class DockerLocalClient:
         }
     def image_exists(self, fullname):
         try:
-            podman.image.exists('docker.io/' + fullname)
+            podman.image.exists(add_repo(fullname))
             return True
         except CalledProcessError:
             return False
@@ -119,9 +125,7 @@ class DockerLocalClient:
     def get_images(self):
         self.refresh_cache()
         for fullname, image_id in self.names_cache.items():
-            if 'clone-temp/walt-image:' in fullname:
-                continue
-            if 'mounts/walt-image:' in fullname:
+            if fullname.startswith('walt/'):
                 continue
             if 'walt.node.models' not in self.metadata_cache[image_id]['labels']:
                 continue
@@ -148,37 +152,43 @@ class DockerLocalClient:
         return metadata
     def stop_container(self, cont_name):
         podman.rm("-f", "-i", cont_name)
+    def get_commit_temp_image(self):
+        return 'localhost/walt/commit-temp:' + str(uuid.uuid4()).split('-')[0]
     def commit(self, cid_or_cname, dest_fullname, tool=podman, opts=()):
         # we commit with 'docker' format to make these images compatible with
         # older walt server versions
         opts += ('-f', 'docker')
         if self.image_exists(dest_fullname):
             # take care not making previous version of image a dangling image
-            image_tempname = 'localhost/walt-commit-' + dest_fullname
+            image_tempname = self.get_commit_temp_image()
             args = opts + (cid_or_cname, image_tempname)
             image_id = tool.commit(*args).strip()
             tool.rm(cid_or_cname)
-            podman.rmi('-f', 'docker.io/' + dest_fullname)
-            podman.tag(image_tempname, 'docker.io/' + dest_fullname)
+            podman.rmi('-f', add_repo(dest_fullname))
+            podman.tag(image_tempname, add_repo(dest_fullname))
             podman.rmi(image_tempname)
         else:
-            args = opts + (cid_or_cname, 'docker.io/' + dest_fullname)
+            args = opts + (cid_or_cname, add_repo(dest_fullname))
             image_id = tool.commit(*args).strip()
             tool.rm(cid_or_cname)
         self.names_cache[dest_fullname] = image_id
     def events(self):
         return podman.events.stream('--format', 'json', converter = (lambda line: json.loads(line)))
+    def get_mount_container_name(self, image_id):
+        return 'mount:' + image_id[:12]
+    def get_mount_image_name(self, image_id):
+        return 'localhost/walt/mounts:' + image_id[:12]
     def image_mount(self, image_id, mount_path):
         # if server daemon was killed and restarted, the mount may still be there
         if mount_exists(mount_path):
             return False    # nothing to do
-        cont_name = 'mount:' + image_id
+        cont_name = self.get_mount_container_name(image_id)
         try:
             buildah('from', '--pull-never', '--name', cont_name, image_id)
             # in some cases the code may remove the last tag of an image whilst it is
             # still mounted, waiting for grace time expiry. this fails.
             # in order to avoid this we attach a new tag to all images we mount.
-            image_name = 'docker.io/mounts/walt-image:' + image_id
+            image_name = self.get_mount_image_name(image_id)
             podman.tag(str(image_id), image_name)
         except CalledProcessError:
             print('Note: walt server was probably not stopped properly and container still exists. Going on.')
@@ -187,7 +197,7 @@ class DockerLocalClient:
         mount('--bind', dir_name, mount_path)
         return True
     def image_umount(self, image_id, mount_path):
-        cont_name = 'mount:' + image_id
+        cont_name = self.get_mount_container_name(image_id)
         while True:
             try:
                 umount(mount_path)
@@ -197,7 +207,7 @@ class DockerLocalClient:
                 continue
         buildah.umount(cont_name)
         buildah.rm(cont_name)
-        image_name = 'docker.io/mounts/walt-image:' + image_id
+        image_name = self.get_mount_image_name(image_id)
         podman.rmi(image_name)
     def squash(self, image_fullname):
         cont_name = 'squash:' + image_fullname
