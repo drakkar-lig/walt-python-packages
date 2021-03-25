@@ -82,20 +82,20 @@ and to the fact walt server has to detect the board model, you should boot the b
 a SD card (see previous subsection).
 Once done, you can remove the SD card, and next bootups should work without it.
 
-Notes:
-* The SD card is the most fragile part of a raspberry pi board, thus working without it prevents most
-  common hardware problems. Note, however, that the smart bootup mechanism used in walt allows to keep
-  the SD card readonly, which greatly improves its lifetime.
+Important notes:
 * This boot method is not as robust as the previous one: if, for any reason, communication with
   the server is temporarily broken, the board may fail to reboot and hang. (With the other boot method,
   the board would reboot as many times as required until the communication with the server is recovered.)
   If PoE is used to power the board, and PoE reboots are allowed on the switch, then walt will allow you
   to "hard-reboot" (i.e. power-cycle) the board remotely. Otherwise, one would have to manually disconnect
   and reconnect the power source of the board to unblock it.
-* On the Raspberry Pi 4B board, the network boot method of the firmware must be activated first. This is
-  done automatically by script `/bin/on-bootup` of default image. As a result, when you will boot the
-  board for the first time, with a SD card, the firmware update will be applied and the board will
-  automatically reboot. Once this second boot is done, the board can work without the SD card.
+* The SD card is the most fragile part of a raspberry pi board, thus working without it prevents most
+  common hardware problems. Note, however, that the smart bootup mechanism used in walt allows to keep
+  the SD card readonly, which greatly improves its lifetime anyway.
+* If using a 4B board, you should also run /bin/walt-update-firmware once the node is booted from its
+  SD card and running its default walt image. This script will update the firmware for network boot,
+  and the board will automatically reboot. Once this second boot is done, the board can work without a
+  SD card.
 
 
 ## How to identify and use the new node
