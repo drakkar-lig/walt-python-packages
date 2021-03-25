@@ -29,13 +29,17 @@ def remount_with_nfs_export_option(mountpoint):
     mount_info = json.loads(json_info)['filesystems'][0]
     source = mount_info['source']
     fstype = mount_info['fstype']
-    options = mount_info['options']
-    # add appropriate options
-    options += ',index=on,nfs_export=on'
+    options = mount_info['options'].split(',')
+    # update options
+    new_options = [ 'rw', 'relatime', 'index=on', 'nfs_export=on' ] + \
+                  [ opt for opt in options \
+                    if opt.startswith('lowerdir') or \
+                       opt.startswith('upperdir') or \
+                       opt.startswith('workdir') ]
     # umount
     umount(mountpoint)
     # re-mount
-    mount('-t', fstype, '-o', options, source, mountpoint)
+    mount('-t', fstype, '-o', ','.join(new_options), source, mountpoint)
 
 def mount_exists(mountpoint):
     try:
