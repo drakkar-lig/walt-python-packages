@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import sys, subprocess, tempfile, shlex, time, os.path, requests
+import sys, subprocess, tempfile, shlex, time, os.path, requests, code
 from urllib.parse import urlparse
 from collections import namedtuple
 from walt.common.tcp import write_pickle, client_sock_file, \
@@ -7,6 +7,11 @@ from walt.common.tcp import write_pickle, client_sock_file, \
 from walt.common.constants import WALT_SERVER_TCP_PORT
 
 OS_ENCODING = sys.stdout.encoding
+
+SHELL_BANNER = """\
+[fake-ipxe] Entering interactive python shell.
+[fake-ipxe] You can print variables such as ip, mac, etc.\
+"""
 
 # Notes:
 # fake TFTP is implemented by using a direct TCP connection
@@ -163,6 +168,9 @@ def execute_line(env, line):
     # handle "echo" directive
     if words[0] == 'echo':
         print(' '.join(words[1:]))
+        return True
+    if words[0] == 'shell':
+        code.interact(banner=SHELL_BANNER, local=env)
         return True
     # handle "chain" directive
     if words[0] == 'chain':
