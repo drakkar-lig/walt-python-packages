@@ -151,7 +151,7 @@ def execute_line(env, line):
             if len(splitted) == 1:
                 break
             var_name, ending = splitted[1].split('}', 1)
-            word = splitted[0] + env[var_name] + ending
+            word = splitted[0] + env.get(var_name, '') + ending
         words.append(word)
     # handle "set" directive
     if words[0] == 'set':
