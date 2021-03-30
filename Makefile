@@ -26,7 +26,7 @@
 #     - test    -> pypitest
 #     - [other] -> [forbidden]
 
-ALL_PACKAGES=common virtual server node client
+ALL_PACKAGES=common virtual server node client client-g5k
 # common must be installed 1st (needed by others), then virtual
 INSTALLABLE_PACKAGES_ON_SERVER=common virtual server client
 GNUMAKEFLAGS=--no-print-directory
@@ -40,8 +40,10 @@ pull: $(patsubst %,%.pull,$(INSTALLABLE_PACKAGES_ON_SERVER))
 clean: $(patsubst %,%.clean,$(ALL_PACKAGES))
 
 client.%: common.%
-server.%: common.%
+server.%: common.% virtual.%
 node.%: common.%
+virtual.%: common.%
+client-g5k.%: client.%
 
 %.clean: %.info
 	@cd $*; pwd; python3 setup.py clean --all
@@ -51,7 +53,7 @@ node.%: common.%
 	@cd $*; pwd; python3 setup.py bdist_wheel && $(SUDO) `which pip3` install .
 
 %.info:
-	@$(MAKE) $*/walt/$*/info.py
+	@$(MAKE) $*/walt/$(subst -,/,$*)/info.py
 
 %/info.py: common/walt/common/version.py dev/metadata.py dev/info-updater.py
 	@echo updating info.py files
