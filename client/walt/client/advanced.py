@@ -50,3 +50,5 @@ class WalTUpdateHubMeta(WalTApplication):
 class WalTRescanHubAccount(WalTUpdateHubMeta):
     """alias to 'update-hub-meta' subcommand"""
     pass
+
+WALT_CLIENT_CATEGORY = "advanced", WalTAdvanced
