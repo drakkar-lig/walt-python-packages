@@ -1,12 +1,9 @@
 import os, sys
 from plumbum import cli
-from walt.client.link import ClientToServerLink
+from walt.client.link import ClientToServerLink, connect_to_tcp_server
 from walt.client.application import WalTCategoryApplication, WalTApplication
 from walt.client.tools import yes_or_no
-from walt.client.config import conf
-from walt.common.tcp import write_pickle, client_sock_file, \
-                            Requests
-from walt.common.constants import WALT_SERVER_TCP_PORT
+from walt.common.tcp import write_pickle, Requests
 
 class WalTVPN(WalTCategoryApplication):
     """VPN related sub-commands"""
@@ -51,7 +48,7 @@ class WalTVPNSetupProxy(WalTApplication):
 
 def read_vpn_node_image(entrypoint):
     # connect to server
-    sock = client_sock_file(conf['server'], WALT_SERVER_TCP_PORT)
+    sock = connect_to_tcp_server()
     # send the request id
     Requests.send_id(sock, Requests.REQ_VPN_NODE_IMAGE)
     # wait for the READY message from the server

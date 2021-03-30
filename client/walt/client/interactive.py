@@ -3,12 +3,11 @@ import sys
 from sys import stdin, stdout
 from select import select
 from socket import SHUT_WR
-from walt.client.config import conf
 from walt.client.term import TTYSettings
-from walt.common.constants import WALT_SERVER_TCP_PORT
+from walt.client.link import connect_to_tcp_server
 from walt.common.io import SmartFile, \
                             unbuffered, read_and_copy
-from walt.common.tcp import Requests, write_pickle, client_sock_file
+from walt.common.tcp import Requests, write_pickle
 
 SQL_SHELL_MESSAGE = """\
 Type \dt for a list of tables.
@@ -36,8 +35,7 @@ class PromptClient(object):
         # tell server whether we are on a tty
         params.update(client_tty = self.client_tty)
         # connect
-        server_host = conf['server']
-        self.sock_file = client_sock_file(server_host, WALT_SERVER_TCP_PORT)
+        self.sock_file = connect_to_tcp_server()
         # write request id
         Requests.send_id(self.sock_file, req_id)
         # wait for the READY message from the server

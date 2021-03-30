@@ -10,10 +10,8 @@ import sys, socket, importlib, pkgutil, walt.client, locale
 locale.getlocale = lambda *args: ('en_US', 'UTF-8')
 
 from walt.common.apilink import LinkException
-from walt.client.startup import init_config
 from walt.client.logo import try_add_logo
 from walt.client.application import WalTToolboxApplication
-from walt.client.link import ClientToServerLink
 from walt.client.timeout import timeout_init_handler
 
 WALT_COMMAND_HELP_PREFIX = '''\
@@ -57,7 +55,6 @@ def add_all_categories():
 
 def run():
     try:
-        init_config()
         timeout_init_handler()
         # optimize loading time by adding only the category specified, if any
         if len(sys.argv) == 1 or add_category(sys.argv[1]) == False:

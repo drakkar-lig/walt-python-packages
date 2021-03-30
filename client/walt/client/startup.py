@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 import socket, time, sys
 from walt.client import config
-from walt.client.link import ClientToServerLink
 from walt.client.auth import get_auth_conf
 
 EXPLAIN_CREDEDENTIALS='''\
@@ -16,7 +15,7 @@ def save_config(conf):
         saver.add_item('username', conf['username'])
         saver.add_item('password', conf['password'], coded=True)
 
-def init_config():
+def init_config(link_cls):
     try:
         conf = config.get_config_from_file(coded_items=['password'])
         modified = False
@@ -30,15 +29,16 @@ def init_config():
             if server_update:
                 conf['server'] = config.ask_config_item('ip or hostname of WalT server')
             if credentials_update:
-                print('Docker hub credentials are missing, incomplete or invalid.')
-                print('(Please get an account at hub.docker.com if not done yet.)')
+                print('Docker hub credentials (username & password) are missing, incomplete or invalid.')
+                print('Please get an account at hub.docker.com if not done yet.')
+                print('Note: WalT will also use this username to identify your work.')
             if 'username' not in conf:
                 conf['username'] = config.ask_config_item('username')
             if 'password' not in conf:
                 conf['password'] = config.ask_config_item('password', coded=True)
             if server_check or credentials_check:
                 modified = True
-                if test_config(conf, credentials_check):
+                if test_config(link_cls, conf, credentials_check):
                     break   # ok, leave the loop
             else:
                 break
@@ -52,12 +52,12 @@ def init_config():
         print('\nAborted.')
         sys.exit()
 
-def test_config(conf, credentials_check):
+def test_config(link_cls, conf, credentials_check):
     # we try to establish a connection to the server,
     # and optionaly to connect to the docker hub.
     config.set_conf(conf)
     try:
-        with ClientToServerLink() as server:
+        with link_cls() as server:
             if credentials_check:
                 server.set_busy_label('Authenticating to the docker hub')
                 auth_conf = get_auth_conf(server)

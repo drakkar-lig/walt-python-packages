@@ -1,8 +1,6 @@
-from walt.client.config import conf
+from walt.client.link import connect_to_tcp_server
 from walt.client.tools import ProgressMessageThread
-from walt.common.tcp import write_pickle, client_sock_file, \
-                            Requests
-from walt.common.constants import WALT_SERVER_TCP_PORT
+from walt.common.tcp import write_pickle, Requests
 import os, tarfile, socket
 
 def run_transfer_with_image(client_operand_index, **kwargs):
@@ -63,7 +61,7 @@ def run_transfer(req_id, dst_dir, dst_name, src_path,
         **entity_params
     )
     # connect to server
-    f = client_sock_file(conf['server'], WALT_SERVER_TCP_PORT)
+    f = connect_to_tcp_server()
     # send the request id
     Requests.send_id(f, req_id)
     # wait for the READY message from the server
