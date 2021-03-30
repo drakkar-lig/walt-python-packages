@@ -8,8 +8,8 @@ import sys, socket, importlib, pkgutil, walt.client, locale
 # because we do not know which locales are available on the OS where
 # walt client is installed.
 locale.getlocale = lambda *args: ('en_US', 'UTF-8')
+
 from walt.common.apilink import LinkException
-from walt.common.update import check_auto_update
 from walt.client.startup import init_config
 from walt.client.logo import try_add_logo
 from walt.client.application import WalTToolboxApplication
@@ -58,8 +58,6 @@ def add_all_categories():
 def run():
     try:
         init_config()
-        with ClientToServerLink() as server:
-            check_auto_update(server, 'walt-client')
         timeout_init_handler()
         # optimize loading time by adding only the category specified, if any
         if len(sys.argv) == 1 or add_category(sys.argv[1]) == False:
