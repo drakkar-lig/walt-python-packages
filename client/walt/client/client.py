@@ -2,16 +2,9 @@
 """
 WalT (wireless testbed) control tool.
 """
-import sys, socket
+import sys, socket, importlib, pkgutil, walt.client
 from walt.common.apilink import LinkException
 from walt.common.update import check_auto_update
-from walt.client.myhelp import WalTHelp
-from walt.client.log import WalTLog
-from walt.client.advanced import WalTAdvanced
-from walt.client.node import WalTNode
-from walt.client.device import WalTDevice
-from walt.client.image import WalTImage
-from walt.client.vpn import WalTVPN
 from walt.client.startup import init_config
 from walt.client.logo import try_add_logo
 from walt.client.application import WalTToolboxApplication
@@ -40,13 +33,22 @@ class WalT(WalTToolboxApplication):
     def get_help_prefix(self):
         return try_add_logo(WALT_COMMAND_HELP_PREFIX)
 
-WalT.subcommand("help", WalTHelp)
-WalT.subcommand("advanced", WalTAdvanced)
-WalT.subcommand("device", WalTDevice)
-WalT.subcommand("image", WalTImage)
-WalT.subcommand("log", WalTLog)
-WalT.subcommand("node", WalTNode)
-WalT.subcommand("vpn", WalTVPN)
+def add_category(name):
+    try:
+        mod = importlib.import_module('walt.client.' + name)
+    except ModuleNotFoundError:
+        return False
+    # module must provide an attribute "WALT_CLIENT_CATEGORY"
+    category_info = getattr(mod, 'WALT_CLIENT_CATEGORY', None)
+    if category_info is not None:
+        WalT.subcommand(*category_info)
+        return True
+    else:
+        return False
+
+def add_all_categories():
+    for finder, name, ispkg in pkgutil.iter_modules(walt.client.__path__):
+        add_category(name)
 
 def run():
     try:
@@ -54,6 +56,9 @@ def run():
         with ClientToServerLink() as server:
             check_auto_update(server, 'walt-client')
         timeout_init_handler()
+        # optimize loading time by adding only the category specified, if any
+        if len(sys.argv) == 1 or add_category(sys.argv[1]) == False:
+            add_all_categories()
         WalT.run()
     except socket.error:
         sys.exit('Network connection to WalT server failed!')

@@ -157,3 +157,5 @@ class WalTImageSquash(WalTApplication):
             if status == 'NEEDS_CONFIRM':
                 if confirm():
                     server.squash_image(image_name, True)
+
+WALT_CLIENT_CATEGORY = "image", WalTImage
