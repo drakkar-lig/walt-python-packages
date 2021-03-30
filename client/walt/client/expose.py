@@ -1,10 +1,9 @@
 #!/usr/bin/env python
-from walt.client.config import conf
 from select import select
-from walt.common.constants import WALT_SERVER_TCP_PORT
 from walt.common.io import read_and_copy
-from walt.common.tcp import Requests, write_pickle, client_sock_file, \
+from walt.common.tcp import Requests, write_pickle, \
                             server_socket, SmartSocketFile
+from walt.client.link import connect_to_tcp_server
 
 class TCPExposer:
     def __init__(self, local_port, node_ip, node_port):
@@ -35,8 +34,7 @@ class TCPExposer:
                     del self.associations[paired_sock]
     def open_channel_to_node(self):
         # connect
-        server_host = conf['server']
-        sock_file = client_sock_file(server_host, WALT_SERVER_TCP_PORT)
+        sock_file = connect_to_tcp_server()
         # write request id
         Requests.send_id(sock_file, Requests.REQ_TCP_TO_NODE)
         # send parameters

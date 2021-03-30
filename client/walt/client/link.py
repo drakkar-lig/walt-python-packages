@@ -4,8 +4,11 @@ from walt.client.config import conf
 from walt.client.filesystem import Filesystem
 from walt.common.api import api, api_expose_method, api_expose_attrs
 from walt.common.apilink import ServerAPILink, BaseAPIService
+from walt.common.tcp import client_sock_file
+from walt.common.constants import WALT_SERVER_TCP_PORT
 from walt.client.term import TTYSettings
 from walt.client.update import check_update
+from walt.client.startup import init_config
 
 @api
 class ExposedStream(object):
@@ -57,18 +60,35 @@ class WaltClientService(BaseAPIService):
     def set_default_busy_label(self):
         self.link.set_default_busy_label()
 
-class ClientToServerLink(ServerAPILink):
+class InternalClientToServerLink(ServerAPILink):
     # optimization:
     # create service only once.
     # (this will allow to reuse an existing connection in the code of
     # ServerAPILink)
     service = WaltClientService()
-    num_calls = 0
     def __init__(self):
-        ClientToServerLink.service.link = self
+        InternalClientToServerLink.service.link = self
         ServerAPILink.__init__(self,
-                conf['server'], 'CSAPI', ClientToServerLink.service)
+                conf['server'], 'CSAPI', InternalClientToServerLink.service)
+
+class ClientToServerLink:
+    num_calls = 0
+    def __new__(cls):
+        # on 1st call, check config, and once the config is OK
+        # check if server version matches.
         if ClientToServerLink.num_calls == 0:
-            with self as server:
+            init_config(InternalClientToServerLink)
+        link = InternalClientToServerLink()
+        if ClientToServerLink.num_calls == 0:
+            with link as server:
                 check_update(server)
         ClientToServerLink.num_calls += 1
+        return link
+
+def connect_to_tcp_server():
+    # verify conf and connectivity to server through
+    # its API endpoint
+    with ClientToServerLink():
+        pass
+    # connect to TCP server endpoint
+    return client_sock_file(conf['server'], WALT_SERVER_TCP_PORT)
