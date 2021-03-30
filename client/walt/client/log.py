@@ -1,11 +1,8 @@
 import sys, re, datetime, pickle
-from walt.common.constants import WALT_SERVER_TCP_PORT
-from walt.common.tcp import read_pickle, write_pickle, client_sock_file, \
-                            Requests
+from walt.common.tcp import read_pickle, write_pickle, Requests
 from plumbum import cli
 from walt.client.application import WalTCategoryApplication, WalTApplication
-from walt.client.config import conf
-from walt.client.link import ClientToServerLink
+from walt.client.link import ClientToServerLink, connect_to_tcp_server
 from walt.client.tools import confirm
 from walt.client.timeout import start_timeout, stop_timeout, timeout_reached, cli_timeout_switch
 
@@ -42,8 +39,8 @@ def compute_relative_date(server_time, rel_date):
     return pickle.dumps(server_time - delay)
 
 class LogsFlowFromServer(object):
-    def __init__(self, walt_server_host):
-        self.f = client_sock_file(walt_server_host, WALT_SERVER_TCP_PORT)
+    def __init__(self):
+        self.f = connect_to_tcp_server()
     def read_log_record(self):
         return read_pickle(self.f)
     def request_log_dump(self, **kwargs):
@@ -127,7 +124,7 @@ class WalTLogShowOrWait(WalTApplication):
     @staticmethod
     def start_streaming(format_string, history_range, realtime, senders, streams,
                         logline_regexp, stop_test, timeout = -1):
-        conn = LogsFlowFromServer(conf['server'])
+        conn = LogsFlowFromServer()
         conn.request_log_dump(  history = history_range,
                                 realtime = realtime,
                                 senders = senders,
