@@ -95,3 +95,5 @@ class WalTVPNSetupNode(WalTApplication):
             entrypoint = input()
         print('OK.\n')
         read_vpn_node_image(entrypoint)
+
+WALT_CLIENT_CATEGORY = "vpn", WalTVPN

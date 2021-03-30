@@ -18,3 +18,5 @@ class WalTHelpList(WalTApplication):
     def main(self):
         from walt.client.doc.md import display_topic_list
         display_topic_list()
+
+WALT_CLIENT_CATEGORY = "help", WalTHelp

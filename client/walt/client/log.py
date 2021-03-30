@@ -286,3 +286,5 @@ class WalTLogWait(WalTLogShowOrWait):
                     return False    # no, we are not done yet
         WalTLogShowOrWait.start_streaming(self.format_string, history_range, True,
                                     senders, self.streams, logline_regexp, stop_test, self.timeout)
+
+WALT_CLIENT_CATEGORY = "log", WalTLog

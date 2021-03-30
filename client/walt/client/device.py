@@ -112,3 +112,5 @@ class WalTDeviceConfig(WalTApplication):
             else:
                 # no settings specified => list current settings
                 server.get_device_config(device_set)
+
+WALT_CLIENT_CATEGORY = "device", WalTDevice

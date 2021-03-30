@@ -262,3 +262,5 @@ class WalTNodeConfig(WalTApplication):
             else:
                 # no settings specified => list current settings
                 server.get_device_config(node_set)
+
+WALT_CLIENT_CATEGORY = "node", WalTNode
