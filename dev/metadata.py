@@ -12,6 +12,9 @@ PACKAGE_SPECIFIC_INFO = {
         subdir = 'client',
         requires = [ 'plumbum>=1.4.2', 'commonmark>=0.7.5',
                      'pygments>=2.2.0', 'walt-common==%(upload)s'],
+        extras_require = {
+            'g5k': [ 'walt-client-g5k==%(upload)s' ]
+        },
         version_str = '%(upload)s',
         setup = dict(
             description = "WalT control tool.",
@@ -24,6 +27,14 @@ PACKAGE_SPECIFIC_INFO = {
                 ('/etc/bash_completion.d', ['bash_completion/walt'])
             ],
             include_package_data = True
+        )
+    ),
+    "walt-client-g5k": dict(
+        subdir = 'client-g5k',
+        requires = [ 'plumbum>=1.4.2', 'walt-client==%(upload)s'],
+        version_str = '%(upload)s',
+        setup = dict(
+            description = "WalT control tool -- Grid'5000 plugin.",
         )
     ),
     "walt-node": dict(
