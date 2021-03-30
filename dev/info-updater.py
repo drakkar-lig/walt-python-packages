@@ -28,10 +28,20 @@ for package_name, package_specific in PACKAGE_SPECIFIC_INFO.items():
     install_requires = [ requirement % versions_info \
         for requirement in package_specific['requires'] ]
     setup_info.update(install_requires = install_requires)
+    if 'extras_require' in package_specific:
+        extras_require = {
+            feature: [ (req % versions_info) for req in requirements ] \
+            for (feature, requirements) in \
+                    package_specific['extras_require'].items()
+        }
+        setup_info.update(extras_require = extras_require)
     setup_info.update(sorted(PACKAGE_GENERIC_INFO.items()))
     setup_info.update(sorted(package_specific['setup'].items()))
     new_info_file = info_file_template % dict(
         setup_info = pprint_dict(setup_info)
     )
-    with open("%(subdir)s/walt/%(subdir)s/info.py" % package_specific, 'w') as f:
+    subdir = package_specific['subdir']
+    subdir_as_path = subdir.replace('-', '/')
+    with open("%(subdir)s/walt/%(subdir_as_path)s/info.py" % dict(
+            subdir = subdir, subdir_as_path = subdir_as_path), 'w') as f:
         f.write(new_info_file)
