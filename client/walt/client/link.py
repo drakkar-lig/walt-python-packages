@@ -5,6 +5,7 @@ from walt.client.filesystem import Filesystem
 from walt.common.api import api, api_expose_method, api_expose_attrs
 from walt.common.apilink import ServerAPILink, BaseAPIService
 from walt.client.term import TTYSettings
+from walt.client.update import check_update
 
 @api
 class ExposedStream(object):
@@ -62,7 +63,12 @@ class ClientToServerLink(ServerAPILink):
     # (this will allow to reuse an existing connection in the code of
     # ServerAPILink)
     service = WaltClientService()
+    num_calls = 0
     def __init__(self):
         ClientToServerLink.service.link = self
         ServerAPILink.__init__(self,
                 conf['server'], 'CSAPI', ClientToServerLink.service)
+        if ClientToServerLink.num_calls == 0:
+            with self as server:
+                check_update(server)
+        ClientToServerLink.num_calls += 1
