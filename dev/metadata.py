@@ -31,7 +31,7 @@ PACKAGE_SPECIFIC_INFO = {
     ),
     "walt-client-g5k": dict(
         subdir = 'client-g5k',
-        requires = [ 'plumbum>=1.4.2', 'walt-client==%(upload)s'],
+        requires = [ ],
         version_str = '%(upload)s',
         setup = dict(
             description = "WalT control tool -- Grid'5000 plugin.",
