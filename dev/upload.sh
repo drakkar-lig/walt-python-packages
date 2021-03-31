@@ -14,11 +14,9 @@ case "$branch" in
     master) tag_prefix='upload_'
             repo_option=''
             ;;
-    dev)    tag_prefix='testupload_'
+    *)      tag_prefix='testupload_'
             repo_option='--repository-url https://test.pypi.org/legacy/'
             ;;
-    *)      >&2 echo "Only branches 'master' and 'dev' are allowed. You are on branch '$branch'."
-            exit;;
 esac
 
 remote=$(git remote -v | grep fetch | grep $URL | awk '{print $1}')
