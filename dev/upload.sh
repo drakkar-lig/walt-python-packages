@@ -1,6 +1,6 @@
 #!/bin/bash
 set -e
-URL=github.com/drakkar-lig/walt-python-packages
+URL_REGEXP="github.com.drakkar-lig/walt-python-packages"
 SUBPACKAGES="$*"
 . dev/tools/functions.sh
 
@@ -19,10 +19,10 @@ case "$branch" in
             ;;
 esac
 
-remote=$(git remote -v | grep fetch | grep $URL | awk '{print $1}')
+remote=$(git remote -v | grep fetch | grep "$URL_REGEXP" | awk '{print $1}')
 
 if [ "$remote" = "" ]; then
-    >&2 echo "This operation is only allowed when the remote git repository is $URL (otherwise version numbering conflicts will occur)."
+    >&2 echo "This operation is only allowed when the remote git repository is the official one (otherwise version numbering conflicts will occur)."
     exit
 fi
 
