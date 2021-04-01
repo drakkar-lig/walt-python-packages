@@ -154,41 +154,6 @@ def on_sigterm_throw_exception():
         raise KeyboardInterrupt
     signal.signal(signal.SIGTERM, signal_handler)
 
-MAX_PRINTED_NODES = 10
-CONJUGATE_REGEXP = r'\b(\w*)\(([^)]*)\)'
-
-def format_sentence(sentence, items,
-            label_none, label_singular, label_plural):
-    # conjugate if plural or singular
-    if len(items) == 1:
-        sentence = re.sub(CONJUGATE_REGEXP, r'\1', sentence)
-    else:
-        sentence = re.sub(CONJUGATE_REGEXP, r'\2', sentence)
-    # designation of items
-    sorted_items = sorted(items)
-    if len(items) > MAX_PRINTED_NODES:
-        s_items = '%s %s, %s, ..., %s' % (label_plural, sorted_items[0], sorted_items[1], sorted_items[-1])
-    elif len(items) == 0:
-        s_items = label_none
-    elif len(items) > 1:
-        s_items = '%s %s and %s' % (label_plural, ', '.join(sorted_items[:-1]), sorted_items[-1])
-    else:   # 1 item
-        s_items = '%s %s' % (label_singular, sorted_items[0])
-    # almost done
-    return sentence % s_items
-
-def format_sentence_about_nodes(sentence, nodes):
-    """
-    example 1:
-        input: sentence = '%s seems(seem) dead.', nodes = ['rpi0']
-        output: 'Node rpi0 seems dead.'
-    example 2:
-        input: sentence = '%s seems(seem) dead.', nodes = ['rpi0', 'rpi1', 'rpi2']
-        output: 'Nodes rpi0, rpi1 and rpi2 seem dead.'
-    (and if there are many nodes, an ellipsis is used.)
-    """
-    return format_sentence(sentence, nodes, 'No nodes', 'Node', 'Nodes')
-
 class SimpleContainer(object):
     def __init__(self, **args):
         self.update(**args)

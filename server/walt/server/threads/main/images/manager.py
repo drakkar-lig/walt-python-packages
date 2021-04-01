@@ -11,7 +11,7 @@ from walt.server.threads.main.images.duplicate import duplicate
 from walt.server.threads.main.images.fixowner import fix_owner
 from walt.server.threads.main.images.store import NodeImageStore
 from walt.server.threads.main.network import tftp
-from walt.common.tools import format_sentence, format_sentence_about_nodes
+from walt.common.formatting import format_sentence, format_sentence_about_nodes
 
 # About terminology: See comment about it in image.py.
 MSG_BOOT_DEFAULT_IMAGE = """\

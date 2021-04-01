@@ -61,7 +61,6 @@ PACKAGE_SPECIFIC_INFO = {
                         'pysnmp>=4.4.12',
                         'ipaddress>=1.0.7','requests>=2.21.0',
                         'sdnotify>=0.3.0',
-                        'python-dateutil>=2.4.2',
                         'psycopg2-binary>=2.8.2',
                         'gevent>=21.1.2',
                         'bottle>=0.12.19',
@@ -106,7 +105,7 @@ PACKAGE_SPECIFIC_INFO = {
     ),
     "walt-common": dict(
         subdir = 'common',
-        requires = ['plumbum>=1.4.2','requests>=2.21.0'],
+        requires = ['plumbum>=1.4.2','requests>=2.21.0', 'python-dateutil>=2.8.1'],
         version_str = '%(upload)s',
         setup = dict(
             description = "WalT common python modules."

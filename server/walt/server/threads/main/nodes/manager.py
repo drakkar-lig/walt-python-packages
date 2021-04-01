@@ -4,7 +4,8 @@ from collections import defaultdict
 from snimpy import snmp
 from time import time
 from walt.common.tcp import Requests
-from walt.common.tools import do, format_sentence_about_nodes, failsafe_makedirs, format_sentence
+from walt.common.tools import do, failsafe_makedirs
+from walt.common.formatting import format_sentence_about_nodes, format_sentence
 from walt.server.const import SSH_COMMAND
 from walt.server.threads.main.filesystem import Filesystem
 from walt.server.threads.main.network.netsetup import NetSetup

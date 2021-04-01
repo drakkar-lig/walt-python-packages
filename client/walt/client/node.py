@@ -3,7 +3,7 @@ import time, sys
 from plumbum import cli
 from walt.client.device import WalTDevice
 
-from walt.common.tools import format_sentence_about_nodes
+from walt.common.formatting import format_sentence_about_nodes
 from walt.client.link import ClientToServerLink
 from walt.client.tools import confirm
 from walt.client.config import conf
