@@ -1,5 +1,6 @@
 import os, subprocess
 from walt.common.version import __version__
+from walt.common.formatting import framed, highlight
 from walt.client.plugins import get_plugins
 
 MSG_UPDATE = """
@@ -7,16 +8,6 @@ walt-client software does not match server API!
 You should update your client using:
 $ pip3 install --upgrade "%(package)s==%(remote_version)d"
 """
-
-def highlight(section):
-    lines = section.strip().splitlines()
-    max_len = max(len(s) for s in lines)
-    line_format = "*** %-" + str(max_len) + "s ***"
-    if os.isatty(1):
-        line_format = "\x1b[1;2m" + line_format + "\x1b[0m"
-    print()
-    for line in lines:
-        print(line_format % line)
 
 def check_update(server):
     updated = False
@@ -27,6 +18,10 @@ def check_update(server):
             package = 'walt-client[' + ','.join(plugins) + ']'
         else:
             package = 'walt-client'
-        highlight(MSG_UPDATE % dict(
+        msg = MSG_UPDATE % dict(
                 remote_version = remote_version,
-                package = package))
+                package = package)
+        msg = highlight(msg)
+        print()
+        print(framed('Important notice', msg))
+        print()
