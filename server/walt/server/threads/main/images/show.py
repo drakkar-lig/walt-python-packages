@@ -1,4 +1,5 @@
-from walt.server.tools import columnate, format_node_models_list
+from walt.server.tools import format_node_models_list
+from walt.common.formatting import columnate
 
 MSG_WS_IS_EMPTY="""\
 Your working set is empty.

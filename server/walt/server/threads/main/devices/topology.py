@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 
 import sys, json, re, time
-from dateutil.relativedelta import relativedelta
 from snimpy.snmp import SNMPException
 
-from walt.common.tools import get_mac_address, format_sentence
+from walt.common.tools import get_mac_address
+from walt.common.formatting import format_sentence, human_readable_delay
 from walt.server import const
 from walt.server.threads.main import snmp
 from walt.server.threads.main.snmp import NoSNMPVariantFound
@@ -42,22 +42,6 @@ def format_explanation(item_type, items):
     if len(items) == 1:
         return item_type + ': ' + items[0] + '.\n'
     return item_type + 's:' + ''.join('\n- ' + item for item in items) + '\n'
-
-attrs = ['years', 'months', 'days', 'hours', 'minutes', 'seconds']
-def human_readable_delay(seconds):
-    if seconds < 1:
-        seconds = 1
-    delta = relativedelta(seconds=seconds)
-    items = []
-    for attr in attrs:
-        attr_val = getattr(delta, attr)
-        if attr_val == 0:
-            continue
-        plur_or_sing_attr = attr if attr_val > 1 else attr[:-1]
-        items.append('%d %s' % (attr_val, plur_or_sing_attr))
-    # keep only 2 items max, this is enough granularity for a human.
-    items = items[:2]
-    return ' and '.join(items)
 
 class Topology(object):
     def __init__(self):

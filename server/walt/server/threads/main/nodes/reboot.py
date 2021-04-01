@@ -1,6 +1,6 @@
 from time import time
 from collections import defaultdict
-from walt.common.tools import format_sentence_about_nodes
+from walt.common.formatting import format_sentence_about_nodes
 from walt.server.threads.main.nodes.netservice import node_request
 
 POE_REBOOT_DELAY            = 2  # seconds

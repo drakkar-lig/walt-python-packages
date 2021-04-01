@@ -4,7 +4,7 @@ import pickle
 from walt.common.constants import WALT_SERVER_TCP_PORT
 from walt.common.devices.registry import get_device_info_from_mac
 from walt.common.tcp import TCPServer
-from walt.common.tools import format_sentence
+from walt.common.formatting import format_sentence
 from walt.server.threads.main.blocking import BlockingTasksManager
 from walt.server.threads.main.db import ServerDB
 from walt.server.threads.main.images.image import format_image_fullname

@@ -1,5 +1,5 @@
 from walt.common.crypto.blowfish import BlowFish
-from walt.server.tools import indicate_progress
+from walt.common.formatting import indicate_progress
 from walt.server.exttools import buildah, podman, skopeo, mount, umount, findmnt, docker
 from walt.server import const
 from datetime import datetime
