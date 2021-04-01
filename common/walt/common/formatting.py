@@ -1,4 +1,4 @@
-import re
+import re, os
 from dateutil.relativedelta import relativedelta
 
 COLUMNATE_SPACING = 2
@@ -178,3 +178,36 @@ def human_readable_delay(seconds):
     # keep only 2 items max, this is enough granularity for a human.
     items = items[:2]
     return ' and '.join(items)
+
+BOX_CHARS = {
+    True: { 'top-left': u'\u250c', 'horizontal': u'\u2500', 'top-right': u'\u2510',
+            'vertical': u'\u2502', 'bottom-left': u'\u2514', 'bottom-right': u'\u2518' },
+    False: { 'top-left': ' ', 'horizontal': '-', 'top-right': ' ',
+            'vertical': '|', 'bottom-left': ' ', 'bottom-right': ' ' }
+}
+
+def char_len(line):
+    unescaped = re.sub('\x1b' + r'[^m]*m', '', line)
+    return len(unescaped)
+
+def framed(title, section):
+    box_c = BOX_CHARS[os.isatty(1)]
+    lines = [ '' ] + section.splitlines()
+    lengths = [ char_len(line) for line in lines ]
+    max_width = max(lengths + [ len(title) ])
+    top_line = box_c['top-left'] + ' ' + title + ' ' + \
+               box_c['horizontal'] * (max_width - len(title)) + box_c['top-right']
+    middle_lines = [ (box_c['vertical'] + ' ' + line + \
+                      ' ' * (max_width - lengths[i] + 1) + \
+                      box_c['vertical']) for i, line in enumerate(lines) ]
+    bottom_line = box_c['bottom-left'] + box_c['horizontal'] * (max_width + 2) + \
+                  box_c['bottom-right']
+    return top_line + '\n' + '\n'.join(middle_lines) + '\n' + bottom_line
+
+def highlight(text):
+    if not os.isatty(1):
+        return text
+    lines = text.strip().splitlines()
+    # use DIM and BOLD escape codes
+    line_format = "\x1b[1;2m%s\x1b[0m"
+    return '\n'.join((line_format % line) for line in lines)
