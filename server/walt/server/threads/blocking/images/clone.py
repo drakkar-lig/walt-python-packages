@@ -4,7 +4,7 @@ from walt.server.threads.blocking.images.search import \
         LOCATION_LABEL, LOCATION_PER_LABEL
 from walt.server.threads.blocking.images.metadata import \
             pull_user_metadata
-from walt.common.tools import format_sentence
+from walt.common.formatting import format_sentence
 
 # About terminology: See comment about it in image.py.
 

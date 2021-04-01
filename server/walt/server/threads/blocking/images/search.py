@@ -1,7 +1,7 @@
 import requests
 from collections import defaultdict
-from walt.server.tools import columnate, columnate_iterate_tty, \
-                              format_node_models_list
+from walt.common.formatting import columnate, columnate_iterate_tty
+from walt.server.tools import format_node_models_list
 from walt.server.threads.blocking.images.metadata import \
             pull_user_metadata
 from walt.common.version import __version__

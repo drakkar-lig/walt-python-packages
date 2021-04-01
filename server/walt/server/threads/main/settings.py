@@ -2,7 +2,8 @@ import json, re
 from collections import defaultdict
 from walt.server.threads.main.network.netsetup import NetSetup
 from walt.server.threads.main.nodes.manager import VNODE_DEFAULT_RAM, VNODE_DEFAULT_CPU_CORES
-from walt.common.tools import do, format_sentence
+from walt.common.tools import do
+from walt.common.formatting import format_sentence
 
 class SettingsManager:
     def __init__(self, server):

@@ -1,5 +1,5 @@
 from walt.server.threads.main.network.netsetup import NetSetup
-from walt.server.tools import format_paragraph, columnate
+from walt.common.formatting import format_paragraph, columnate
 
 NODE_SHOW_QUERY = """
     SELECT  d.name as name, n.model as model,
