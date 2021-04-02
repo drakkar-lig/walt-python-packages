@@ -6,11 +6,11 @@ from walt.client.application import WalTCategoryApplication, WalTApplication
 
 class WalTAdvanced(WalTCategoryApplication):
     """advanced sub-commands"""
-    pass
+    ORDERING = 6
 
 @WalTAdvanced.subcommand("sql")
 class WalTAdvancedSql(WalTApplication):
-    """Start a remote SQL prompt on the WalT server database"""
+    """start a remote SQL prompt on the WalT server database"""
     def main(self):
         run_sql_prompt()
 

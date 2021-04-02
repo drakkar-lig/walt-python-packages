@@ -14,9 +14,15 @@ class WalTToolboxApplication(WalTApplication):
     def help(self):
         """Prints this help message and quits"""
         print((self.get_help_prefix().rstrip()))
-        subitems = []
-        for name, subcls in sorted(self._subcommands.items()):
+        # order sub-commands or categories by their ORDERING field
+        # if they provide one, by their name otherwise
+        ordering = []
+        for name, subcls in self._subcommands.items():
             subapp = subcls.get()
+            priority = getattr(subapp, 'ORDERING', 0)
+            ordering.append((priority, name, subapp))
+        subitems = []
+        for priority, name, subapp in sorted(ordering):
             doc = subapp.DESCRIPTION if subapp.DESCRIPTION else getdoc(subapp)
             subitems.append((name, doc))
         max_name_len = max(len(name) for name, doc in subitems)

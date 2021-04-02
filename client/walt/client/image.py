@@ -10,11 +10,12 @@ from walt.client.application import WalTCategoryApplication, WalTApplication
 
 class WalTImage(WalTCategoryApplication):
     """management of WalT-nodes operating system images"""
-    pass
+    ORDERING = 1
 
 @WalTImage.subcommand("search")
 class WalTImageSearch(WalTApplication):
     """search for remote WalT node OS images"""
+    ORDERING = 2
     def main(self, keyword=None):
         with ClientToServerLink() as server_link:
             server_link.set_busy_label('Searching')
@@ -24,6 +25,7 @@ class WalTImageSearch(WalTApplication):
 @WalTImage.subcommand("clone")
 class WalTImageClone(WalTApplication):
     """clone a remote image into your working set"""
+    ORDERING = 3
     _force = False # default
     def main(self, clonable_image_link, image_name=None):
         with ClientToServerLink() as server_link:
@@ -37,6 +39,7 @@ class WalTImageClone(WalTApplication):
 @WalTImage.subcommand("publish")
 class WalTImagePublish(WalTApplication):
     """publish a WalT image on the docker hub"""
+    ORDERING = 9
     def main(self, image_name):
         with ClientToServerLink() as server_link:
             server_link.set_busy_label('Validating / Publishing')
@@ -46,6 +49,7 @@ class WalTImagePublish(WalTApplication):
 @WalTImage.subcommand("show")
 class WalTImageShow(WalTApplication):
     """display your working set of walt images"""
+    ORDERING = 1
     _refresh = False # default
     def main(self):
         with ClientToServerLink() as server:
@@ -57,6 +61,7 @@ class WalTImageShow(WalTApplication):
 @WalTImage.subcommand("shell")
 class WalTImageShell(WalTApplication):
     """modify an image through an interactive shell"""
+    ORDERING = 4
     def main(self, image_name):
         with ClientToServerLink() as server:
             session_info = server.create_image_shell_session(
@@ -92,6 +97,7 @@ class WalTImageShell(WalTApplication):
 @WalTImage.subcommand("remove")
 class WalTImageRemove(WalTApplication):
     """remove an image from your working set"""
+    ORDERING = 7
     def main(self, image_name):
         with ClientToServerLink() as server:
             server.remove_image(image_name)
@@ -99,6 +105,7 @@ class WalTImageRemove(WalTApplication):
 @WalTImage.subcommand("rename")
 class WalTImageRename(WalTApplication):
     """rename an image of your working set"""
+    ORDERING = 8
     def main(self, image_name, new_image_name):
         with ClientToServerLink() as server:
             server.rename_image(image_name, new_image_name)
@@ -106,6 +113,7 @@ class WalTImageRename(WalTApplication):
 @WalTImage.subcommand("duplicate")
 class WalTImageDuplicate(WalTApplication):
     """duplicate an image of your working set"""
+    ORDERING = 6
     def main(self, image_name, new_image_name):
         with ClientToServerLink() as server:
             server.duplicate_image(image_name, new_image_name)
@@ -113,6 +121,7 @@ class WalTImageDuplicate(WalTApplication):
 @WalTImage.subcommand("cp")
 class WalTImageCp(WalTApplication):
     """transfer files (client machine <-> image)"""
+    ORDERING = 5
     USAGE="""\
     walt image cp <local-path> <image>:<path>
     walt image cp <image>:<path> <local-path>
@@ -151,6 +160,7 @@ class WalTImageCp(WalTApplication):
 @WalTImage.subcommand("squash")
 class WalTImageSquash(WalTApplication):
     """squash all layers of an image into one"""
+    ORDERING = 10
     def main(self, image_name):
         with ClientToServerLink() as server:
             status = server.squash_image(image_name, False)
