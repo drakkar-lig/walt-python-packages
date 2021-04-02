@@ -19,7 +19,8 @@ WAIT_NODES_BUSY_LABEL='\
 Node bootup notification still pending (press ctrl-C to proceed anyway)'
 
 class WalTNode(WalTCategoryApplication):
-    """WalT node management sub-commands"""
+    """management of WalT nodes"""
+    ORDERING = 2
     @staticmethod
     def wait_for_nodes(server, node_set, busy_label = WAIT_NODES_BUSY_LABEL, timeout = -1):
         try:
@@ -79,6 +80,7 @@ class WalTNode(WalTCategoryApplication):
 @WalTNode.subcommand("show")
 class WalTNodeShow(WalTApplication):
     """show WalT nodes"""
+    ORDERING = 1
     _all = False # default
     def main(self):
         with ClientToServerLink() as server:
@@ -90,6 +92,7 @@ class WalTNodeShow(WalTApplication):
 @WalTNode.subcommand("create")
 class WalTNodeCreate(WalTApplication):
     """create a virtual WalT node"""
+    ORDERING = 8
     def main(self, node_name):
         with ClientToServerLink() as server:
             server.create_vnode(node_name)
@@ -97,6 +100,7 @@ class WalTNodeCreate(WalTApplication):
 @WalTNode.subcommand("remove")
 class WalTNodeRemove(WalTApplication):
     """remove a virtual WalT node"""
+    ORDERING = 9
     def main(self, node_name):
         with ClientToServerLink() as server:
             if not WalTDevice.confirm_devices_not_owned(server, node_name):
@@ -106,6 +110,7 @@ class WalTNodeRemove(WalTApplication):
 @WalTNode.subcommand("rename")
 class WalTNodeRename(WalTApplication):
     """rename a WalT node"""
+    ORDERING = 10
     def main(self, old_node_name, new_node_name):
         with ClientToServerLink() as server:
             if not WalTDevice.confirm_devices_not_owned(server, old_node_name):
@@ -115,6 +120,7 @@ class WalTNodeRename(WalTApplication):
 @WalTNode.subcommand("blink")
 class WalTNodeBlink(WalTApplication):
     """make a node blink for a given number of seconds"""
+    ORDERING = 12
     def main(self, node_name, duration=60):
         try:
             seconds = int(duration)
@@ -137,6 +143,7 @@ class WalTNodeBlink(WalTApplication):
 @WalTNode.subcommand("reboot")
 class WalTNodeReboot(WalTApplication):
     """reboot a (set of) node(s)"""
+    ORDERING = 6
     _hard_only = False # default
     def main(self, node_set):
         with ClientToServerLink() as server:
@@ -150,18 +157,21 @@ class WalTNodeReboot(WalTApplication):
 @WalTNode.subcommand("boot")
 class WalTNodeBoot(WalTApplication):
     """let a (set of) node(s) boot an operating system image"""
+    ORDERING = 2
     def main(self, node_set, image_name_or_default):
         return WalTNode.boot_nodes(node_set, image_name_or_default)
 
 @WalTNode.subcommand("deploy")
 class WalTNodeDeploy(WalTApplication):
     """alias to 'boot' subcommand"""
+    ORDERING = 15
     def main(self, node_set, image_name_or_default):
         return WalTNode.boot_nodes(node_set, image_name_or_default)
 
 @WalTNode.subcommand("ping")
 class WalTNodePing(WalTApplication):
     """check that a node is reachable on WalT network"""
+    ORDERING = 11
     def main(self, node_name):
         node_ip = None
         with ClientToServerLink() as server:
@@ -172,6 +182,7 @@ class WalTNodePing(WalTApplication):
 @WalTNode.subcommand("shell")
 class WalTNodeShell(WalTApplication):
     """run an interactive shell connected to the node"""
+    ORDERING = 3
     def main(self, node_name):
         WalTNode.run_cmd(   node_name, False, [ ],
                             startup_msg = NODE_SHELL_MESSAGE,
@@ -180,6 +191,7 @@ class WalTNodeShell(WalTApplication):
 @WalTNode.subcommand("run")
 class WalTNodeRun(WalTApplication):
     """run a command on a (set of) node(s)"""
+    ORDERING = 4
     _term = False # default
     def main(self, node_set, *cmdargs):
         WalTNode.run_cmd(node_set, True, cmdargs, tty = self._term)
@@ -190,6 +202,7 @@ class WalTNodeRun(WalTApplication):
 @WalTNode.subcommand("cp")
 class WalTNodeCp(WalTApplication):
     """transfer files/dirs to or from a node"""
+    ORDERING = 5
     USAGE="""\
     walt node cp <local-path> <node>:<path>
     walt node cp <node>:<path> <local-path>
@@ -225,6 +238,7 @@ class WalTNodeCp(WalTApplication):
 @WalTNode.subcommand("wait")
 class WalTNodeWait(WalTApplication):
     """wait for bootup notification of a node (or set of nodes)"""
+    ORDERING = 13
     timeout = cli_timeout_switch()
     def main(self, node_set):
         with ClientToServerLink() as server_link:
@@ -234,6 +248,7 @@ class WalTNodeWait(WalTApplication):
 @WalTNode.subcommand("expose")
 class WalTNodeExpose(WalTApplication):
     """expose a network port of a node on the local machine"""
+    ORDERING = 14
     @cli.positional(str, int, int)
     def main(self, node_name, node_port, local_port):
         node_ip = None
@@ -249,7 +264,8 @@ class WalTNodeExpose(WalTApplication):
 
 @WalTNode.subcommand("config")
 class WalTNodeConfig(WalTApplication):
-    """Get or set nodes configuration"""
+    """get or set nodes configuration"""
+    ORDERING = 7
     def main(self, node_set, *configuration):
         with ClientToServerLink() as server:
             node_set = server.develop_node_set(node_set)

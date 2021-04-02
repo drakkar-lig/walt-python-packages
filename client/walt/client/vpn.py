@@ -7,14 +7,14 @@ from walt.common.tcp import write_pickle, Requests
 
 class WalTVPN(WalTCategoryApplication):
     """VPN related sub-commands"""
-    pass
+    ORDERING = 5
 
 WAIT_VPN_BUSY_LABEL='\
 Waiting for next VPN connection attempt (press ctrl-C to stop)'
 
 @WalTVPN.subcommand("monitor")
 class WalTVPNMonitor(WalTApplication):
-    """Monitor VPN and accept/deny new connection requests"""
+    """monitor VPN and accept/deny new connection requests"""
     def main(self):
         with ClientToServerLink() as server:
             while True:
@@ -36,7 +36,7 @@ class WalTVPNMonitor(WalTApplication):
 
 @WalTVPN.subcommand("setup-proxy")
 class WalTVPNSetupProxy(WalTApplication):
-    """Setup an ssh frontend server as a WalT VPN proxy"""
+    """setup an ssh frontend server as a WalT VPN proxy"""
     def main(self):
         with ClientToServerLink() as server:
             script_content = server.get_vpn_proxy_setup_script()
@@ -82,7 +82,7 @@ def read_vpn_node_image(entrypoint):
 
 @WalTVPN.subcommand("setup-node")
 class WalTVPNSetupNode(WalTApplication):
-    """Setup a WalT VPN node"""
+    """setup a WalT VPN node"""
     def main(self):
         print("Note: for now only raspberry pi 3B+ boards can be used as a walt VPN node.")
         print("This procedure will generate an appropriate SD card image.")

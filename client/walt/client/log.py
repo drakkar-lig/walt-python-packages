@@ -51,7 +51,7 @@ class LogsFlowFromServer(object):
 
 class WalTLog(WalTCategoryApplication):
     """management of logs"""
-    pass
+    ORDERING = 3
 
 class WalTLogShowOrWait(WalTApplication):
     """Implements options and features common to "show" and "wait" subcommands"""
@@ -160,6 +160,7 @@ class WalTLogShowOrWait(WalTApplication):
 @WalTLog.subcommand("show")
 class WalTLogShow(WalTLogShowOrWait):
     """Dump logs on standard output"""
+    ORDERING = 1
     realtime = cli.Flag(
                 "--realtime",
                 default = False,
@@ -202,6 +203,7 @@ class WalTLogShow(WalTLogShowOrWait):
 @WalTLog.subcommand("add-checkpoint")
 class WalTLogAddCheckpoint(WalTApplication):
     """Record a checkpoint (reference point in time)"""
+    ORDERING = 3
     date = cli.SwitchAttr("--date", str, default=None,
                           help="specify date (see walt help show log-checkpoint)")
     def main(self, checkpoint_name):
@@ -227,6 +229,7 @@ class WalTLogAddCheckpoint(WalTApplication):
 @WalTLog.subcommand("remove-checkpoint")
 class WalTLogRemoveCheckpoint(WalTApplication):
     """Remove a checkpoint"""
+    ORDERING = 4
     def main(self, checkpoint_name):
         with ClientToServerLink() as server:
             server.remove_checkpoint(checkpoint_name)
@@ -234,6 +237,7 @@ class WalTLogRemoveCheckpoint(WalTApplication):
 @WalTLog.subcommand("list-checkpoints")
 class WalTLogListCheckpoints(WalTApplication):
     """List checkpoints"""
+    ORDERING = 5
     def main(self):
         with ClientToServerLink() as server:
             server.list_checkpoints()
@@ -241,6 +245,7 @@ class WalTLogListCheckpoints(WalTApplication):
 @WalTLog.subcommand("wait")
 class WalTLogWait(WalTLogShowOrWait):
     """Wait for a given log line"""
+    ORDERING = 2
     mode = cli.SwitchAttr(
                 "--mode",
                 cli.Set("ALL", "ANY", case_sensitive = False),
