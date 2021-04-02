@@ -7,6 +7,7 @@ from walt.client.application import WalTCategoryApplication, WalTApplication
 
 class WalTDevice(WalTCategoryApplication):
     """management of WalT platform devices"""
+    ORDERING = 4
     @staticmethod
     def confirm_devices_not_owned(server, device_set):
         not_owned = server.includes_devices_not_owned(device_set, warn=True)
@@ -20,6 +21,7 @@ class WalTDevice(WalTCategoryApplication):
 @WalTDevice.subcommand("tree")
 class WalTDeviceTree(WalTApplication):
     """print the network structure of the platform"""
+    ORDERING = 2
     _all = False # default
     def main(self):
         with ClientToServerLink() as server:
@@ -31,6 +33,7 @@ class WalTDeviceTree(WalTApplication):
 @WalTDevice.subcommand("show")
 class WalTDeviceShow(WalTApplication):
     """print details about devices involved in the platform"""
+    ORDERING = 1
     def main(self):
         with ClientToServerLink() as server:
             print(server.device_show())
@@ -38,6 +41,7 @@ class WalTDeviceShow(WalTApplication):
 @WalTDevice.subcommand("rescan")
 class WalTDeviceRescan(WalTApplication):
     """rescan the network devices involved in the platform"""
+    ORDERING = 3
     def main(self, device_set='server,explorable-switches'):
         with ClientToServerLink() as server:
             server.device_rescan(device_set)
@@ -45,6 +49,7 @@ class WalTDeviceRescan(WalTApplication):
 @WalTDevice.subcommand("rename")
 class WalTRenameDevice(WalTApplication):
     """rename a device"""
+    ORDERING = 4
     def main(self, old_name, new_name):
         with ClientToServerLink() as server:
             server.rename(old_name, new_name)
@@ -52,6 +57,7 @@ class WalTRenameDevice(WalTApplication):
 @WalTDevice.subcommand("ping")
 class WalTDevicePing(WalTApplication):
     """check that a device is reachable on WalT network"""
+    ORDERING = 6
     def main(self, device_name):
         device_ip = None
         with ClientToServerLink() as server:
@@ -70,6 +76,7 @@ MSG_USE_WALT_NODE_REMOVE = """\
 @WalTDevice.subcommand("forget")
 class WalTDeviceForget(WalTApplication):
     """let the WalT system forget about an obsolete device"""
+    ORDERING = 7
     _force = False # default
     def main(self, device_name):
         with ClientToServerLink() as server:
@@ -99,7 +106,8 @@ class WalTDeviceForget(WalTApplication):
 
 @WalTDevice.subcommand("config")
 class WalTDeviceConfig(WalTApplication):
-    """Get or set devices configuration"""
+    """get or set devices configuration"""
+    ORDERING = 5
     def main(self, device_set, *configuration):
         with ClientToServerLink() as server:
             device_set = server.develop_device_set(device_set)
