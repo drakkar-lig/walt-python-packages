@@ -27,10 +27,10 @@ def add_all_categories(app_cls):
         add_category(app_cls, name)
 
 def get_plugins():
-    plugins = []
+    plugins = set()
     for name in iter_client_module_names():
         mod = load_client_module(name)
         plugin = getattr(mod, 'WALT_CLIENT_PLUGIN', None)
         if plugin is not None:
-            plugins.append(plugin)
+            plugins.add(plugin)
     return plugins
