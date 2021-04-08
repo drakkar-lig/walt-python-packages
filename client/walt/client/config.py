@@ -15,6 +15,11 @@ again, your new entry would pass an appropriate validity check, and this file
 would be generated again accordingly.
 """
 
+CONFIG_CODED_ITEMS=['password']
+EXPLAIN_CREDEDENTIALS='''\
+These credentials must match your account at hub.docker.com.
+The username will also be used to identify your work on the WalT platform.'''
+
 # This is not secure at all, we will just make passwords unreadable for someone spying
 # your screen. The security is actually based on the access rights of the conf file
 # (it is readable by the owner only).
@@ -46,7 +51,7 @@ def decode(coded_value):
 def get_config_file():
     return expanduser('~/.waltrc')
 
-def get_config_from_file(coded_items):
+def get_config_from_file():
     config_file = get_config_file()
     modified = False
     conf = read_json(config_file)
@@ -56,7 +61,7 @@ def get_config_from_file(coded_items):
                             % config_file)
         conf = OrderedDict()
     for key in conf:
-        if key in coded_items:
+        if key in CONFIG_CODED_ITEMS:
             conf[key] = decode(conf[key])
     return conf
 
@@ -78,9 +83,9 @@ class ConfigFileSaver(object):
             explain = explain,
             items   = []
         ))
-    def add_item(self, key, value, coded=False):
+    def add_item(self, key, value):
         comment = None
-        if coded:
+        if key in CONFIG_CODED_ITEMS:
             comment = '(%s value is encoded.)' % key
             value   = encode(value)
         self.item_groups[-1]['items'].append(dict(
@@ -125,6 +130,14 @@ class ConfigFileSaver(object):
         lines[last_item_line] = lines[last_item_line][:-1]
         lines.append('}')
         return '\n'.join(lines) + '\n'
+
+def save_config(conf):
+    with ConfigFileSaver() as saver:
+        saver.add_item_group('ip or hostname of walt server')
+        saver.add_item('server', conf['server'])
+        saver.add_item_group('credentials', explain=EXPLAIN_CREDEDENTIALS)
+        saver.add_item('username', conf['username'])
+        saver.add_item('password', conf['password'])
 
 def set_conf(in_conf):
     global conf_dict
