@@ -123,7 +123,7 @@ class CSAPI(APISession):
         return context.images.fix_owner(context.requester.do_sync, other_user)
 
     @api_expose_method
-    def search_images(self, context, keyword, tty_mode=False):
+    def search_images(self, context, keyword, tty_mode=None):
         context.images.search(context.requester.do_sync, context.task, keyword, tty_mode)
 
     @api_expose_method
