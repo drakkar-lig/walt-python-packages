@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import sys
+import sys, os
 from walt.client.config import conf
 from walt.client.filesystem import Filesystem
 from walt.common.api import api, api_expose_method, api_expose_attrs
@@ -32,6 +32,9 @@ class ExposedStream(object):
             return self.stream.encoding
         else:
             return None
+    @api_expose_method
+    def isatty(self):
+        return os.isatty(self.stream.fileno())
 
 # most of the functionality is provided at the server,
 # of course.
