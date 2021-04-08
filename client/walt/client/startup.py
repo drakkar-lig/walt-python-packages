@@ -3,21 +3,9 @@ import socket, time, sys
 from walt.client import config
 from walt.client.auth import get_auth_conf
 
-EXPLAIN_CREDEDENTIALS='''\
-These credentials must match your account at hub.docker.com.
-The username will also be used to identify your work on the WalT platform.'''
-
-def save_config(conf):
-    with config.ConfigFileSaver() as saver:
-        saver.add_item_group('ip or hostname of walt server')
-        saver.add_item('server', conf['server'])
-        saver.add_item_group('credentials', explain=EXPLAIN_CREDEDENTIALS)
-        saver.add_item('username', conf['username'])
-        saver.add_item('password', conf['password'], coded=True)
-
 def init_config(link_cls):
     try:
-        conf = config.get_config_from_file(coded_items=['password'])
+        conf = config.get_config_from_file()
         modified = False
         server_check = 'server' not in conf
         credentials_check = 'username' not in conf or 'password' not in conf
@@ -43,7 +31,7 @@ def init_config(link_cls):
             else:
                 break
         if modified:
-            save_config(conf)
+            config.save_config(conf)
         if server_check or credentials_check:
             print('Resuming normal operations...')
             time.sleep(2)
