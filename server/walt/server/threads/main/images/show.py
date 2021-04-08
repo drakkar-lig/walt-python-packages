@@ -30,17 +30,10 @@ def show(db, docker, images, requester, refresh):
     if len(tabular_data) == 0:
         # new user, try to make his life easier by cloning
         # default images of node models present on the platform.
-        node_models = set(n.model for n in db.select('nodes'))
-        if len(node_models) == 0:   # no nodes
+        if images.clone_default_images(requester):
+            # succeeded, restart the process to print new images
+            return show(db, docker, images, requester, refresh)
+        else:
             return MSG_WS_IS_EMPTY
-        requester.set_busy_label('Cloning default images')
-        for model in node_models:
-            default_image = images.get_default_image_fullname(model)
-            ws_image = username + '/' + default_image.split('/')[1]
-            docker.local.tag(default_image, ws_image)
-            images.register_image(ws_image, True)
-        requester.set_default_busy_label()
-        # restart the process
-        return show(db, docker, images, requester, refresh)
     header = [ 'Name', 'In-use', 'Created', 'Ready', 'Compatibility' ]
     return columnate(tabular_data, header)

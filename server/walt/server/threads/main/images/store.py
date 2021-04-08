@@ -153,6 +153,11 @@ class NodeImageStore(object):
         for image in self.images.values():
             if image.fullname == fullname:
                 found = image
+        if fullname not in self.images and self.count_images_of_user(username) == 0:
+            # new user, try to make his life easier by cloning
+            # default images of node models present on the platform.
+            self.clone_default_images(requester)
+        found = self.images.get(fullname)
         if expected == True and found is None:
             requester.stderr.write(
                 "Error: No such image '%s'. (tip: walt image show)\n" % image_name)
@@ -165,6 +170,8 @@ class NodeImageStore(object):
                     "Error: Image '%s' is not ready.\n" % image_name)
                 found = None
         return found
+    def count_images_of_user(self, username):
+        return sum(1 for image in self.images.values() if image.user == username)
     def get_user_unused_image_from_name(self, requester, image_name):
         image = self.get_user_image_from_name(requester, image_name)
         if image:   # otherwise issue is already reported
@@ -291,3 +298,18 @@ class NodeImageStore(object):
         print('done')
     def __del__(self):
         self.cleanup()
+    def clone_default_images(self, requester):
+        username = requester.get_username()
+        if not username:
+            return False     # client already disconnected, give up
+        node_models = set(n.model for n in self.db.select('nodes'))
+        if len(node_models) == 0:   # no nodes
+            return False
+        requester.set_busy_label('Cloning default images')
+        for model in node_models:
+            default_image = self.get_default_image_fullname(model)
+            ws_image = username + '/' + default_image.split('/')[1]
+            self.docker.local.tag(default_image, ws_image)
+            self.register_image(ws_image, True)
+        requester.set_default_busy_label()
+        return True
