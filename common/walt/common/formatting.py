@@ -13,7 +13,7 @@ PARAGRAPH_FORMATING = """\
 
 %(footnote)s"""
 
-MAX_PRINTED_NODES = 10
+MAX_PRINTED_NODES = 5
 CONJUGATE_REGEXP = r'\b(\w*)\(([^)]*)\)'
 
 def format_sentence(sentence, items,
@@ -26,7 +26,7 @@ def format_sentence(sentence, items,
     # designation of items
     sorted_items = sorted(items)
     if len(items) > MAX_PRINTED_NODES:
-        s_items = '%s %s, %s, ..., %s' % (label_plural, sorted_items[0], sorted_items[1], sorted_items[-1])
+        s_items = '%d %s' % (len(items), label_plural)
     elif len(items) == 0:
         s_items = label_none
     elif len(items) > 1:
@@ -34,7 +34,7 @@ def format_sentence(sentence, items,
     else:   # 1 item
         s_items = '%s %s' % (label_singular, sorted_items[0])
     # almost done
-    return sentence % s_items
+    return (sentence % s_items).capitalize()
 
 def format_sentence_about_nodes(sentence, nodes):
     """
