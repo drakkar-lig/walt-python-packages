@@ -92,7 +92,7 @@ def get_kernel_bootarg(in_bootarg):
 
 PROGRESS_INDICATOR_PERIOD = timedelta(seconds=1.0)
 
-class BusyIndicator(object):
+class RealBusyIndicator:
     def __init__(self, label):
         self.default_label = label
         self.label = label
@@ -130,6 +130,19 @@ class BusyIndicator(object):
             self.reset()
     def set_default_label(self):
         self.set_label(self.default_label)
+
+class FakeBusyIndicator:
+    def __getattr__(self, attr):
+        return lambda *args: None
+
+class BusyIndicator:
+    def __new__(cls, *args):
+        is_interactive = os.isatty(sys.stdout.fileno()) and \
+                            os.isatty(sys.stdin.fileno())
+        if is_interactive:
+            return RealBusyIndicator(*args)
+        else:
+            return FakeBusyIndicator()
 
 def fd_copy(fd_src, fd_dst, size):
     try:

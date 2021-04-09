@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import os, sys
+import sys
 from select import select
 from socket import socket, error as SocketError
 from walt.common.constants import WALT_SERVER_DAEMON_PORT
@@ -82,14 +82,6 @@ class AttrCallRunner(object):
 # these calls.
 MAX_BLOCKING_TIME = 0.1
 
-class Fake(object):
-    def __getattr__(self, attr):
-        return lambda: None
-    def set_label(self, label):
-        pass
-    def set_default_label(self):
-        pass
-
 class LinkException(Exception):
     pass
 
@@ -104,14 +96,9 @@ class ServerAPIConnection(object):
         self.sock_file = self.sock.makefile('rwb',0)
         self.api_channel = APIChannel(self.sock_file)
         self.remote_version = None
-        is_interactive = os.isatty(sys.stdout.fileno()) and \
-                            os.isatty(sys.stdin.fileno())
         self.client_proxy = AttrCallAggregator(self.handle_client_call)
         self.local_api_handler = AttrCallRunner(local_service)
-        if is_interactive:
-            self.indicator = BusyIndicator(DEFAULT_BUSY_LABEL)
-        else:
-            self.indicator = Fake()
+        self.indicator = BusyIndicator(DEFAULT_BUSY_LABEL)
         self.connected = False
     # since the object is reusable we must ensure we connect only once.
     def connect(self):
