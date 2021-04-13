@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import sys, tty, termios, array, fcntl, curses
+from contextlib import contextmanager
 
 class TTYSettings(object):
     def __init__(self):
@@ -24,3 +25,12 @@ class TTYSettings(object):
         buf = array.array('h', [0, 0, 0, 0])
         fcntl.ioctl(self.tty_fd, termios.TIOCGWINSZ, buf, True)
         return buf
+
+@contextmanager
+def alternate_screen_buffer():
+    sys.stdout.write('\x1b[?1049h')
+    yield
+    sys.stdout.write('\x1b[?1049l')
+
+def clear_screen():
+    sys.stdout.write('\x1b[2J\x1b[H')
