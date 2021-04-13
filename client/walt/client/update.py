@@ -6,13 +6,13 @@ from walt.client.plugins import get_plugins
 MSG_UPDATE = """
 walt-client software does not match server API!
 You should update your client using:
-$ pip3 install --upgrade "%(package)s==%(remote_version)d"
+$ pip3 install --upgrade "%(package)s==%(remote_version)s"
 """
 
 def check_update(server):
     updated = False
-    remote_version = server.get_remote_version()
-    if remote_version != int(__version__):
+    remote_version = str(server.get_remote_version())
+    if remote_version != str(__version__):
         plugins = get_plugins()
         if len(plugins) > 0:
             package = 'walt-client[' + ','.join(plugins) + ']'
