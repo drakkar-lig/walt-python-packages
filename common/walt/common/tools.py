@@ -111,23 +111,24 @@ class RealBusyIndicator:
         if datetime.now() > self.next_time:
             wheel_char = "\\|/-"[self.char_idx]
             if self.last_time is not None:
-                self.write_stdout("\r")
+                self.erase_previous()
             msg = self.label + "... " + wheel_char
             self.write_stdout(msg)
             self.msg_len = len(msg)
             self.last_time = datetime.now()
             self.next_time = self.last_time + PROGRESS_INDICATOR_PERIOD
             self.char_idx = (self.char_idx+1) % 4
+    def erase_previous(self):
+        self.write_stdout("\r" + (' ' * self.msg_len) + "\r")
     def done(self):
         if self.last_time != None:
-            self.write_stdout("\r" + (' ' * self.msg_len) + "\r")
+            self.erase_previous()
     def reset(self):
         self.done()
         self.start()
     def set_label(self, label):
         self.label = label
-        if self.last_time != None:
-            self.reset()
+        self.char_idx = 0
     def set_default_label(self):
         self.set_label(self.default_label)
 
