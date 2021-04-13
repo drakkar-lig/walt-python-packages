@@ -133,11 +133,13 @@ class ConfigFileSaver(object):
 
 def save_config(conf):
     with ConfigFileSaver() as saver:
-        saver.add_item_group('ip or hostname of walt server')
-        saver.add_item('server', conf['server'])
-        saver.add_item_group('credentials', explain=EXPLAIN_CREDEDENTIALS)
-        saver.add_item('username', conf['username'])
-        saver.add_item('password', conf['password'])
+        if 'server' in conf:
+            saver.add_item_group('ip or hostname of walt server')
+            saver.add_item('server', conf['server'])
+        if 'username' in conf:
+            saver.add_item_group('credentials', explain=EXPLAIN_CREDEDENTIALS)
+            saver.add_item('username', conf['username'])
+            saver.add_item('password', conf['password'])
 
 def set_conf(in_conf):
     global conf_dict
