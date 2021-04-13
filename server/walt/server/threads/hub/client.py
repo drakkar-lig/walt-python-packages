@@ -53,7 +53,7 @@ class APISessionManager(object):
             self.target_api = self.sock_file.readline().decode('UTF-8').strip()
             self.session_id = self.rpc_session.do_sync.create_session(
                                 self.target_api, self.remote_ip)
-            self.sock_file.write(b"%d\n" % int(__version__))
+            self.sock_file.write(b"%s\n" % str(__version__).encode('UTF-8'))
             return True
         except:
             return False
