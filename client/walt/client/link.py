@@ -76,7 +76,9 @@ class InternalClientToServerLink(ServerAPILink):
 
 class ClientToServerLink:
     num_calls = 0
-    def __new__(cls):
+    def __new__(cls, do_checks=True):
+        if not do_checks:
+            return InternalClientToServerLink()
         # on 1st call, check config, and once the config is OK
         # check if server version matches.
         if ClientToServerLink.num_calls == 0:
