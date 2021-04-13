@@ -35,6 +35,11 @@ PACKAGE_SPECIFIC_INFO = {
         version_str = '%(upload)s',
         setup = dict(
             description = "WalT control tool -- Grid'5000 plugin.",
+            entry_points = {
+                'console_scripts': [
+                    'walt-g5k-deploy-helper = walt.client.g5k.deploy.helper:run'
+                ]
+            },
         )
     ),
     "walt-node": dict(
