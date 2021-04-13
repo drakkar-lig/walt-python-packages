@@ -69,21 +69,23 @@ class InternalClientToServerLink(ServerAPILink):
     # (this will allow to reuse an existing connection in the code of
     # ServerAPILink)
     service = WaltClientService()
-    def __init__(self):
+    def __init__(self, busy_indicator):
         InternalClientToServerLink.service.link = self
         ServerAPILink.__init__(self,
-                conf['server'], 'CSAPI', InternalClientToServerLink.service)
+                conf['server'], 'CSAPI',
+                InternalClientToServerLink.service, busy_indicator)
 
 class ClientToServerLink:
     num_calls = 0
-    def __new__(cls, do_checks=True):
+    def __new__(cls, do_checks=True, busy_indicator=None):
+        get_link = lambda : InternalClientToServerLink(busy_indicator)
         if not do_checks:
-            return InternalClientToServerLink()
+            return get_link()
         # on 1st call, check config, and once the config is OK
         # check if server version matches.
         if ClientToServerLink.num_calls == 0:
-            init_config(InternalClientToServerLink)
-        link = InternalClientToServerLink()
+            init_config(get_link)
+        link = get_link()
         if ClientToServerLink.num_calls == 0:
             with link as server:
                 check_update(server)
