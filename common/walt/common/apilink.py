@@ -105,7 +105,7 @@ class ServerAPIConnection(object):
         if not self.connected:
             self.sock.connect((self.server_ip, WALT_SERVER_DAEMON_PORT))
             self.sock_file.write(b'%d\n%s\n' % (Requests.REQ_API_SESSION, self.target_api.encode('UTF-8')))
-            self.remote_version = int(self.sock_file.readline().strip())
+            self.remote_version = self.sock_file.readline().strip().decode('UTF-8')
             self.connected = True
     def set_busy_label(self, label):
         self.indicator.set_label(label)

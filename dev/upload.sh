@@ -13,9 +13,11 @@ branch=$(git branch | grep '*' | awk '{print $2}')
 case "$branch" in
     master) tag_prefix='upload_'
             repo_option=''
+            version_prefix=''
             ;;
     *)      tag_prefix='testupload_'
             repo_option='--repository-url https://test.pypi.org/legacy/'
+            version_prefix='0.'
             ;;
 esac
 
@@ -55,7 +57,7 @@ last_upload_in_git=$(git tag | grep "^$tag_prefix" | tr '_' ' ' | awk '{print $2
 new_upload=$((last_upload_in_git+1))
 
 # update files containing version number
-echo "__version__ = '$new_upload'" > common/walt/common/version.py
+echo "__version__ = '${version_prefix}${new_upload}'" > common/walt/common/version.py
 dev/info-updater.py
 echo "info.py, version.py files updated"
 
