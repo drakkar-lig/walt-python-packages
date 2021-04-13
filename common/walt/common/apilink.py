@@ -85,11 +85,11 @@ MAX_BLOCKING_TIME = 0.1
 class LinkException(Exception):
     pass
 
-DEFAULT_BUSY_LABEL = 'Server is working'
+DEFAULT_BUSY_INDICATOR = BusyIndicator('Server is working')
 
 @reusable
 class ServerAPIConnection(object):
-    def __init__(self, server_ip, local_service, target_api):
+    def __init__(self, server_ip, local_service, target_api, busy_indicator):
         self.target_api = target_api
         self.server_ip = server_ip
         self.sock = socket()
@@ -98,7 +98,7 @@ class ServerAPIConnection(object):
         self.remote_version = None
         self.client_proxy = AttrCallAggregator(self.handle_client_call)
         self.local_api_handler = AttrCallRunner(local_service)
-        self.indicator = BusyIndicator(DEFAULT_BUSY_LABEL)
+        self.indicator = busy_indicator
         self.connected = False
     # since the object is reusable we must ensure we connect only once.
     def connect(self):
@@ -166,13 +166,17 @@ class BaseAPIService(object):
 # This class provides a 'with' environment to connect to
 # the server API.
 class ServerAPILink(object):
-    def __init__(self, server_ip, target_api, local_service = None):
+    def __init__(self, server_ip, target_api, local_service = None,
+                       busy_indicator = None):
         if local_service == None:
             local_service = BaseAPIService()
+        if busy_indicator == None:
+            busy_indicator = DEFAULT_BUSY_INDICATOR
         self.conn = ServerAPIConnection(
             server_ip,
             local_service,
-            target_api)
+            target_api,
+            busy_indicator)
     def __enter__(self):
         self.conn.connect()
         return self.conn.client_proxy
