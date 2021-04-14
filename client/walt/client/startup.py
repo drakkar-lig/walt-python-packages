@@ -2,12 +2,17 @@
 import socket, time, sys
 from walt.client import config
 from walt.client.auth import get_auth_conf
+from walt.client.plugins import get_hook
 
 def init_config(link_cls):
     try:
         conf = config.get_config_from_file()
         modified = False
         server_check = 'server' not in conf
+        if server_check:
+            hook = get_hook('config_missing_server')
+            if hook is not None:
+                server_check = hook()
         credentials_check = 'username' not in conf or 'password' not in conf
         if server_check or credentials_check:
             print("Starting configuration procedure...")
