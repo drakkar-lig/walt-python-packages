@@ -7,6 +7,10 @@ from walt.client.g5k.deploy.status import get_deployment_status, log_status_chan
 from walt.client.config import save_config, get_config_from_file, set_conf
 from walt.client.link import ClientToServerLink
 from walt.client.node import WalTNode
+from urllib3.exceptions import InsecureRequestWarning
+
+# Suppress warning about requests not verifying remote certificate
+requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
 
 def update_nodes(info):
     for site in info['sites'].keys():
