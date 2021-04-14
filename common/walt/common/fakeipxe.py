@@ -121,10 +121,9 @@ def execute_line(env, line):
     # the right part of a current 'or' condition.
     if env['should-boot']:
         return False    # stop!!
+    # strip comments
+    line = line.split('#')[0]
     line = line.strip()
-    # pass comments
-    if line.startswith('#'):
-        return True
     # handle empty line
     if line == '':
         return True
