@@ -26,11 +26,19 @@ def add_all_categories(app_cls):
     for name in iter_client_module_names():
         add_category(app_cls, name)
 
+PLUGINS = None
 def get_plugins():
-    plugins = set()
-    for name in iter_client_module_names():
-        mod = load_client_module(name)
-        plugin = getattr(mod, 'WALT_CLIENT_PLUGIN', None)
-        if plugin is not None:
-            plugins.add(plugin)
-    return plugins
+    global PLUGINS
+    if PLUGINS is None:
+        PLUGINS = set()
+        for name in iter_client_module_names():
+            mod = load_client_module(name)
+            plugin = getattr(mod, 'WALT_CLIENT_PLUGIN', None)
+            if plugin is not None:
+                PLUGINS.add(plugin)
+    return PLUGINS
+
+def get_hook(hook_name):
+    for plugin in get_plugins():
+        if hook_name in plugin.hooks:
+            return plugin.hooks[hook_name]

@@ -9,7 +9,7 @@ import sys, socket, locale
 # walt client is installed.
 locale.getlocale = lambda *args: ('en_US', 'UTF-8')
 
-from walt.client.plugins import add_category, add_all_categories
+from walt.client.plugins import add_category, add_all_categories, get_hook
 from walt.common.apilink import LinkException
 from walt.client.logo import try_add_logo
 from walt.client.application import WalTToolboxApplication
@@ -45,6 +45,9 @@ def run():
             add_all_categories(WalT)
         WalT.run()
     except socket.error:
+        hook = get_hook('failing_server_socket')
+        if hook is not None:
+            hook()
         sys.exit('Network connection to WalT server failed!')
     except LinkException:
         sys.exit('Issue occured while communicating with WalT server!')
