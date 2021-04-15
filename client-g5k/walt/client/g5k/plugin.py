@@ -1,5 +1,6 @@
 import sys
 from walt.client.g5k.deploy.status import get_deployment_status
+from walt.client.g5k.reboot import G5KClientHardRebootHook
 
 def config_missing_server_hook():
     print("No WalT platform is deployed. Use 'walt g5k deploy' first.")
@@ -21,5 +22,6 @@ class G5KPlugin:
     # hook methods
     hooks = {
         'config_missing_server': config_missing_server_hook,
-        'failing_server_socket': failing_server_socket_hook
+        'failing_server_socket': failing_server_socket_hook,
+        'client_hard_reboot': G5KClientHardRebootHook
     }
