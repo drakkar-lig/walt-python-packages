@@ -9,6 +9,7 @@ from walt.common.constants import WALT_SERVER_TCP_PORT
 from walt.client.term import TTYSettings
 from walt.client.update import check_update
 from walt.client.startup import init_config
+from walt.client.plugins import get_hook
 
 @api
 class ExposedStream(object):
@@ -62,6 +63,15 @@ class WaltClientService(BaseAPIService):
     @api_expose_method
     def set_default_busy_label(self):
         self.link.set_default_busy_label()
+    @api_expose_method
+    def has_hook(self, hook_name):
+        return get_hook(hook_name) is not None
+    @api_expose_method
+    def get_hard_reboot_method_name(self):
+        return get_hook('client_hard_reboot').method_name
+    @api_expose_method
+    def hard_reboot_nodes(self, node_macs):
+        return get_hook('client_hard_reboot').reboot(node_macs)
 
 class InternalClientToServerLink(ServerAPILink):
     # optimization:
