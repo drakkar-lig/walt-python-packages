@@ -24,7 +24,7 @@ class WalTG5KDeploy(WalTApplication):
     """deploy WalT on Grid'5000 infrastructure"""
     ORDERING = 1
     def main(self, recipe_name=None):
-        info = get_deployment_status(err_out=False)
+        info = get_deployment_status()
         if info is not None:
             print("A walt platform is already deployed.")
             print("Use 'walt g5k release' to release this existing deployment.")

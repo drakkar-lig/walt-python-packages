@@ -6,6 +6,8 @@ from walt.client import __version__
 POSSIBLE_CLUSTERS_FOR_SERVER = None
 WALT_SERVER_ENV_FILE = \
     f'http://public.grenoble.grid5000.fr/~eduble/walt-server-{__version__}.env'
+JOB_LOGS_DIR = ".walt-g5k/logs"
+DEBUG_MODE = False
 
 def compute_possible_clusters_for_server():
     global POSSIBLE_CLUSTERS_FOR_SERVER
@@ -174,6 +176,12 @@ def get_helper_command():
     helper_python_exe = sys.executable
     return f"ssh {current_site} {helper_python_exe} {helper_path}"
 
+def walltime_as_seconds(wt):
+    elems = tuple(int(e) for e in wt.split(':'))
+    elems += (0,) * (3 - len(elems))
+    hours, minutes, seconds = elems
+    return hours * 3600 + minutes * 60 + seconds
+
 def get_submission_info(recipe_info):
     execo_g5k = load_execo_g5k()
     result, info = analyse_reservation(recipe_info)
@@ -194,6 +202,7 @@ def get_submission_info(recipe_info):
             'site': vlan_site
         },
         'start_date': reservation_date,
+        'end_date': reservation_date + walltime_as_seconds(walltime),
         'sites': {},
         **recipe_info
     }
@@ -211,10 +220,18 @@ def get_submission_info(recipe_info):
         cmd_args = [ 'oarsub',
                      '-r', oar_date,
                      '-l', site_resources,
-                     '-t', 'deploy' ]
+                     '-t', 'deploy'
+                   ]
         if site == server_site:
             helper_cmd = get_helper_command()
-            cmd_args += [ helper_cmd ]
+            if DEBUG_MODE:
+                print('DEBUG_MODE: the following command should be run manually.')
+                print(helper_cmd)
+            else:
+                cmd_args += [
+                         '-O', JOB_LOGS_DIR + '/deploy.out',
+                         '-E', JOB_LOGS_DIR + '/deploy.err',
+                         helper_cmd ]
         deployment_info['sites'][site] = {
             'submit_args': cmd_args
         }

@@ -1,5 +1,5 @@
 import sys, time
-from walt.client.g5k.deploy.status import get_deployment_status
+from walt.client.g5k.deploy.status import get_deployment_status, get_expiry_message
 from walt.client.g5k.tools import printed_date_from_ts
 from walt.common.formatting import columnate, framed
 
@@ -33,10 +33,13 @@ def print_path_value(info, path, print_func, passed=()):
         print_path_value(info, next_elems, print_func, passed)
 
 def print_info():
-    info = get_deployment_status()
+    info = get_deployment_status(allow_expired = True)
     if info is None:
-        print("No WalT platform is currently being deployed.", file=sys.stderr)
+        print("No WalT platform has been deployed.", file=sys.stderr)
         sys.exit(1)
+    if info['status'] == 'expired':
+        print("WARNING: This information is obsolete. " + get_expiry_message(info),
+              file=sys.stderr)
     for path, print_func in GENERAL_INFO_PATHS.items():
         print_path_value(info, path, print_func)
     ordered_history = sorted((ts, label) for (label, ts) in info['history'].items())
@@ -51,3 +54,6 @@ def print_info():
             delay = int(ts - prev_ts)
             print(f'delays.{prev_status}: {delay} second(s)')
         prev_ts, prev_status = ts, status
+        # if the status is 'ready' then we are not waiting anymore
+        if prev_status == 'ready':
+            break
