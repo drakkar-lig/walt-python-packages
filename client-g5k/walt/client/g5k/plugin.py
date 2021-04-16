@@ -1,5 +1,5 @@
 import sys
-from walt.client.g5k.deploy.status import get_deployment_status
+from walt.client.g5k.deploy.status import get_deployment_status, get_expiry_message
 from walt.client.g5k.reboot import G5KClientHardRebootHook
 
 def config_missing_server_hook():
@@ -7,9 +7,12 @@ def config_missing_server_hook():
     sys.exit(1)
 
 def failing_server_socket_hook():
-    info = get_deployment_status(err_out=False)
+    info = get_deployment_status(allow_expired = True)
     if info is None:
         print("No WalT platform is deployed. Use 'walt g5k deploy' first.")
+        sys.exit(1)
+    if info['status'] == 'expired':
+        print(get_expiry_message(info))
         sys.exit(1)
     if info['status'] != 'ready':
         print("Deployment of WalT platform is not complete yet. Use 'walt g5k wait'.")

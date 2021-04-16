@@ -11,7 +11,7 @@ class G5KClientHardRebootHook:
         # 2) the dict of reboot errors per mac
         site_reboots = defaultdict(list)
         try:
-            info = get_deployment_status(err_out = False)
+            info = get_deployment_status()
             if info is None:
                 raise Exception('Failed to read deployment.json')
             mac_to_info = {}
