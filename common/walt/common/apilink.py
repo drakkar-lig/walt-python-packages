@@ -1,12 +1,14 @@
 #!/usr/bin/env python
 import sys
 from select import select
-from socket import socket, error as SocketError
+from socket import create_connection, error as SocketError
 from walt.common.constants import WALT_SERVER_DAEMON_PORT
 from walt.common.reusable import reusable
 from walt.common.tools import BusyIndicator
 from walt.common.tcp import Requests
 from walt.common.api import api, api_expose_method
+
+SERVER_SOCKET_TIMEOUT = 2.0
 
 # exceptions may occur if the client disconnects.
 # we should ignore those.
@@ -92,9 +94,8 @@ class ServerAPIConnection(object):
     def __init__(self, server_ip, local_service, target_api, busy_indicator):
         self.target_api = target_api
         self.server_ip = server_ip
-        self.sock = socket()
-        self.sock_file = self.sock.makefile('rwb',0)
-        self.api_channel = APIChannel(self.sock_file)
+        self.sock = None
+        self.api_channel = None
         self.remote_version = None
         self.client_proxy = AttrCallAggregator(self.handle_client_call)
         self.local_api_handler = AttrCallRunner(local_service)
@@ -103,9 +104,12 @@ class ServerAPIConnection(object):
     # since the object is reusable we must ensure we connect only once.
     def connect(self):
         if not self.connected:
-            self.sock.connect((self.server_ip, WALT_SERVER_DAEMON_PORT))
-            self.sock_file.write(b'%d\n%s\n' % (Requests.REQ_API_SESSION, self.target_api.encode('UTF-8')))
-            self.remote_version = self.sock_file.readline().strip().decode('UTF-8')
+            self.sock = create_connection((self.server_ip, WALT_SERVER_DAEMON_PORT),
+                                          SERVER_SOCKET_TIMEOUT)
+            sock_file = self.sock.makefile('rwb',0)
+            sock_file.write(b'%d\n%s\n' % (Requests.REQ_API_SESSION, self.target_api.encode('UTF-8')))
+            self.remote_version = sock_file.readline().strip().decode('UTF-8')
+            self.api_channel = APIChannel(sock_file)
             self.connected = True
     def set_busy_label(self, label):
         self.indicator.set_label(label)
@@ -155,7 +159,8 @@ class ServerAPIConnection(object):
         self.indicator.done()
         return api_result
     def __del__(self):
-        self.sock.close()
+        if self.sock is not None:
+            self.sock.close()
 
 @api
 class BaseAPIService(object):
