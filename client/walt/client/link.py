@@ -15,6 +15,7 @@ from walt.client.plugins import get_hook
 class ExposedStream(object):
     def __init__(self, stream):
         self.stream = stream
+        self.silent = False
     @api_expose_method
     def fileno(self):
         return self.stream.fileno()
@@ -23,10 +24,12 @@ class ExposedStream(object):
         return self.stream.readline(size)
     @api_expose_method
     def write(self, s):
-        self.stream.write(s)
+        if not self.silent:
+            self.stream.write(s)
     @api_expose_method
     def flush(self):
-        self.stream.flush()
+        if not self.silent:
+            self.stream.flush()
     @api_expose_method
     def get_encoding(self):
         if hasattr(self.stream, 'encoding'):
@@ -36,6 +39,8 @@ class ExposedStream(object):
     @api_expose_method
     def isatty(self):
         return os.isatty(self.stream.fileno())
+    def set_silent(self, silent):
+        self.silent = silent
 
 # most of the functionality is provided at the server,
 # of course.
@@ -72,6 +77,8 @@ class WaltClientService(BaseAPIService):
     @api_expose_method
     def hard_reboot_nodes(self, node_macs):
         return get_hook('client_hard_reboot').reboot(node_macs)
+    def set_silent(self, silent):
+        self.stdout.set_silent(silent)
 
 class InternalClientToServerLink(ServerAPILink):
     # optimization:
@@ -84,6 +91,8 @@ class InternalClientToServerLink(ServerAPILink):
         ServerAPILink.__init__(self,
                 conf['server'], 'CSAPI',
                 InternalClientToServerLink.service, busy_indicator)
+    def set_silent(self, silent):
+        InternalClientToServerLink.service.set_silent(silent)
 
 class ClientToServerLink:
     num_calls = 0
@@ -91,14 +100,19 @@ class ClientToServerLink:
         get_link = lambda : InternalClientToServerLink(busy_indicator)
         if not do_checks:
             return get_link()
-        # on 1st call, check config, and once the config is OK
-        # check if server version matches.
+        # on 1st call:
+        # 1) check config, and once the config is OK
+        # 2) check if server version matches
+        # 3) execute connection hook if any
         if ClientToServerLink.num_calls == 0:
             init_config(get_link)
         link = get_link()
         if ClientToServerLink.num_calls == 0:
             with link as server:
                 check_update(server)
+                connection_hook = get_hook('connection_hook')
+                if connection_hook is not None:
+                    connection_hook(link, server)
         ClientToServerLink.num_calls += 1
         return link
 
