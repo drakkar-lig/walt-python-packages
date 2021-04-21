@@ -81,8 +81,11 @@ class WalTG5KEditRecipe(WalTApplication):
     ORDERING = 7
     def main(self, recipe_name):
         recipe_info = get_recipe_info(recipe_name)
-        edit_recipe(recipe_info)
-        save_recipe(recipe_name, recipe_info)
+        if edit_recipe(recipe_info):
+            save_recipe(recipe_name, recipe_info)
+        else:
+            print('Aborted.')
+            sys.exit(1)
 
 @WalTG5K.subcommand("print-recipe")
 class WalTG5KPrintRecipe(WalTApplication):
