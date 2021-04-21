@@ -1,8 +1,8 @@
 import sys
 from datetime import datetime
-from plumbum.cli.terminal import choose, prompt
+from plumbum.cli.terminal import prompt
 from walt.common.formatting import highlight
-from walt.client.term import alternate_screen_buffer, clear_screen
+from walt.client.term import alternate_screen_buffer, clear_screen, choose
 from walt.client.g5k.recipes.tools import get_total_node_count
 from walt.client.g5k.recipes.const import SCHEDULE_DESC
 from walt.client.g5k.recipes.printer import print_recipe
@@ -82,13 +82,13 @@ def validate_walltime(wt):
 
 def change_walltime(recipe_info):
     print('G5K reservation walltime defines the lifetime of your temporary WalT platform.')
-    recipe_info['walltime'] = prompt('reservation walltime (oarsub format, e.g. 01:00:00)',
+    recipe_info['walltime'] = prompt('Please enter it (oarsub format, e.g. 01:00:00)',
                     validator = validate_walltime)
 
 def change_schedule(recipe_info):
     print('G5K reservation schedule defines the time when deployment will start.')
     options = { v:k for k, v in SCHEDULE_DESC.items() }
-    recipe_info['schedule'] = choose('reservation schedule', options)
+    recipe_info['schedule'] = choose('Please select the relevant option:', options)
 
 def edit_recipe(recipe_info):
     with alternate_screen_buffer():
