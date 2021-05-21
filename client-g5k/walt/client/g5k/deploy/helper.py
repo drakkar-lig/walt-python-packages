@@ -12,35 +12,36 @@ from urllib3.exceptions import InsecureRequestWarning
 # Suppress warning about requests not verifying remote certificate
 requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
 
-def update_nodes(info):
-    for site in info['sites'].keys():
-        # this is equivalent to:
-        # $ oarstat -p | oarprint host -P eth_count,host -f -
-        oarstat_output = run_cmd_on_site(info, site, [ 'oarstat', '-p' ], True)
-        output = run_cmd_on_site(info, site,
-                    'oarprint host -P eth_count,host -f -'.split(),
-                    input = oarstat_output)
-        walt_nodes = {}
-        for line in output.strip().split('\n'):
-            if line.strip() == '':
-                continue
-            eth_count, host = line.split()
-            if info['server']['site'] == site and \
-               info['server'].get('host') is None and \
-               int(eth_count) > 1:
-                info['server']['host'] = host
-            else:
-                node_info = get_node_info(host)
-                walt_nodes[host] = dict(
-                    walt_name = host.split('.')[0],
-                    mac = node_info['network_adapters'][0]['mac']
-                )
-        info['sites'][site]['nodes'] = walt_nodes
+def analyse_g5k_resources(info, site):
+    log_status_change(info, 'resources.detection.' + site, "Detecting targeted resources", verbose = True)
+    analyse_g5k_nodes(info, site)
+    if site == info['vlan']['site']:
+        info['vlan']['vlan_id'] = int(
+            run_cmd_on_site(info, site, [ 'kavlan', '-V' ], True))
 
-def update_vlan_id(info):
-    vlan_site = info['vlan']['site']
-    info['vlan']['vlan_id'] = int(
-        run_cmd_on_site(info, vlan_site, [ 'kavlan', '-V' ], True))
+def analyse_g5k_nodes(info, site):
+    # this is equivalent to:
+    # $ oarstat -p | oarprint host -P eth_count,host -f -
+    oarstat_output = run_cmd_on_site(info, site, [ 'oarstat', '-p' ], True)
+    output = run_cmd_on_site(info, site,
+                'oarprint host -P eth_count,host -f -'.split(),
+                input = oarstat_output)
+    walt_nodes = {}
+    for line in output.strip().split('\n'):
+        if line.strip() == '':
+            continue
+        eth_count, host = line.split()
+        if info['server']['site'] == site and \
+           info['server'].get('host') is None and \
+           int(eth_count) > 1:
+            info['server']['host'] = host
+        else:
+            node_info = get_node_info(host)
+            walt_nodes[host] = dict(
+                walt_name = host.split('.')[0],
+                mac = node_info['network_adapters'][0]['mac']
+            )
+    info['sites'][site]['nodes'] = walt_nodes
 
 def get_node_info(node_hostname):
     node_nodomain, site = node_hostname.split('.')[:2]
@@ -106,42 +107,55 @@ class LoggerBusyIndicator:
 
 def run_deployment_tasks():
     info = get_deployment_status()
-    log_status_change(info, 'jobs.others.waiting', "Waiting for secondary jobs", verbose = True)
-    wait_for_other_jobs(info)
-    log_status_change(info, 'resources.detection', "Detecting targeted resources", verbose = True)
-    update_vlan_id(info)
-    vlan_id = info['vlan']['vlan_id']
-    vlan_site = info['vlan']['site']
-    update_nodes(info)
+    # since helper was called, we know the job is ready at the site where walt server must be deployed.
+    # start deploying server asap because it will take time.
     server_site = info['server']['site']
+    analyse_g5k_resources(info, server_site)
     server_node = info['server']['host']
     server_node_eth1 = '-eth1.'.join(server_node.split('.',maxsplit=1))
-    log_status_change(info, 'vlan.conf', f'Removing default DHCP service on VLAN {vlan_id}', verbose = True)
-    run_cmd_on_site(info, vlan_site, f'kavlan -d -i {vlan_id}'.split(), True)
     # deploy server
     log_status_change(info, 'server.deploy', f'Deploying walt server on node {server_node} (expect ~5min)', verbose = True)
     env_file = info['server']['g5k_env_file']
     run_cmd_on_site(info, server_site,
                 f'kadeploy3 -m {server_node} -a {env_file}'.split())
-    log_status_change(info, 'server.network.conf', f'Attaching walt server secondary interface to VLAN {vlan_id}', verbose = True)
-    run_cmd_on_site(info, server_site,
-                f'kavlan -s -i {vlan_id} -m {server_node_eth1}'.split(), True)
+    # wait for secondary jobs at other sites (they should be ready now...)
+    log_status_change(info, 'jobs.others.checking', 'Checking secondary jobs are ready', verbose = True)
+    wait_for_other_jobs(info)
+    # detect g5k resources at those other sites
+    for site in info['sites']:
+        if site == server_site:
+            continue
+        analyse_g5k_resources(info, site)
     # configure server
     log_status_change(info, 'server.walt.conf', 'Configuring walt server', verbose = True)
     send_json_conf_to_server(info)
     run_cmd_on_site(info, server_site,
                 f'ssh root@{server_node} /root/walt-server-setup.py /tmp/g5k.json'.split())
+    # update vlan conf
+    vlan_id = info['vlan']['vlan_id']
+    vlan_site = info['vlan']['site']
+    log_status_change(info, 'vlan.conf.dhcp', f'Removing default DHCP service on VLAN {vlan_id}', verbose = True)
+    run_cmd_on_site(info, vlan_site, f'kavlan -d -i {vlan_id}'.split(), True)
+    log_status_change(info, 'vlan.conf.server', f'Attaching walt server secondary interface to VLAN {vlan_id}', verbose = True)
+    run_cmd_on_site(info, server_site,
+                f'kavlan -s -i {vlan_id} -m {server_node_eth1}'.split(), True)
+    log_status_change(info, 'vlan.conf.nodes', f'Attaching walt nodes to VLAN {vlan_id}', verbose = True)
+    for site, site_info in info['sites'].items():
+        if len(site_info['nodes']) == 0:
+            continue
+        nodes_spec = ' '.join(('-m ' + node) for node in site_info['nodes'])
+        run_cmd_on_site(info, site, f'kavlan -s -i {vlan_id} {nodes_spec}'.split(), True)
+    # reboot nodes
+    log_status_change(info, 'nodes.reboot', f'Rebooting walt nodes', verbose = True)
+    all_nodes = sum((list(site_info['nodes']) for site_info in info['sites'].values()), [])
+    nodes_spec = ' '.join(('-m ' + node) for node in all_nodes)
+    print(f'kareboot3 -M --no-wait -l hard {nodes_spec}')
+    run_cmd_on_site(info, server_site, f'kareboot3 -M --no-wait -l hard {nodes_spec}'.split())
     # update server in .waltrc
     log_status_change(info, 'client.conf', 'Updating $HOME/.waltrc', verbose = True)
     conf = get_config_from_file()
     conf['server'] = server_node
     save_config(conf)
-    # boot walt nodes
-    log_status_change(info, 'nodes.network.conf', f'Attaching walt nodes to VLAN {vlan_id} and rebooting them', verbose = True)
-    for site, site_info in info['sites'].items():
-        for node in site_info['nodes']:
-            run_cmd_on_site(info, site, f'kavlan -s -i {vlan_id} -m {node}'.split(), True)
-            run_cmd_on_site(info, site, f'kareboot3 --no-wait -l hard -m {node}'.split())
     # note: waiting for nodes may require user credentials to be available,
     # and they may not be present yet in .waltrc, so set temporary ones.
     conf['username'], conf['password'] = 'anonymous', 'none'

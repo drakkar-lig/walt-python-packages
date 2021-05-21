@@ -47,6 +47,7 @@ class Cmd:
             popen.stdin.write(self._input)
             popen.stdin.flush()
             popen.stdin.close()
+        yield None  # notify startup is OK
         while True:
             try:
                 line = popen.stdout.readline()
@@ -66,6 +67,7 @@ class Cmd:
     def monitor(self):
         try:
             monitoring = self.run_and_follow()
+            next(monitoring)
             yield monitoring
         finally:
             monitoring.close()
@@ -77,13 +79,19 @@ class Cmd:
                     input = self._input,
                     **self._popen_kwargs)
 
-def run_cmd_on_site(info, site, cmd_args, add_job_id_option=False, err_out=True, **run_kwargs):
+def run_cmd_on_site(info, site, cmd_args, add_job_id_option=False, err_out=True, background=False, **run_kwargs):
     if add_job_id_option:
         site_job_id = info['sites'][site]['job_id']
         cmd_args[1:1] = [ '-j', str(site_job_id) ]
     cmd = Cmd(site, cmd_args, **run_kwargs)
     try:
-        info = cmd.run()
+        if background:
+            monitoring = cmd.run_and_follow()
+            next(monitoring)    # wait for command startup
+            return monitoring
+        else:
+            info = cmd.run()
+            return info.stdout
     except subprocess.CalledProcessError as e:
         if err_out:
             print(e, file=sys.stderr)
@@ -91,7 +99,6 @@ def run_cmd_on_site(info, site, cmd_args, add_job_id_option=False, err_out=True,
             raise
         else:
             return e
-    return info.stdout
 
 def oarstat(info, site):
     job_id = info['sites'][site].get('job_id')

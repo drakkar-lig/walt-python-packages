@@ -17,9 +17,11 @@ def deploy(recipe_info):
     print('Waiting for job submissions... ', end='')
     sys.stdout.flush()
     failure = False
+    server_site = info['server']['site']
+    submission_processes = {}
+    log_status_change(info, 'submission', 'Submitting jobs')
     for site, site_info in info['sites'].items():
-        log_status_change(info, 'submission', 'Submitting job on site ' + site)
-        main_job = (site == info['server']['site'])
+        main_job = (site == server_site)
         output = None
         # create main job log dirs
         if main_job:
@@ -28,19 +30,32 @@ def deploy(recipe_info):
         # if ok, submit the job
         if not isinstance(output, subprocess.CalledProcessError):
             args = site_info['submit_args']
-            output = run_cmd_on_site(info, site, args, err_out=False)
+            output = run_cmd_on_site(
+                        info, site, args, err_out=False, background=True)
         # if error, print it
         if isinstance(output, subprocess.CalledProcessError):
-            print('FAILED')
+            print('FAILED submission at ' + site)
             print(output, file=sys.stderr)
             print(output.stdout, file=sys.stderr)
             failure = True
             break
-        # if ok, parse output
-        for line in output.splitlines():
-            if 'OAR_JOB_ID=' in line:
-                site_job_id = line.strip().split('=')[1]
-                info['sites'][site]['job_id'] = site_job_id
+        submission_processes[site] = output
+    for site, process_output in submission_processes.items():
+        site_job_id = None
+        output_lines = []
+        try:
+            for line in process_output:
+                output_lines += [ line ]
+                if 'OAR_JOB_ID=' in line:
+                    site_job_id = line.strip().split('=')[1]
+                    info['sites'][site]['job_id'] = site_job_id
+        except Exception as e:
+            pass
+        if site_job_id is None:
+            print('FAILED submission at ' + site)
+            print('\n'.join(output_lines), file=sys.stderr)
+            failure = True
+        process_output.close()
     if failure:
         successful_sites = [ site for (site, site_info) in info['sites'].items() \
                              if 'job_id' in site_info ]
