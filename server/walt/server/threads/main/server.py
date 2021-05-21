@@ -87,7 +87,7 @@ class Server(object):
             return False   # error already reported
         return self.images.set_image(requester, nodes, image_tag)
 
-    def add_or_update_device(self, vci='', uci='', ip=None, mac=None, **kwargs):
+    def add_or_update_device(self, vci='', uci='', ip=None, mac=None, name=None, **kwargs):
         # let's try to identify this device given its mac address
         # and/or the vci field of the DHCP request.
         if uci.startswith('walt.node'):
@@ -105,6 +105,8 @@ class Server(object):
                 'model': model
             }
         kwargs.update(**info)
+        if name is not None:
+            kwargs.update(name = name)
         new_equipment = self.devices.add_or_update(
                     ip = ip, mac = mac, **kwargs)
         if new_equipment and info.get('type') == 'node':
