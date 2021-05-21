@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import os, sys
+from subprocess import Popen, PIPE
 from select import poll, select, POLLIN, POLLPRI, POLLOUT
 from time import time
 from heapq import heappush, heappop
@@ -11,12 +12,39 @@ def is_event_ok(ev):
     # check that there is something to read or write
     return (ev & (POLL_OPS_READ | POLL_OPS_WRITE) > 0)
 
+# This object allows to implement ev_loop.do(<cmd>, <callback>)
+class ProcessListener:
+    def __init__(self, cmd, callback):
+        # command should indicate when it is completed
+        self.cmd = cmd + "; echo; echo __eventloop.ProcessListener.DONE__"
+        self.callback = callback
+        self.cmd_output = b''
+    def run(self):
+        self.popen = Popen(self.cmd, stdout = PIPE, shell = True)
+    def fileno(self):
+        return self.popen.stdout.fileno()
+    # handle_event() will be called when the event loop detects
+    # new input data for us.
+    def handle_event(self, ts):
+        data = self.popen.stdout.read(1024)
+        if len(data) > 0:
+            self.cmd_output += data
+        if len(data) == 0 or \
+           self.cmd_output.endswith(b'__eventloop.ProcessListener.DONE__\n'):
+            # command terminated
+            if self.callback is not None:
+                self.callback()
+            return False    # let event loop remove us
+    def close(self):
+        if self.popen is not None:
+            self.popen.wait()
+
 # EventLoop allows to monitor incoming data on a set of
-# file descriptors, and call the appropriate listener when 
+# file descriptors, and call the appropriate listener when
 # input data is detected.
-# Any number of listeners may be added, by calling 
+# Any number of listeners may be added, by calling
 # register_listener().
-# In case of error, the file descriptor is removed from 
+# In case of error, the file descriptor is removed from
 # the set of watched descriptors.
 # When the set is empty, the loop stops.
 
@@ -123,4 +151,9 @@ class EventLoop(object):
                 should_close = (res == False)
             if should_close:
                 self.remove_listener(listener)
+
+    def do(self, cmd, callback = None):
+        p = ProcessListener(cmd, callback)
+        p.run()
+        self.register_listener(p)
 

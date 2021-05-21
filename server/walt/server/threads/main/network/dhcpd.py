@@ -199,9 +199,19 @@ QUERY_DEVICES_WITH_IP="""
     WHERE ip IS NOT NULL ORDER BY devices.mac;
 """
 
+# Restarting the DHCP service can be requested quite often when a large set of
+# new nodes are being registered.
+# To be lighter, we ensure only one restart command is running at a time.
+# When the restart command completes, we check if the config was updated again
+# in the meanwhile; if yes, we loop again.
+
 class DHCPServer(object):
-    def __init__(self, db):
+    def __init__(self, db, ev_loop):
         self.db = db
+        self.ev_loop = ev_loop
+        self.service_version = 0
+        self.config_version = 0
+        self.restarting = False
     def update(self, force=False):
         subnet = get_walt_subnet()
         devices = []
@@ -225,6 +235,20 @@ class DHCPServer(object):
                 conf_file.write(conf)
             force = True # perform the restart below
         if force == True:
-            do('service isc-dhcp-server restart')
+            self.config_version += 1
+            if not self.restarting:
+                self.restarting = True
+                self.restart_service_loop()
             print('dhcpd conf updated.')
-
+    def restart_service_loop(self):
+        if self.config_version == self.service_version:
+            # ok done
+            self.restarting = False
+            return
+        else:
+            next_service_version = self.config_version
+            print('dhcpd updating to version', next_service_version)
+            def callback():
+                self.service_version = next_service_version
+                self.restart_service_loop()
+            self.ev_loop.do('service isc-dhcp-server restart', callback)

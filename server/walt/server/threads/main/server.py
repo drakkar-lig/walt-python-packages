@@ -34,7 +34,7 @@ class Server(object):
         self.blocking = BlockingTasksManager()
         self.devices = DevicesManager(self.db)
         self.topology = TopologyManager(self.devices, self.add_or_update_device)
-        self.dhcpd = DHCPServer(self.db)
+        self.dhcpd = DHCPServer(self.db, self.ev_loop)
         self.images = NodeImageManager(self)
         self.tcp_server = TCPServer(WALT_SERVER_TCP_PORT)
         self.logs = LogsManager(self.db, self.tcp_server, self.blocking, self.ev_loop)
