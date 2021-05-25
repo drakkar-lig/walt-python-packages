@@ -8,6 +8,7 @@ from walt.client.g5k.deploy.status import get_deployment_status, log_status_chan
 from walt.client.config import save_config, get_config_from_file, set_conf
 from walt.client.link import ClientToServerLink
 from urllib3.exceptions import InsecureRequestWarning
+from pkg_resources import resource_string
 
 # Suppress warning about requests not verifying remote certificate
 requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
@@ -50,7 +51,7 @@ def get_node_info(node_hostname):
     resp = requests.get(node_api, verify=False)
     return resp.json()
 
-def send_json_conf_to_server(info):
+def configure_server(info):
     server_node = info['server']['host']
     server_info = get_node_info(server_node)
     server_eth1_name = server_info['network_adapters'][1]['name']
@@ -62,10 +63,20 @@ def send_json_conf_to_server(info):
         'server_eth1_name': server_eth1_name,
         'nodes': nodes_info
     })
+    server_site = info['server']['site']
     # write this conf to the server
-    run_cmd_on_site(info, info['server']['site'],
+    run_cmd_on_site(info, server_site,
                 f'ssh root@{server_node} tee /tmp/g5k.json'.split(),
                 input=json_conf)
+    # get conf script and send it to the server
+    script_content = resource_string(__name__, "remote-server-conf.py")
+    run_cmd_on_site(info, server_site,
+                f'ssh root@{server_node} tee /tmp/remote-server-conf.py'.split(),
+                input=script_content.decode('UTF-8'))
+    # execute conf script
+    run_cmd_on_site(info, server_site,
+                f'ssh root@{server_node} python3 /tmp/remote-server-conf.py /tmp/g5k.json'.split())
+
 
 # since this script is called from the main job, running on
 # the site where walt server will be deployed, we know the job is
@@ -128,9 +139,7 @@ def run_deployment_tasks():
         analyse_g5k_resources(info, site)
     # configure server
     log_status_change(info, 'server.walt.conf', 'Configuring walt server', verbose = True)
-    send_json_conf_to_server(info)
-    run_cmd_on_site(info, server_site,
-                f'ssh root@{server_node} /root/walt-server-setup.py /tmp/g5k.json'.split())
+    configure_server(info)
     # update vlan conf
     vlan_id = info['vlan']['vlan_id']
     vlan_site = info['vlan']['site']
