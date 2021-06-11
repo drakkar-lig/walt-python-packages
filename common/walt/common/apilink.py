@@ -8,7 +8,7 @@ from walt.common.tools import BusyIndicator
 from walt.common.tcp import Requests
 from walt.common.api import api, api_expose_method
 
-SERVER_SOCKET_TIMEOUT = 2.0
+SERVER_SOCKET_TIMEOUT = 10.0
 
 # exceptions may occur if the client disconnects.
 # we should ignore those.

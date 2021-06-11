@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import sys
+import sys, io
 from sys import stdin, stdout
 from select import select
 from socket import SHUT_WR
@@ -22,7 +22,8 @@ Run 'walt help show shells' for more info.
 """
 
 class PromptClient(object):
-    def __init__(self, req_id, **params):
+    def __init__(self, req_id, capture_output = False, **params):
+        self.capture_output = capture_output
         if sys.stdout.isatty() and sys.stdin.isatty():
             self.client_tty = True
             self.tty_settings = TTYSettings()
@@ -45,6 +46,11 @@ class PromptClient(object):
         self.stdin_reader = SmartFile(unbuffered(stdin, 'rb'))
 
     def run(self):
+        if self.capture_output:
+            captured = io.BytesIO()
+            out_buffer = captured
+        else:
+            out_buffer = stdout.buffer
         # we will wait on 2 file descriptors
         fds = [ stdin, self.sock_file ]
 
@@ -71,7 +77,7 @@ class PromptClient(object):
                     break
                 fd = rlist[0].fileno()
                 if fd == self.sock_file.fileno():
-                    if read_and_copy(self.sock_file, stdout.buffer) == False:
+                    if read_and_copy(self.sock_file, out_buffer) == False:
                         break
                 else:
                     if read_and_copy(self.stdin_reader, self.sock_file) == False:
@@ -82,6 +88,8 @@ class PromptClient(object):
         finally:
             if self.client_tty:
                 self.tty_settings.restore()
+        if self.capture_output:
+            return captured.getvalue()
 
 def run_sql_prompt():
     print(SQL_SHELL_MESSAGE)
@@ -93,11 +101,12 @@ def run_image_shell_prompt(image_fullname, container_name):
                 image_fullname = image_fullname,
                 container_name = container_name).run()
 
-def run_node_cmd(node_ip, cmdargs, ssh_tty):
-    PromptClient(Requests.REQ_NODE_CMD,
+def run_node_cmd(node_ip, cmdargs, ssh_tty, capture_output):
+    return PromptClient(Requests.REQ_NODE_CMD,
                 node_ip=node_ip,
                 cmdargs=tuple(cmdargs),
-                ssh_tty=ssh_tty).run()
+                ssh_tty=ssh_tty,
+                capture_output=capture_output).run()
 
 def run_device_ping(device_ip):
     PromptClient(Requests.REQ_DEVICE_PING, device_ip=device_ip).run()

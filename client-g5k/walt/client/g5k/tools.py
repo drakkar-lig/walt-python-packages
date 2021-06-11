@@ -103,11 +103,13 @@ def run_cmd_on_site(info, site, cmd_args, add_job_id_option=False, err_out=True,
 def oarstat(info, site):
     job_id = info['sites'][site].get('job_id')
     if job_id is None:
+        print('oarstat(): no job_id found for site {site}.', file=sys.stderr)
         return None
-    out = run_cmd_on_site(info, site, f"oarstat -j {job_id} -f -J".split(), err_out=False)
-    if isinstance(out, subprocess.CalledProcessError):
-        return None
-    return json.loads(out)[job_id]
+    try:
+        out = run_cmd_on_site(info, site, f"oarstat -j {job_id} -f -J".split())
+        return json.loads(out)[job_id]
+    except subprocess.CalledProcessError:
+        return None     # error already printed on stderr by run_cmd_on_site()
 
 def printed_date_from_ts(ts):
     return ' '.join(datetime.fromtimestamp(ts).strftime("%c").split())

@@ -24,7 +24,7 @@ def failing_server_socket_hook():
 
 def connection_hook(link, server):
     info = get_deployment_status()
-    if not info.get('got_first_user_api_connection', False):
+    if info is not None and not info.get('got_first_user_api_connection', False):
         # gain possession of nodes by associating them to our copy of their
         # default image (note: no need to reboot them because this is another
         # tag of the same image)

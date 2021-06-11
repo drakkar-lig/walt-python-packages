@@ -190,6 +190,13 @@ def on_ending():
     # record ending
     record_main_job_ending()
 
+def print_banner(f, msg):
+    print(file=f)
+    print(file=f)
+    print('-'*len(msg), file=f)
+    print(msg, file=f)
+    f.flush()
+
 # Note: this helper program is called when the g5k "main" job starts to run.
 # The main job is the one running at the site where the walt server will be deployed.
 # This job connects back to the site where 'walt g5k deploy' command was run, and
@@ -197,11 +204,9 @@ def on_ending():
 # This script should then remain alive to maintain the main job alive.
 def run():
     now = time.time()
-    print()
     first_msg = "%s: WalT platform deployment helper started." % printed_date_from_ts(now)
-    print('-'*len(first_msg))
-    print(first_msg)
-    sys.stdout.flush()
+    print_banner(sys.stdout, first_msg)
+    print_banner(sys.stderr, first_msg)
     record_main_job_startup()
     atexit.register(on_ending)
     run_deployment_tasks()

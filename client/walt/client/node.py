@@ -40,8 +40,12 @@ class WalTNode(WalTCategoryApplication):
 
     @staticmethod
     def run_cmd(node_set, several_nodes_allowed, cmdargs,
-                startup_msg = None, tty = False):
+                startup_msg = None, tty = False, capture_output = False):
         nodes_ip = None
+        if several_nodes_allowed and capture_output:
+            sys.stderr.write(
+                    'Error: Only one node allowed when capturing output.\n')
+            return
         with ClientToServerLink() as server:
             if not WalTDevice.confirm_devices_not_owned(server, node_set):
                 return
@@ -58,7 +62,9 @@ class WalTNode(WalTCategoryApplication):
             for ip in nodes_ip:
                 if startup_msg:
                     print(startup_msg)
-                run_node_cmd(ip, cmdargs, tty)
+                res = run_node_cmd(ip, cmdargs, tty, capture_output)
+                if capture_output:
+                    return res
 
     @staticmethod
     def boot_nodes(node_set, image_name_or_default):

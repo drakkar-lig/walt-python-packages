@@ -10,7 +10,7 @@ JOB_LOGS_DIR = ".walt-g5k/logs"
 DEBUG_MODE = False
 # default planning start time is 1 minute from now
 # in some cases this is not enough time for submitting the jobs.
-DELAY_MARGIN_FROM_NOW_SECONDS = 2*60
+DEFAULT_START_TIME_MARGIN_SECS = 2*60
 
 def compute_possible_clusters_for_server():
     global POSSIBLE_CLUSTERS_FOR_SERVER
@@ -52,7 +52,7 @@ def filter_vlans_from_planning(planning, vlan_type='kavlan-local'):
             if drop_vlan:
                 del planning[site]['vlans'][vlan_name]
 
-def analyse_reservation(recipe_info):
+def analyse_reservation(recipe_info, start_time_margin = DEFAULT_START_TIME_MARGIN_SECS):
     execo_g5k = load_execo_g5k()
     walltime = recipe_info['walltime']
     g5k_node_counts = dict(
@@ -72,7 +72,7 @@ def analyse_reservation(recipe_info):
     else:
         vlan_type = 'kavlan-global'
     planning = execo_g5k.planning.get_planning(
-                            starttime = time.time() + DELAY_MARGIN_FROM_NOW_SECONDS,
+                            starttime = time.time() + start_time_margin,
                             elements = resources_wanted,
                             vlan = True,
                             out_of_chart = out_of_chart
@@ -186,9 +186,9 @@ def walltime_as_seconds(wt):
     hours, minutes, seconds = elems
     return hours * 3600 + minutes * 60 + seconds
 
-def get_submission_info(recipe_info):
+def get_submission_info(recipe_info, start_time_margin):
     execo_g5k = load_execo_g5k()
-    result, info = analyse_reservation(recipe_info)
+    result, info = analyse_reservation(recipe_info, start_time_margin)
     if result is False:
         return False, info
     server_site = recipe_info['server']['site']
