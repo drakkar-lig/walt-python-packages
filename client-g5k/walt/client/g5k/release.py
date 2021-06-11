@@ -4,12 +4,12 @@ from walt.client.g5k.deploy.status import get_deployment_status, forget_deployme
 from walt.client.g5k.tools import run_cmd_on_site
 from walt.client.tools import confirm
 
-def release():
+def release(should_confirm = True):
     info = get_deployment_status()
     if info is None:
         print('There is no WalT platform currently deployed.')
         return
-    if confirm():
+    if not should_confirm or confirm():
         for (site, site_info) in info['sites'].items():
             job_id = site_info.get('job_id')
             if job_id is not None:
