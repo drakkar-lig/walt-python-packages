@@ -1,8 +1,9 @@
 # this is the code called by tool
 # walt-g5k-deploy-helper
 import requests, subprocess, sys, time, json, atexit
+from getpass import getuser
 from walt.common.formatting import human_readable_delay
-from walt.client.g5k.tools import Cmd, run_cmd_on_site, oarstat, printed_date_from_ts
+from walt.client.g5k.tools import Cmd, run_cmd_on_site, oarstat, set_vlan, printed_date_from_ts
 from walt.client.g5k.deploy.status import get_deployment_status, log_status_change, \
                                   record_main_job_startup, record_main_job_ending
 from walt.client.config import save_config, get_config_from_file, set_conf
@@ -50,6 +51,16 @@ def get_node_info(node_hostname):
     node_api = f'https://api.grid5000.fr/sid/sites/{site}/clusters/{node_cluster}/nodes/{node_nodomain}.json'
     resp = requests.get(node_api, verify=False)
     return resp.json()
+
+def verify_vlan_rights(info):
+    vlan_id = info['vlan']['vlan_id']
+    user = getuser()
+    for site in info['sites']:
+        url = f'https://api.grid5000.fr/sid/sites/{site}/vlans/{vlan_id}/users'
+        resp = requests.get(url, verify=False).json()
+        users = set(item['uid'] for item in resp['items'])
+        if user not in users:
+            raise Exception('Error: G5K failed to propagate VLAN {vlan_id} access right for user {user} at {site}.')
 
 def configure_server(info):
     server_node = info['server']['host']
@@ -137,6 +148,7 @@ def run_deployment_tasks():
         if site == server_site:
             continue
         analyse_g5k_resources(info, site)
+    verify_vlan_rights(info)
     # configure server
     log_status_change(info, 'server.walt.conf', 'Configuring walt server', verbose = True)
     configure_server(info)
@@ -146,14 +158,13 @@ def run_deployment_tasks():
     log_status_change(info, 'vlan.conf.dhcp', f'Removing default DHCP service on VLAN {vlan_id}', verbose = True)
     run_cmd_on_site(info, vlan_site, f'kavlan -d -i {vlan_id}'.split(), True)
     log_status_change(info, 'vlan.conf.server', f'Attaching walt server secondary interface to VLAN {vlan_id}', verbose = True)
-    run_cmd_on_site(info, server_site,
-                f'kavlan -s -i {vlan_id} -m {server_node_eth1}'.split(), True)
+    set_vlan(info, server_site, vlan_id, server_node_eth1)
     log_status_change(info, 'vlan.conf.nodes', f'Attaching walt nodes to VLAN {vlan_id}', verbose = True)
     for site, site_info in info['sites'].items():
         if len(site_info['nodes']) == 0:
             continue
-        nodes_spec = ' '.join(('-m ' + node) for node in site_info['nodes'])
-        run_cmd_on_site(info, site, f'kavlan -s -i {vlan_id} {nodes_spec}'.split(), True)
+        nodes = list(site_info['nodes'])
+        set_vlan(info, site, vlan_id, *nodes)
     # reboot nodes
     log_status_change(info, 'nodes.reboot', f'Rebooting walt nodes', verbose = True)
     all_nodes = sum((list(site_info['nodes']) for site_info in info['sites'].values()), [])

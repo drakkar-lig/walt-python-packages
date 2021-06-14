@@ -111,5 +111,24 @@ def oarstat(info, site):
     except subprocess.CalledProcessError:
         return None     # error already printed on stderr by run_cmd_on_site()
 
+def set_vlan(info, site, vlan_id, *nodes):
+    remaining_nodes = nodes
+    for i in range(3):
+        nodes_spec = ' '.join(('-m ' + node) for node in remaining_nodes)
+        run_cmd_on_site(info, site, f'kavlan -s -i {vlan_id} {nodes_spec}'.split(), True)
+        remaining_nodes = []
+        verif = run_cmd_on_site(info, site, f'kavlan -g {nodes_spec}'.split(), False)
+        for line in verif.splitlines():
+            node, vlan = line.split()
+            node = node[:-1]    # "<node>:" -> "<node>"
+            if str(vlan) != str(vlan_id):
+                remaining_nodes.append(node)
+        if len(remaining_nodes) == 0:
+            return   # ok done
+        # failed on some nodes, retry
+    # still failing after 3 tries
+    raise Exception(f'kavlan failed to attach vlan {vlan_id} on ' + \
+                    ', '.join(remaining_nodes))
+
 def printed_date_from_ts(ts):
     return ' '.join(datetime.fromtimestamp(ts).strftime("%c").split())
