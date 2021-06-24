@@ -12,6 +12,10 @@ from walt.client.g5k.deploy.status import init_status_info, log_status_change, \
 # too close or already past, jobs may not work properly.
 SUBMISSION_MARGIN_SECS = 1*60
 
+# Error codes
+SUBMISSION_ERROR = 1
+SUBMISSION_MISSING_RESOURCES = 2
+
 def cancel_jobs(info):
     successful_sites = [ site for (site, site_info) in info['sites'].items() \
                          if 'job_id' in site_info ]
@@ -37,7 +41,7 @@ def deploy(recipe_info):
         init_status_info(info)
         print('Waiting for job submissions... ', end='')
         sys.stdout.flush()
-        failure = False
+        failure = None
         server_site = info['server']['site']
         submission_processes = {}
         log_status_change(info, 'submission', 'Submitting jobs')
@@ -55,12 +59,12 @@ def deploy(recipe_info):
                             info, site, args, err_out=False, background=True)
             # if error, print it
             if isinstance(output, subprocess.CalledProcessError):
-                if not failure:
+                if failure is None:
                     print('FAILED')
                 print('FAILED submission at ' + site)
                 print(output, file=sys.stderr)
                 print(output.stdout, file=sys.stderr)
-                failure = True
+                failure = SUBMISSION_ERROR
                 break
             submission_processes[site] = output
         for site, process_output in submission_processes.items():
@@ -72,16 +76,25 @@ def deploy(recipe_info):
                     if 'OAR_JOB_ID=' in line:
                         site_job_id = line.strip().split('=')[1]
                         info['sites'][site]['job_id'] = site_job_id
+                    if 'not valid' in line:
+                        if failure is None:
+                            print('FAILED')
+                        failure = SUBMISSION_MISSING_RESOURCES
+                        print(f'Some planned resources are no longer available at {site}.')
             except Exception as e:
                 pass
             if site_job_id is None:
-                if not failure:
+                if failure is None:
                     print('FAILED')
                 print('FAILED submission at ' + site)
                 print('\n'.join(output_lines), file=sys.stderr)
-                failure = True
+                failure = SUBMISSION_ERROR
             process_output.close()
-        if not failure:
+        if failure == SUBMISSION_MISSING_RESOURCES:
+            cancel_jobs(info)
+            print('Retrying.')
+            continue
+        if failure is None:
             now = time.time()
             if now > info["start_date"] - SUBMISSION_MARGIN_SECS:
                 print("FAILED")
@@ -90,7 +103,7 @@ def deploy(recipe_info):
                 print('Retrying with a larger margin before start time.')
                 start_time_margin *= 2
                 continue
-        if failure:
+        if failure is not None:
             cancel_jobs(info)
             sys.exit(1)
         print('done.')
