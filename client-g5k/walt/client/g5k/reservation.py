@@ -1,4 +1,5 @@
 import shutil, sys, time
+from datetime import datetime
 from walt.client.g5k.myexeco import load_execo_g5k
 from walt.client.g5k.tools import get_local_g5k_site
 from walt.client import __version__
@@ -187,7 +188,6 @@ def walltime_as_seconds(wt):
     return hours * 3600 + minutes * 60 + seconds
 
 def get_submission_info(recipe_info, start_time_margin):
-    execo_g5k = load_execo_g5k()
     result, info = analyse_reservation(recipe_info, start_time_margin)
     if result is False:
         return False, info
@@ -217,7 +217,7 @@ def get_submission_info(recipe_info, start_time_margin):
         append_site_resource(site_resources, site, resource)
     append_site_resource(site_resources, server_site, SERVER_NODE_RESOURCE)
     append_site_resource(site_resources, vlan_site, VLAN_RESOURCE % vlan_type)
-    oar_date = execo_g5k.oar.format_oar_date(reservation_date)
+    oar_date = datetime.fromtimestamp(reservation_date).strftime('%Y-%m-%d %H:%M:%S')
     for site, resources in site_resources.items():
         site_resources = '+'.join(resources)
         site_resources += ',walltime=' + walltime
