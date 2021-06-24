@@ -18,8 +18,11 @@ def analyse_g5k_resources(info, site):
     log_status_change(info, 'resources.detection.' + site, "Detecting targeted resources", verbose = True)
     analyse_g5k_nodes(info, site)
     if site == info['vlan']['site']:
-        info['vlan']['vlan_id'] = int(
-            run_cmd_on_site(info, site, [ 'kavlan', '-V' ], True))
+        output = run_cmd_on_site(info, site, [ 'kavlan', '-V' ], True)
+        try:
+            info['vlan']['vlan_id'] = int(output)
+        except:
+            raise Exception(f"G5K vlan reservation failed at {site}!")
 
 def analyse_g5k_nodes(info, site):
     # this is equivalent to:
@@ -102,9 +105,14 @@ def wait_for_other_jobs(info):
             if site == main_job_site:
                 continue
             job_stat = oarstat(info, site)
+            if job_stat is None:
+                raise Exception(f'G5K failed to reserve the job at {site}!')
             if job_stat['state'] != 'Running':
                 waiting_sites.append(site)
-                max_start_time = max(max_start_time, job_stat['scheduledStart'])
+                scheduled_start = job_stat.get("scheduledStart")
+                if scheduled_start is None:
+                    raise Exception(f'G5K failed to reserve the job at {site}!')
+                max_start_time = max(max_start_time, scheduled_start)
         if len(waiting_sites) == 0:
             break
         status  = 'jobs.others.waiting'
