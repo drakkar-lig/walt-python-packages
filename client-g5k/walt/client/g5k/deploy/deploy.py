@@ -5,7 +5,8 @@ from walt.client.g5k.tools import run_cmd_on_site, printed_date_from_ts
 from walt.client.g5k.reservation import get_submission_info, JOB_LOGS_DIR, \
                                         DEFAULT_START_TIME_MARGIN_SECS
 from walt.client.g5k.deploy.status import init_status_info, log_status_change, \
-                                          save_deployment_status
+                                          save_deployment_status, \
+                                          exit_if_walt_platform_deployed
 
 # if the jobs submission took too long, and the scheduled start is
 # too close or already past, jobs may not work properly.
@@ -24,6 +25,7 @@ def cancel_jobs(info):
         print('done.')
 
 def deploy(recipe_info):
+    exit_if_walt_platform_deployed()
     start_time_margin = DEFAULT_START_TIME_MARGIN_SECS
     while True:
         result, info = get_submission_info(recipe_info, start_time_margin)

@@ -91,3 +91,10 @@ def get_deployment_status(allow_expired=False):
 def forget_deployment():
     if DEPLOYMENT_STATUS_FILE.exists():
         DEPLOYMENT_STATUS_FILE.unlink()
+
+def exit_if_walt_platform_deployed():
+    info = get_deployment_status()
+    if info is not None:
+        print("A walt platform is already deployed.")
+        print("Use 'walt g5k release' to release this existing deployment.")
+        sys.exit(1)

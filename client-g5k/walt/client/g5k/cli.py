@@ -9,7 +9,8 @@ from walt.client.g5k.recipes import new_recipe, \
         save_recipe, edit_recipe, list_recipes, \
         print_recipe, remove_recipe
 from walt.client.g5k.printer import print_info
-from walt.client.g5k.deploy.status import get_deployment_status
+from walt.client.g5k.deploy.status import get_deployment_status, \
+                                          exit_if_walt_platform_deployed
 
 # when working with grid'5000, the first thing we
 # want to do is to deploy the WalT platform.
@@ -24,11 +25,7 @@ class WalTG5KDeploy(WalTApplication):
     """deploy WalT on Grid'5000 infrastructure"""
     ORDERING = 1
     def main(self, recipe_name=None):
-        info = get_deployment_status()
-        if info is not None:
-            print("A walt platform is already deployed.")
-            print("Use 'walt g5k release' to release this existing deployment.")
-            sys.exit(1)
+        exit_if_walt_platform_deployed()
         if recipe_name is None:
             recipe_info = new_recipe()
             propose_save_recipe(recipe_info)
