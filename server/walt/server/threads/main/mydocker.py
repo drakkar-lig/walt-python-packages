@@ -251,7 +251,7 @@ class DockerHubClient:
             raise Exception(line.strip())
     def pull(self, image_fullname, requester = None):
         label = 'Downloading %s' % image_fullname
-        stream = podman.pull.stream(image_fullname, out_stream='stderr')
+        stream = podman.pull.stream(REGISTRY + '/' + image_fullname, out_stream='stderr')
         indicate_progress(sys.stdout, label, stream, self.checker)
     def login(self, dh_peer, auth_conf, requester):
         try:
