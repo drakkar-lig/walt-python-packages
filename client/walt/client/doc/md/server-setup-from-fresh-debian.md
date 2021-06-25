@@ -34,7 +34,8 @@ $ echo "deb [arch=amd64] $URL buster stable" > /etc/apt/sources.list.d/docker.li
 $ URL="https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/Debian_10"
 $ curl -sSL $URL/Release.key | sudo apt-key add -
 $ echo "deb $URL/ /" > /etc/apt/sources.list.d/libcontainers.list
-$ echo "deb http://deb.debian.org/debian buster-backports main" \
+$ grep -RIq "^[^#]*buster-backports" /etc/apt/ || \
+        echo "deb http://deb.debian.org/debian buster-backports main" \
             >> /etc/apt/sources.list.d/libcontainers.list
 ```
 
