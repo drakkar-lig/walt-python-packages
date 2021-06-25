@@ -109,8 +109,11 @@ def short_image_name(image_name):
         return image_name
 
 def clonable_link(location, user, image_name, min_version = None):
-    if min_version is not None and min_version > int(__version__):
-        return "[Need server upgrade, version>=%d]" % min_version
+    try:
+        if min_version is not None and min_version > int(__version__):
+            return "[Need server upgrade, version>=%d]" % min_version
+    except ValueError:  # non-integer dev version
+        pass
     return "%s:%s/%s" % (
             LOCATION_LABEL[location],
             user,
