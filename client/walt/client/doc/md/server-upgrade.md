@@ -60,7 +60,7 @@ When asked:
 Next, we must install missing or up-to-date components:
 ```
 $ apt install -t buster-backports --upgrade libseccomp2
-$ apt install buildah podman skopeo docker-ce docker-ce-cli containerd.io python3-dev
+$ apt install buildah podman skopeo docker-ce docker-ce-cli containerd.io python3-dev containernetworking-plugins
 $ curl -s https://bootstrap.pypa.io/get-pip.py -o get-pip.py && python3 get-pip.py
 ```
 
