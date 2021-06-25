@@ -328,9 +328,12 @@ def perform_clone(requester, docker, nodes_manager, clonable_link, image_store, 
 
 # this implements walt image clone
 def clone(requester, server, **kwargs):
-    return perform_clone(  requester = requester,
+    try:
+        return perform_clone(  requester = requester,
                     docker = server.docker,
                     image_store = server.images.store,
                     nodes_manager = server.nodes,
                     **kwargs)
-
+    except Exception as e:
+        requester.stderr.write(str(e) + '\n')
+        return ('FAILED',)
