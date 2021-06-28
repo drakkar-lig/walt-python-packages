@@ -72,6 +72,11 @@ def analyse_reservation(recipe_info, start_time_margin = DEFAULT_START_TIME_MARG
         vlan_type = 'kavlan-local'
     else:
         vlan_type = 'kavlan-global'
+        # reference other sites in resources_wanted too because we may want
+        # to use their global vlan
+        for site in get_g5k_sites():
+            if site not in resources_wanted:
+                resources_wanted[site] = 0
     planning = execo_g5k.planning.get_planning(
                             starttime = time.time() + start_time_margin,
                             elements = resources_wanted,
@@ -187,6 +192,18 @@ def walltime_as_seconds(wt):
     hours, minutes, seconds = elems
     return hours * 3600 + minutes * 60 + seconds
 
+def select_vlan_site(recipe_info, sites):
+    # compute the set of involved sites (for the server and / or the nodes)
+    involved_sites = set(
+        [ recipe_info['server']['site'] ] +
+        list(recipe_info['node_counts'].keys())
+    )
+    # sort given input sites, involved sites last if any
+    sorted_sites = sorted(sites, key = lambda site: (site in involved_sites))
+    # preferably reserve the global vlan in a site already involved
+    # (otherwise we will have to manage one more job just for this vlan)
+    return sorted_sites[-1]
+
 def get_submission_info(recipe_info, start_time_margin):
     result, info = analyse_reservation(recipe_info, start_time_margin)
     if result is False:
@@ -198,7 +215,8 @@ def get_submission_info(recipe_info, start_time_margin):
         vlan_site = server_site
     else: # kavlan-global
         # use one of the sites which have their global vlan free in the selected slot
-        vlan_site = info['selected_slot']['resources']['kavlan'][0]
+        vlan_site = select_vlan_site(recipe_info,
+                        info['selected_slot']['resources']['kavlan'])
     reservation_date = info['selected_slot']['start']
     deployment_info = {
         'vlan': {
