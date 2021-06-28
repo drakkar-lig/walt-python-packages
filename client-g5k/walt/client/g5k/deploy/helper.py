@@ -147,7 +147,7 @@ def run_deployment_tasks():
     log_status_change(info, 'server.deploy', f'Deploying walt server on node {server_node} (expect ~5min)', verbose = True)
     env_file = info['server']['g5k_env_file']
     run_cmd_on_site(info, server_site,
-                f'kadeploy3 -m {server_node} -a {env_file}'.split())
+                f'kadeploy3 -m {server_node} -a {env_file} -k'.split())
     # wait for secondary jobs at other sites (they should be ready now...)
     log_status_change(info, 'jobs.others.checking', 'Checking secondary jobs are ready', verbose = True)
     wait_for_other_jobs(info)
