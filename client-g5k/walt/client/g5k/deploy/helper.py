@@ -144,7 +144,7 @@ def run_deployment_tasks():
     server_node = info['server']['host']
     server_node_eth1 = '-eth1.'.join(server_node.split('.',maxsplit=1))
     # deploy server
-    log_status_change(info, 'server.deploy', f'Deploying walt server on node {server_node} (expect ~5min)', verbose = True)
+    log_status_change(info, 'server.deploy', f'Deploying walt server on node {server_node}', verbose = True)
     env_file = info['server']['g5k_env_file']
     run_cmd_on_site(info, server_site,
                 f'kadeploy3 -m {server_node} -a {env_file} -k'.split())

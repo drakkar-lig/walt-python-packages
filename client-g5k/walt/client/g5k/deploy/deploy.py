@@ -32,12 +32,16 @@ def deploy(recipe_info):
     exit_if_walt_platform_deployed()
     start_time_margin = DEFAULT_START_TIME_MARGIN_SECS
     while True:
+        print('Analysing recipe and available resources... ', end='')
+        sys.stdout.flush()
         result, info = get_submission_info(recipe_info, start_time_margin)
         if result == False:
             tip = info['tip']
+            print('FAILED')
             print('Could not deploy this recipe (required resources are not available).')
             print(f'Retry later or edit it (tip: {tip}).')
             return
+        print('OK')
         init_status_info(info)
         print('Waiting for job submissions... ', end='')
         sys.stdout.flush()
