@@ -60,10 +60,14 @@ def get_expiry_message(info, now=None):
                     % info['server']['site']
 
 def get_raw_deployment_status():
-    try:
-        return json.loads(DEPLOYMENT_STATUS_FILE.read_text())
-    except:
+    if not DEPLOYMENT_STATUS_FILE.exists():
         return None
+    for i in range(5):
+        try:
+            return json.loads(DEPLOYMENT_STATUS_FILE.read_text())
+        except:
+            time.sleep(1)  # then retry
+    return None
 
 def get_deployment_status(allow_expired=False):
     info = get_raw_deployment_status()
