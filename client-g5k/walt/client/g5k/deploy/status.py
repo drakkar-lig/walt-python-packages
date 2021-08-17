@@ -39,9 +39,11 @@ def record_main_job_startup():
     info['main_job_status'] = 'running'
     log_status_change(info, 'jobs.main.startup', 'Starting main job at ' + info['server']['site'])
 
-def record_main_job_ending():
+def record_main_job_ending(e = None):
     info = get_raw_deployment_status()
     info['main_job_status'] = 'ended'
+    if e is not None:
+        info['exception'] = str(e)
     log_status_change(info, 'jobs.main.ending', 'Ending main job at ' + info['server']['site'])
 
 def is_expired(info, now=None):
@@ -50,11 +52,11 @@ def is_expired(info, now=None):
 def is_walltime_expired(info, now=None):
     if now is None:
         now = time.time()
-    return (now > info['end_date'])
+    return (now >= info['end_date'])
 
 def get_expiry_message(info, now=None):
     if is_walltime_expired(info, now=now):
-        return 'Previous G5K deployment ended its walltime.'
+        return 'G5K deployment ended its walltime.'
     if info['main_job_status'] == 'ended':
         return 'Main G5K deployment job ended (see ~/.walt-g5k/logs/deploy.* at %s).' \
                     % info['server']['site']
@@ -92,9 +94,11 @@ def get_deployment_status(allow_expired=False):
             info['status'] = last_label
         return info
 
-def forget_deployment():
-    if DEPLOYMENT_STATUS_FILE.exists():
-        DEPLOYMENT_STATUS_FILE.unlink()
+def record_end_of_deployment():
+    info = get_raw_deployment_status()
+    if info is not None:
+        info['end_date'] = time.time()
+        save_deployment_status(info)
 
 def exit_if_walt_platform_deployed():
     info = get_deployment_status()

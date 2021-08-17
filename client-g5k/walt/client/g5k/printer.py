@@ -3,8 +3,14 @@ from walt.client.g5k.deploy.status import get_deployment_status, get_expiry_mess
 from walt.client.g5k.tools import printed_date_from_ts
 from walt.common.formatting import columnate, framed
 
+def printed_section(s):
+    if s == '':
+        return '<none>'
+    return '\n[-- FILE START --]\n' + s.strip() + '\n[-- FILE END --]'
+
 GENERAL_INFO_PATHS = {
     ('status',): str,
+    ('exception',): str,
     ('start_date',): printed_date_from_ts,
     ('walltime',): str,
     ('vlan', 'type'): str,
@@ -15,6 +21,8 @@ GENERAL_INFO_PATHS = {
     ('server', 'host'): str,
     ('sites', '*', 'job_id'): str,
     ('sites', '*', 'nodes'): lambda d: str(list(d)),
+    ('sites', '*', 'job_stdout'): printed_section,
+    ('sites', '*', 'job_stderr'): printed_section,
 }
 
 def print_path_value(info, path, print_func, passed=()):

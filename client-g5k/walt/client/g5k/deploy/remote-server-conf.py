@@ -54,7 +54,7 @@ server_conf = """
 }
 """
 server_conf = server_conf.replace(
-            '__WALT_NET_INTF__', job_conf['server_eth1_name'])
+            '__WALT_NET_INTF__', job_conf['walt_netcard_name'])
 server_conf = server_conf.replace(
             '__WALT_IP_CIDR__', WALT_IP_CIDR)
 server_conf_file.write_text(server_conf)

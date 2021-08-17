@@ -1,11 +1,12 @@
 # this is the code called by tool
 # walt-g5k-deploy-helper
-import requests, subprocess, sys, time, json, atexit
+import requests, subprocess, sys, time, json, traceback
 from getpass import getuser
 from walt.common.formatting import human_readable_delay
 from walt.client.g5k.tools import Cmd, run_cmd_on_site, oarstat, set_vlan, printed_date_from_ts
 from walt.client.g5k.deploy.status import get_deployment_status, log_status_change, \
-                                  record_main_job_startup, record_main_job_ending
+                                  record_main_job_startup, record_main_job_ending, \
+                                  save_deployment_status
 from walt.client.config import save_config, get_config_from_file, set_conf
 from walt.client.link import ClientToServerLink
 from urllib3.exceptions import InsecureRequestWarning
@@ -24,6 +25,27 @@ def analyse_g5k_resources(info, site):
         except:
             raise Exception(f"G5K vlan reservation failed at {site}!")
 
+def yield_enabled_netcards(node_hostname):
+    node_info = get_node_info(node_hostname)
+    for netcard_info in node_info['network_adapters']:
+        if not netcard_info['enabled']:
+            continue
+        yield netcard_info
+
+# Usually the main netcard is the one recorded with device="eth0" in the API
+# and the secondary netcard (used for walt-net network on walt server) has
+# device="eth1". However, some clusters may have disabled devices (e.g. hercule
+# cluster at Lyon), which cause this numbering to be shifted.
+def main_netcard(node_hostname):
+    for netcard in yield_enabled_netcards(node_hostname):
+        if netcard.get('network_address', '') == node_hostname:
+            return netcard
+
+def secondary_netcard(node_hostname):
+    for netcard in yield_enabled_netcards(node_hostname):
+        if netcard.get('network_address', '') != node_hostname:
+            return netcard
+
 def analyse_g5k_nodes(info, site):
     # this is equivalent to:
     # $ oarstat -p | oarprint host -P eth_count,host -f -
@@ -41,10 +63,10 @@ def analyse_g5k_nodes(info, site):
            int(eth_count) > 1:
             info['server']['host'] = host
         else:
-            node_info = get_node_info(host)
+            netcard = main_netcard(host)
             walt_nodes[host] = dict(
                 walt_name = host.split('.')[0],
-                mac = node_info['network_adapters'][0]['mac']
+                mac = netcard['mac']
             )
     info['sites'][site]['nodes'] = walt_nodes
 
@@ -63,18 +85,16 @@ def verify_vlan_rights(info):
         resp = requests.get(url, verify=False).json()
         users = set(item['uid'] for item in resp['items'])
         if user not in users:
-            raise Exception('Error: G5K failed to propagate VLAN {vlan_id} access right for user {user} at {site}.')
+            raise Exception(f'Error: G5K failed to propagate VLAN {vlan_id} access right for user {user} at {site}.')
 
-def configure_server(info):
+def configure_server(info, walt_netcard_name):
     server_node = info['server']['host']
-    server_info = get_node_info(server_node)
-    server_eth1_name = server_info['network_adapters'][1]['name']
     nodes_info = []
     for site, site_info in info['sites'].items():
         for node_info in site_info['nodes'].values():
             nodes_info.append((node_info['walt_name'], node_info['mac']))
     json_conf = json.dumps({
-        'server_eth1_name': server_eth1_name,
+        'walt_netcard_name': walt_netcard_name,
         'nodes': nodes_info
     })
     server_site = info['server']['site']
@@ -142,7 +162,7 @@ def run_deployment_tasks():
     server_site = info['server']['site']
     analyse_g5k_resources(info, server_site)
     server_node = info['server']['host']
-    server_node_eth1 = '-eth1.'.join(server_node.split('.',maxsplit=1))
+    walt_netcard = secondary_netcard(server_node)
     # deploy server
     log_status_change(info, 'server.deploy', f'Deploying walt server on node {server_node}', verbose = True)
     env_file = info['server']['g5k_env_file']
@@ -159,14 +179,14 @@ def run_deployment_tasks():
     verify_vlan_rights(info)
     # configure server
     log_status_change(info, 'server.walt.conf', 'Configuring walt server', verbose = True)
-    configure_server(info)
+    configure_server(info, walt_netcard['name'])
     # update vlan conf
     vlan_id = info['vlan']['vlan_id']
     vlan_site = info['vlan']['site']
     log_status_change(info, 'vlan.conf.dhcp', f'Removing default DHCP service on VLAN {vlan_id}', verbose = True)
     run_cmd_on_site(info, vlan_site, f'kavlan -d -i {vlan_id}'.split(), True)
     log_status_change(info, 'vlan.conf.server', f'Attaching walt server secondary interface to VLAN {vlan_id}', verbose = True)
-    set_vlan(info, server_site, vlan_id, server_node_eth1)
+    set_vlan(info, server_site, vlan_id, walt_netcard['network_address'])
     log_status_change(info, 'vlan.conf.nodes', f'Attaching walt nodes to VLAN {vlan_id}', verbose = True)
     for site, site_info in info['sites'].items():
         if len(site_info['nodes']) == 0:
@@ -196,7 +216,7 @@ def run_deployment_tasks():
     print('Ready!')
     sys.stdout.flush()
 
-def on_ending():
+def handle_failure(e):
     # kill secondary jobs
     info = get_deployment_status()
     if info is not None:
@@ -206,8 +226,13 @@ def on_ending():
             job_id = info['sites'][site]['job_id']
             args = [ 'oardel', job_id ]
             run_cmd_on_site(info, site, args, err_out=False)
+    # print exception to log
+    traceback.print_exc()
     # record ending
-    record_main_job_ending()
+    sys.stdout.flush()
+    sys.stderr.flush()
+    time.sleep(0.2)
+    record_main_job_ending(e)
 
 def print_banner(f, msg):
     print(file=f)
@@ -215,6 +240,26 @@ def print_banner(f, msg):
     print('-'*len(msg), file=f)
     print(msg, file=f)
     f.flush()
+
+class StreamSaver:
+    def __init__(self, stream_name):
+        self._stream_name = stream_name
+        self._orig_stream = getattr(sys, '__' + stream_name + '__')
+        self._saved = ''
+    def write(self, s):
+        self._saved += s
+        return self._orig_stream.write(s)
+    def flush(self):
+        if len(self._saved) > 0:
+            info = get_deployment_status(allow_expired=True)
+            if info is not None:
+                server_site = info['server']['site']
+                info['sites'][server_site]['job_' + self._stream_name] = self._saved
+                save_deployment_status(info)
+            self._orig_stream.flush()
+    @property
+    def encoding(self):
+        return self._orig_stream.encoding
 
 # Note: this helper program is called when the g5k "main" job starts to run.
 # The main job is the one running at the site where the walt server will be deployed.
@@ -226,9 +271,17 @@ def run():
     first_msg = "%s: WalT platform deployment helper started." % printed_date_from_ts(now)
     print_banner(sys.stdout, first_msg)
     print_banner(sys.stderr, first_msg)
+    sys.stdout = StreamSaver('stdout')
+    sys.stderr = StreamSaver('stderr')
     record_main_job_startup()
-    atexit.register(on_ending)
-    run_deployment_tasks()
+    try:
+        run_deployment_tasks()
+    except Exception as e:
+        handle_failure(e)
+        return
+    finally:
+        sys.stdout.flush()
+        sys.stderr.flush()
     # remain alive
     info = get_deployment_status()
     time.sleep(info['end_date'] +1 - time.time())
