@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import sys
 from select import select
-from socket import create_connection, error as SocketError
+from socket import create_connection
 from walt.common.constants import WALT_SERVER_DAEMON_PORT
 from walt.common.reusable import reusable
 from walt.common.tools import BusyIndicator
@@ -10,8 +10,6 @@ from walt.common.api import api, api_expose_method
 
 SERVER_SOCKET_TIMEOUT = 10.0
 
-# exceptions may occur if the client disconnects.
-# we should ignore those.
 class APIChannel(object):
     def __init__(self, sock_file):
         self.sock_file = sock_file
@@ -22,10 +20,7 @@ class APIChannel(object):
     def read(self):
         if self.sock_file.closed:
             return None
-        try:
-            return eval(self.sock_file.readline().decode('UTF-8'))
-        except (EOFError, SyntaxError, OSError, SocketError):
-            return None
+        return eval(self.sock_file.readline().decode('UTF-8'))
     def fileno(self):
         return self.sock_file.fileno()
 
@@ -145,7 +140,11 @@ class ServerAPIConnection(object):
                 continue
             # otherwise, there is something to process on the api connection
             self.indicator.reset()  # apparently the server is no longer busy
-            event = self.api_channel.read()
+            try:
+                event = self.api_channel.read()
+            except Exception as e:
+                print(e)
+                event = None
             if event != None:
                 if event[0] == 'API_CALL':
                     self.handle_api_call(*event[1:])

@@ -1,6 +1,7 @@
 from walt.common.version import __version__
 from walt.common.tcp import Requests
 from walt.common.apilink import APIChannel, AttrCallAggregator
+from socket import error as SocketError
 
 class APISessionManager(object):
     REQ_ID = Requests.REQ_API_SESSION
@@ -26,8 +27,15 @@ class APISessionManager(object):
             return self.init_session()
         else:
             return self.handle_api_call()
+    def read_api_channel(self):
+        # exceptions may occur if the client disconnects.
+        # we should ignore those.
+        try:
+            return self.api_channel.read()
+        except (EOFError, SyntaxError, OSError, SocketError):
+            return None
     def handle_api_call(self):
-        event = self.api_channel.read()
+        event = self.read_api_channel()
         if event == None:
             return False
         # e.g. if you send ('CLOSE',) instead of ('API_CALL','<func>',<args>,<kwargs>)
@@ -65,7 +73,7 @@ class APISessionManager(object):
         args = args[1:] # discard 1st arg, rpc context
         try:
             self.api_channel.write('API_CALL', path, args, kwargs)
-            res = self.api_channel.read()
+            res = self.read_api_channel()
             if res == None:
                 return None
             return res[1]
