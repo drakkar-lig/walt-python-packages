@@ -67,6 +67,18 @@ do
     [ "$req" = "PING" ] && {
         echo OK >&6
     }
+    # respond to DMESG requests
+    [ "$req" = "DMESG" ] && {
+        echo OK >&6
+        echo >&6
+        busybox dmesg >&6
+    }
+    # respond to SHELL requests
+    [ "$req" = "SHELL" ] && {
+        echo OK >&6
+        echo >&6
+        busybox sh -i <&5 >&6 2>&1
+    }
     # reboot the node when we receive REBOOT
     [ "$req" = "REBOOT" ] && {
         chroot "$final_root" [ -e "/bin/walt-reboot" ] && {
