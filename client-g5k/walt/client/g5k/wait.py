@@ -20,6 +20,9 @@ def wait():
             break
         if info['status'] == 'ready':
             break   # ok, we can stop waiting
+        if 'exception' in info:
+            issue = info['exception'] + '\n' + 'Deployment failure.'
+            break
         if is_walltime_expired(info):
             issue = 'G5K job walltime ended before the deployment was complete.'
             break

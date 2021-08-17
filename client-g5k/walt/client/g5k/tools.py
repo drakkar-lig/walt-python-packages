@@ -1,6 +1,8 @@
-import socket, subprocess, sys, json
+import socket, subprocess, sys, json, time
 from datetime import datetime
 from contextlib import contextmanager
+
+KAVLAN_FAILURE_DELAY = 3
 
 def get_local_g5k_site():
     return socket.gethostname()[1:]
@@ -125,6 +127,7 @@ def set_vlan(info, site, vlan_id, *nodes):
                 remaining_nodes.append(node)
         if len(remaining_nodes) == 0:
             return   # ok done
+        time.sleep(KAVLAN_FAILURE_DELAY)
         # failed on some nodes, retry
     # still failing after 3 tries
     raise Exception(f'kavlan failed to attach vlan {vlan_id} on ' + \
