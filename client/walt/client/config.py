@@ -145,6 +145,9 @@ def set_conf(in_conf):
     global conf_dict
     conf_dict = in_conf
 
+def reload_conf():
+    set_conf(get_config_from_file())
+
 class Conf(object):
     def __getitem__(self, key):
         return conf_dict[key]
