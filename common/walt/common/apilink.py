@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import sys
+from time import time
 from select import select
 from socket import create_connection
 from walt.common.constants import WALT_SERVER_DAEMON_PORT
@@ -9,6 +10,7 @@ from walt.common.tcp import Requests
 from walt.common.api import api, api_expose_method
 
 SERVER_SOCKET_TIMEOUT = 10.0
+SERVER_SOCKET_REUSE_TIMEOUT = 5.0
 
 class APIChannel(object):
     def __init__(self, sock_file):
@@ -95,9 +97,18 @@ class ServerAPIConnection(object):
         self.client_proxy = AttrCallAggregator(self.handle_client_call)
         self.local_api_handler = AttrCallRunner(local_service)
         self.indicator = busy_indicator
-        self.connected = False
-    # since the object is reusable we must ensure we connect only once.
+        self.last_connection_time = None
+    @property
+    def connected(self):
+        return self.last_connection_time is not None
+    # since the object is reusable we may reuse the connection.
     def connect(self):
+        if self.connected:
+            if time() - self.last_connection_time > SERVER_SOCKET_REUSE_TIMEOUT:
+                # too old, disconnect
+                self.sock.close()
+                self.sock = None
+                self.last_connection_time = None
         if not self.connected:
             self.sock = create_connection((self.server_ip, WALT_SERVER_DAEMON_PORT),
                                           SERVER_SOCKET_TIMEOUT)
@@ -105,7 +116,7 @@ class ServerAPIConnection(object):
             sock_file.write(b'%d\n%s\n' % (Requests.REQ_API_SESSION, self.target_api.encode('UTF-8')))
             self.remote_version = sock_file.readline().strip().decode('UTF-8')
             self.api_channel = APIChannel(sock_file)
-            self.connected = True
+            self.last_connection_time = time()
     def set_busy_label(self, label):
         self.indicator.set_label(label)
     def set_default_busy_label(self):
