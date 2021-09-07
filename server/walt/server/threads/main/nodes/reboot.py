@@ -27,9 +27,7 @@ def reboot_virtual_nodes(nodes_manager, remaining_nodes, **env):
     vmrebooted = []
     for node in remaining_nodes.copy():
         if node.virtual:
-            # terminate VM by quitting screen session
-            nodes_manager.try_kill_vnode(node.name)
-            # restart VM
+            # restart VM (this will restart the node if running)
             nodes_manager.start_vnode(node)
             # move node to 'vmrebooted' category
             remaining_nodes.remove(node)

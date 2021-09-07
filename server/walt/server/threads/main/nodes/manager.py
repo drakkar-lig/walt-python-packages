@@ -25,6 +25,8 @@ VNODE_DEFAULT_CPU_CORES = 4
 # We record virtual nodes serial console output here
 # (we avoid using the logging system for this in order to avoid adding network traffic)
 VNODE_LOG_DIR = Path('/var/lib/walt/logs/vnodes/')
+VNODE_PID_PATH = '/var/lib/walt/nodes/%(mac)s/pid'
+VNODE_SCREEN_SESSION_PATH = '/var/lib/walt/nodes/%(mac)s/screen_session'
 
 MSG_NOT_VIRTUAL = "WARNING: %s is not a virtual node. IGNORED.\n"
 
@@ -104,8 +106,12 @@ class NodesManager(object):
     def try_kill_vnode(self, node_mac):
         session_name = self.get_vnode_screen_session_name(node_mac)
         if session_name is not None:
-            do('screen -S "%(session)s" -X quit' % \
-                dict(session = session_name))
+            pid_path = Path(VNODE_PID_PATH % dict(mac = node_mac))
+            try:
+                pid = int(pid_path.read_text())
+                os.kill(pid, signal.SIGTERM)
+            except:
+                pass
 
     def cleanup(self):
         # stop virtual nodes
