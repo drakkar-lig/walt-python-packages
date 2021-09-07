@@ -1,15 +1,19 @@
 #!/usr/bin/env python
-import sys, subprocess, time, random, platform, re
+import sys, subprocess, time, random, platform, re, atexit, signal, shlex
+from os import getpid, getenv
 from contextlib import contextmanager
 from walt.common.apilink import ServerAPILink
 from walt.common.logs import LoggedApplication
 from walt.common.fakeipxe import ipxe_boot
+from walt.common.tools import failsafe_makedirs
 from walt.virtual.node.udhcpc import udhcpc_fake_netboot
 from plumbum import cli
 from pathlib import Path
 
 OS_ENCODING = sys.stdout.encoding
 HOST_CPU = platform.machine()
+VNODE_PID_PATH = '/var/lib/walt/nodes/%(mac)s/pid'
+VNODE_SCREEN_SESSION_PATH = '/var/lib/walt/nodes/%(mac)s/screen_session'
 
 # the following values have been selected from output of
 # qemu-system-<host-cpu> -machine help
@@ -105,7 +109,7 @@ def boot_kvm(env):
         qemu_args += " -append '%(boot-kernel-cmdline)s'"
     cmd = qemu_args % env
     print(' '.join(cmd.split()))  # print with multiple spaces shrinked
-    subprocess.call(cmd, shell=True)
+    subprocess.call(shlex.split(cmd))
     if env['reboot-command'] is not None:
         subprocess.call(env['reboot-command'], shell=True)
 
@@ -135,8 +139,21 @@ def random_wait():
         time.sleep(1)
         delay -= 1
 
+def save_pid(mac):
+    pid_path = Path(VNODE_PID_PATH % dict(mac = mac))
+    pid_path.parent.mkdir(parents=True, exist_ok=True)
+    pid_path.write_text("%d\n" % getpid())
+
+def save_screen_session(mac):
+    path = Path(VNODE_SCREEN_SESSION_PATH % dict(mac = mac))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    # screen passes the session name as env variable STY
+    path.write_text("%s\n" % getenv('STY'))
+
 def node_loop(info):
     random.seed()
+    save_pid(info._mac)
+    save_screen_session(info._mac)
     try:
         while True:
             # wait randomly to mitigate simultaneous load of various
