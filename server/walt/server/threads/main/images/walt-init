@@ -158,8 +158,19 @@ mount_persistent()
     cd $ROOTFS/mnt
 
     # Compute persistent storage path from NFS root
-    NFS_REMOTE_PATH=$(findmnt / --output SOURCE --noheadings)
-    PERSIST_PATH=${NFS_REMOTE_PATH%/*}/persist
+    # Caution: with NFSv4, client first mounts /var/lib/walt/nodes,
+    # then retrieves /var/lib/walt/nodes/<mac>/fs symlink target,
+    # and mounts this target path. Thus the mount target, as
+    # reported by findmnt for instance, is this second step
+    # mount target, of the form /var/lib/walt/images/<image-id>/fs.
+    # Here, we want to compute the following path:
+    # /var/lib/walt/nodes/<mac>/persist. So we cannot use this
+    # reported mount target. Instead, we parse the kernel command
+    # line where initial <server-ip>:/var/lib/walt/nodes/<mac>/fs
+    # path should be indicated.
+    PERSIST_PATH=$(cat /proc/cmdline | tr '[= ]' '\n' | \
+        grep '\/lib\/walt\/nodes' | sed -e 's/^nfs4\?://' | \
+        sed -e "s/\/fs.*/\/persist/")
 
     # Mount the share
     mkdir fs_union/persist
