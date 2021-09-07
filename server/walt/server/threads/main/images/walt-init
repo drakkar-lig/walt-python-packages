@@ -188,6 +188,8 @@ update_mounts()
 {
     $MOUNT -o bind /dev $ROOTFS/mnt/fs_union/dev
     has_mount /run && $MOUNT -o bind /run $ROOTFS/mnt/fs_union/run
+    mkdir $ROOTFS/mnt/fs_union/run/origfs
+    $MOUNT -o bind / $ROOTFS/mnt/fs_union/run/origfs
     $UMOUNT /proc
 }
 
