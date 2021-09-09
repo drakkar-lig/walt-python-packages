@@ -1,5 +1,5 @@
 import sys, re, datetime, pickle
-from walt.common.tcp import read_pickle, write_pickle, Requests
+from walt.common.tcp import read_pickle, write_pickle, Requests, PICKLE_VERSION
 from plumbum import cli
 from walt.client.application import WalTCategoryApplication, WalTApplication
 from walt.client.link import ClientToServerLink, connect_to_tcp_server
@@ -36,7 +36,7 @@ def compute_relative_date(server_time, rel_date):
     except:
         print("Invalid relative date. Should be: -<int>[dhms] (e.g. '-6h' for 'six hours ago')")
         sys.exit(1)
-    return pickle.dumps(server_time - delay)
+    return pickle.dumps(server_time - delay, protocol=PICKLE_VERSION)
 
 class LogsFlowFromServer(object):
     def __init__(self):
@@ -215,7 +215,7 @@ class WalTLogAddCheckpoint(WalTApplication):
                 else:
                     try:
                         self.date = pickle.dumps(datetime.datetime.strptime(\
-                                        self.date, DATE_FORMAT_STRING))
+                                        self.date, DATE_FORMAT_STRING), protocol=PICKLE_VERSION)
                     except:
                         print('Could not parse the date specified.')
                         print('Expected format is: %s' % DATE_FORMAT_STRING_HUMAN)
