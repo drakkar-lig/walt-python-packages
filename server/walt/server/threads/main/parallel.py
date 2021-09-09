@@ -4,7 +4,6 @@ from subprocess import Popen, STDOUT
 from walt.common.io import SmartFile, read_and_copy
 from walt.common.tcp import read_pickle
 from walt.common.tty import set_tty_size_raw
-from walt.common.tools import set_close_on_exec
 
 class ForkPtyProcessListener(object):
     def __init__(self, slave_pid, env):
@@ -77,10 +76,9 @@ class ParallelProcessSocketListener(object):
         # For efficiency, we let the popen object read directly from the socket.
         # Thus the ev_loop should not longer detect input data on this socket,
         # it should only detect errors, that is why we call update_listener() below.
-        set_close_on_exec(self.client_sock_file, False)
         self.popen = Popen(cmd_args, env=env, bufsize=1024*1024,
-                        stdin=self.client_sock_file, stdout=self.client_sock_file, stderr=STDOUT)
-        set_close_on_exec(self.client_sock_file, True)
+                        stdin=self.client_sock_file, stdout=self.client_sock_file, stderr=STDOUT,
+                        pass_fds=(self.client_sock_file.fileno(),))
         self.ev_loop.update_listener(self, 0)
         self.popen_set_finalize_callback()
     # when the popen object exits, close its output in order
