@@ -2,6 +2,8 @@ import socket, pickle
 from walt.common.tools import set_close_on_exec
 from walt.common.io import SmartFile
 
+PICKLE_VERSION = 4  # from python 3.4
+
 class Requests(object):
     REQ_NEW_INCOMING_LOGS = 0
     REQ_DUMP_LOGS = 1
@@ -48,7 +50,7 @@ def read_pickle(stream):
         return None
 
 def write_pickle(obj, stream):
-    pickle.dump(obj, stream, pickle.HIGHEST_PROTOCOL)
+    pickle.dump(obj, stream, PICKLE_VERSION)
     stream.flush()
 
 class SmartSocketFile(SmartFile):

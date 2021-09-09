@@ -2,7 +2,7 @@ import re, pickle
 from datetime import datetime
 from walt.common.constants import WALT_SERVER_NETCONSOLE_PORT
 from walt.common.tcp import read_pickle, write_pickle, \
-                            Requests
+                            Requests, PICKLE_VERSION
 from walt.common.udp import udp_server_socket
 
 class LogsToDBHandler(object):
@@ -367,5 +367,5 @@ class LogsManager(object):
         if not res[0]:
             return
         cp_info = res[1]
-        return pickle.dumps(cp_info.timestamp)
+        return pickle.dumps(cp_info.timestamp, protocol=PICKLE_VERSION)
 

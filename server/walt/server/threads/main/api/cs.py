@@ -3,6 +3,7 @@ import datetime, pickle
 from walt.common.crypto.dh import DHPeer
 from walt.common.api import api, api_expose_method
 from walt.common.tools import serialize_ordered_dict, deserialize_ordered_dict
+from walt.common.tcp import PICKLE_VERSION
 
 from walt.server.threads.main.apisession import APISession
 
@@ -220,7 +221,7 @@ class CSAPI(APISession):
 
     @api_expose_method
     def get_pickled_time(self, context):
-        return pickle.dumps(datetime.datetime.now())
+        return pickle.dumps(datetime.datetime.now(), protocol=PICKLE_VERSION)
 
     @api_expose_method
     def get_pickled_checkpoint_time(self, context, cp_name):
