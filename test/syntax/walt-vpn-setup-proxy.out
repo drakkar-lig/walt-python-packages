@@ -1,4 +1,4 @@
-Setup an ssh frontend server as a WalT VPN proxy
+setup an ssh frontend server as a WalT VPN proxy
 
 Usage:
     walt vpn setup-proxy [SWITCHES] 

@@ -12,8 +12,8 @@ Help about WalT in general:
     walt help show
 
 Sub-commands:
-    add-checkpoint     Record a checkpoint (reference point in time)
-    list-checkpoints   List checkpoints
-    remove-checkpoint  Remove a checkpoint
     show               Dump logs on standard output
     wait               Wait for a given log line
+    add-checkpoint     Record a checkpoint (reference point in time)
+    remove-checkpoint  Remove a checkpoint
+    list-checkpoints   List checkpoints

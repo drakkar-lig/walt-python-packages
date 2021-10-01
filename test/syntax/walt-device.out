@@ -12,10 +12,10 @@ Help about WalT in general:
     walt help show
 
 Sub-commands:
-    config  Get or set devices configuration
-    forget  let the WalT system forget about an obsolete device
-    ping    check that a device is reachable on WalT network
-    rename  rename a device
-    rescan  rescan the network devices involved in the platform
     show    print details about devices involved in the platform
     tree    print the network structure of the platform
+    rescan  rescan the network devices involved in the platform
+    rename  rename a device
+    config  get or set devices configuration
+    ping    check that a device is reachable on WalT network
+    forget  let the WalT system forget about an obsolete device

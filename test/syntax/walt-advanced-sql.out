@@ -1,4 +1,4 @@
-Start a remote SQL prompt on the WalT server database
+start a remote SQL prompt on the WalT server database
 
 Usage:
     walt advanced sql [SWITCHES] 
