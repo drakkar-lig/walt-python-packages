@@ -5,8 +5,7 @@ from select import select
 from socket import SHUT_WR
 from walt.client.term import TTYSettings
 from walt.client.link import connect_to_tcp_server
-from walt.common.io import SmartFile, \
-                            unbuffered, read_and_copy
+from walt.common.io import unbuffered, read_and_copy
 from walt.common.tcp import Requests, write_pickle
 
 SQL_SHELL_MESSAGE = """\
@@ -42,8 +41,8 @@ class PromptClient(object):
         # wait for the READY message from the server
         self.sock_file.readline()
         write_pickle(params, self.sock_file)
-        # provide read_available() method
-        self.stdin_reader = SmartFile(unbuffered(stdin, 'rb'))
+        # make stdin unbuffered
+        self.stdin_reader = unbuffered(stdin, 'rb')
 
     def run(self):
         if self.capture_output:

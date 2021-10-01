@@ -2,7 +2,7 @@
 from select import select
 from walt.common.io import read_and_copy
 from walt.common.tcp import Requests, write_pickle, \
-                            server_socket, SmartSocketFile
+                            server_socket, RWSocketFile
 from walt.client.link import connect_to_tcp_server
 
 class TCPExposer:
@@ -54,7 +54,7 @@ class TCPExposer:
         if node_channel == None:
             conn_s.close()
             return
-        client_channel = SmartSocketFile(conn_s)
+        client_channel = RWSocketFile(conn_s)
         self.associations[client_channel] = node_channel
         self.associations[node_channel] = client_channel
     def close(self):

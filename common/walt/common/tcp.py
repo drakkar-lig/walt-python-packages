@@ -1,6 +1,5 @@
 import socket, pickle
 from walt.common.tools import set_close_on_exec
-from walt.common.io import SmartFile
 
 PICKLE_VERSION = 4  # from python 3.4
 
@@ -53,28 +52,43 @@ def write_pickle(obj, stream):
     pickle.dump(obj, stream, PICKLE_VERSION)
     stream.flush()
 
-class SmartSocketFile(SmartFile):
+class RWSocketFile:
     def __init__(self, sock):
         self.sock = sock
-        sock_r = sock.makefile('rb', 0)
-        sock_w = sock.makefile('wb', 0)
-        SmartFile.__init__(self, sock_r, sock_w)
+        self.file_r = sock.makefile('rb', 0)
+        self.file_w = sock.makefile('wb', 0)
     def shutdown(self, mode):
         return self.sock.shutdown(mode)
+    def getpeername(self):
+        return self.sock.getpeername()
+    def __getattr__(self, attr):
+        if attr in ('write', 'flush'):
+            f = self.file_w
+        else:
+            f = self.file_r
+        return getattr(f, attr)
+    @property
+    def closed(self):
+        return self.file_r is None
     def close(self):
+        if self.file_r is not None:
+            self.file_r.close()
+            self.file_r = None
+        if self.file_w is not None:
+            self.file_w.close()
+            self.file_w = None
         if self.sock is not None:
             self.sock.close()
             self.sock = None
-            SmartFile.close(self)
-    def getpeername(self):
-        return self.sock.getpeername()
+    def __del__(self):
+        self.close()
 
 def client_sock_file(host, port):
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     # set close-on-exec flag (subprocesses should not inherit it)
     set_close_on_exec(s, True)
     s.connect((host, port))
-    return SmartSocketFile(s)
+    return RWSocketFile(s)
 
 class ServerSocketWrapper:
     def __init__(self, s):
@@ -121,7 +135,7 @@ class TCPServer(object):
     # and register this listener in the event loop.
     def handle_event(self, ts):
         conn_s, addr = self.s.accept()
-        sock_file = SmartSocketFile(conn_s)
+        sock_file = RWSocketFile(conn_s)
         req_id = Requests.read_id(sock_file)
         if req_id is None or req_id not in self.listener_classes:
             print('Invalid request.')
