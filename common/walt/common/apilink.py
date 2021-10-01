@@ -97,18 +97,27 @@ class ServerAPIConnection(object):
         self.client_proxy = AttrCallAggregator(self.handle_client_call)
         self.local_api_handler = AttrCallRunner(local_service)
         self.indicator = busy_indicator
-        self.last_connection_time = None
+        self.connected = False
+        self.idle_start_time = None
+        self.usage_refcount = 0 # might be > 1 in case of imbricated calls
     @property
-    def connected(self):
-        return self.last_connection_time is not None
-    # since the object is reusable we may reuse the connection.
+    def in_use(self):
+        return self.usage_refcount > 0
+    # Since the object is reusable (see decorator above) we may reuse the connection.
+    # When the reference counter reaches 0, we keep the connection open for
+    # possible reuse up to SERVER_SOCKET_REUSE_TIMEOUT seconds.
+    # After this time, next connection attempt will cause the socket to be closed
+    # and re-opened (in order to avoid possible network issues with idle sockets
+    # kept open too long). In API scripts, long idle server connection objects
+    # is a usual pattern.
     def connect(self):
-        if self.connected:
-            if time() - self.last_connection_time > SERVER_SOCKET_REUSE_TIMEOUT:
+        if not self.in_use and self.connected:
+            if time() - self.idle_start_time > SERVER_SOCKET_REUSE_TIMEOUT:
                 # too old, disconnect
                 self.sock.close()
                 self.sock = None
-                self.last_connection_time = None
+                self.connected = False
+        self.usage_refcount += 1
         if not self.connected:
             self.sock = create_connection((self.server_ip, WALT_SERVER_DAEMON_PORT),
                                           SERVER_SOCKET_TIMEOUT)
@@ -116,7 +125,11 @@ class ServerAPIConnection(object):
             sock_file.write(b'%d\n%s\n' % (Requests.REQ_API_SESSION, self.target_api.encode('UTF-8')))
             self.remote_version = sock_file.readline().strip().decode('UTF-8')
             self.api_channel = APIChannel(sock_file)
-            self.last_connection_time = time()
+            self.connected = True
+    def disconnect(self):
+        self.usage_refcount -= 1
+        if self.usage_refcount == 0:
+            self.idle_start_time = time()
     def set_busy_label(self, label):
         self.indicator.set_label(label)
     def set_default_busy_label(self):
@@ -196,9 +209,7 @@ class ServerAPILink(object):
         self.conn.connect()
         return self.conn.client_proxy
     def __exit__(self, type, value, traceback):
-        # do not close the connection right now, it might be reused
-        # thanks to the @reusable decorator of ServerAPIConnection
-        pass
+        self.conn.disconnect()
     def set_busy_label(self, label):
         self.conn.set_busy_label(label)
     def set_default_busy_label(self):
