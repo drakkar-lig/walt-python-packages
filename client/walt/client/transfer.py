@@ -1,7 +1,7 @@
 from walt.client.link import connect_to_tcp_server
 from walt.client.tools import ProgressMessageThread
 from walt.common.tcp import write_pickle, Requests
-import os, tarfile, socket
+import os, tarfile, socket, select
 
 def run_transfer_with_image(client_operand_index, **kwargs):
     if client_operand_index == 0:
@@ -28,8 +28,15 @@ class SmartWriter:
     def __init__(self, sock_file):
         self.sock_file = sock_file
         self.buf_out = b''
+    def read_available(self):
+        while True:
+            # poll for readable data
+            r, w, e = select.select([ self.sock_file ], [], [], 0)
+            if len(r) == 0:
+                return  # nothing more to read
+            self.buf_out += self.sock_file.read(4096)
     def write(self, s):
-        self.buf_out += self.sock_file.read_available()
+        self.read_available()
         return self.sock_file.write(s)
     def wait_remote_close(self):
         while True:

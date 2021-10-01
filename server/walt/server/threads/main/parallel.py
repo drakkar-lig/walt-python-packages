@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import os, pty, shlex, fcntl, termios, sys, threading, socket, signal
 from subprocess import Popen, STDOUT
-from walt.common.io import SmartFile, read_and_copy
+from walt.common.io import read_and_copy
 from walt.common.tcp import read_pickle
 from walt.common.tty import set_tty_size_raw
 
@@ -11,13 +11,13 @@ class ForkPtyProcessListener(object):
         self.env = env
     # let the event loop know what we are reading on
     def fileno(self):
-        return self.env.slave_sock_file.fileno()
+        return self.env.slave_r.fileno()
     # when the event loop detects an event for us, this means
     # the slave proces wrote something on its output
     # we just have to copy this to the user socket
     def handle_event(self, ts):
         return read_and_copy(
-                self.env.slave_sock_file, self.env.client_sock_file)
+                self.env.slave_r, self.env.client_sock_file)
     def end_child(self):
         try:
             os.kill(self.slave_pid, signal.SIGTERM)
@@ -33,7 +33,7 @@ class ParallelProcessSocketListener(object):
         self.ev_loop = ev_loop
         self.params = None
         self.client_sock_file = sock_file
-        self.slave_sock_file = None
+        self.slave_r, self.slave_w = None, None
         self.send_client('READY\n')
     def send_client(self, s):
         self.client_sock_file.write(s.encode('UTF-8'))
@@ -65,9 +65,8 @@ class ParallelProcessSocketListener(object):
             os.execvpe(cmd_args[0], cmd_args, env)
         # the parent should communicate.
         # use unbuffered communication with the slave process
-        slave_r = os.fdopen(os.dup(fd_slave), 'rb', 0)
-        slave_w = os.fdopen(os.dup(fd_slave), 'wb', 0)
-        self.slave_sock_file = SmartFile(slave_r, slave_w)
+        self.slave_r = os.fdopen(os.dup(fd_slave), 'rb', 0)
+        self.slave_w = os.fdopen(os.dup(fd_slave), 'wb', 0)
         # create a new listener on the event loop for reading
         # what the slave process outputs
         process_listener = ForkPtyProcessListener(slave_pid, self)
@@ -118,12 +117,15 @@ class ParallelProcessSocketListener(object):
             # the user wrote something on the prompt (i.e. the socket)
             # we just have to copy this to the slave process input
             return read_and_copy(
-                self.client_sock_file, self.slave_sock_file)
+                self.client_sock_file, self.slave_w)
     def close(self):
         if self.client_sock_file:
             self.client_sock_file.close()
             self.client_sock_file = None
-        if self.slave_sock_file:
-            self.slave_sock_file.close()
-            self.slave_sock_file = None
+        if self.slave_r:
+            self.slave_r.close()
+            self.slave_r = None
+        if self.slave_w:
+            self.slave_w.close()
+            self.slave_w = None
 
