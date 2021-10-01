@@ -12,10 +12,10 @@ Help about WalT in general:
     walt help show
 
 Categories:
-    advanced  advanced sub-commands
-    device    management of WalT platform devices
-    help      help sub-commands
     image     management of WalT-nodes operating system images
+    node      management of WalT nodes
     log       management of logs
-    node      WalT node management sub-commands
+    device    management of WalT platform devices
     vpn       VPN related sub-commands
+    advanced  advanced sub-commands
+    help      help sub-commands

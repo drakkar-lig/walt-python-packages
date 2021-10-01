@@ -12,5 +12,5 @@ Help about WalT in general:
     walt help show
 
 Sub-commands:
-    list  Displays the list of help topics
-    show  Displays help about a given topic
+    list  displays the list of help topics
+    show  displays help about a given topic

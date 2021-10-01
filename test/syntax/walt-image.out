@@ -12,13 +12,13 @@ Help about WalT in general:
     walt help show
 
 Sub-commands:
+    show       display your working set of walt images
+    search     search for remote WalT node OS images
     clone      clone a remote image into your working set
+    shell      modify an image through an interactive shell
     cp         transfer files (client machine <-> image)
     duplicate  duplicate an image of your working set
-    publish    publish a WalT image on the docker hub
     remove     remove an image from your working set
     rename     rename an image of your working set
-    search     search for remote WalT node OS images
-    shell      modify an image through an interactive shell
-    show       display your working set of walt images
+    publish    publish a WalT image on the docker hub
     squash     squash all layers of an image into one

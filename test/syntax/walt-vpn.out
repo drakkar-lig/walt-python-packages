@@ -12,6 +12,6 @@ Help about WalT in general:
     walt help show
 
 Sub-commands:
-    monitor      Monitor VPN and accept/deny new connection requests
-    setup-node   Setup a WalT VPN node
-    setup-proxy  Setup an ssh frontend server as a WalT VPN proxy
+    monitor      monitor VPN and accept/deny new connection requests
+    setup-node   setup a WalT VPN node
+    setup-proxy  setup an ssh frontend server as a WalT VPN proxy

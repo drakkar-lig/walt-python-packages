@@ -1,4 +1,4 @@
-Displays help about a given topic
+displays help about a given topic
 
 Usage:
 walt help show [topic=help-intro]

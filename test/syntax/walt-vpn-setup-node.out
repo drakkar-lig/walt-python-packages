@@ -1,4 +1,4 @@
-Setup a WalT VPN node
+setup a WalT VPN node
 
 Usage:
     walt vpn setup-node [SWITCHES] 

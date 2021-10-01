@@ -1,4 +1,4 @@
-Monitor VPN and accept/deny new connection requests
+monitor VPN and accept/deny new connection requests
 
 Usage:
     walt vpn monitor [SWITCHES] 
