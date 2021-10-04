@@ -184,7 +184,7 @@ def generate_dhcpd_conf(subnet, devices):
         subnet_ip=subnet.network_address,
         subnet_broadcast=subnet.broadcast_address,
         subnet_netmask=subnet.netmask,
-        dns_servers=", ".join(get_dns_servers()),
+        dns_servers=", ".join(map(str, get_dns_servers())),
         walt_registered_switches_conf='\n'.join(switches_confs),
         walt_registered_lan_nodes_conf='\n'.join(lan_nodes_confs),
         walt_registered_nat_nodes_conf='\n'.join(nat_nodes_confs),

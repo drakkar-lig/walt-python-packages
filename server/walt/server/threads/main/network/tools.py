@@ -1,8 +1,9 @@
 #!/usr/bin/env python
-import select, subprocess, shlex
-from ipaddress import ip_address, ip_network
+from ipaddress import ip_address, ip_network, IPv4Address
+from typing import Iterable, Union
+
 from walt.common.tools import do, succeeds
-from walt.server import const, conf
+from walt.server import conf
 from walt.server.threads.main.snmp import Proxy
 
 def ip(ip_as_str):
@@ -89,7 +90,7 @@ def ip_in_walt_adm_network(input_ip):
     else:
         return ip(input_ip) in subnet
 
-def get_dns_servers():
+def get_dns_servers() -> [Union[str, IPv4Address]]:
     local_server_is_dns_server = False
     dns_list = []
     with open('/etc/resolv.conf', 'r') as f:
@@ -101,7 +102,11 @@ def get_dns_servers():
                 continue
             if line.startswith('nameserver'):
                 for dns_ip in line.split(' ')[1:]:
-                    if dns_ip.startswith('127.'):
+                    dns_ip = ip_address(dns_ip)
+                    if dns_ip.version != 4:
+                        # Not supported by dhcpd in our IPv4 configuration
+                        continue
+                    if dns_ip.is_loopback:
                         local_server_is_dns_server = True
                         continue
                     dns_list.append(dns_ip)
