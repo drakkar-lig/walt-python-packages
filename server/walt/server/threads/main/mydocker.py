@@ -1,3 +1,6 @@
+import shutil
+from pathlib import Path
+
 from walt.common.crypto.blowfish import BlowFish
 from walt.common.formatting import indicate_progress
 from walt.server.exttools import buildah, podman, skopeo, mount, umount, findmnt, docker
@@ -38,6 +41,15 @@ def remount_with_nfs_export_option(mountpoint):
                        opt.startswith('workdir') ]
     # umount
     umount(mountpoint)
+    # overlay has a check in place to prevent mounting the same file system
+    # twice if volatile was already specified.
+    for opt in options:
+        if opt.startswith('workdir'):
+            workdir = Path(opt[len('workdir='):])
+            incompat_volatile = workdir / "work" / "incompat" / "volatile"
+            if incompat_volatile.exists():
+                shutil.rmtree(incompat_volatile)
+            break
     # re-mount
     mount('-t', fstype, '-o', ','.join(new_options), source, mountpoint)
 
