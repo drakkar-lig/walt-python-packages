@@ -228,8 +228,12 @@ class DHCPServer(object):
                     mac=item.mac,
                     netsetup=item.netsetup))
         conf = generate_dhcpd_conf(subnet, devices)
-        with open(DHCPD_CONF_FILE, 'r') as conf_file:
-            old_conf = conf_file.read()
+        try:
+            with open(DHCPD_CONF_FILE, 'r') as conf_file:
+                old_conf = conf_file.read()
+        except FileNotFoundError:
+            # No configuration file, consider it is empty and create it
+            old_conf = ""
         if conf != old_conf:
             with open(DHCPD_CONF_FILE, 'w') as conf_file:
                 conf_file.write(conf)
