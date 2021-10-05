@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 from walt.server.const import WALT_DBNAME, WALT_DBUSER
 from walt.common.formatting import columnate
 import psycopg2, shlex, uuid
@@ -7,16 +5,16 @@ from psycopg2.extras import NamedTupleCursor
 from subprocess import Popen, PIPE
 from sys import stderr
 
-class PostgresDB():
 
+class PostgresDB:
     def __init__(self):
-        self.conn = None
-        while self.conn == None:
-            try:
-                self.conn = psycopg2.connect(
-                        database=WALT_DBNAME, user=WALT_DBUSER)
-            except psycopg2.OperationalError:
-                self.create_db_and_user()
+        try:
+            # Do catch exception here to create DB and users if there does not exist
+            self.conn = psycopg2.connect(database=WALT_DBNAME, user=WALT_DBUSER)
+        except psycopg2.OperationalError:
+            self.create_db_and_user()
+            # Do not catch any exception here to let the user know if something happens bad
+            self.conn = psycopg2.connect(database=WALT_DBNAME, user=WALT_DBUSER)
         # allow name-based access to columns
         self.c = self.conn.cursor(cursor_factory = NamedTupleCursor)
         self.server_cursors = {}
@@ -95,7 +93,7 @@ class PostgresDB():
     # format a where clause with ANDs on the specified constraints
     def get_where_clause_from_constraints(self, constraints):
         if len(constraints) > 0:
-            return "WHERE %s" % (' AND '.join(constraints));
+            return "WHERE %s" % (' AND '.join(constraints))
         else:
             return ""
 
@@ -184,4 +182,3 @@ class PostgresDB():
         if len(res) == 0:
             raise Exception('pretty_printed_resultset() does not work if resultset is empty!')
         return columnate(res, header=res[0]._fields)
-
