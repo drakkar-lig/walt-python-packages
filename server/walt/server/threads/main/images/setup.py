@@ -1,13 +1,17 @@
-import os, shutil, os.path
+import os
+import os.path
+import shutil
 from collections import OrderedDict
+
+from pkg_resources import resource_filename
+
+from walt.common.constants \
+    import WALT_SERVER_DAEMON_PORT, WALT_SERVER_TCP_PORT, UNSECURE_ECDSA_KEYPAIR
 from walt.common.tools import failsafe_makedirs, failsafe_symlink, do, get_mac_address
-from walt.common.constants import \
-        WALT_SERVER_DAEMON_PORT, WALT_SERVER_TCP_PORT, UNSECURE_ECDSA_KEYPAIR
 from walt.server.const import WALT_NODE_NET_SERVICE_PORT, WALT_INTF
 from walt.server.threads.main.images import spec
-from walt.server.tools import update_template
-from walt.server.threads.main.network.tools import get_server_ip, get_dns_servers
-from pkg_resources import resource_filename
+from walt.server.threads.main.network.tools import get_dns_servers
+from walt.server.tools import update_template, get_server_ip
 
 # List scripts to be installed on the node and indicate
 # if they contain template parameters that should be

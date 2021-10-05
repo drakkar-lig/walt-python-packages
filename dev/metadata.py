@@ -50,7 +50,7 @@ PACKAGE_SPECIFIC_INFO = {
             description = "WalT optional software embedded in images.",
             entry_points = {
                 'console_scripts': [
-                    'walt-node-setup = walt.node.setup.systemd:run',
+                    'walt-node-setup = walt.node.setup.__main__',
                     'walt-serial-autolog = walt.node.serial.autolog:run',
                     'walt-logs-daemon = walt.node.logs.daemon:run',
                     'walt-ipxe-kexec-reboot = walt.node.ipxekexec:run'
@@ -77,7 +77,7 @@ PACKAGE_SPECIFIC_INFO = {
             description = "WalT server components.",
             entry_points = {
                 'console_scripts': [
-                    'walt-server-setup = walt.server.setup:run',
+                    'walt-server-setup = walt.server.setup.__main__',
                     'walt-server-daemon = walt.server.daemon:run',
                     'walt-server-httpd = walt.server.httpd:run',
                     'walt-dhcp-event = walt.server.dhcpevent:run',

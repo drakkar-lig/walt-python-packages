@@ -1,24 +1,26 @@
-import socket, random, subprocess, shlex, signal, os, sys, re
+import os
+import random
+import shlex
+import signal
+import subprocess
+import sys
 from pathlib import Path
-from collections import defaultdict
-from snimpy import snmp
 from time import time
-from walt.common.tcp import Requests
+
 from walt.common.tools import do, failsafe_makedirs
-from walt.common.formatting import format_sentence_about_nodes, format_sentence
 from walt.server.const import SSH_COMMAND
 from walt.server.threads.main.filesystem import Filesystem
 from walt.server.threads.main.network.netsetup import NetSetup
-from walt.server.threads.main.nodes.register import handle_registration_request, \
-                                                    restore_interrupted_registration
-from walt.server.threads.main.nodes.show import show
-from walt.server.threads.main.nodes.wait import WaitInfo
+from walt.server.threads.main.network.tools import ip, get_walt_subnet
 from walt.server.threads.main.nodes.clock import NodesClockSyncInfo
 from walt.server.threads.main.nodes.expose import ExposeManager
 from walt.server.threads.main.nodes.netservice import node_request
 from walt.server.threads.main.nodes.reboot import reboot_nodes
-from walt.server.threads.main.network.tools import ip, get_walt_subnet, get_server_ip
-from walt.server.tools import to_named_tuple
+from walt.server.threads.main.nodes.register \
+    import handle_registration_request, restore_interrupted_registration
+from walt.server.threads.main.nodes.show import show
+from walt.server.threads.main.nodes.wait import WaitInfo
+from walt.server.tools import get_server_ip
 
 VNODE_DEFAULT_RAM = "512M"
 VNODE_DEFAULT_CPU_CORES = 4

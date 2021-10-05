@@ -1,7 +1,11 @@
-import os, bottle
+import bottle
+import os
+
 from gevent.pywsgi import WSGIServer
-from walt.common.tcp import write_pickle, client_sock_file, Requests
+
 from walt.common.constants import WALT_SERVER_TCP_PORT
+from walt.common.tcp import write_pickle, client_sock_file, Requests
+from walt.server.tools import get_server_ip
 
 WALT_HTTPD_PORT = 80
 
@@ -72,6 +76,6 @@ def run():
             return bottle.HTTPError(404, "No such file.")
         else:
             return bottle.HTTPError(400, status)
-    server = WSGIServer(('', WALT_HTTPD_PORT), app)
+    server = WSGIServer((get_server_ip(), WALT_HTTPD_PORT), app)
     notify_systemd()
     server.serve_forever()

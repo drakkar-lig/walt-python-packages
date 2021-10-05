@@ -1,12 +1,11 @@
-#!/usr/bin/env python
-from walt.server.threads.main.network.tools import set_static_ip_on_switch, \
-                            ip_in_walt_network, get_walt_subnet, get_server_ip
-from walt.server.threads.main.network.netsetup import NetSetup
-from walt.common.tools import get_mac_address
+import re
+
 from walt.common.formatting import format_paragraph, format_sentence
-from walt.server.tools import to_named_tuple, merge_named_tuples
+from walt.common.tools import get_mac_address
 from walt.server import const
-import re, json
+from walt.server.threads.main.network.netsetup import NetSetup
+from walt.server.threads.main.network.tools import ip_in_walt_network, get_walt_subnet
+from walt.server.tools import to_named_tuple, merge_named_tuples, get_server_ip
 
 DEVICE_NAME_NOT_FOUND="""No device with name '%s' found.\n"""
 

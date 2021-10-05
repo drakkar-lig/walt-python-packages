@@ -1,4 +1,6 @@
 from collections import namedtuple
+
+from walt.server import conf
 from walt.server.autoglob import autoglob
 import pickle, resource
 
@@ -50,3 +52,7 @@ SOFT_RLIMIT_NOFILE = 16384
 def set_rlimits():
     soft_limit, hard_limit = resource.getrlimit(resource.RLIMIT_NOFILE)
     resource.setrlimit(resource.RLIMIT_NOFILE, (SOFT_RLIMIT_NOFILE, hard_limit))
+
+def get_server_ip() -> str:
+    """Load the server IP address on walt-net from the configuration file."""
+    return conf['network']['walt-net']['ip'].split('/')[0]

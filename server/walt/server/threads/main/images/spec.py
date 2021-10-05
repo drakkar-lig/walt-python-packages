@@ -1,6 +1,5 @@
 import os, shutil, shlex
 from walt.common.tools import read_json
-from walt.server.threads.main.network.tools import get_server_ip
 from walt.server.tools import update_template
 from walt.server.spec import get_server_features, SERVER_SPEC_PATH
 from walt.common.tools import failsafe_makedirs

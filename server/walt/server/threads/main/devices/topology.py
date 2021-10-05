@@ -1,6 +1,4 @@
-#!/usr/bin/env python
-
-import sys, json, re, time
+import re, time
 from snimpy.snmp import SNMPException
 
 from walt.common.tools import get_mac_address
@@ -9,8 +7,8 @@ from walt.server import const
 from walt.server.threads.main import snmp
 from walt.server.threads.main.snmp import NoSNMPVariantFound
 from walt.server.threads.main.devices.grouper import Grouper
-from walt.server.threads.main.network.tools import \
-        ip_in_walt_network, ip_in_walt_adm_network, lldp_update, get_server_ip
+from walt.server.threads.main.network.tools \
+    import ip_in_walt_network, ip_in_walt_adm_network
 from walt.server.threads.main.tree import Tree
 
 NOTE_EXPLAIN_UNREACHABLE = "devices marked with parentheses were not detected at last scan"

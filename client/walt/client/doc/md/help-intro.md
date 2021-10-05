@@ -45,3 +45,8 @@ supports, check-out [`walt help show new-node-support`](new-node-support.md).
 
 See [`walt help show node-bootup`](node-bootup.md) for detailed understanding
 of walt core.
+
+## Packaging notes
+
+If you want to package walt for an alternate Linux distribution, check-out
+[`walt help show packaging`](packaging.md).

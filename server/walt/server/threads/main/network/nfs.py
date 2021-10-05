@@ -1,5 +1,7 @@
 from pathlib import Path
+
 from walt.common.tools import do, succeeds
+from walt.server import conf
 
 NODE_SYMLINKS_EXPORT_PATTERN = """\
 # Access to node symlinks (necessary for NFSv4).
@@ -39,9 +41,11 @@ def update_exports(root_paths, persist_paths, subnet):
     # note: use restart and not reload because otherwise with NFSv4
     # it takes times before NFS clients no longer allowed are disconnected,
     # and this delays unmounting of images.
-    do('systemctl restart nfs-kernel-server')
+    service_name = conf['services']['nfsd']['service-name']
+    do('systemctl restart "%s"' % service_name)
     ensure_nfsd_is_running()
 
 def ensure_nfsd_is_running():
     if not succeeds('pidof nfsd'):
-        do('systemctl restart nfs-kernel-server')
+        service_name = conf['services']['nfsd']['service-name']
+        do('systemctl restart "%s"' % service_name)

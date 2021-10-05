@@ -1,0 +1,15 @@
+[Unit]
+Description=WalT platform network management
+# Minimal requirements on the network
+After=network.target
+
+[Service]
+Type=oneshot
+StateDirectory=walt
+Environment=IFACE=walt-net
+ExecStart=walt-net-config up
+ExecStop=walt-net-config down
+RemainAfterExit=yes
+
+[Install]
+WantedBy=network.target

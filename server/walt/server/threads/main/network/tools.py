@@ -1,10 +1,11 @@
-#!/usr/bin/env python
 from ipaddress import ip_address, ip_network, IPv4Address
-from typing import Iterable, Union
+from typing import Union
 
 from walt.common.tools import do, succeeds
 from walt.server import conf
 from walt.server.threads.main.snmp import Proxy
+from walt.server.tools import get_server_ip
+
 
 def ip(ip_as_str):
     return ip_address(str(ip_as_str))
@@ -75,9 +76,6 @@ def set_static_ip_on_switch(switch_ip, snmp_conf):
 
 def lldp_update():
     do('lldpcli update')
-
-def get_server_ip():
-    return conf['network']['walt-net']['ip'].split('/')[0]
 
 def ip_in_walt_network(input_ip):
     subnet = get_walt_subnet()

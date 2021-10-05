@@ -1,12 +1,14 @@
-#!/usr/bin/env python
-from walt.server import const
-from walt.server.threads.main.network.netsetup import NetSetup
-from walt.server.threads.main.network.tools import ip, net, get_walt_subnet, get_dns_servers
-from operator import itemgetter
+import os
 from itertools import groupby
-from walt.common.tools import do
+from operator import itemgetter
+from pathlib import Path
 
-DHCPD_CONF_FILE = '/etc/dhcp/dhcpd.conf'
+from walt.server.threads.main.network.netsetup import NetSetup
+from walt.server.threads.main.network.tools import ip, get_walt_subnet, get_dns_servers
+
+# STATE_DIRECTORY is set by systemd to the daemon's state directory.  By
+# default, it is the same as /var/lib/walt
+DHCPD_CONF_FILE = Path(os.getenv("STATE_DIRECTORY", "/var/lib/walt")) / 'dhcpd.conf'
 
 CONF_PATTERN = """
 #
@@ -86,7 +88,7 @@ subnet %(subnet_ip)s netmask %(subnet_netmask)s {
             suffix (concat ("0", binary-to-ascii (16, 8, "", substring(hardware,5,1))),2), ":",
             suffix (concat ("0", binary-to-ascii (16, 8, "", substring(hardware,6,1))),2)
         );
-        execute("/usr/local/bin/walt-dhcp-event", "commit", vci, uci,
+        execute("walt-dhcp-event", "commit", vci, uci,
                         ip_string, mac_address_string);
     }
 }
@@ -255,4 +257,4 @@ class DHCPServer(object):
             def callback():
                 self.service_version = next_service_version
                 self.restart_service_loop()
-            self.ev_loop.do('service isc-dhcp-server restart', callback)
+            self.ev_loop.do('systemctl reload-or-restart walt-server-dhcpd.service', callback)
