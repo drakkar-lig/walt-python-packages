@@ -9,12 +9,12 @@ from plumbum import cli
 from walt.common.tools import failsafe_symlink
 
 SYSTEMD_SERVER_SERVICE_FILES = [ "walt-vpn-server.service", "walt-vpn-server.socket" ]
-SYSTEMD_SERVICES_DIR = Path("/etc/systemd/system")
+SYSTEMD_DEFAULT_DIR = Path("/etc/systemd/system")
 
 BUSYBOX_VPN_CLIENT_SERVICE_FILES = [ "S51waltvpnclient" ]
 BUSYBOX_SERVICES_DIR = Path("/etc/init.d")
 
-def setup_server(init_system, start_services):
+def setup_server(init_system, start_services, systemd_dir):
     if start_services:
         print('Note: flag --start was ignored. walt-vpn-server service is automatically started on client connection.')
     if init_system != 'SYSTEMD':
@@ -23,7 +23,7 @@ def setup_server(init_system, start_services):
         sys.exit("This script must be run as root. Exiting.")
     for filename in SYSTEMD_SERVER_SERVICE_FILES:
         service_file_content = resource_string(__name__, filename)
-        service_file_path = SYSTEMD_SERVICES_DIR / filename
+        service_file_path = systemd_dir / filename
         if service_file_path.exists():
             sys.exit('walt vpn services are already setup. Exiting.')
         service_file_path.write_bytes(service_file_content)
@@ -31,7 +31,7 @@ def setup_server(init_system, start_services):
             # the following is the same as running 'systemctl enable <unit>.socket'
             # on a system that is really running
             failsafe_symlink(str(service_file_path),
-                             str(SYSTEMD_SERVICES_DIR / "sockets.target.wants" / filename))
+                             str(systemd_dir / "sockets.target.wants" / filename))
     print('Done.')
 
 def setup_vpn_client(init_system, start_services):
@@ -50,7 +50,7 @@ def setup_vpn_client(init_system, start_services):
 
 def setup(info):
     if info._type == 'SERVER':
-        setup_server(info._init_system, info._start)
+        setup_server(info._init_system, info._start, info.systemd_dir)
     elif info._type == 'VPN_CLIENT':
         setup_vpn_client(info._init_system, info._start)
 
@@ -58,6 +58,7 @@ class WalTVPNSetup(cli.Application):
     _type = None
     _init_system = None
     _start = False
+    systemd_dir = SYSTEMD_DEFAULT_DIR
 
     def main(self):
         """install WALT VPN software"""
@@ -77,6 +78,11 @@ class WalTVPNSetup(cli.Application):
     def set_start(self):
         """start services once installed"""
         self._start = True
+
+    @cli.switch("--systemd-dir", Path)
+    def set_systemd_dir(self, systemd_dir):
+        """directory where to store systemd services"""
+        self.systemd_dir = systemd_dir
 
 def run():
     WalTVPNSetup.run()

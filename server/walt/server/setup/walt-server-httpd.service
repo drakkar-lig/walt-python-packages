@@ -7,7 +7,9 @@
 [Unit]
 Description=WalT server HTTP service
 # needs main daemon to be running
-After=walt-server.service
+Requires=walt-server.service
+Requires=walt-server-netconfig.service
+After=walt-server-netconfig.service
 
 [Service]
 Environment=PYTHONUNBUFFERED=1
@@ -15,7 +17,7 @@ Environment=PYTHONUNBUFFERED=1
 # that we are started successfully.
 Type=notify
 NotifyAccess=all
-ExecStart=/usr/local/bin/walt-server-httpd
+ExecStart=walt-server-httpd
 Restart=on-failure
 
 [Install]

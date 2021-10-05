@@ -6,6 +6,8 @@
 
 [Unit]
 Description=WalT server daemon
+Requires=walt-server-netconfig.service
+After=walt-server-netconfig.service
 # needs lldp
 Requires=lldpd.service
 After=lldpd.service
@@ -23,10 +25,12 @@ Type=notify
 NotifyAccess=all
 # no startup timeout, because it can take a long time
 # if the user is installing the platform.
-TimeoutStartSec=0
+TimeoutStartSec=infinity
+RuntimeDirectory=walt
+StateDirectory=walt
 EnvironmentFile=-/etc/default/walt-server
 EnvironmentFile=-/etc/sysconfig/walt-server
-ExecStart=/usr/local/bin/walt-server-daemon $DAEMON_ARGS
+ExecStart=walt-server-daemon $DAEMON_ARGS
 ExecReload=kill -HUP $MAINPID
 Restart=on-failure
 

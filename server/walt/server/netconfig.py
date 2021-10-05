@@ -1,6 +1,10 @@
-import os, sys, os.path
+import os
+import os.path
 import random
-from walt.common.tools import do, failsafe_makedirs
+import sys
+import time
+
+from walt.common.tools import do, failsafe_makedirs, succeeds
 from walt.server import conf
 
 WALT_STATUS_DIR  = '/var/lib/walt'
@@ -9,6 +13,7 @@ IFACE_MAC_FILE   = WALT_STATUS_DIR + '/.%(iface)s.mac'
 DOT1Q_FILTER     = '''\
 ebtables -t filter -A FORWARD -p 802_1Q \
     -i %(src)s -o %(dst)s -j DROP'''
+WAIT_INTERFACE_DELAY=10  # seconds
 
 def generate_random_mac():
     return [ 0x52, 0x54, 0x00,
@@ -97,10 +102,18 @@ def setup_ip_conf(iface, ip_conf):
                 ip_conf, iface))
 
 def up(iface, network_conf):
+    iface_conf = network_conf[iface]
+    raw_iface = iface_conf['raw-device']
+    # If the machine is booting, we may be here before the network interface
+    # card effectively appears.  Wait for it a little here.
+    if not succeeds("ip link show dev %s" % raw_iface):
+        print("Interface %s not found, waiting for it to appear…" % raw_iface)
+        time.sleep(WAIT_INTERFACE_DELAY)
+        if not succeeds("ip link show dev %s" % raw_iface):
+            # Here, it is really an error.  Interface should exist.
+            raise RuntimeError("Interface %s does not exist" % raw_iface)
     with open_state_file(iface, 'w') as state_file:
         if iface in network_conf:
-            iface_conf = network_conf[iface]
-            raw_iface = iface_conf['raw-device']
             set_iface_up(raw_iface)
             vlan = get_vlan(iface_conf)
             if vlan:
@@ -133,3 +146,6 @@ def run():
     elif action == 'down':
         down(iface)
 
+
+if __name__ == '__main__':
+    run()
