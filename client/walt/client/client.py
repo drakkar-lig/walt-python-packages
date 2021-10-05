@@ -42,3 +42,7 @@ def run():
     if len(sys.argv) == 1 or add_category(WalT, sys.argv[1]) == False:
         add_all_categories(WalT)
     WalT.run()
+
+
+if __name__ == '__main__':
+    run()
