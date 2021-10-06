@@ -284,7 +284,7 @@ class NodesManager(object):
 
     def prepare_ssh_access_for_ip(self, ip):
         cmd = CMD_ADD_SSH_KNOWN_HOST % dict(ip = ip)
-        do(cmd)
+        do(cmd, shell=True)
 
     def prepare_ssh_access(self, requester, node_set):
         nodes = self.parse_node_set(requester, node_set)

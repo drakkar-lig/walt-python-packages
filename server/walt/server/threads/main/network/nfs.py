@@ -43,5 +43,5 @@ def update_exports(root_paths, persist_paths, subnet):
     ensure_nfsd_is_running()
 
 def ensure_nfsd_is_running():
-    if not succeeds('pidof nfsd >/dev/null'):
+    if not succeeds('pidof nfsd'):
         do('systemctl restart nfs-kernel-server')
