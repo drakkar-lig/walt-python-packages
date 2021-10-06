@@ -1,5 +1,13 @@
-import subprocess, os, sys, json, re, signal, shutil
-from pathlib import Path
+from __future__ import annotations
+
+import json
+import os
+import re
+import shlex
+import shutil
+import signal
+import subprocess
+import sys
 from collections import OrderedDict
 from datetime import datetime, timedelta
 from fcntl import fcntl, F_GETFD, F_SETFD, F_GETFL, F_SETFL, FD_CLOEXEC
@@ -10,8 +18,12 @@ DEVNULL = open(os.devnull, 'w')
 def get_mac_address(interface):
     return Path("/sys/class/net/" + interface + "/address").read_text().strip()
 
-def do(cmd):
-    return subprocess.call(cmd, stdout=DEVNULL, shell=True)
+def do(cmd: str | [str], shell=False):
+    """Exec a system command, return the command's returncode."""
+    if not shell and isinstance(cmd, str):
+        # Split command-line in an array
+        cmd = shlex.split(cmd)
+    return subprocess.call(cmd, stdout=DEVNULL, shell=shell)
 
 def succeeds(cmd):
     return do(cmd) == 0
