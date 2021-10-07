@@ -70,7 +70,8 @@ PACKAGE_SPECIFIC_INFO = {
                         'gevent>=21.1.2',
                         'bottle>=0.12.19',
                         'walt-common==%(upload)s',
-                        'walt-virtual==%(upload)s'],
+                        'walt-virtual==%(upload)s',
+                        'walt-vpn==%(upload)s'],
         version_str = '%(upload)s',
         setup = dict(
             description = "WalT server components.",
@@ -89,20 +90,34 @@ PACKAGE_SPECIFIC_INFO = {
     ),
     "walt-virtual": dict(
         subdir = 'virtual',
-        requires = ['walt-common==%(upload)s', 'python-daemon>=2.2.3'],
+        requires = ['walt-common==%(upload)s'],
         version_str = '%(upload)s',
         setup = dict(
             description = "WalT components related to virtualization.",
             entry_points = {
                 'console_scripts': [
-                    'walt-virtual-setup = walt.virtual.setup:run',
-                    'walt-virtual-node = walt.virtual.node:run',
-                    'walt-vpn-server = walt.virtual.vpn.server:run',
-                    'walt-vpn-endpoint = walt.virtual.vpn.endpoint:run',
-                    'walt-vpn-client = walt.virtual.vpn.client:vpn_client',
-                    'walt-vpn-setup-credentials = walt.virtual.vpn.client:vpn_setup_credentials',
-                    'walt-vpn-ssh-helper = walt.virtual.vpn.ssh:helper',
-                    'walt-vpn-auth-tool = walt.virtual.vpn.authtool:run'
+                    'walt-virtual-setup-node = walt.virtual.setup.node:run',
+                    'walt-virtual-node = walt.virtual.node:run'
+                ]
+            },
+            include_package_data = True
+        )
+    ),
+    "walt-vpn": dict(
+        subdir = 'vpn',
+        requires = ['walt-common==%(upload)s', 'python-daemon>=2.2.3'],
+        version_str = '%(upload)s',
+        setup = dict(
+            description = "WalT VPN components.",
+            entry_points = {
+                'console_scripts': [
+                    'walt-vpn-server = walt.vpn.server:run',
+                    'walt-vpn-endpoint = walt.vpn.endpoint:run',
+                    'walt-vpn-client = walt.vpn.client:vpn_client',
+                    'walt-vpn-setup-credentials = walt.vpn.client:vpn_setup_credentials',
+                    'walt-vpn-ssh-helper = walt.vpn.ssh:helper',
+                    'walt-vpn-auth-tool = walt.vpn.authtool:run',
+                    'walt-vpn-setup = walt.vpn.setup:run'
                 ]
             },
             include_package_data = True

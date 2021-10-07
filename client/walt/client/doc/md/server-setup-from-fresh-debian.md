@@ -173,7 +173,7 @@ $ sed -i -e 's/.*community.*localhost/rocommunity private localhost/' /etc/snmp/
 
 ```
 $ walt-server-setup
-$ walt-virtual-setup --type SERVER --init-system SYSTEMD
+$ walt-vpn-setup --type SERVER --init-system SYSTEMD
 ```
 
 ## 12- Create walt server spec file

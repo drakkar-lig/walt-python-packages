@@ -26,9 +26,9 @@
 #     - test    -> pypitest
 #     - [other] -> [forbidden]
 
-ALL_PACKAGES=common virtual server node client client-g5k
+ALL_PACKAGES=common virtual vpn server node client client-g5k
 # common must be installed 1st (needed by others), then virtual
-INSTALLABLE_PACKAGES_ON_SERVER=common virtual server client
+INSTALLABLE_PACKAGES_ON_SERVER=common virtual vpn server client
 GNUMAKEFLAGS=--no-print-directory
 SUDO=$(shell test `whoami` = root && echo -n || echo "sudo -H")
 
@@ -40,9 +40,10 @@ pull: $(patsubst %,%.pull,$(INSTALLABLE_PACKAGES_ON_SERVER))
 clean: $(patsubst %,%.clean,$(ALL_PACKAGES))
 
 client.%: common.%
-server.%: common.% virtual.%
+server.%: common.% virtual.% vpn.%
 node.%: common.%
 virtual.%: common.%
+vpn.%: common.%
 client-g5k.%: client.%
 
 %.clean: %.info
