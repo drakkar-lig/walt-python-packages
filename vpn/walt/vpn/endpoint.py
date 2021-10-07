@@ -2,8 +2,8 @@ import os, socket
 from time import time
 from select import select
 from pathlib import Path
-from walt.virtual.tools import enable_debug, debug
-from walt.virtual.vpn.const import VPN_SOCK_PATH
+from walt.vpn.tools import enable_debug, debug
+from walt.vpn.const import VPN_SOCK_PATH
 
 DEBUG = False
 

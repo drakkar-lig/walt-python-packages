@@ -2,8 +2,8 @@ import os, os.path, sys, shlex, struct, daemon
 from daemon.pidfile import PIDLockFile
 from subprocess import check_call, check_output, Popen, PIPE, TimeoutExpired, run, DEVNULL
 from select import select
-from walt.virtual.tools import createtap, read_n, enable_debug, debug
-from walt.virtual.vpn.ssh import ssh_with_identity
+from walt.vpn.tools import createtap, read_n, enable_debug, debug
+from walt.vpn.ssh import ssh_with_identity
 from walt.common.constants import UNSECURE_ECDSA_KEYPAIR
 from walt.common.logs import LoggedApplication
 from pathlib import Path

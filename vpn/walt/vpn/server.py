@@ -3,8 +3,8 @@ import subprocess
 from time import time
 from select import select
 from pathlib import Path
-from walt.virtual.tools import createtap, read_n, enable_debug, debug
-from walt.virtual.vpn.const import VPN_SOCK_PATH, VPN_SOCK_BACKLOG
+from walt.vpn.tools import createtap, read_n, enable_debug, debug
+from walt.vpn.const import VPN_SOCK_PATH, VPN_SOCK_BACKLOG
 
 DEBUG = False
 
