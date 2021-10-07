@@ -45,14 +45,22 @@ ssh -T -q -A \
 AUTH_TIMEOUT = 60
 
 def get_mac_address():
+    routeinfo = Path('/proc/net/route')
     netdir = Path('/sys/class/net')
-    if netdir.is_dir():
-        for intfdir in netdir.iterdir():
-            if (intfdir / 'device').exists():
-                # seems to be a real hardware interface
-                mac = (intfdir / 'address').read_text().strip()
-                print("Found mac address %s (on %s)" % (mac, intfdir.name))
-                return mac
+    if routeinfo.exists() and netdir.is_dir():
+        # find interface of default route
+        routes = Path('/proc/net/route').read_text()
+        gw_iface = None
+        for line in routes.splitlines()[1:]:
+            iface, dst, gw, flags, refcnt, use, metric, mask = line.split()[:8]
+            if mask == '00000000': # netmask is 0.0.0.0 => default route
+                gw_iface = iface
+                break
+        if gw_iface is not None:
+            # read its mac address
+            mac = (netdir / gw_iface / 'address').read_text().strip()
+            print("Found mac address %s (on %s)" % (mac, gw_iface))
+            return mac
     print("Could not get mac address. Failed.", file=sys.stderr)
     sys.exit()
 
