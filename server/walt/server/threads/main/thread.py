@@ -1,6 +1,5 @@
 import os
 from walt.common.thread import EvThread
-from walt.server.threads.main.network.setup import setup
 from walt.server.threads.main.server import Server
 from walt.server.threads.main.ui.manager import UIManager
 from walt.server.threads.main.hub import HubRPCThreadConnector
@@ -17,7 +16,6 @@ class ServerMainThread(EvThread):
         self.server.prepare()
         self.register_listener(self.hub)
         self.register_listener(self.blocking)
-        setup(self.ui)
         self.notify_systemd()
         self.server.ui.set_status('Ready.')
         self.server.update()
