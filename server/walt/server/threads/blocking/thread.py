@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+import typing
+
 from walt.common.thread import EvThread, RPCThreadConnector
 from walt.server.threads.blocking.images.clone import clone
 from walt.server.threads.blocking.images.publish import publish
@@ -9,8 +13,12 @@ from walt.server.threads.blocking.devices.poe import nodes_set_poe
 from walt.server.threads.blocking.cmd import run_shell_cmd
 from walt.server.threads.blocking.logs import stream_db_logs
 
+if typing.TYPE_CHECKING:
+    from walt.server.threads.main.server import Server
+
+
 class BlockingTasksService(object):
-    def __init__(self, server):
+    def __init__(self, server: Server):
         self.server = server
 
     def clone_image(self, context, *args, **kwargs):
@@ -38,7 +46,7 @@ class BlockingTasksService(object):
         context.task.return_result(res)
 
     def pull_image(self, context, image_fullname):
-        res = self.server.docker.hub.pull(image_fullname)
+        res = self.server.repositories.hub.pull(image_fullname)
         context.task.return_result(res)
 
     def rescan_topology(self, context, *args, **kwargs):
@@ -54,7 +62,7 @@ class BlockingTasksService(object):
         context.task.return_result(res)
 
 class ServerBlockingThread(EvThread):
-    def __init__(self, tman, server):
+    def __init__(self, tman, server: Server):
         EvThread.__init__(self, tman, 'server-blocking')
         service = BlockingTasksService(server)
         self.main = RPCThreadConnector(service)

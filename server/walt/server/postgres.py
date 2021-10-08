@@ -121,6 +121,7 @@ class PostgresDB:
     # allow statements like:
     # db.delete("topology", switch_mac=swmac, switch_port=swport)
     def delete(self, table, **kwargs):
+        """Delete entries from a table matching given fields"""
         cols, values = self.get_cols_and_values(table, kwargs)
         where_clause = self.get_where_clause_pattern(cols)
         sql = "DELETE FROM %s %s;" % (table, where_clause)

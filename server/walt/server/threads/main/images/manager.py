@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+import typing
+
 from walt.server.threads.main.images.shell import ImageShellSession
 from walt.server.threads.main.images.search import search
 from walt.server.threads.main.images.clone import clone
@@ -13,6 +17,9 @@ from walt.server.threads.main.images.store import NodeImageStore
 from walt.server.threads.main.network import tftp
 from walt.common.formatting import format_sentence, format_sentence_about_nodes
 
+if typing.TYPE_CHECKING:
+    from walt.server.threads.main.server import Server
+
 # About terminology: See comment about it in image.py.
 MSG_BOOT_DEFAULT_IMAGE = """\
 %s will now boot its(their) default image (other users will see it(they) is(are) 'free')."""
@@ -20,12 +27,12 @@ MSG_INCOMPATIBLE_MODELS = """\
 Sorry, this image is not compatible with %s.
 """
 
-class NodeImageManager(object):
-    def __init__(self, server):
+class NodeImageManager:
+    def __init__(self, server: Server):
         self.db = server.db
         self.blocking = server.blocking
         self.dhcpd = server.dhcpd
-        self.docker = server.docker
+        self.repositories = server.repositories
         self.store = NodeImageStore(server)
     def prepare(self):
         pass
@@ -42,13 +49,13 @@ class NodeImageManager(object):
     def squash(self, requester, task_callback, image_name, confirmed):
         return squash(self.store, self.blocking, requester, task_callback, image_name, confirmed)
     def show(self, requester, refresh):
-        return show(self.db, self.docker, self.store, requester, refresh)
+        return show(self.db, self.store, requester, refresh)
     def rename(self, requester, image_name, new_name):
-        rename(self.store, self.docker, requester, image_name, new_name)
+        rename(self.store, self.repositories, requester, image_name, new_name)
     def remove(self, requester, image_name):
-        remove(self.store, self.docker, requester, image_name)
+        remove(self.store, self.repositories, requester, image_name)
     def duplicate(self, requester, image_name, new_name):
-        duplicate(self.store, self.docker, requester, image_name, new_name)
+        duplicate(self.store, self.repositories, requester, image_name, new_name)
     def validate_cp_entity(self, requester, image_name, index, **info):
         if image_name == 'booted-image':
             username = requester.get_username()
@@ -76,7 +83,7 @@ class NodeImageManager(object):
     def get_cp_entity_attrs(self, requester, image_name, **info):
         return dict(image_name=image_name)
     def fix_owner(self, requester, other_user):
-        fix_owner(self.store, self.docker, requester, other_user)
+        fix_owner(self.store, self.repositories, requester, other_user)
     def cleanup(self):
         # un-mount images
         self.store.cleanup()

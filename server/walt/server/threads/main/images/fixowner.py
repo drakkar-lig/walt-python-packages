@@ -1,3 +1,9 @@
+from __future__ import annotations
+
+import typing
+
+if typing.TYPE_CHECKING:
+    from walt.server.threads.main.repositories import Repositories
 
 MSG_SAME_USER="""\
 Invalid username. According to your walt.conf file, you are '%s'!
@@ -23,7 +29,7 @@ MSG_CHANGED_OWNER="""\
 Image %s now belongs to you.
 """
 
-def fix_owner(images, docker, requester, other_user):
+def fix_owner(images, repositories: Repositories, requester, other_user):
     username = requester.get_username()
     if not username:
         return None     # client already disconnected, give up
@@ -56,12 +62,11 @@ def fix_owner(images, docker, requester, other_user):
         return
     # ok, let's do it
     for image in candidates:
-        # rename the docker image
+        # rename the image
         old_fullname = image.fullname
         new_fullname = username + old_fullname.split('/')[1]
-        docker.local.tag(old_fullname, new_fullname)
-        docker.local.rmi(old_fullname)
+        repositories.local.tag(old_fullname, new_fullname)
+        repositories.local.rmi(old_fullname)
         # update the store
         images.rename(old_fullname, new_fullname)
         requester.stdout.write(MSG_CHANGED_OWNER % image.name)
-
