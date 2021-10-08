@@ -1,10 +1,18 @@
-import requests
+from __future__ import annotations
+
+import subprocess
+import typing
 from collections import defaultdict
+
 from walt.common.formatting import columnate, columnate_iterate_tty
-from walt.server.tools import format_node_models_list
-from walt.server.threads.blocking.images.metadata import \
-            pull_user_metadata
 from walt.common.version import __version__
+from walt.server.threads.blocking.images.metadata import \
+    pull_user_metadata
+from walt.server.tools import format_node_models_list
+
+if typing.TYPE_CHECKING:
+    from walt.server.threads.main.repositories import Repositories
+    from walt.server.threads.main.server import Server
 
 # About terminology: See comment about it in image.py.
 
@@ -32,8 +40,8 @@ LOCATION_PER_LABEL = {v: k for k, v in LOCATION_LABEL.items()}
 # is published with "walt image publish".
 
 class Search(object):
-    def __init__(self, docker, image_store, requester, validate = None):
-        self.docker = docker
+    def __init__(self, repositories: Repositories, image_store, requester, validate = None):
+        self.repositories = repositories
         self.image_store = image_store
         self.requester = requester
         if validate is None:
@@ -61,15 +69,21 @@ class Search(object):
                 local_user_images[user].add(fullname)
         # search for docker daemon images and users
         docker_daemon_user_images = defaultdict(set)
-        for fullname in self.docker.daemon.images():
-            if self.validate_fullname(fullname, LOCATION_DOCKER_DAEMON):
-                user = fullname.split('/')[0]
-                all_users.add(user)
-                docker_daemon_user_images[user].add(fullname)
+        if self.repositories.daemon is not None:
+            try:
+                docker_images = self.repositories.daemon.images()
+            except subprocess.CalledProcessError:
+                self.requester.stderr.write("Docker daemon is unreachable: it will not be queried. (but docker hub will)")
+            else:
+                for fullname in docker_images:
+                    if self.validate_fullname(fullname, LOCATION_DOCKER_DAEMON):
+                        user = fullname.split('/')[0]
+                        all_users.add(user)
+                        docker_daemon_user_images[user].add(fullname)
         # search for hub users
         # (detect walt users by their 'walt_metadata' dummy image)
         hub_users = set()
-        for waltuser_info in self.docker.hub.search('walt_metadata'):
+        for waltuser_info in self.repositories.hub.search('walt_metadata'):
             if '/walt_metadata' in waltuser_info['name']:
                 user = waltuser_info['name'].split('/')[0]
                 all_users.add(user)
@@ -80,7 +94,7 @@ class Search(object):
             # search on docker hub
             if user in hub_users:
                 # read metadata to detect walt images of this user
-                user_metadata = pull_user_metadata(self.docker, user)
+                user_metadata = pull_user_metadata(self.repositories, user)
                 for fullname, info in user_metadata['walt.user.images'].items():
                     if self.validate_fullname(fullname, LOCATION_DOCKER_HUB):
                         image_name = fullname.split('/')[1]
@@ -94,7 +108,7 @@ class Search(object):
             for fullname in docker_daemon_user_images[user]:
                 image_user, image_name = fullname.split('/')
                 images_and_labels[image_name][LOCATION_DOCKER_DAEMON] = \
-                                            self.docker.daemon.get_labels(fullname)
+                                            self.repositories.daemon.get_labels(fullname)
             # yield results
             for image_name in sorted(images_and_labels):
                 locations = sorted(images_and_labels[image_name])
@@ -144,7 +158,7 @@ def format_result(it):
                 clonable_link(location, user, image_name, min_version))
 
 # this implements walt image search
-def perform_search(docker, image_store, requester, keyword, tty_mode):
+def perform_search(repositories: Repositories, image_store, requester, keyword, tty_mode):
     username = requester.get_username()
     if not username:
         return None    # client already disconnected, give up
@@ -154,7 +168,7 @@ def perform_search(docker, image_store, requester, keyword, tty_mode):
     else:
         validate = None
     # search
-    search = Search(docker, image_store, requester, validate)
+    search = Search(repositories, image_store, requester, validate)
     it = search.search()
     it = discard_images_in_ws(it, username)
     it = format_result(it)
@@ -180,6 +194,6 @@ def perform_search(docker, image_store, requester, keyword, tty_mode):
         requester.stderr.write(MSG_SEARCH_NO_MATCH)
 
 # this implements walt image search
-def search(requester, server, keyword, tty_mode):
-    return perform_search(server.docker, server.images.store, requester, keyword, tty_mode)
+def search(requester, server: Server, keyword, tty_mode):
+    return perform_search(server.repositories, server.images.store, requester, keyword, tty_mode)
 

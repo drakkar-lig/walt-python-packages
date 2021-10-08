@@ -1,17 +1,26 @@
-import requests, uuid
-from walt.server.threads.blocking.images.search import \
-        LOCATION_WALT_SERVER, LOCATION_DOCKER_HUB, LOCATION_DOCKER_DAEMON, \
-        LOCATION_LABEL, LOCATION_PER_LABEL
-from walt.server.threads.blocking.images.metadata import \
-            pull_user_metadata
+from __future__ import annotations
+
+import subprocess
+import typing
+import uuid
+
 from walt.common.formatting import format_sentence
+from walt.server.threads.blocking.images.metadata import \
+    pull_user_metadata
+from walt.server.threads.blocking.images.search import \
+    LOCATION_WALT_SERVER, LOCATION_DOCKER_HUB, LOCATION_DOCKER_DAEMON, \
+    LOCATION_LABEL, LOCATION_PER_LABEL
+
+if typing.TYPE_CHECKING:
+    from walt.server.threads.main.repositories import Repositories
+    from walt.server.threads.main.server import Server
 
 # About terminology: See comment about it in image.py.
 
 # Implementation notes:
 # walt image clone relies on a complex process.
 # depending on what we are cloning, who we are,
-# what are the existing docker images and whether
+# what are the existing images and whether
 # we want to overwrite these existing images or not,
 # we have many cases to think about.
 # that's why we have organised this process as follows:
@@ -20,7 +29,7 @@ from walt.common.formatting import format_sentence
 # 3- we compute a workflow (a list of function calls)
 # 4- we execute this workflow.
 #
-# (also note that since docker downloads may take a long time,
+# (also note that since docker-hub downloads may take a long time,
 # we also have to implement this in an asynchronous task.)
 
 MSG_IMAGE_NOT_REMOTE_BELONGS_TO_WS = """\
@@ -90,7 +99,7 @@ def exit_no_such_image(requester):
 def save_initial_images(saved_images,
                         ws_image_fullname, remote_image_fullname,
                         existing_server_image, existing_ws_image,
-                        docker, **args):
+                        repositories: Repositories, **args):
     initial_image_fullnames = set()
     for fullname, exists in (   (ws_image_fullname, existing_ws_image),
                                 (remote_image_fullname, existing_server_image)):
@@ -98,7 +107,7 @@ def save_initial_images(saved_images,
             initial_image_fullnames.add(fullname)
     for image_fullname in initial_image_fullnames:
         image_backup = get_temp_image_fullname()
-        docker.local.tag(image_fullname, image_backup)
+        repositories.local.tag(image_fullname, image_backup)
         saved_images[image_fullname] = image_backup
 
 def error_image_belongs_to_ws(requester, username, **args):
@@ -107,7 +116,7 @@ def error_image_belongs_to_ws(requester, username, **args):
     return False
 
 def verify_overwrite(image_store, requester, clonable_link,
-                    ws_image_fullname, force, image_name, **args):
+                     ws_image_fullname, force, image_name, **args):
     if not force:
         image_store.warn_overwrite_image(requester, ws_image_fullname)
         force_clone = "walt image clone --force " + clonable_link
@@ -117,9 +126,8 @@ def verify_overwrite(image_store, requester, clonable_link,
         return False
 
 # check possible compatibility issue regarding node models
-def verify_compatibility_issue(image_store, requester, clonable_link,
-                    ws_image_fullname, remote_image_fullname,
-                    docker, target_node_models, nodes_manager, **args):
+def verify_compatibility_issue(image_store, requester, ws_image_fullname,
+                               target_node_models, nodes_manager, **args):
     ws_image = image_store[ws_image_fullname]
     if not ws_image.in_use:
         return  # no problem
@@ -135,31 +143,32 @@ def verify_compatibility_issue(image_store, requester, clonable_link,
         requester.stderr.write(sentence)
         return False    # give up
 
-def remove_ws_image(docker, ws_image_fullname, **args):
-    docker.local.untag(ws_image_fullname)
+def remove_ws_image(repositories: Repositories, ws_image_fullname, **args):
+    repositories.local.untag(ws_image_fullname)
 
-def remove_server_image(docker, remote_image_fullname, **args):
-    docker.local.untag(remote_image_fullname)
+def remove_server_image(repositories: Repositories, remote_image_fullname, **args):
+    repositories.local.untag(remote_image_fullname)
 
-def restore_initial_ws_image(docker, ws_image_fullname,
-                                saved_images, **args):
+def restore_initial_ws_image(repositories: Repositories, ws_image_fullname,
+                             saved_images, **args):
     ws_image_backup = saved_images[ws_image_fullname]
-    docker.local.tag(ws_image_backup, ws_image_fullname)
+    repositories.local.tag(ws_image_backup, ws_image_fullname)
 
-def restore_initial_server_image(docker, remote_image_fullname,
-                                saved_images, **args):
+def restore_initial_server_image(repositories: Repositories, remote_image_fullname,
+                                 saved_images, **args):
     server_image_backup = saved_images[remote_image_fullname]
-    docker.local.tag(server_image_backup, remote_image_fullname)
+    repositories.local.tag(server_image_backup, remote_image_fullname)
 
-def tag_server_image_to_requester(docker,
-                ws_image_fullname, remote_image_fullname, **args):
-    docker.local.tag(remote_image_fullname, ws_image_fullname)
+def tag_server_image_to_requester(repositories: Repositories, ws_image_fullname,
+                                  remote_image_fullname, **args):
+    repositories.local.tag(remote_image_fullname, ws_image_fullname)
 
-def pull_image(docker, requester, remote_location, remote_image_fullname, **args):
+def pull_image(repositories: Repositories, requester, remote_location,
+               remote_image_fullname, **args):
     if remote_location == LOCATION_DOCKER_HUB:
-        docker.hub.pull(remote_image_fullname, requester)
+        repositories.hub.pull(remote_image_fullname, requester)
     elif remote_location == LOCATION_DOCKER_DAEMON:
-        docker.daemon.pull(remote_image_fullname, requester)
+        repositories.daemon.pull(remote_image_fullname, requester)
 
 class WorkflowCleaner:
     def __init__(self, context):
@@ -171,25 +180,24 @@ class WorkflowCleaner:
             self.cleanup(True, **self.context)
         else:                   # not ok, an exception occured!
             self.cleanup(False, **self.context)
-    def cleanup(self, ok, docker, image_store, saved_images,
-                ws_image_fullname, remote_image_fullname,
-                existing_server_image, existing_ws_image, **args):
+    def cleanup(self, ok, repositories: Repositories, image_store, saved_images,
+                ws_image_fullname, remote_image_fullname, **args):
         if not ok:  # only if an exception occured
             # remove any temporary images created there
-            docker.local.untag(ws_image_fullname, ignore_missing=True)
-            docker.local.untag(remote_image_fullname, ignore_missing=True)
+            repositories.local.untag(ws_image_fullname, ignore_missing=True)
+            repositories.local.untag(remote_image_fullname, ignore_missing=True)
             # restore the backups
             for image_fullname, backup_fullname in saved_images.items():
-                docker.local.tag(backup_fullname, image_fullname)
+                repositories.local.tag(backup_fullname, image_fullname)
         # if ok, update the image store
         # (otherwise we just restored things from backup, so there was no change)
         if ok:
-            docker.local.clear_name_cache()
+            repositories.local.clear_name_cache()
             image_store.refresh()
             image_store.update_image_mounts()
         # in any case cleanup the backup tags
         for backup_fullname in saved_images.values():
-            docker.local.untag(backup_fullname)
+            repositories.local.untag(backup_fullname)
 
 # workflow management functions
 # -----------------------------
@@ -213,13 +221,13 @@ def workflow_run(workflow, **context):
 
 # walt image clone implementation
 # -------------------------------
-def perform_clone(requester, docker, nodes_manager, clonable_link, image_store, force, image_name):
+def perform_clone(requester, repositories: Repositories, nodes_manager, clonable_link, image_store, force, image_name):
     username = requester.get_username()
     if not username:
         return ('FAILED',) # client already disconnected, give up
     remote_location, remote_user, remote_image_name = parse_clonable_link(
                                                 requester, clonable_link)
-    if remote_location == None:
+    if remote_location is None:
         return ('FAILED',) # error already reported
 
     if image_name is None:
@@ -244,17 +252,20 @@ def perform_clone(requester, docker, nodes_manager, clonable_link, image_store, 
             return exit_no_such_image(requester)
         target_node_models = image_store[remote_image_fullname].get_node_models()
     if remote_location == LOCATION_DOCKER_HUB:
-        remote_user_metadata = pull_user_metadata(docker, remote_user)
+        remote_user_metadata = pull_user_metadata(repositories, remote_user)
         if remote_image_fullname not in remote_user_metadata['walt.user.images']:
             return exit_no_such_image(requester)
         image_info = remote_user_metadata['walt.user.images'][remote_image_fullname]
         target_node_models = image_info['labels']['walt.node.models'].split(',')
     if remote_location == LOCATION_DOCKER_DAEMON:
-        labels = None
+        if repositories.daemon is None:
+            requester.stderr.write("Docker is not available on the server.\n")
+            return 'FAILED',
         try:
-            labels = docker.daemon.get_labels(remote_image_fullname)
-        except:
-            return exit_no_such_image(requester)
+            labels = repositories.daemon.get_labels(remote_image_fullname)
+        except subprocess.CalledProcessError:
+            requester.stderr.write("Error while loading images from Docker.\n")
+            return 'FAILED',
         target_node_models = labels['walt.node.models'].split(',')
 
     # compute the workflow
@@ -300,7 +311,7 @@ def perform_clone(requester, docker, nodes_manager, clonable_link, image_store, 
         existing_server_image = existing_server_image,
         existing_ws_image = existing_ws_image,
         image_store = image_store,
-        docker = docker,
+        repositories = repositories,
         requester = requester,
         force = force,
         saved_images = {},
@@ -312,7 +323,7 @@ def perform_clone(requester, docker, nodes_manager, clonable_link, image_store, 
     # we use a context manager ("with-construct") to ensure
     # the WorkflowCleaner.cleanup function will be called,
     # even in case of an exception.
-    # this fonction will remove any temporary docker image.
+    # this fonction will remove any temporary image.
     res = False
     with WorkflowCleaner(context):
         res = workflow_run(workflow, **context)
@@ -327,13 +338,13 @@ def perform_clone(requester, docker, nodes_manager, clonable_link, image_store, 
         return ('FAILED',)
 
 # this implements walt image clone
-def clone(requester, server, **kwargs):
+def clone(requester, server: Server, **kwargs):
     try:
-        return perform_clone(  requester = requester,
-                    docker = server.docker,
-                    image_store = server.images.store,
-                    nodes_manager = server.nodes,
-                    **kwargs)
+        return perform_clone(requester=requester,
+                             repositories=server.repositories,
+                             image_store=server.images.store,
+                             nodes_manager=server.nodes,
+                             **kwargs)
     except Exception as e:
         requester.stderr.write(str(e) + '\n')
         return ('FAILED',)

@@ -1,17 +1,44 @@
-from subprocess import run, CalledProcessError, PIPE, Popen
+from __future__ import annotations
+
+import shutil
+from subprocess import run, PIPE, Popen
 import sys
 
+
 class ExtTool:
+    @classmethod
+    def get_executable(cls, cmdname: str, required=True) -> ExtTool | None:
+        """Factory function for an external executable.
+
+        This factory checks if the given executable is available, preload the
+        executable path, and raise / return None if it is not available.
+
+        :param cmdname: Command name of full path.
+        :param required: If command is not available, either return
+        None (required=False) or raise FileNotFoundError (required=True)
+        :raise FileNotFoundError
+        """
+        cmd_fullpath = shutil.which(cmdname)
+        if cmd_fullpath is None:
+            if required:
+                raise
+            else:
+                return None
+        return ExtTool(cmd_fullpath)
+
     def __init__(self, *path):
-        self.path = tuple(path)
+        self.path = path
+
     @property
     def stream(self):
         return StreamExtTool(*self.path)
+
     def __getattr__(self, attr):
         sub_path = self.path + (attr,)
         sub_tool = ExtTool(*sub_path)
         setattr(self, attr, sub_tool)   # shortcut for next time
         return sub_tool
+
     def __call__(self, *args, input=None):
         return run(self.path + args,
                    check=True,
@@ -19,9 +46,11 @@ class ExtTool:
                    stdout=PIPE,
                    encoding=sys.stdout.encoding).stdout.strip()
 
-class StreamExtTool():
+
+class StreamExtTool:
     def __init__(self, *path):
         self.path = tuple(path)
+
     def __call__(self, *args, converter = None, out_stream = 'stdout'):
         if converter is None:
             converter = lambda line: line
@@ -49,10 +78,11 @@ class StreamExtTool():
                     raise
         return read_stream()
 
-buildah = ExtTool('buildah')
-podman = ExtTool('podman')
-skopeo = ExtTool('skopeo')
-mount = ExtTool('mount')
-umount = ExtTool('umount')
-findmnt = ExtTool('findmnt')
-docker = ExtTool('docker')
+
+buildah = ExtTool.get_executable('buildah')
+podman = ExtTool.get_executable('podman')
+skopeo = ExtTool.get_executable('skopeo')
+mount = ExtTool.get_executable('mount')
+umount = ExtTool.get_executable('umount')
+findmnt = ExtTool.get_executable('findmnt')
+docker = ExtTool.get_executable('docker', required=False)

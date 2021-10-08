@@ -1,15 +1,23 @@
+from __future__ import annotations
+
+import typing
 import uuid
+
 from walt.server.threads.main.images.image import validate_image_name, format_image_fullname
+
+if typing.TYPE_CHECKING:
+    from walt.server.threads.main.images.image import NodeImage
+    from walt.server.threads.main.images.store import NodeImageStore
 
 # About terminology: See comment about it in image.py.
 class ImageShellSession(object):
 
-    def __init__(self, images, image, task_label):
+    def __init__(self, images: NodeImageStore, image: NodeImage, task_label):
         self.images = images
-        self.docker = images.docker
+        self.repositories = images.repositories
         self.image = image
         self.container_name = str(uuid.uuid4())
-        self.docker_events = self.docker.local.events()
+        self.events = self.repositories.local.events()
         self.image.task_label = task_label
 
     def get_parameters(self):
@@ -53,14 +61,14 @@ class ImageShellSession(object):
         # and then tries to commit the container through rpc commands.
         # we have to ensure here that the container was run and completed its job.
         while True:
-            event = next(self.docker_events)
+            event = next(self.events)
             if 'Status' not in event or 'Name' not in event:
                 continue
             if event['Status'] in ('cleanup', 'died') and event['Name'] == self.container_name:
                 break
         # commit
         print('committing %s...' % self.container_name)
-        self.docker.local.commit(self.container_name, image_fullname)
+        self.repositories.local.commit(self.container_name, image_fullname)
         # if not overriding, register new image
         if self.image.fullname != image_fullname:
             self.images.register_image(image_fullname, True)
@@ -81,7 +89,7 @@ class ImageShellSession(object):
 
     def cleanup(self):
         print('shell cleanup')
-        self.docker_events.close()
-        self.docker.local.stop_container(self.container_name)
+        self.events.close()
+        self.repositories.local.stop_container(self.container_name)
         self.image.task_label = None
 

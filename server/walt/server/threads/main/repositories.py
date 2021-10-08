@@ -1,13 +1,18 @@
+import itertools
+import json
+import re
+import requests
 import shutil
+import sys
+import time
+import uuid
+from datetime import datetime
 from pathlib import Path
+from subprocess import CalledProcessError
 
 from walt.common.crypto.blowfish import BlowFish
 from walt.common.formatting import indicate_progress
 from walt.server.exttools import buildah, podman, skopeo, mount, umount, findmnt, docker
-from walt.server import const
-from datetime import datetime
-from subprocess import run, CalledProcessError, PIPE, Popen
-import time, re, os, sys, requests, json, itertools, uuid
 
 DOCKER_HUB_TIMEOUT=None
 SKOPEO_RETRIES=10
@@ -331,10 +336,14 @@ class DockerHubClient:
             return {}
         return config['config']['Labels']
 
-class DockerClient(object):
+class Repositories:
     def __init__(self):
         self.local = DockerLocalClient()
         self.hub = DockerHubClient()
-        self.daemon = DockerDaemonClient()
+        if docker is not None:
+            self.daemon = DockerDaemonClient()
+        else:
+            self.daemon = None
+
     def self_test(self):
         return True

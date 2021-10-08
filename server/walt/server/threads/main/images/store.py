@@ -1,14 +1,19 @@
-import sys, os
+from __future__ import annotations
+
+import os
+import typing
+
+import sys
 from time import time
-from datetime import datetime
-from collections import defaultdict
 
-from walt.server.threads.main.images.image import NodeImage, format_image_fullname
-from walt.server.threads.main.network import tftp
-from walt.server.threads.main import exports
-from walt.server.threads.main.images.setup import setup
 from walt.common.tools import failsafe_makedirs
+from walt.server.threads.main import exports
+from walt.server.threads.main.images.image import NodeImage, format_image_fullname
+from walt.server.threads.main.images.setup import setup
+from walt.server.threads.main.network import tftp
 
+if typing.TYPE_CHECKING:
+    from walt.server.threads.main.server import Server
 
 # About terminology: See comment about it in image.py.
 
@@ -55,93 +60,111 @@ def get_mount_path(image_id):
     return IMAGE_MOUNT_PATH % image_id
 
 class NodeImageStore(object):
-    def __init__(self, server):
+    def __init__(self, server: Server):
         self.server = server
-        self.docker = server.docker
+        self.repositories = server.repositories
         self.db = server.db
-        self.images = {}
+        self.images: dict[str, NodeImage] = {}
         self.mounts = set()
         self.deadlines = {}
+
     def refresh(self, startup = False):
         db_images = { db_img.fullname: db_img.ready \
                         for db_img in self.db.select('images') }
         # gather local images
-        podman_images = set(self.docker.local.get_images())
-        if startup:
-            docker_images = set(self.docker.daemon.images())
+        podman_images = set(self.repositories.local.get_images())
+        docker_images = None  # Loaded on-demand thereafter
         # import new images from podman into the database
         for fullname in podman_images:
             if fullname not in db_images:
                 self.db.insert('images', fullname=fullname, ready=True)
                 db_images[fullname] = True
-        # update images listed in db and add missing ones
-        for db_fullname in db_images:
-            db_ready = db_images[db_fullname]
+        # update images listed in db and add missing ones to this store
+        for db_fullname, db_ready in db_images.items():
             if db_fullname not in self.images:
                 if db_fullname in podman_images:
                     # add missing image in this store
                     self.images[db_fullname] = NodeImage(self, db_fullname)
-                else:
-                    # if the daemon is starting, check if we should pull images
-                    # from docker daemon to podman storage (migration v4->v5)
-                    if startup:
+                    continue
+                if (startup, db_ready) == (False, True):
+                    raise RuntimeError(MSG_IMAGE_READY_BUT_MISSING % db_fullname)
+                if (startup, db_ready) == (False, False):
+                    # image is probably being pulled
+                    self.images[db_fullname] = NodeImage(self, db_fullname)
+                    continue
+                if (startup, db_ready) == (True, False):
+                    print(MSG_RESTORING_PULL % db_fullname)
+                    self.images[db_fullname] = NodeImage(self, db_fullname)
+                    self.server.nodes.restore_interrupted_registration(db_fullname)
+                    continue
+                if (startup, db_ready) == (True, True):
+                    # image is known and ready in db, but missing in walt (podman) images
+                    if self.repositories.daemon is not None:
+                        # check if we should pull images from docker daemon to
+                        # podman storage (migration v4->v5)
+                        if docker_images is None:  # Loaded on-demand
+                            docker_images = set(self.repositories.daemon.images())
                         if db_fullname in docker_images:
                             print(MSG_PULLING_FROM_DOCKER % db_fullname)
-                            self.docker.daemon.pull(db_fullname)
+                            self.repositories.daemon.pull(db_fullname)
                             self.images[db_fullname] = NodeImage(self, db_fullname)
-                        else:
-                            print(MSG_RESTORING_PULL % db_fullname)
-                            self.images[db_fullname] = NodeImage(self, db_fullname)
-                            self.server.nodes.restore_interrupted_registration(db_fullname)
-                    else:
-                        assert (db_ready == False), \
-                            MSG_IMAGE_READY_BUT_MISSING % db_fullname
-                        # image is not ready yet (probably being pulled)
-                        self.images[db_fullname] = NodeImage(self, db_fullname)
-        # remove deleted images
+                            continue
+                    # Ready, but not found anywhere
+                    print("Unable to find image %s. Hope it is not used and remove it." % \
+                          db_fullname, file=sys.stderr)
+                    self.db.delete('images', fullname=db_fullname)
+                    self.db.commit()
+        # remove from this store deleted images
         for fullname in list(self.images.keys()):
             if fullname not in db_images:
                 del self.images[fullname]
+
     def register_image(self, image_fullname, is_ready):
         self.db.insert('images', fullname=image_fullname, ready=is_ready)
         self.db.commit()
         self.refresh()
+
     # Make sure to rename the image in docker *before* calling this.
     def rename(self, old_fullname, new_fullname):
         self.db.execute('update images set fullname = %(new_fullname)s where fullname = %(old_fullname)s',
                             dict(old_fullname = old_fullname, new_fullname = new_fullname))
         self.db.commit()
         self.refresh()
+
     # Make sure to remove the image from docker *before* calling this.
     def remove(self, image_fullname):
         self.db.delete('images', fullname=image_fullname)
         self.db.commit()
         self.refresh()
+
     def __getitem__(self, image_fullname):
         if image_fullname not in self.images:
             # image was probably downloaded using docker commands,
             # walt does not know it yet
             self.refresh()
         return self.images[image_fullname]
+
     def __iter__(self):
         return iter(self.images.keys())
+
     def __len__(self):
         return len(self.images)
+
     def keys(self):
         return self.images.keys()
-    def iteritems(self):
-        return self.images.items()
-    def itervalues(self):
-        return self.images.values()
+
     def values(self):
         return self.images.values()
-    # look for an image belonging to the requester.
-    # The 'expected' parameter allows to specify if we expect a matching
-    # result (expected = True), no matching result (expected = False),
-    # or if both options are ok (expected = None).
-    # If expected is True or False and the result does not match expectation,
-    # an error message will be printed.
-    def get_user_image_from_name(self, requester, image_name, expected = True, ready_only = True):
+
+    def get_user_image_from_name(self, requester, image_name,
+                                 expected: bool | None = True, ready_only = True):
+        """Look for an image belonging to the requester.
+
+        :param expected: specify if we expect a matching result (True), no
+        matching result (False), or if both options are ok (expected = None).
+        If expected is True or False and the result does not match expectation,
+        an error message will be printed.
+        """
         found = None
         if '/' in image_name:
             fullname = image_name
@@ -170,8 +193,10 @@ class NodeImageStore(object):
                     "Error: Image '%s' is not ready.\n" % image_name)
                 found = None
         return found
+
     def count_images_of_user(self, username):
         return sum(1 for image in self.images.values() if image.user == username)
+
     def get_user_unused_image_from_name(self, requester, image_name):
         image = self.get_user_image_from_name(requester, image_name)
         if image:   # otherwise issue is already reported
@@ -179,6 +204,7 @@ class NodeImageStore(object):
                 requester.stderr.write('Sorry, cannot proceed because the image is in use.\n')
                 return None
         return image
+
     def update_image_mounts(self, requester = None):
         curr_time = time()
         new_mounts = set()
@@ -232,6 +258,7 @@ class NodeImageStore(object):
         # be locked by the NFS export)
         for image_id in to_be_unmounted:
             self.unmount(image_id)
+
     def cleanup(self):
         if len(self.mounts) > 0:
             # release nfs mounts
@@ -239,17 +266,22 @@ class NodeImageStore(object):
             # unmount images
             for image_id in self.mounts.copy():
                 self.unmount(image_id)
+
     def get_images_in_use(self):
         res = set([ item.image for item in \
             self.db.execute("""
                 SELECT DISTINCT image FROM nodes""").fetchall()])
         return res
+
     def get_default_image_fullname(self, node_model):
         return 'waltplatform/%s-default:latest' % node_model
+
     def image_is_used(self, fullname):
         return self.num_nodes_using_image(fullname) > 0
+
     def num_nodes_using_image(self, image_fullname):
         return len(self.db.select("nodes", image=image_fullname))
+
     def warn_overwrite_image(self, requester, image_name):
         image_fullname = format_image_fullname(requester.get_username(), image_name)
         num_nodes = self.num_nodes_using_image(image_fullname)
@@ -258,6 +290,7 @@ class NodeImageStore(object):
         else:
             reboot_message = MSG_WOULD_OVERWRITE_IMAGE_REBOOTED_NODES % num_nodes
         requester.stderr.write(MSG_WOULD_OVERWRITE_IMAGE % reboot_message)
+
     def warn_if_would_reboot_nodes(self, requester, image_name):
         if '/' in image_name:
             image_fullname = image_name
@@ -268,13 +301,16 @@ class NodeImageStore(object):
             return False    # no node would reboot
         requester.stderr.write(MSG_WOULD_REBOOT_NODES % num_nodes)
         return True     # yes it would reboot some nodes
+
     def image_is_mounted(self, image_id):
         return image_id in self.mounts
+
     def get_mount_path(self, image_id):
         if image_id in self.mounts:
             return get_mount_path(image_id)
         else:
             return None
+
     def mount(self, image_id, fullname = None):
         if image_id in self.mounts:
             return  # already mounted
@@ -283,9 +319,10 @@ class NodeImageStore(object):
         print('Mounting %s...' % desc)
         mount_path = get_mount_path(image_id)
         failsafe_makedirs(mount_path)
-        self.docker.local.image_mount(image_id, mount_path)
+        self.repositories.local.image_mount(image_id, mount_path)
         setup(mount_path)
         print('Mounting %s... done' % desc)
+
     def unmount(self, image_id, fullname = None):
         if image_id not in self.mounts:
             return  # not mounted
@@ -293,11 +330,13 @@ class NodeImageStore(object):
         desc = fullname if fullname else image_id
         print('Un-mounting %s...' % desc, end=' ')
         mount_path = get_mount_path(image_id)
-        self.docker.local.image_umount(image_id, mount_path)
+        self.repositories.local.image_umount(image_id, mount_path)
         os.rmdir(mount_path)
         print('done')
+
     def __del__(self):
         self.cleanup()
+
     def clone_default_images(self, requester):
         username = requester.get_username()
         if not username:
@@ -309,7 +348,7 @@ class NodeImageStore(object):
         for model in node_models:
             default_image = self.get_default_image_fullname(model)
             ws_image = username + '/' + default_image.split('/')[1]
-            self.docker.local.tag(default_image, ws_image)
+            self.repositories.local.tag(default_image, ws_image)
             self.register_image(ws_image, True)
         requester.set_default_busy_label()
         return True

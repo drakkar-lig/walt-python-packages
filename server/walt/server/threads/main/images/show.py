@@ -9,7 +9,7 @@ Then use 'walt image clone <clonable_link>' to clone them
 into your working set.
 """
 
-def show(db, docker, images, requester, refresh):
+def show(db, images, requester, refresh):
     username = requester.get_username()
     if not username:
         return None     # client already disconnected, give up
@@ -32,7 +32,7 @@ def show(db, docker, images, requester, refresh):
         # default images of node models present on the platform.
         if images.clone_default_images(requester):
             # succeeded, restart the process to print new images
-            return show(db, docker, images, requester, refresh)
+            return show(db, images, requester, refresh)
         else:
             return MSG_WS_IS_EMPTY
     header = [ 'Name', 'In-use', 'Created', 'Ready', 'Compatibility' ]

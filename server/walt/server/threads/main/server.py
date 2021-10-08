@@ -1,6 +1,6 @@
-#!/usr/bin/env python
 import re
 import pickle
+
 from walt.common.constants import WALT_SERVER_TCP_PORT
 from walt.common.devices.registry import get_device_info_from_mac
 from walt.common.tcp import TCPServer
@@ -11,7 +11,7 @@ from walt.server.threads.main.images.image import format_image_fullname
 from walt.server.threads.main.images.manager import NodeImageManager
 from walt.server.threads.main.interactive import InteractionManager
 from walt.server.threads.main.logs import LogsManager
-from walt.server.threads.main.mydocker import DockerClient
+from walt.server.threads.main.repositories import Repositories
 from walt.server.threads.main.network.dhcpd import DHCPServer
 from walt.server.threads.main.nodes.manager import NodesManager
 from walt.server.threads.main.devices.manager import DevicesManager
@@ -30,7 +30,7 @@ class Server(object):
         self.ev_loop = ev_loop
         self.ui = ui
         self.db = ServerDB()
-        self.docker = DockerClient()
+        self.repositories = Repositories()
         self.blocking = BlockingTasksManager()
         self.devices = DevicesManager(self.db)
         self.topology = TopologyManager(self.devices, self.add_or_update_device)
@@ -42,15 +42,15 @@ class Server(object):
                         self.tcp_server, self.ev_loop)
         self.transfer = TransferManager(\
                         self.tcp_server, self.ev_loop)
-        self.nodes = NodesManager(  tcp_server = self.tcp_server,
-                                    ev_loop = self.ev_loop,
-                                    db = self.db,
-                                    blocking = self.blocking,
-                                    images = self.images.store,
-                                    dhcpd = self.dhcpd,
-                                    docker = self.docker,
-                                    devices = self.devices,
-                                    topology = self.topology)
+        self.nodes = NodesManager(tcp_server=self.tcp_server,
+                                  ev_loop=self.ev_loop,
+                                  db=self.db,
+                                  blocking=self.blocking,
+                                  images=self.images.store,
+                                  dhcpd=self.dhcpd,
+                                  repositories=self.repositories,
+                                  devices=self.devices,
+                                  topology=self.topology)
         self.settings = SettingsManager(server=self)
         self.vpn = VPNManager()
 

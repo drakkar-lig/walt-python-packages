@@ -1,5 +1,12 @@
+from __future__ import annotations
+
 import re
+import typing
+
 from walt.server.threads.main.filesystem import Filesystem
+
+if typing.TYPE_CHECKING:
+    from walt.server.threads.main.images.store import NodeImageStore
 
 # IMPORTANT TERMINOLOGY NOTES:
 #
@@ -15,7 +22,7 @@ from walt.server.threads.main.filesystem import Filesystem
 # notes:
 # * similarly to docker, the <tag> part may be omitted in
 #   <name>. In this case <tag> equals 'latest'.
-# * walt knows whether or not a docker image is a walt
+# * walt knows whether or not an image is a walt
 #   image by checking if it has a builtin label
 #   'walt.node.models=<list-of-models>'.
 #   (cf. LABEL instruction of Dockerfile)
@@ -83,10 +90,10 @@ def validate_image_name(requester, image_name):
 FS_CMD_PATTERN = 'podman run --rm -w /root --entrypoint %%(prog)s %(image)s %%(prog_args)s'
 
 class NodeImage(object):
-    def __init__(self, store, fullname):
+    def __init__(self, store: NodeImageStore, fullname):
         self.store = store
         self.db = store.db
-        self.docker = store.docker
+        self.repositories = store.repositories
         self.rename(fullname)
         self.filesystem = Filesystem(FS_CMD_PATTERN % dict(image = self.fullname))
         self.task_label = None
@@ -94,7 +101,7 @@ class NodeImage(object):
         self.fullname, self.user, self.name = parse_image_fullname(fullname)
     @property
     def metadata(self):
-        return self.docker.local.get_metadata(self.fullname)
+        return self.repositories.local.get_metadata(self.fullname)
     @property
     def image_id(self):
         return self.metadata['image_id']
@@ -130,4 +137,4 @@ class NodeImage(object):
     def mounted(self):
         return self.store.image_is_mounted(self.image_id)
     def squash(self):
-        self.docker.local.squash(self.fullname)
+        self.repositories.local.squash(self.fullname)
