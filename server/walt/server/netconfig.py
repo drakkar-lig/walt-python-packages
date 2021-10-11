@@ -101,8 +101,7 @@ def setup_ip_conf(iface, ip_conf):
         do('ip addr add %s dev %s' % (
                 ip_conf, iface))
 
-def up(iface, network_conf):
-    iface_conf = network_conf[iface]
+def up(iface, iface_conf):
     raw_iface = iface_conf['raw-device']
     # If the machine is booting, we may be here before the network interface
     # card effectively appears.  Wait for it a little here.
@@ -113,15 +112,14 @@ def up(iface, network_conf):
             # Here, it is really an error.  Interface should exist.
             raise RuntimeError("Interface %s does not exist" % raw_iface)
     with open_state_file(iface, 'w') as state_file:
-        if iface in network_conf:
-            set_iface_up(raw_iface)
-            vlan = get_vlan(iface_conf)
-            if vlan:
-                setup_vlan_conf(raw_iface, vlan, iface, state_file)
-            else:
-                setup_native_conf(raw_iface, iface, state_file)
-            if 'ip' in iface_conf:
-                setup_ip_conf(iface, iface_conf['ip'])
+        set_iface_up(raw_iface)
+        vlan = get_vlan(iface_conf)
+        if vlan:
+            setup_vlan_conf(raw_iface, vlan, iface, state_file)
+        else:
+            setup_native_conf(raw_iface, iface, state_file)
+        if 'ip' in iface_conf:
+            setup_ip_conf(iface, iface_conf['ip'])
 
 def down(iface):
     with open_state_file(iface, 'r') as state_file:
@@ -131,20 +129,31 @@ def down(iface):
     remove_state_file(iface)
 
 def run():
+    # Handle argument
     if len(sys.argv) < 2:
         sys.exit('Missing 1st argument: "up" or "down".')
     action = sys.argv[1]
     if action not in ('up', 'down'):
         sys.exit('1st argument must be "up" or "down".')
+    # Handle IFACE environment variable
     iface = os.environ.get('IFACE')
-    if iface is None:
-        sys.exit('IFACE environment variable is missing.')
+    if iface is not None:
+        print(f"Using interface {iface} from environment variable IFACE.")
+        try:
+            iface_conf = conf['network'][iface]
+        except LookupError:
+            sys.exit(f'{iface}: interface is not listed in configuration file.')
+        network_confs = {iface: iface_conf}
+    else:
+        # Activate all interfaces
+        network_confs = conf['network']
+    # Do the job
     failsafe_makedirs(WALT_STATUS_DIR)
-    if action == 'up':
-        network_conf = conf['network']
-        up(iface, network_conf)
-    elif action == 'down':
-        down(iface)
+    for iface, iface_conf in network_confs.items():
+        if action == 'up':
+            up(iface, iface_conf)
+        elif action == 'down':
+            down(iface)
 
 
 if __name__ == '__main__':
