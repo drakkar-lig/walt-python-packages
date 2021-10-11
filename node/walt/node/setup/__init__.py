@@ -1,18 +1,23 @@
-from pathlib import Path
+from walt.common.setup import WaltGenericSetup
 
-from plumbum import cli
+SYSTEMD_SERVICES = {
+    "walt-logs.service": {
+        'WantedBy': "multi-user.target"
+    }
+}
 
-from .systemd import SYSTEMD_DEFAULT_DIR, setup_systemd
 
+class WaltNodeSetup(WaltGenericSetup):
+    package = __name__
 
-class WaltNodeSetup(cli.Application):
-    systemd_dir = SYSTEMD_DEFAULT_DIR
+    @property
+    def display_name(self):
+        return "WalT node"
 
     def main(self):
-        """install walt-node software"""
-        setup_systemd(self.systemd_dir)
+        """install WalT node software"""
+        self.setup_systemd_services(SYSTEMD_SERVICES)
 
-    @cli.switch("--systemd-dir", Path)
-    def set_systemd_dir(self, systemd_dir):
-        """directory where to store systemd services"""
-        self.systemd_dir = systemd_dir
+
+def run():
+    WaltNodeSetup.run()
