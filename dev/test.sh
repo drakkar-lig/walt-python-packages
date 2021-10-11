@@ -1,14 +1,14 @@
 #!/bin/bash
 
-THIS_DIR="$(cd $(dirname $0); pwd)"
-TESTS_DIR="$(cd $THIS_DIR/../test; pwd)"
+THIS_DIR="$(cd "$(dirname $0)"; pwd)"
+TESTS_DIR="$(cd "$THIS_DIR/../test"; pwd)"
 
 __testsuite_num_tests=0
 __testsuite_num_tests_failed=0
 __testsuite_test_name=""
 
 __testsuite_exec_prev_test() {
-    if [ "$__testsuite_test_name" != "" ]
+    if [[ $__testsuite_test_name != "" ]]
     then
         __testsuite_num_tests=$((__testsuite_num_tests+1))
         echo -n "   $__testsuite_test_name"
@@ -43,22 +43,53 @@ __testsuite_exec_prev_test() {
     __testsuite_test_name=""
 }
 
-__testsuite_modified_source=$(mktemp)
+declare -a TEST_TO_RUN
+while [[ $# != 0 ]]
+do
+    case "$1" in
+        --help|-h)
+            echo "$(basename "$0"): [tests]"
+            echo "    [tests] is the list of tests to run.  Should be the"\
+                 "name of a test in the $TESTS_DIR directory, without its"\
+                 ".sh extension.  Default: run all tests."
+            exit 0
+            ;;
+        -*)
+            echo >&2 -- "$1: unsupported option"
+            exit 1
+            ;;
+        *)
+            [[ -e "$TESTS_DIR/$1.sh" ]] || {
+                echo >&2 "$1: no such test"
+                exit 1
+            }
+            TEST_TO_RUN+=("$TESTS_DIR/$1.sh")
+            ;;
+    esac
+    shift
+done
 
-for __testsuite_source_file in $TESTS_DIR/*.sh
+if [[ ${#TEST_TO_RUN[@]} == 0 ]]
+then
+    TEST_TO_RUN=("$TESTS_DIR"/*.sh)
+fi
+
+__testsuite_modified_source="$(mktemp)"
+
+for __testsuite_source_file in "${TEST_TO_RUN[@]}"
 do
     sed -e 's/\<define_test\>/__testsuite_exec_prev_test; __testsuite_test_name=$(echo/' \
-        -e 's/\<as\>/); __testsuite_func() /' $__testsuite_source_file > $__testsuite_modified_source
-    source $__testsuite_modified_source
+        -e 's/\<as\>/); __testsuite_func() /' "$__testsuite_source_file" > "$__testsuite_modified_source"
+    source "$__testsuite_modified_source"
     __testsuite_exec_prev_test
 done
 
-rm $__testsuite_modified_source
+rm "$__testsuite_modified_source"
 
 # summary
 echo
 echo -n " $__testsuite_num_tests test(s), "
-if [ $__testsuite_num_tests_failed -eq 0 ]
+if [[ $__testsuite_num_tests_failed -eq 0 ]]
 then
     echo "no failure."
 else
