@@ -31,6 +31,7 @@ ALL_PACKAGES=common virtual vpn server node client client-g5k
 INSTALLABLE_PACKAGES_ON_SERVER=common virtual vpn server client
 GNUMAKEFLAGS=--no-print-directory
 SUDO=$(shell test `whoami` = root && echo -n || echo "sudo -H")
+PIP=$(shell echo `which pip3`)
 
 # ------
 install: $(patsubst %,%.install,$(INSTALLABLE_PACKAGES_ON_SERVER))
@@ -51,7 +52,7 @@ client-g5k.%: client.%
 
 %.install: %.info
 	@$(MAKE) $*.uninstall
-	@cd $*; pwd; python3 setup.py bdist_wheel && $(SUDO) `which pip3` install .
+	@cd $*; pwd; python3 setup.py bdist_wheel && $(SUDO) $(PIP) install .
 
 %.info:
 	@$(MAKE) $*/walt/$(subst -,/,$*)/info.py
@@ -64,7 +65,7 @@ clean:
 	find . -name \*.pyc -delete
 
 %.uninstall:
-	@pip3 show walt-$* >/dev/null && $(SUDO) `which pip3` uninstall -y walt-$* || true
+	@$(PIP) show walt-$* >/dev/null && $(SUDO) $(PIP) uninstall -y walt-$* || true
 
 upload:
 	@./dev/upload.sh $(ALL_PACKAGES)
