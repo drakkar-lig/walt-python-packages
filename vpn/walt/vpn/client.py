@@ -4,6 +4,7 @@ from subprocess import check_call, check_output, Popen, PIPE, TimeoutExpired, ru
 from select import select
 from walt.vpn.tools import createtap, read_n, enable_debug, debug
 from walt.vpn.ssh import ssh_with_identity
+from walt.vpn.ext._loops.lib import client_transmission_loop
 from walt.common.constants import UNSECURE_ECDSA_KEYPAIR
 from walt.common.logs import LoggedApplication
 from pathlib import Path
@@ -146,52 +147,11 @@ def vpn_client_loop(tap, walt_vpn_entrypoint):
                         walt_vpn_entrypoint = walt_vpn_entrypoint
                     )), stdin=PIPE, stdout=PIPE, bufsize=0)
         # transmit packets
-        should_continue = packet_transmission_loop(popen, tap)
+        should_continue = client_transmission_loop(popen.stdin.fileno(),
+                                                   popen.stdout.fileno(),
+                                                   tap.fileno())
         if not should_continue:
             break
-
-def packet_transmission_loop(popen, tap):
-    # start select loop
-    # we will:
-    # * transfer packets coming from the tap interface to ssh stdin
-    # * transfer packets coming from ssh stdout to the tap interface
-    fds = [ popen.stdout, tap ]
-    while True:
-        r, w, e = select(fds, [], [])
-        if len(r) == 0:
-            break
-        r_obj = r[0]
-        r_fd = r_obj.fileno()
-        if r_obj == tap:
-            packet = os.read(r_fd, 8192)
-            if len(packet) == 0:
-                # unexpected, let's stop
-                print(time(), 'short read on tap, exiting.')
-                return False
-            # encode packet length as 2 bytes
-            encoded_packet_len = struct.pack('!H', len(packet))
-            debug('transmitting packet of', len(packet), 'bytes from tap to ssh channel')
-            fd = popen.stdin.fileno()
-            os.write(fd, encoded_packet_len)
-            os.write(fd, packet)
-        else:
-            encoded_packet_len = read_n(r_fd, 2)
-            if len(encoded_packet_len) < 2:
-                print(time(), 'short read on ssh channel (reading packet length), will re-init.')
-                sleep(5)
-                return True
-            # decode 2 bytes of packet length
-            packet_len = struct.unpack('!H', encoded_packet_len)[0]
-            # empty packet?
-            if packet_len == 0:
-                raise Exception(str(time()) + ' Got packet_len of 0!')
-            packet = read_n(r_fd, packet_len)
-            if len(packet) < packet_len:
-                print(time(), 'short read on ssh channel (reading packet), will re-init.')
-                sleep(5)
-                return True
-            debug('transmitting packet of', packet_len, 'bytes from ssh channel to tap')
-            os.write(tap.fileno(), packet)
 
 class WalTVPNClient(LoggedApplication):
     """Establish the VPN up to walt server"""
