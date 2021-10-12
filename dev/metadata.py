@@ -105,7 +105,7 @@ PACKAGE_SPECIFIC_INFO = {
     ),
     "walt-vpn": dict(
         subdir = 'vpn',
-        requires = ['walt-common==%(upload)s', 'python-daemon>=2.2.3'],
+        requires = ['walt-common==%(upload)s', 'python-daemon>=2.2.3', 'cffi>=1.0.0'],
         version_str = '%(upload)s',
         setup = dict(
             description = "WalT VPN components.",
@@ -120,6 +120,8 @@ PACKAGE_SPECIFIC_INFO = {
                     'walt-vpn-setup = walt.vpn.setup:run'
                 ]
             },
+            setup_requires = ["cffi>=1.0.0"],
+            cffi_modules = ["walt/vpn/ext/build.py:ffibuilder"],
             include_package_data = True
         )
     ),
