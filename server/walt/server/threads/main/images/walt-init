@@ -152,30 +152,26 @@ mount_union()
 }
 
 # This is the persistent mount point, available even across reboots.
-# Data are stored on the server through a NFS share.
+# Data are stored on the server through an NFS share.
 mount_persistent()
 {
     cd $ROOTFS/mnt
 
-    # Compute persistent storage path from NFS root
+    # Compute persistent storage path:
+    # <server-ip>:/var/lib/walt/nodes/<hostname>/persist
     # Caution: with NFSv4, client first mounts /var/lib/walt/nodes,
     # then retrieves /var/lib/walt/nodes/<mac>/fs symlink target,
     # and mounts this target path. Thus the mount target, as
     # reported by findmnt for instance, is this second step
     # mount target, of the form /var/lib/walt/images/<image-id>/fs.
-    # Here, we want to compute the following path:
-    # /var/lib/walt/nodes/<mac>/persist. So we cannot use this
-    # reported mount target. Instead, we parse the kernel command
-    # line where initial <server-ip>:/var/lib/walt/nodes/<mac>/fs
-    # path should be indicated.
-    PERSIST_PATH=$(cat /proc/cmdline | tr '[= ]' '\n' | \
-        grep '\/lib\/walt\/nodes' | sed -e 's/^nfs4\?://' | \
-        sed -e "s/\/fs.*/\/persist/")
+    server_ip="$(grep ' / ' /proc/mounts | sed -e 's/:.*//')"
+    hostname="$(busybox uname -n)"
+    persist_path="${server_ip}:/var/lib/walt/nodes/${hostname}/persist"
 
     # Mount the share
     mkdir fs_union/persist
     $MOUNT -t nfs -o rw,relatime,vers=3,nolock \
-           "${PERSIST_PATH}" fs_union/persist
+           "${persist_path}" fs_union/persist
 }
 
 has_mount()
