@@ -26,15 +26,16 @@ def format_sentence(sentence, items,
     # designation of items
     sorted_items = sorted(items)
     if len(items) > MAX_PRINTED_NODES:
-        s_items = '%d %s' % (len(items), label_plural)
+        s_items, node_names = ('%d %s' % (len(items), label_plural)), ()
     elif len(items) == 0:
-        s_items = label_none
+        s_items, node_names = label_none, ()
     elif len(items) > 1:
-        s_items = '%s %s and %s' % (label_plural, ', '.join(sorted_items[:-1]), sorted_items[-1])
+        s_items, node_names = label_plural + ' %s and %s', (', '.join(sorted_items[:-1]), sorted_items[-1])
     else:   # 1 item
-        s_items = '%s %s' % (label_singular, sorted_items[0])
+        s_items, node_names = label_singular + ' %s', (sorted_items[0],)
     # almost done
-    return (sentence % s_items).capitalize()
+    sentence = (sentence % s_items).capitalize()
+    return sentence % node_names
 
 def format_sentence_about_nodes(sentence, nodes):
     """
