@@ -121,7 +121,7 @@ The init system of your image should be available at `/sbin/init`.
 ### 7- busybox and classical unix commands
 
 For proper handling of the bootup procedure, you should provide a `busybox` multi-call binary at `/bin/busybox`.
-This busybox binary should at least include the following applets: `awk` `cat` `chroot` `ls` `mktemp` `mkfifo` `nc` `reboot` `rm` `sed` `sh` `sleep` `timeout`.
+This busybox binary should at least include the following applets: `awk` `cat` `chroot` `ls` `mktemp` `mkfifo` `nc` `reboot` `rm` `sed` `sh` `sleep` `timeout` `uname`.
 If this busybox binary is not statically compiled (on a debian-based image: `apt-get install busybox-static`), you must also provide a `ldd` binary.
 
 The following commands should also be provided in the image (either through `busybox` applets or not, it does not matter):
