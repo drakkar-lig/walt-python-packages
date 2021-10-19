@@ -26,8 +26,6 @@ def install_unit(unit_name: str, unit_content: io.BytesIO,
     else:
         install_dir = install_prefix / systemd_dir.relative_to(systemd_dir.anchor)
     unit_file_path = install_dir / unit_name
-    if unit_file_path.exists():
-        raise FileExistsError(unit_file_path)
     unit_file_path.parent.mkdir(parents=True, exist_ok=True)
     unit_file_path.write_bytes(unit_content.read())
 
@@ -55,7 +53,5 @@ def enable_unit(unit_name: str, wanted_by: str | list[str],
         wanted_by = [wanted_by]
     for w_by in wanted_by:
         wants_path = install_dir / (w_by + '.wants') / unit_name
-        if wants_path.exists():
-            raise FileExistsError(wants_path)
         wants_path.parent.mkdir(parents=True, exist_ok=True)
         failsafe_symlink(str(unit_file_path), str(wants_path))
