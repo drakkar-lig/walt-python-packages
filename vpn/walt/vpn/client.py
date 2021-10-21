@@ -1,14 +1,17 @@
-import os, os.path, sys, shlex, struct, daemon
+import sys
+from pathlib import Path
+from subprocess import check_call, check_output, TimeoutExpired, PIPE, Popen
+from time import sleep
+
+import daemon
 from daemon.pidfile import PIDLockFile
-from subprocess import check_call, check_output, Popen, PIPE, TimeoutExpired, run, DEVNULL
-from select import select
-from walt.vpn.tools import createtap, read_n, enable_debug, debug
-from walt.vpn.ssh import ssh_with_identity
+from plumbum import cli
 from walt.vpn.ext._loops.lib import client_transmission_loop
+from walt.vpn.ssh import ssh_with_identity
+from walt.vpn.tools import createtap, enable_debug
+
 from walt.common.constants import UNSECURE_ECDSA_KEYPAIR
 from walt.common.logs import LoggedApplication
-from pathlib import Path
-from time import time, sleep
 
 DEBUG = False
 
@@ -106,7 +109,7 @@ def setup_credentials(walt_vpn_entrypoint):
         print('OK, new credentials obtained and saved.')
         break
 
-def do_vpn_client(walt_vpn_entrypoint):
+def do_vpn_client(walt_vpn_entrypoint, daemonize=True):
     # setup credentials if needed
     if not PRIV_KEY_FILE.exists():
         sys.exit("Run the following command once, first: 'walt-vpn-setup-credentials <walt-server>'")
@@ -126,7 +129,7 @@ def do_vpn_client(walt_vpn_entrypoint):
     print('added ' + tap_name + ' to bridge ' + BRIDGE_INTF)
 
     # start loop
-    if DEBUG:
+    if not daemonize:
         print('Running...')
         vpn_client_loop(tap, walt_vpn_entrypoint)
     else:
@@ -155,9 +158,16 @@ def vpn_client_loop(tap, walt_vpn_entrypoint):
 
 class WalTVPNClient(LoggedApplication):
     """Establish the VPN up to walt server"""
+    daemonize = DEBUG  # Default value: true if in DEBUG mode
+
     def main(self, walt_vpn_entrypoint):
         self.init_logs()
-        do_vpn_client(walt_vpn_entrypoint)
+        do_vpn_client(walt_vpn_entrypoint, daemonize=self.daemonize)
+
+    @cli.switch("--no-daemonize")
+    def set_no_daemonize(self):
+        """stay on foreground"""
+        self.daemonize = False
 
 def vpn_client():
     WalTVPNClient.run()
