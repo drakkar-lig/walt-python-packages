@@ -7,6 +7,7 @@ from walt.common.logs import LoggedApplication
 from walt.common.fakeipxe import ipxe_boot
 from walt.common.tools import failsafe_makedirs
 from walt.virtual.node.udhcpc import udhcpc_fake_netboot
+from walt.virtual.node.dhcpcd import dhcpcd_fake_netboot
 from plumbum import cli
 from pathlib import Path
 
@@ -72,7 +73,7 @@ Usage: %(prog)s [--attach-usb] --mac <node_mac> --ip <node_ip> --model <node_mod
 
 def get_env_start(info):
     # define initial env variables for ipxe_boot()
-    if info._udhcpc:
+    if info._udhcpc or info._dhcpcd:
         required_args = ('mac', 'model')
     else:
         required_args =  ('mac', 'ip', 'model', 'hostname', 'server_ip')
@@ -88,6 +89,8 @@ def get_env_start(info):
     # define callbacks for ipxe_boot()
     if info._udhcpc:
         env['fake-network-setup'] = udhcpc_fake_netboot
+    elif info._dhcpcd:
+        env['fake-network-setup'] = dhcpcd_fake_netboot
     else:
         env['fake-network-setup'] = api_fake_netboot
     env['boot-function'] = boot_kvm
@@ -168,6 +171,7 @@ def node_loop(info):
 
 class WalTVirtualNode(LoggedApplication):
     _udhcpc = False         # default
+    _dhcpcd = False       # default
     _attach_usb = False     # default
     _reboot_command = None  # default
     _cpu_cores = DEFAULT_QEMU_CORES
@@ -228,6 +232,11 @@ class WalTVirtualNode(LoggedApplication):
     def set_net_conf_udhcpc(self):
         """use udhcpc to get network parameters"""
         self._udhcpc = True
+
+    @cli.switch("--net-conf-dhcpcd")
+    def set_net_conf_dhcpcd(self):
+        """use dhclient to get network parameters"""
+        self._dhcpcd = True
 
     @cli.switch("--on-vm-reboot", str)
     def set_reboot_command(self, shell_command):
