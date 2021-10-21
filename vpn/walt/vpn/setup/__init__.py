@@ -2,11 +2,15 @@ from plumbum import cli
 
 from walt.common.setup import WaltGenericSetup
 
-SYSTEMD_SERVICES = {
+SYSTEMD_SERVER_SERVICES = {
     "walt-vpn-server.service": {},
     "walt-vpn-server.socket": {
         'WantedBy': "sockets.target"
     }
+}
+SYSTEMD_CLIENT_SERVICES = {
+    "walt-vpn-client.service": {},
+    "walt-vpn-client-setup-credentials.service": {}
 }
 BUSYBOX_SERVICE_FILES = ["S51waltvpnclient"]
 
@@ -22,9 +26,16 @@ class WalTVPNSetup(WaltGenericSetup):
     def main(self):
         """install WalT VPN software"""
         if self._type == 'SERVER':
-            self.setup_systemd_services(SYSTEMD_SERVICES)
+            self.setup_systemd_services(SYSTEMD_SERVER_SERVICES)
         elif self._type == 'VPN_CLIENT':
-            self.setup_busybox_init_services(BUSYBOX_SERVICE_FILES)
+
+            if self._init_system == "BUSYBOX":
+                self.setup_busybox_init_services(BUSYBOX_SERVICE_FILES)
+            elif self._init_system == "SYSTEMD":
+                self.setup_systemd_services(SYSTEMD_CLIENT_SERVICES)
+            else:
+                # This is expected to fail and raise correct error message
+                self._assert_init_is(("BUSYBOX", "SYSTEMD"))
 
     @cli.switch("--type", cli.Set('SERVER', 'VPN_CLIENT', case_sensitive=False), mandatory=True)
     def set_type(self, install_type):

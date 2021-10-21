@@ -1,0 +1,14 @@
+# Start the virtual node whose MAC address is provided in parameter.
+
+[Unit]
+Description=Virtual node bootstrap
+Requires=walt-vpn-client.service
+After=walt-vpn-client.service
+
+[Service]
+ExecStartPre=echo Starting walt-virtual-node on screen walt.virtual.node.%i
+# TODO: attach-usb?  and other params like --ram and --cpu-cores?  Or even --net-conf-dhcpd?  And model?
+#   Static configuration file whose name depends on the mac address?
+ExecStart=screen -S walt.virtual.node.%i -D -m walt-virtual-node \
+            --net-conf-dhcpcd --mac %i --model pc-x86-64
+# FIXME: restart action?  Should be *possible* to reboot whole system; should not be the default

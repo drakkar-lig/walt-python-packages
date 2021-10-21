@@ -1,0 +1,20 @@
+# Start the VPN and set-up the walt-net bridge.  That service running,
+# the walt-net bridge should be ready to communicate with the server
+# and to start nodes on it.  See `walt help vpn` for more information.
+
+[Unit]
+Description=WalT VPN Connexion Establishment
+Wants=walt-vpn-client-setup-credentials.service
+After=walt-vpn-client-setup-credentials.service
+After=network-online.target
+
+[Service]
+PIDFile=${RUNTIME_DIRECTORY}/vpn-client.pid
+# FIXME: where to locate configuration file?
+EnvironmentFile=/etc/walt/vpn-client.conf
+ExecStart=walt-vpn-client "${WALT_VPN_ENTRYPOINT}"
+# TODO: at stop, destroy the walt-net interface
+IPAccounting=yes
+
+[Install]
+WantedBy=network-online.target
