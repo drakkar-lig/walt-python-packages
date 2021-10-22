@@ -4,9 +4,10 @@
 #
 
 CONF=/etc/default/walt-vpn-node
+CONSOLE=/dev/tty1    # HDMI console
 
 msg() {
-	echo "[walt-virtual-node] $1" | tee /dev/tty0
+	echo "[walt-virtual-node] $1" | tee $CONSOLE
 }
 
 # Make sure the conf is OK
@@ -43,7 +44,8 @@ start() {
                               --mac $WALT_VIRTUAL_NODE_MAC \
                               --model qemu-arm \
                               --on-vm-reboot 'reboot' \
-                              --log-file /dev/tty0 \
+                              --log-file $CONSOLE \
+                              --pid-path "/var/run/walt-virtual-node.pid" \
                               --log-prefix "walt-virtual-node"
     status=$?
     if [ "$status" -eq 0 ]; then
