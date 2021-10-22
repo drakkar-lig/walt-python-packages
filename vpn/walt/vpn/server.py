@@ -1,5 +1,4 @@
-import os, socket, struct, cffi
-import subprocess
+import os, socket, struct, cffi, subprocess, traceback
 from time import time
 from select import select
 from pathlib import Path
@@ -38,35 +37,43 @@ def listen_socket():
 
 def on_connect():
     print('client connection')
-    # create TAP
-    tap, tap_name = createtap()
-    tap_fd = tap.fileno()
-    assert tap_fd & 1 == 0    # even number
-    # bring it up, add it to bridge
-    subprocess.check_call('ip link set up dev %(intf)s' % \
-                            dict(intf = tap_name), shell=True)
-    subprocess.check_call('ip link set master ' + BRIDGE_INTF + ' dev ' + tap_name, shell=True)
-    print('added ' + tap_name + ' to bridge ' + BRIDGE_INTF)
-    # accept the new client
-    s_client, addr = context['server_socket'].accept()
-    assert s_client.fileno() == tap_fd + 1
-    # save python objects
-    context['clients_data'][tap_fd] = { 'tap': tap, 's_client': s_client }
-    return tap_fd
+    try:
+        # create TAP
+        tap, tap_name = createtap()
+        tap_fd = tap.fileno()
+        assert tap_fd & 1 == 0    # even number
+        # bring it up, add it to bridge
+        subprocess.check_call('ip link set up dev %(intf)s' % \
+                                dict(intf = tap_name), shell=True)
+        subprocess.check_call('ip link set master ' + BRIDGE_INTF + ' dev ' + tap_name, shell=True)
+        print('added ' + tap_name + ' to bridge ' + BRIDGE_INTF)
+        # accept the new client
+        s_client, addr = context['server_socket'].accept()
+        assert s_client.fileno() == tap_fd + 1
+        # save python objects
+        context['clients_data'][tap_fd] = { 'tap': tap, 's_client': s_client }
+        return tap_fd
+    except:
+        traceback.print_exc()
+        return -1
 
 def on_disconnect(tap_fd):
     print('client disconnection')
-    # close
-    client_data = context['clients_data'].pop(tap_fd)
-    client_data['tap'].close()
-    client_data['s_client'].close()
-    # return the new max fd
-    if len(context['clients_data']) == 0:
-        return context['server_socket'].fileno()
-    else:
-        max_tap_fd = max(context['clients_data'].keys())
-        # client socket fd is tap fd plus 1
-        return max_tap_fd + 1
+    try:
+        # close
+        client_data = context['clients_data'].pop(tap_fd)
+        client_data['tap'].close()
+        client_data['s_client'].close()
+        # return the new max fd
+        if len(context['clients_data']) == 0:
+            return context['server_socket'].fileno()
+        else:
+            max_tap_fd = max(context['clients_data'].keys())
+            # client socket fd is tap fd plus 1
+            return max_tap_fd + 1
+    except:
+        traceback.print_exc()
+        return -1
 
 # walt-vpn-server listens on a UNIX socket, and for each client connecting,
 # it has to:

@@ -361,6 +361,10 @@ void server_transmission_loop(int(*on_connect)(), int(*on_disconnect)(int tap_fd
             if (FD_ISSET(fd, &fds)) {
                 if (fd == SERVER_SOCK_FD) {
                     tap_fd = on_connect();
+                    if (tap_fd == -1) {
+                        status = STOPPED_SHOULD_ABORT;
+                        break;
+                    }
                     sock_fd = tap_fd +1;
                     printf("new client tap_fd=%d sock_fd=%d\n", tap_fd, sock_fd);
                     FD_SET(tap_fd, &init_fds);
@@ -414,6 +418,10 @@ void server_transmission_loop(int(*on_connect)(), int(*on_disconnect)(int tap_fd
                             FD_CLR(sock_fd, &fds);
                         }
                         init_max_fd = on_disconnect(tap_fd);
+                        if (init_max_fd == -1) {
+                            status = STOPPED_SHOULD_ABORT;
+                            break;
+                        }
                     }
                 }
             }
