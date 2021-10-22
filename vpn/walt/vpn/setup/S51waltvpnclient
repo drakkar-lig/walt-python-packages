@@ -3,6 +3,8 @@
 # walt-vpn-client       Establishes a vpn to walt server
 #
 
+THIS_SCRIPT="$0"
+CONSOLE="/dev/tty1"     # HDMI console
 DAEMON="walt-vpn-client"
 DAEMON_PATH="$(which $DAEMON)"
 PIDFILE="/var/run/$DAEMON.pid"
@@ -23,10 +25,22 @@ source $CONF
 umask 077
 
 msg() {
-	echo "[walt-vpn-client] $1" | tee /dev/tty0
+	echo "[walt-vpn-client] $1" | tee $CONSOLE
 }
 
 start() {
+    screen -S walt.vpn.client -d -m   \
+            $THIS_SCRIPT internal-screen-command
+    status=$?
+    if [ "$status" -eq 0 ]; then
+        echo "OK"
+    else
+        echo "FAIL"
+    fi
+    return "$status"
+}
+
+screen_command() {
 	while true
 	do
 		eth0_state=$(cat /sys/class/net/eth0/operstate)
@@ -45,7 +59,8 @@ start() {
 		mount -o remount,rw /
 		while true
 		do
-			walt-vpn-setup-credentials --log-file /dev/tty0 --log-prefix "walt-vpn-client" $WALT_VPN_ENTRYPOINT
+			walt-vpn-setup-credentials --log-prefix "walt-vpn-client" $WALT_VPN_ENTRYPOINT | \
+                tee $CONSOLE
 			if [ -f /root/.ssh/id_ecdsa_walt_vpn ]
 			then
 				msg "VPN credentials obtained successfully."
@@ -59,16 +74,9 @@ start() {
 	fi
 
 	msg "Starting vpn client..."
-	start-stop-daemon -S -q -p "$PIDFILE" -a "$DAEMON_PATH" \
-		-- --log-file /dev/tty0 --log-prefix "walt-vpn-client" "$WALT_VPN_ENTRYPOINT"
-	status=$?
-	if [ "$status" -eq 0 ]; then
-		msg "OK"
-	else
-		msg "FAILED"
-	fi
-	return "$status"
+	"$DAEMON_PATH" -f --log-prefix "walt-vpn-client" "$WALT_VPN_ENTRYPOINT" | tee $CONSOLE
 }
+
 stop() {
 	msg 'Stopping vpn client...'
 	start-stop-daemon -K -q -p "$PIDFILE"
@@ -81,6 +89,7 @@ stop() {
 	fi
 	return "$status"
 }
+
 restart() {
 	stop
 	start
@@ -95,6 +104,9 @@ case "$1" in
 	;;
   restart|reload)
 	restart
+	;;
+  internal-screen-command)
+	screen_command
 	;;
   *)
 	echo "Usage: $0 {start|stop|restart}"
