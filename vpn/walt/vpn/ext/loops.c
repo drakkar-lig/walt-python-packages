@@ -406,6 +406,12 @@ void server_transmission_loop(int(*on_connect)(), int(*on_disconnect)(int tap_fd
                                tap_fd, sock_fd, strerror(errno));
                         FD_CLR(tap_fd, &init_fds);
                         FD_CLR(sock_fd, &init_fds);
+                        /* since we continue the loop on fds, avoid catching errors
+                           on next file descriptor sock_fd: it is bound to the same
+                           client which we are disconnecting. */
+                        if (fd == tap_fd) {
+                            FD_CLR(sock_fd, &fds);
+                        }
                         init_max_fd = on_disconnect(tap_fd);
                     }
                 }
