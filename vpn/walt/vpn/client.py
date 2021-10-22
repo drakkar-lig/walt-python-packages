@@ -7,6 +7,7 @@ from walt.vpn.ssh import ssh_with_identity
 from walt.vpn.ext._loops.lib import client_transmission_loop
 from walt.common.constants import UNSECURE_ECDSA_KEYPAIR
 from walt.common.logs import LoggedApplication
+from plumbum import cli
 from pathlib import Path
 from time import time, sleep
 
@@ -17,6 +18,7 @@ if DEBUG:
 
 BRIDGE_INTF = "walt-net"
 VPN_USER = "walt-vpn"
+PID_FILE = '/var/run/walt-vpn-client.pid'
 
 SSH_CONF_DIR = Path.home() / '.ssh'
 PRIV_KEY_FILE = SSH_CONF_DIR / 'id_ecdsa_walt_vpn'
@@ -106,7 +108,7 @@ def setup_credentials(walt_vpn_entrypoint):
         print('OK, new credentials obtained and saved.')
         break
 
-def do_vpn_client(walt_vpn_entrypoint):
+def do_vpn_client(info, walt_vpn_entrypoint):
     # setup credentials if needed
     if not PRIV_KEY_FILE.exists():
         sys.exit("Run the following command once, first: 'walt-vpn-setup-credentials <walt-server>'")
@@ -126,14 +128,15 @@ def do_vpn_client(walt_vpn_entrypoint):
     print('added ' + tap_name + ' to bridge ' + BRIDGE_INTF)
 
     # start loop
-    if DEBUG:
+    if DEBUG or info.foreground:
         print('Running...')
+        Path(PID_FILE).write_text("%d\n" % os.getpid())
         vpn_client_loop(tap, walt_vpn_entrypoint)
     else:
         print('Going to background.')
         with daemon.DaemonContext(
                     files_preserve = [tap],
-                    pidfile = PIDLockFile('/var/run/walt-vpn-client.pid')):
+                    pidfile = PIDLockFile(PID_FILE)):
             vpn_client_loop(tap, walt_vpn_entrypoint)
 
 def vpn_client_loop(tap, walt_vpn_entrypoint):
@@ -155,9 +158,10 @@ def vpn_client_loop(tap, walt_vpn_entrypoint):
 
 class WalTVPNClient(LoggedApplication):
     """Establish the VPN up to walt server"""
+    foreground = cli.Flag(["f", "foreground"], help = "Run in foreground")
     def main(self, walt_vpn_entrypoint):
         self.init_logs()
-        do_vpn_client(walt_vpn_entrypoint)
+        do_vpn_client(self, walt_vpn_entrypoint)
 
 def vpn_client():
     WalTVPNClient.run()
