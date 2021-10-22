@@ -12,7 +12,7 @@ from pathlib import Path
 
 OS_ENCODING = sys.stdout.encoding
 HOST_CPU = platform.machine()
-VNODE_PID_PATH = '/var/lib/walt/nodes/%(mac)s/pid'
+VNODE_DEFAULT_PID_PATH = '/var/lib/walt/nodes/%(mac)s/pid'
 VNODE_SCREEN_SESSION_PATH = '/var/lib/walt/nodes/%(mac)s/screen_session'
 
 # the following values have been selected from output of
@@ -139,8 +139,11 @@ def random_wait():
         time.sleep(1)
         delay -= 1
 
-def save_pid(mac):
-    pid_path = Path(VNODE_PID_PATH % dict(mac = mac))
+def save_pid(info):
+    pid_path = info._pid_path
+    if pid_path is None:
+        pid_path = VNODE_DEFAULT_PID_PATH % dict(mac = info._mac)
+    pid_path = Path(pid_path)
     pid_path.parent.mkdir(parents=True, exist_ok=True)
     pid_path.write_text("%d\n" % getpid())
 
@@ -152,7 +155,7 @@ def save_screen_session(mac):
 
 def node_loop(info):
     random.seed()
-    save_pid(info._mac)
+    save_pid(info)
     save_screen_session(info._mac)
     try:
         while True:
@@ -170,6 +173,7 @@ class WalTVirtualNode(LoggedApplication):
     _udhcpc = False         # default
     _attach_usb = False     # default
     _reboot_command = None  # default
+    _pid_path = None        # default
     _cpu_cores = DEFAULT_QEMU_CORES
     _ram = DEFAULT_QEMU_RAM
 
@@ -177,6 +181,11 @@ class WalTVirtualNode(LoggedApplication):
     def main(self):
         self.init_logs()
         node_loop(self)
+
+    @cli.switch("--pid-path", str)
+    def set_pid_path(self, pid_path):
+        """Set pid file path"""
+        self._pid_path = pid_path
 
     @cli.switch("--attach-usb")
     def set_attach_usb(self):
