@@ -39,7 +39,8 @@ void redirect_sigint() {
     sigaction(SIGINT, &sigact, &old_sigact);
 }
 
-#define write_stderr(msg) write(2, msg, strlen(msg))
+/* note: ternary op in this macro is just here to avoid warn unused result */
+#define write_stderr(msg) (void)(write(2, msg, strlen(msg))?1:0)
 
 static inline int read_fd_once(int fd, unsigned char *start, ssize_t max_size,
                                  ssize_t *out_length, char *fd_label) {
