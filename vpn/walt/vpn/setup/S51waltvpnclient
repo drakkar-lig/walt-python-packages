@@ -9,6 +9,7 @@ DAEMON="walt-vpn-client"
 DAEMON_PATH="$(which $DAEMON)"
 PIDFILE="/var/run/$DAEMON.pid"
 CONF=/etc/default/walt-vpn-node
+WRITEFS="writefs"
 export HOME=/root
 
 # Make sure the conf is OK
@@ -56,15 +57,13 @@ screen_command() {
 	if [ ! -f /root/.ssh/id_ecdsa_walt_vpn ]
 	then
 		msg "Setting up VPN credentials with walt server..."
-		mount -o remount,rw /
 		while true
 		do
-			walt-vpn-setup-credentials --log-prefix "walt-vpn-client" $WALT_VPN_ENTRYPOINT | \
+			$WRITEFS walt-vpn-setup-credentials --log-prefix "walt-vpn-client" $WALT_VPN_ENTRYPOINT | \
                 tee $CONSOLE
 			if [ -f /root/.ssh/id_ecdsa_walt_vpn ]
 			then
 				msg "VPN credentials obtained successfully."
-				mount -o remount,ro /
 				break
 			else
 				msg "Could not get VPN credentials. Will retry in a few seconds."
