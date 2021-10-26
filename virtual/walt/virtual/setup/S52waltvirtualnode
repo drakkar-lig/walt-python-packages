@@ -46,6 +46,7 @@ start() {
                               --on-vm-reboot 'reboot' \
                               --log-file $CONSOLE \
                               --pid-path "/var/run/walt-virtual-node.pid" \
+                              --screen-session-path "/var/run/walt-virtual-node.screen" \
                               --log-prefix "walt-virtual-node"
     status=$?
     if [ "$status" -eq 0 ]; then
