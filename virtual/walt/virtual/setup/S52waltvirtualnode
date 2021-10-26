@@ -5,6 +5,7 @@
 
 CONF=/etc/default/walt-vpn-node
 CONSOLE=/dev/tty1    # HDMI console
+WRITEFS="writefs"
 
 msg() {
 	echo "[walt-virtual-node] $1" | tee $CONSOLE
@@ -24,9 +25,7 @@ source $CONF
 [ -z "$WALT_VIRTUAL_NODE_MAC" ] && {
     # generate and save random mac address for virtual node
     WALT_VIRTUAL_NODE_MAC="$(printf '52:54:00:%02x:%02x:%02x' $((RANDOM%256)) $((RANDOM%256)) $((RANDOM%256)))"
-    mount -o remount,rw /
-    echo "WALT_VIRTUAL_NODE_MAC='$WALT_VIRTUAL_NODE_MAC'" >> $CONF
-    mount -o remount,ro /
+    echo "WALT_VIRTUAL_NODE_MAC='$WALT_VIRTUAL_NODE_MAC'" | $WRITEFS tee -a $CONF
 }
 
 umask 077
