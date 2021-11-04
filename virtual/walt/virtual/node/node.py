@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import sys, subprocess, time, random, platform, re, atexit, signal, shlex
+import sys, subprocess, time, random, platform, re, atexit, signal, shlex, shutil
 from os import getpid, getenv
 from contextlib import contextmanager
 from walt.common.apilink import ServerAPILink
@@ -14,6 +14,8 @@ OS_ENCODING = sys.stdout.encoding
 HOST_CPU = platform.machine()
 VNODE_DEFAULT_PID_PATH = '/var/lib/walt/nodes/%(mac)s/pid'
 VNODE_DEFAULT_SCREEN_SESSION_PATH = '/var/lib/walt/nodes/%(mac)s/screen_session'
+VNODE_IFUP_SCRIPT = shutil.which('walt-vnode-ifup')
+VNODE_IFDOWN_SCRIPT = shutil.which('walt-vnode-ifdown')
 
 # the following values have been selected from output of
 # qemu-system-<host-cpu> -machine help
@@ -39,7 +41,8 @@ QEMU_ARGS = QEMU_PROG + " \
                 -smp %(cpu-cores)d \
                 -name %(name)s \
                 -nographic \
-                -netdev bridge,br=walt-net,id=mynet \
+                -netdev type=tap,id=mynet,vhost=on," + \
+                       "script=" + VNODE_IFUP_SCRIPT + ",downscript=" + VNODE_IFDOWN_SCRIPT + " \
                 -device " + QEMU_NET_DRIVER + ",mac=%(mac)s,netdev=mynet \
                 -serial mon:stdio \
                 -no-reboot \
