@@ -41,7 +41,7 @@ start() {
             walt-virtual-node --attach-usb \
                               --net-conf-udhcpc \
                               --mac $WALT_VIRTUAL_NODE_MAC \
-                              --model qemu-arm \
+                              --model qemu-arm-64 \
                               --on-vm-reboot 'reboot' \
                               --log-file $CONSOLE \
                               --pid-path "/var/run/walt-virtual-node.pid" \

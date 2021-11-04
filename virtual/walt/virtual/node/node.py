@@ -22,10 +22,21 @@ VNODE_IFDOWN_SCRIPT = shutil.which('walt-vnode-ifdown')
 if HOST_CPU == 'x86_64':
     QEMU_MACHINE_DEF = '-machine pc -cpu host'
     QEMU_PRODUCT     = 'Standard PC (i440FX + PIIX, 1996)'
+    QEMU_APPEND      = ''
     QEMU_NET_DRIVER  = 'virtio-net-pci'
 elif HOST_CPU == 'aarch64':
-    QEMU_MACHINE_DEF = '-machine virt-3.1 -machine highmem=off -cpu host,aarch64=off' # we use 32-bits mode
-    QEMU_PRODUCT     = 'QEMU 3.1 ARM Virtual Machine'
+    # notes:
+    # * the following allows to boot a 64-bit guest kernel, while still maintaining the
+    #   possiblity for the userspace to be either 32-bit (thus compatible with raspbian
+    #   based walt images) or 64-bit.
+    # * old definition for 32-bits mode kernel only (i.e. walt.node.qemu-arm-32) was:
+    #   QEMU_MACHINE_DEF = '-machine virt-6.0 -machine highmem=off -cpu host,aarch64=off'
+    # * "sysctl.abi.cp15_barrier=2 sysctl.abi.setend=2" allow to let these obsolete ARM
+    #   instructions be run by the CPU with no emulation nor warnings (they are in use
+    #   by some 32-bit arm programs)
+    QEMU_MACHINE_DEF = '-machine virt-6.0 -cpu host'
+    QEMU_PRODUCT     = 'QEMU 6.0 ARM Virtual Machine'
+    QEMU_APPEND      = 'sysctl.abi.cp15_barrier=2 sysctl.abi.setend=2'
     QEMU_NET_DRIVER  = 'virtio-net-device'
 else:
     raise Exception('Unknown host CPU: ' + HOST_CPU)
@@ -108,7 +119,9 @@ def boot_kvm(env):
         qemu_args += ' ' + get_qemu_usb_args()
     if 'boot-initrd' in env:
         qemu_args += ' -initrd %(boot-initrd)s'
-    if 'boot-kernel-cmdline' in env:
+    env['boot-kernel-cmdline'] = env.get('boot-kernel-cmdline', '') + ' ' + \
+                                 QEMU_APPEND
+    if len(env['boot-kernel-cmdline'].strip()) > 0:
         qemu_args += " -append '%(boot-kernel-cmdline)s'"
     cmd = qemu_args % env
     print(' '.join(cmd.split()))  # print with multiple spaces shrinked
