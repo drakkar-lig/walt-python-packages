@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 from time import time
 
-from walt.common.tools import do, failsafe_makedirs
+from walt.common.tools import do
 from walt.server.const import SSH_COMMAND
 from walt.server.threads.main.filesystem import Filesystem
 from walt.server.threads.main.network.netsetup import NetSetup
@@ -218,10 +218,6 @@ class NodesManager(object):
         return free_mac, free_ip, 'pc-x86-64'
 
     def start_vnode(self, node):
-        if not os.path.exists('/etc/qemu/bridge.conf'):
-            failsafe_makedirs('/etc/qemu')
-            with open('/etc/qemu/bridge.conf', 'w') as f:
-                f.write('allow walt-net\n')
         # in case a screen session already exists for this vnode
         # (e.g. walt server process was killed), kill it
         self.try_kill_vnode(node.mac)

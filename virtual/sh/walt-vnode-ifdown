@@ -1,0 +1,5 @@
+#!/bin/sh
+set -x
+
+# set tap device down
+ip link set down dev "$1"

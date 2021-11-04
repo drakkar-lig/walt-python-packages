@@ -1,0 +1,11 @@
+#!/bin/sh
+
+set -x
+
+# ensure vhost-net kernel module is loaded
+
+modprobe vhost_net
+
+# set tap device up and add it to walt-net bridge
+
+ip link set up master walt-net dev "$1"
