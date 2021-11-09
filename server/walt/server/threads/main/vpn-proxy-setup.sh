@@ -33,7 +33,7 @@ echo "Creating file /home/walt-vpn/.ssh/authorized_keys"
 mkdir -p /home/walt-vpn/.ssh
 cat > /home/walt-vpn/.ssh/authorized_keys << EOF
 # walt VPN secured access
-cert-authority,restrict,agent-forwarding,command="ssh -q -T -A -o PreferredAuthentications=publickey -o ConnectTimeout=10 walt-vpn@$walt_host" %(ca_pub_key)s
+cert-authority,restrict,agent-forwarding,command="ssh -q -T -A -o PreferredAuthentications=publickey -o ConnectTimeout=10 walt-vpn@$walt_host \$SSH_ORIGINAL_COMMAND" %(ca_pub_key)s
 # walt VPN authentication step
 restrict,agent-forwarding,command="ssh -T -q -A -o PreferredAuthentications=publickey -o StrictHostKeyChecking=no -o ConnectTimeout=10 walt-vpn@$walt_host \$SSH_ORIGINAL_COMMAND" %(unsecure_pub_key)s
 EOF

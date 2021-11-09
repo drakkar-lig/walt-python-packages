@@ -1,15 +1,15 @@
-import os, os.path, sys, shlex, struct, daemon
+import os, os.path, sys, shlex, struct, daemon, secrets, traceback
 from daemon.pidfile import PIDLockFile
 from subprocess import check_call, check_output, Popen, PIPE, TimeoutExpired, run, DEVNULL
 from select import select
-from walt.vpn.tools import createtap, read_n, enable_debug, debug
+from walt.vpn.tools import createtap, read_n, enable_debug, debug, readline_unbuffered
 from walt.vpn.ssh import ssh_with_identity
 from walt.vpn.ext._loops.lib import client_transmission_loop
 from walt.common.constants import UNSECURE_ECDSA_KEYPAIR
 from walt.common.logs import LoggedApplication
 from plumbum import cli
 from pathlib import Path
-from time import time, sleep
+from time import sleep
 
 DEBUG = False
 
@@ -129,7 +129,6 @@ def do_vpn_client(info, walt_vpn_entrypoint):
 
     # start loop
     if DEBUG or info.foreground:
-        print('Running...')
         Path(PID_FILE).write_text("%d\n" % os.getpid())
         vpn_client_loop(tap, walt_vpn_entrypoint)
     else:
@@ -140,19 +139,44 @@ def do_vpn_client(info, walt_vpn_entrypoint):
             vpn_client_loop(tap, walt_vpn_entrypoint)
 
 def vpn_client_loop(tap, walt_vpn_entrypoint):
+    client_id = secrets.token_hex(8)
     while True:
         # Start the command to connect to server
-        popen = Popen(ssh_with_identity(
-                    str(PRIV_KEY_FILE),
-                    SSH_VPN_COMMAND.strip() % dict(
-                        connect_timeout = SSH_CONNECT_TIMEOUT,
-                        priv_key = str(PRIV_KEY_FILE),
-                        walt_vpn_entrypoint = walt_vpn_entrypoint
-                    )), stdin=PIPE, stdout=PIPE, bufsize=0)
-        # transmit packets
-        should_continue = client_transmission_loop(popen.stdin.fileno(),
-                                                   popen.stdout.fileno(),
-                                                   tap.fileno())
+        popens = []
+        args = ()
+        try:
+            for channel_type in ('lengths', 'packets'):
+                popen = Popen(ssh_with_identity(
+                        str(PRIV_KEY_FILE),
+                        SSH_VPN_COMMAND.strip() % dict(
+                            connect_timeout = SSH_CONNECT_TIMEOUT,
+                            priv_key = str(PRIV_KEY_FILE),
+                            walt_vpn_entrypoint = walt_vpn_entrypoint
+                        )), stdin=PIPE, stdout=PIPE, bufsize=0)
+                popens.append(popen)
+                args += (popen.stdin.fileno(), popen.stdout.fileno())
+                # server sends a line to indicate VPN protocol version
+                # we ignore it since this code only handles initial version 1 for now
+                readline_unbuffered(popen.stdout.fileno())
+                header = f"SETUP CLIENT_ID {client_id} ENDPOINT_MODE {channel_type}\n" + \
+                          "RUN\n"
+                popen.stdin.write(header.encode("ASCII"))
+            args += (tap.fileno(),)
+            # transmit packets
+            print()
+            print('-- ready! --')
+            print('now transfering packets.')
+            should_continue = client_transmission_loop(*args)
+        except KeyboardInterrupt:
+            raise
+        except:
+            traceback.print_exc()
+            print('Trying to reconnect in a few seconds...')
+            sleep(5)
+            should_continue = True
+        # call wait() on subprocesses
+        for popen in popens:
+            popen.wait()
         if not should_continue:
             break
 

@@ -2,8 +2,8 @@ from cffi import FFI
 ffibuilder = FFI()
 
 PROTOTYPES = """
-int client_transmission_loop(int ssh_stdin, int ssh_stdout, int tap_fd);
-void endpoint_transmission_loop(int sock_fd);
+int client_transmission_loop(int lengths_stdin, int lengths_stdout,
+                             int packets_stdin, int packets_stdout, int tap_fd);
 void server_transmission_loop(int(*on_connect)(), int(*on_disconnect)(int));
 """
 

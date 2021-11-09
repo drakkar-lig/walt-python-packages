@@ -37,7 +37,7 @@ WALT_VPN_USER = dict(
     home_dir = Path("/var/lib/walt/vpn"),
     authorized_keys_pattern = """
 # walt VPN secured access
-cert-authority,restrict,command="walt-vpn-endpoint" %(ca_pub_key)s
+cert-authority,restrict,command="walt-vpn-endpoint $SSH_ORIGINAL_COMMAND" %(ca_pub_key)s
 # walt VPN authentication step
 restrict,command="walt-vpn-auth-tool $SSH_ORIGINAL_COMMAND" %(unsecure_pub_key)s
 """)

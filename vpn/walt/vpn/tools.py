@@ -32,6 +32,17 @@ def read_n(fd, n):
         buf += chunk
     return buf
 
+def readline_unbuffered(fd):
+    line = b''
+    while True:
+        c = os.read(fd, 1)
+        if c == b'\n':
+            break
+        if c == b'':
+            raise EOFError
+        line += c
+    return line.decode("ASCII")
+
 DEBUG_OUT = None
 
 def enable_debug(out = sys.stdout):

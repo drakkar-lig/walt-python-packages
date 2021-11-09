@@ -1,7 +1,9 @@
+#define _GNU_SOURCE
 #include <sys/select.h>
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/uio.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -14,6 +16,13 @@
 
 #define MIN(i, j) (((i) > (j))?(j):(i))
 #define MAX(i, j) (((i) > (j))?(i):(j))
+
+//#define DEBUG
+#ifdef DEBUG
+#define debug_printf printf
+#else
+#define debug_printf(...)   /* do nothing */
+#endif
 
 static struct sigaction old_sigact;
 static enum {
@@ -45,6 +54,7 @@ void redirect_sigint() {
 static inline int read_fd_once(int fd, unsigned char *start, ssize_t max_size,
                                  ssize_t *out_length, char *fd_label) {
     ssize_t sres;
+    debug_printf("read fd=%d max_size=%ld\n", fd, max_size);
     sres = read(fd, start, max_size);
     if (sres < 1) {
         if (fd_label) {
@@ -86,6 +96,7 @@ static inline int write_fd(int fd, unsigned char *start, unsigned char *end,
                             char *fd_label) {
     ssize_t sres;
     while (start < end) {
+        debug_printf("write fd=%d max_size=%ld\n", fd, end - start);
         sres = write(fd, start, end - start);
         if (fd_label) {
             if (sres == 0) {
@@ -104,17 +115,10 @@ static inline int write_fd(int fd, unsigned char *start, unsigned char *end,
     return 0;
 }
 
-#define ETHERNET_MAX_SIZE   1514
-#define BUFFER_SIZE_BITS    16
-#define BUFFER_SIZE         (1<<BUFFER_SIZE_BITS)
-#define BUFFER_LOOP_LIMIT_2 (BUFFER_SIZE - LENGTH_SIZE - ETHERNET_MAX_SIZE)
-#define BUFFER_LOOP_LIMIT_1 (BUFFER_LOOP_LIMIT_2 - LENGTH_SIZE - ETHERNET_MAX_SIZE)
-#define LENGTH_SIZE         2         /* size to encode packet length */
-#define PACKET_BUFFER_SIZE  (LENGTH_SIZE + ETHERNET_MAX_SIZE)
-
 /* packet length is encoded as 2 bytes, big endian */
+#define PARSE_LEN_BIG_ENDIAN(i1, i0) (((i1)<<8) + (i0))
 static inline ssize_t compute_packet_len(unsigned char *len_pos) {
-    return ((*len_pos) << 8) + *(len_pos+1);
+    return PARSE_LEN_BIG_ENDIAN(*len_pos, *(len_pos+1));
 }
 
 static inline void store_packet_len(unsigned char *len_pos, ssize_t sres) {
@@ -122,36 +126,152 @@ static inline void store_packet_len(unsigned char *len_pos, ssize_t sres) {
     len_pos[1] = (unsigned char)(sres & 0xff);
 }
 
-int client_transmission_loop(int ssh_stdin, int ssh_stdout, int tap_fd) {
-    unsigned char *buf_tap_to_ssh, *buf_ssh_to_tap, *pos_tap_to_ssh,
-                  *len_pos_ssh_to_tap, *read_pos_ssh_to_tap, *limit1_ssh_to_tap,
-                  *limit2_ssh_to_tap, *end_packet;
-    int res, max_fd;
-    ssize_t sres, packet_len, read_len_ssh_to_tap, max_read;
-    fd_set fds, init_fds;
+typedef struct {
+    int size;
+    int level;
+    unsigned char *buf;
+    unsigned char *buf_end;
+    unsigned char *fill_pos;
+    unsigned char *flush_pos;
+} circular_buffer_t;
 
-    /* when reading on tap, 1 read() means 1 packet */
-    buf_tap_to_ssh = malloc((LENGTH_SIZE + ETHERNET_MAX_SIZE) * sizeof(unsigned char));
-    pos_tap_to_ssh = buf_tap_to_ssh + LENGTH_SIZE;
+int cbuf_setup(circular_buffer_t *cbuf, int size) {
+    cbuf->size = size;
+    cbuf->level = 0;
+    cbuf->buf = malloc(sizeof(unsigned char) * size);
+    if (cbuf->buf == NULL) {
+        return -1;
+    }
+    cbuf->buf_end = cbuf->buf + size;
+    cbuf->fill_pos = cbuf->buf;
+    cbuf->flush_pos = cbuf->buf;
+    return 0;
+}
+
+void cbuf_release(circular_buffer_t *cbuf) {
+    free(cbuf->buf);
+}
+
+int cbuf_fill(circular_buffer_t *cbuf, int fd_in) {
+    int read_size, iov_idx = 0;
+    struct iovec iov[2];
+    if (cbuf->fill_pos < cbuf->flush_pos) {
+        read_size = read(fd_in, cbuf->fill_pos, cbuf->flush_pos - cbuf->fill_pos);
+    }
+    else {
+        if (cbuf->fill_pos < cbuf->buf_end) {
+            iov[iov_idx].iov_base = cbuf->fill_pos;
+            iov[iov_idx].iov_len = cbuf->buf_end - cbuf->fill_pos;
+            iov_idx += 1;
+        }
+        if (cbuf->buf < cbuf->flush_pos) {
+            iov[iov_idx].iov_base = cbuf->buf;
+            iov[iov_idx].iov_len = cbuf->flush_pos - cbuf->buf;
+            iov_idx += 1;
+        }
+        read_size = readv(fd_in, iov, iov_idx);
+    }
+    if (read_size == -1) {
+        return -1;
+    }
+    cbuf->fill_pos += read_size;
+    if (cbuf->fill_pos >= cbuf->buf_end) {
+        cbuf->fill_pos -= cbuf->size;
+    }
+    cbuf->level += read_size;
+    return 0;
+}
+
+int cbuf_flush(circular_buffer_t *cbuf, int size, int fd_out) {
+    int write_size, iov_idx = 0;
+    struct iovec iov[2];
+    if (cbuf->fill_pos > cbuf->flush_pos) {
+        write_size = write(fd_out, cbuf->flush_pos, size);
+    }
+    else {
+        iov[iov_idx].iov_base = cbuf->flush_pos;
+        if (size <= cbuf->buf_end - cbuf->flush_pos) {
+            iov[iov_idx].iov_len = size;
+        }
+        else {
+            iov[iov_idx].iov_len = cbuf->buf_end - cbuf->flush_pos;
+        }
+        size -= iov[iov_idx].iov_len;
+        iov_idx += 1;
+        if (size > 0) {
+            iov[iov_idx].iov_base = cbuf->buf;
+            iov[iov_idx].iov_len = size;
+            iov_idx += 1;
+        }
+        write_size = writev(fd_out, iov, iov_idx);
+    }
+    if (write_size == -1) {
+        return -1;
+    }
+    cbuf->flush_pos += write_size;
+    if (cbuf->flush_pos >= cbuf->buf_end) {
+        cbuf->flush_pos -= cbuf->size;
+    }
+    cbuf->level -= write_size;
+    return 0;
+}
+
+void cbuf_pass(circular_buffer_t *cbuf, int shift) {
+    cbuf->flush_pos += shift;
+    if (cbuf->flush_pos >= cbuf->buf_end) {
+        cbuf->flush_pos -= cbuf->size;
+    }
+    cbuf->level -= shift;
+}
+
+int cbuf_peek_big_endian_short(circular_buffer_t *cbuf) {
+    int i1 = *(cbuf->flush_pos), i0;
+    if (cbuf->flush_pos + 1 == cbuf->buf_end) {
+        i0 = *(cbuf->buf);
+    }
+    else {
+        i0 = *(cbuf->flush_pos + 1);
+    }
+    return (i1 << 8) + i0;
+}
+
+int cbuf_empty(circular_buffer_t *cbuf) {
+    return (cbuf->level == 0);
+}
+
+int cbuf_full(circular_buffer_t *cbuf) {
+    return (cbuf->level == cbuf->size);
+}
+
+#define ETHERNET_MAX_SIZE   1514
+#define BUFFER_LENGTHS_SIZE 256
+#define LENGTH_SIZE         2         /* size to encode packet length */
+#define BUFFER_PACKETS_SIZE (ETHERNET_MAX_SIZE << 5)    /* 32 times ETHERNET_MAX_SIZE */
+
+int client_transmission_loop(int lengths_stdin, int lengths_stdout,
+                             int packets_stdin, int packets_stdout, int tap_fd) {
+    unsigned char buf_packet[ETHERNET_MAX_SIZE], buf_len[LENGTH_SIZE];
+    int res, max_fd;
+    ssize_t packet_len;
+    fd_set fds, init_fds;
+    circular_buffer_t lengths_buf, packets_buf;
+
     /* when reading on ssh stdout, we are reading a continuous flow */
-    buf_ssh_to_tap = malloc(BUFFER_SIZE * sizeof(unsigned char));
-    read_len_ssh_to_tap = 0;
-    len_pos_ssh_to_tap = buf_ssh_to_tap;
-    read_pos_ssh_to_tap = buf_ssh_to_tap;
-    limit1_ssh_to_tap = buf_ssh_to_tap + BUFFER_LOOP_LIMIT_1;
-    limit2_ssh_to_tap = buf_ssh_to_tap + BUFFER_LOOP_LIMIT_2;
+    cbuf_setup(&lengths_buf, BUFFER_LENGTHS_SIZE);
+    cbuf_setup(&packets_buf, BUFFER_PACKETS_SIZE);
 
     redirect_sigint();
 
     FD_ZERO(&init_fds);
-    FD_SET(ssh_stdout, &init_fds);
+    FD_SET(lengths_stdout, &init_fds);
+    FD_SET(packets_stdout, &init_fds);
     FD_SET(tap_fd, &init_fds);
-    max_fd = MAX(ssh_stdout, tap_fd) + 1;
+    max_fd = MAX(MAX(lengths_stdout, packets_stdout), tap_fd) + 1;
 
     /* start select loop
        we will:
-       * transfer packets coming from the tap interface to ssh stdin
-       * transfer packets coming from ssh stdout to the tap interface
+       * transfer packets coming from the tap interface to packets_stdin & lengths_stdin
+       * transfer packets coming from packets_stdout & lengths_stdout to the tap interface
     */
     status = RUNNING;
     while (status == RUNNING) {
@@ -163,139 +283,77 @@ int client_transmission_loop(int ssh_stdin, int ssh_stdout, int tap_fd) {
             break;
         }
         if (FD_ISSET(tap_fd, &fds)) {
-            /* read new packet on tap */
-            res = read_fd_once(tap_fd, pos_tap_to_ssh, ETHERNET_MAX_SIZE, &sres,
-                             "tap");
-            if (res == -1) {
-                status = STOPPED_SHOULD_ABORT;
-                break;
-            }
-            /* prefix packet length as 2 bytes, big endian */
-            store_packet_len(buf_tap_to_ssh, sres);
-            /* write packet to ssh stdin */
-            res = write_fd(ssh_stdin, buf_tap_to_ssh, pos_tap_to_ssh + sres,
-                              "ssh channel");
+            /* when reading on tap, 1 read() means 1 packet */
+            res = read_fd_once(tap_fd, buf_packet, ETHERNET_MAX_SIZE, &packet_len, "tap");
             if (res == -1) {
                 status = STOPPED_SHOULD_REINIT;
                 break;
             }
+            /* write packet len */
+            store_packet_len(buf_len, packet_len);
+            res = write_fd(lengths_stdin, buf_len, buf_len + LENGTH_SIZE,
+                              "ssh lengths channel");
+            if (res == -1) {
+                status = STOPPED_SHOULD_REINIT;
+                break;
+            }
+            /* write packet content */
+            res = write_fd(packets_stdin, buf_packet, buf_packet + packet_len, "ssh packets channel");
+            if (res == -1) {
+                status = STOPPED_SHOULD_REINIT;
+                break;
+            }
+        }
+        else if (FD_ISSET(lengths_stdout, &fds)) {
+            debug_printf("lengths_stdout input\n");
+            cbuf_fill(&lengths_buf, lengths_stdout);
+        }
+        else {  // packets_stdout fd is set
+            debug_printf("packets_stdout input\n");
+            cbuf_fill(&packets_buf, packets_stdout);
+        }
+
+        /* write all complete packets to tap */
+        while ((lengths_buf.level >= LENGTH_SIZE) && (packets_buf.level > 0)) {
+            packet_len = cbuf_peek_big_endian_short(&lengths_buf);
+            if (packets_buf.level < packet_len) {
+                break; // packet not fully obtained
+            }
+            /* write packet on tap */
+            cbuf_flush(&packets_buf, packet_len, tap_fd);
+            /* pass packet length */
+            cbuf_pass(&lengths_buf, LENGTH_SIZE);
+        }
+
+        /* stop reading when a buffer is full */
+        if (cbuf_full(&lengths_buf)) {
+            FD_CLR(lengths_stdout, &init_fds);
         }
         else {
-            /* we have to read network packets from ssh stdout, but these come as a
-             * continuous data flow, and we have to write them on a tap interface,
-             * with one write() per packet.
-             * for efficiency, we read ssh stdout data into a buffer, which means
-             * we read several packets at once, and reads might not be on packet
-             * boundaries.
-             * "several packets at once" means we set the maximum read size to match
-             * the end of the buffer minus the maximum packet size. ("limit 2")
-             * when getting near the end of the buffer, we handle the last packet
-             * differently: we ensure we will not read beyond the end of this packet.
-             * then, for next packets, we can resume the process from the start of
-             * the buffer.
-             * "near the end of the buffer" means twice the maximum packet size from
-             * the end. ("limit 1") */
-            if (read_pos_ssh_to_tap < limit1_ssh_to_tap) {   // read standard packet
-                max_read = limit2_ssh_to_tap - read_pos_ssh_to_tap;
-            }
-            else if (read_len_ssh_to_tap < LENGTH_SIZE) {   // read length of last packet in buffer
-                max_read = LENGTH_SIZE - read_len_ssh_to_tap;
-            }
-            else {  // read data of last packet in buffer
-                packet_len = compute_packet_len(len_pos_ssh_to_tap);
-                max_read = LENGTH_SIZE + packet_len - read_len_ssh_to_tap;
-            }
+            FD_SET(lengths_stdout, &init_fds);
+        }
 
-            res = read_fd_once(ssh_stdout, read_pos_ssh_to_tap, max_read,
-                         &sres, "ssh channel");
-            if (res == -1) {
-                status = STOPPED_SHOULD_REINIT;
-                break;
-            }
-
-            read_len_ssh_to_tap += sres;
-            read_pos_ssh_to_tap += sres;
-
-            /* write all complete packets to tap */
-            while (1) {
-                if (read_len_ssh_to_tap < LENGTH_SIZE) {
-                    break;  // not enough data
-                }
-
-                packet_len = compute_packet_len(len_pos_ssh_to_tap);
-                if (read_len_ssh_to_tap < LENGTH_SIZE + packet_len) {
-                    break;  // not enough data
-                }
-
-                /* write packet on tap */
-                end_packet = len_pos_ssh_to_tap + LENGTH_SIZE + packet_len;
-                res = write_fd(tap_fd, len_pos_ssh_to_tap + LENGTH_SIZE, end_packet,
-                                  "tap");
-                if (res == -1) {
-                    status = STOPPED_SHOULD_ABORT;
-                    break;
-                }
-
-                /* update pointers for next packet */
-                read_len_ssh_to_tap -= LENGTH_SIZE + packet_len;
-                if (read_len_ssh_to_tap == 0) {
-                    /* we have read up to the packet boundary
-                     * => we can return to the start of the buffer */
-                    read_pos_ssh_to_tap = buf_ssh_to_tap;
-                    len_pos_ssh_to_tap = buf_ssh_to_tap;
-                }
-                else {
-                    /* jump to next packet */
-                    len_pos_ssh_to_tap += LENGTH_SIZE + packet_len;
-                }
-            }
+        if (cbuf_full(&packets_buf)) {
+            FD_CLR(packets_stdout, &init_fds);
+        }
+        else {
+            FD_SET(packets_stdout, &init_fds);
         }
     }
-    free(buf_tap_to_ssh);
-    free(buf_ssh_to_tap);
+    cbuf_release(&lengths_buf);
+    cbuf_release(&packets_buf);
     assert(status != RUNNING);
     return (status == STOPPED_SHOULD_REINIT);
 }
 
-#define ENDPOINT_STDIN  0
-#define ENDPOINT_STDOUT 1
-
-void endpoint_transmission_loop(int sock_fd) {
-    int res, max_fd;
-    fd_set fds;
-
-    redirect_sigint();
-
-    FD_ZERO(&fds);
-    FD_SET(ENDPOINT_STDIN, &fds);
-    FD_SET(ENDPOINT_STDOUT, &fds);
-    FD_SET(sock_fd, &fds);
-    max_fd = sock_fd + 1;
-
-    /* file descriptors were transmitted to VPN server
-       through UNIX socket ancilliary data.
-       we just monitor them until an error occurs.
-    */
-    res = select(max_fd, NULL, NULL, &fds /* error set */, NULL);
-    if (res < 1) {
-        perror("select error");
-    }
-    else {
-        write_stderr("error detected on a file descriptor, stopping.\n");
-    }
-}
-
 #define SERVER_SOCK_FD  3
-//#define DEBUG
-#ifdef DEBUG
-#define debug_printf printf
-#else
-#define debug_printf(...)   /* do nothing */
-#endif
+#define PACKET_BUFFER_SIZE  (LENGTH_SIZE + ETHERNET_MAX_SIZE)
 
 void server_transmission_loop(int(*on_connect)(), int(*on_disconnect)(int tap_fd)) {
     unsigned char *buf, *packet;
-    int res, max_fd, init_max_fd, fd, sock_fd, tap_fd, ep_stdin_fd, ep_stdout_fd;
+    unsigned char buf_len[LENGTH_SIZE];
+    int res, max_fd, init_max_fd, fd, tap_fd, ep_lengths_stdin_fd, ep_lengths_stdout_fd,
+        ep_packets_stdin_fd, ep_packets_stdout_fd;
     ssize_t packet_len;
     fd_set fds, init_fds;
 
@@ -309,19 +367,10 @@ void server_transmission_loop(int(*on_connect)(), int(*on_disconnect)(int tap_fd
     init_max_fd = SERVER_SOCK_FD;
 
     /* start select loop
-       we will just:
-       * accept all client endpoints that connect to /var/run/walt-vpn.sock
-       * for each client endpoint create a tap and add it to walt-net
-       * transfer packets coming from client stdin to the corresponding tap interface
-       * transfer packets coming from a tap interface to the corresponding client stdout
-       client code management is delegated to python using on_connect() and on_disconnect()
-       callbacks.
-       python code ensures that:
-       * the tap fd of each client endpoint is a multiple of 4
-       * the socket fd of each client endpoint is tap_fd + 1
-       * the stdin of each client endpoint is tap_fd + 2
-       * the stdout of each client endpoint is tap_fd + 3
-    */
+     * python handles the smart part of the code and ensures that
+     * each client is associated with a range of 8 consecutive file descriptors.
+     * see comment on top of server.py */
+
     status = RUNNING;
     while (status == RUNNING) {
         fds = init_fds;
@@ -340,42 +389,48 @@ void server_transmission_loop(int(*on_connect)(), int(*on_disconnect)(int tap_fd
                         status = STOPPED_SHOULD_ABORT;
                         break;
                     }
-                    sock_fd = tap_fd +1;
-                    ep_stdin_fd = tap_fd +2;
-                    ep_stdout_fd = tap_fd +3;
-                    printf("new client tap_fd=%d sock_fd=%d ep_stdin_fd=%d ep_stdout_fd=%d\n",
-                            tap_fd, sock_fd, ep_stdin_fd, ep_stdout_fd);
+                    if (tap_fd == 0) {
+                        /* we got 1st client stream, we need the 2nd one,
+                         * nothing to do for now */
+                        continue;
+                    }
+                    ep_lengths_stdin_fd = tap_fd +1;
+                    ep_packets_stdin_fd = tap_fd +4;
+                    printf("new client tap_fd=%d\n", tap_fd);
                     FD_SET(tap_fd, &init_fds);
-                    FD_SET(ep_stdin_fd, &init_fds);
-                    if (ep_stdin_fd > init_max_fd) {
-                        init_max_fd = ep_stdin_fd;
+                    FD_SET(ep_lengths_stdin_fd, &init_fds);
+                    if (ep_packets_stdin_fd > init_max_fd) {
+                        init_max_fd = ep_packets_stdin_fd;
                     }
                 }
                 else {
                     debug_printf("event on fd=%d\n", fd);
                     res = 0;    // ok, up to now
-                    if ((fd & 0x3) == 0) { // multiple of 4 => tap
+                    if ((fd & 0x7) == 0) { // multiple of 8 => tap
                         tap_fd = fd;
-                        ep_stdout_fd = fd + 3;
+                        ep_lengths_stdout_fd = tap_fd +2;
+                        ep_packets_stdout_fd = tap_fd +5;
                         /* read data from tap */
                         res = read_fd_once(tap_fd, packet, ETHERNET_MAX_SIZE, &packet_len, "tap");
                         if (res == 0) {
-                            /* prefix with packet len */
-                            store_packet_len(buf, packet_len);
-                            /* write to endpoint stdout */
+                            /* write packet len */
+                            store_packet_len(buf_len, packet_len);
+                            res = write_fd(ep_lengths_stdout_fd, buf_len, buf_len + LENGTH_SIZE, "ssh lengths channel");
+                            /* write packet content */
                             debug_printf("writing packet of %ld bytes to walt-vpn-endpoint stdout\n", packet_len);
-                            res = write_fd(ep_stdout_fd, buf, buf + (LENGTH_SIZE + packet_len), "ep stdout");
+                            res = write_fd(ep_packets_stdout_fd, packet, packet + packet_len, "ssh packets channel");
                         }
                     }
-                    else { // not multiple of 4 => walt-vpn-endpoint stdin
-                        tap_fd = fd - 2;
-                        ep_stdin_fd = fd;
+                    else { // not multiple of 8 => ep_lengths_stdin_fd
+                        tap_fd = fd - 1;
+                        ep_lengths_stdin_fd = fd;
+                        ep_packets_stdin_fd = tap_fd + 4;
                         /* read packet length as 2 bytes */
-                        res = read_fd(ep_stdin_fd, buf, LENGTH_SIZE, "ep stdin");
+                        res = read_fd(ep_lengths_stdin_fd, buf, LENGTH_SIZE, "ssh lengths channel");
                         if (res == 0) {
                             packet_len = compute_packet_len(buf);
                             /* read packet data */
-                            res = read_fd(ep_stdin_fd, packet, packet_len, "ep stdin");
+                            res = read_fd(ep_packets_stdin_fd, packet, packet_len, "ssh packets channel");
                         }
                         if (res == 0) {
                             /* write packet on tap */
@@ -385,18 +440,14 @@ void server_transmission_loop(int(*on_connect)(), int(*on_disconnect)(int tap_fd
                     }
                     if (res == -1) {
                         // client issue, disconnect
-                        sock_fd = tap_fd +1;
-                        ep_stdin_fd = tap_fd +2;
-                        ep_stdout_fd = tap_fd +3;
-                        printf("disconnecting client tap_fd=%d sock_fd=%d "
-                               "ep_stdin_fd=%d ep_stdout_fd=%d error=%s\n",
-                               tap_fd, sock_fd, ep_stdin_fd, ep_stdout_fd, strerror(errno));
+                        ep_lengths_stdin_fd = tap_fd +1;
+                        printf("disconnecting client tap_fd=%d error=%s\n", tap_fd, strerror(errno));
                         FD_CLR(tap_fd, &init_fds);
-                        FD_CLR(ep_stdin_fd, &init_fds);
+                        FD_CLR(ep_lengths_stdin_fd, &init_fds);
                         /* since we continue the loop on fds, avoid catching errors
-                           on ep_stdin_fd of the same client which we are disconnecting. */
+                           on ep_lengths_stdin_fd of the same client which we are disconnecting. */
                         if (fd == tap_fd) {
-                            FD_CLR(ep_stdin_fd, &fds);
+                            FD_CLR(ep_lengths_stdin_fd, &fds);
                         }
                         init_max_fd = on_disconnect(tap_fd);
                         if (init_max_fd == -1) {
