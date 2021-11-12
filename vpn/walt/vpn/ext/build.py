@@ -3,7 +3,7 @@ ffibuilder = FFI()
 
 PROTOTYPES = """
 int client_transmission_loop(int lengths_stdin, int lengths_stdout,
-                             int packets_stdin, int packets_stdout, int tap_fd);
+                             int packets_stdin, int packets_stdout, int sock_fd);
 void server_transmission_loop(int(*on_connect)(), int(*on_disconnect)(int));
 """
 

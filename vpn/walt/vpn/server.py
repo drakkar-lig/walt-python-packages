@@ -1,9 +1,12 @@
-import os, socket, struct, cffi, subprocess, traceback, array
+import os, socket, struct, cffi, traceback, array, atexit
 from time import time
 from select import select
 from pathlib import Path
-from walt.vpn.tools import createtap, read_n, enable_debug, debug, readline_unbuffered
-from walt.vpn.const import VPN_SOCK_PATH
+from subprocess import check_call
+from walt.vpn.tools import read_n, enable_debug, debug, readline_unbuffered,               \
+     create_l2tp_tunnel, remove_l2tp_tunnel, create_l2tp_interface, remove_l2tp_interface, \
+     create_l2tp_socket
+from walt.vpn.const import VPN_SOCK_PATH, L2TP_SERVER_TUNNEL_ID, L2TP_CLIENT_TUNNEL_ID
 from walt.vpn.ext._loops.lib import server_transmission_loop
 
 # walt-vpn-server listens on a UNIX socket, and each client connects
@@ -13,31 +16,104 @@ from walt.vpn.ext._loops.lib import server_transmission_loop
 # it has to:
 # 1. accept the client endpoint streams
 # 2. receive each stream stdin & stdout fds through ancilliary data
-# 3. once both streams are connected, create a tap for this client
-#    and add it to bridge walt-net
-# 4. transmit data from the tap to the client streams stdout,
-#    and transmit data from client streams stdin to the tap
+# 3. once both streams are connected, create an L2TP interface for
+#    this client and add it to bridge walt-net
+# 4. transmit data from the L2TP interface to the client streams stdout,
+#    and transmit data from client streams stdin to the L2TP interface
 #
-# in order to keep the C code simple in walt.vpn.ext.loops.c,
-# we manage clients (walt-vpn-endpoint) here in python code:
+# This code avoids the use of TAP interfaces because interaction with
+# TAP interfaces is not efficient (single packet reads and writes).
+# Instead, we use L2TP.
+#
+# Interaction with the L2TP interfaces (step 4) is not straightforward.
+# Since we transfer packets through a SSH connection, we obviously do
+# *not* create  a direct L2TP tunnel between the client and the server.
+# Instead, on each side (client and server), we create an L2TP tunnel
+# on the loopback interface. The kernel believes it is communicating with
+# the remote peer, whilst it is actually communicating with a userspace
+# component (walt-vpn-client and walt-vpn-server, respectively). This
+# component transmits and receives L2TP packets over the SSH connexion.
+#
+# See below for a diagram indicating how this works on server side:
+#
+#                                  ┌────────────┐
+#                           ┌──────►C2 L2TP intf├─────┐  ┌─────────────┐
+#                           │      └────────────┘     │  │             │
+#                           │                         └──┤   walt-net  │
+#                           │      ┌────────────┐        │    bridge   │
+#                           │  ┌───►C1 L2TP intf├────────┤             │
+#                           │  │   └────────────┘        └──┬───┬───┬──┘
+#                           │  │                            │   │   │
+#                           │  │   ┌────────────┐
+#                           │  │   │            │
+#                           │  └───►    L2TP   A├──────┐
+#        kernel             │      │   tunnel   │      │
+#      components           └──────►           A◄──┐   │
+#                                  └────────────┘  │   │
+#   ---------------------------------------------- │ - │ --------------
+#                                  ┌────────────┐  │   │
+#                                  │   WALT     │ xxxxxxx  UDP
+#                                  │   VPN      │ xxxxxxx Socket
+#                                  │  Server    │  │   │
+#                                  │            │  │   │
+#   ───────────────────────────────│            │  │   │
+#               C1 SSH connection  │            │  │   │
+#                            ──────┼────┬──────B►──┘   │
+#                                  │    │ (C)   │      │
+#                            ◄─────┼────┼──┬───B◄──────┘
+#                                  │    │  │    │
+#   ───────────────────────────────│    │  │    │
+#                                  │    │  │    │
+#                                  │    │  │    │
+#   ───────────────────────────────│    │  │    │
+#               C2 SSH connection  │    │  │    │
+#                            ──────┼────┘  │    │
+#                                  │       │    │
+#                            ◄─────┼───────┘    │
+#                                  │            │
+#   ───────────────────────────────│            │
+#                                  │            │
+#                                  └────────────┘
+#
+# Notes:
+# - the L2TP tunnel running on the loopback interface is defined by:
+#   * its source UDP port named A on the diagram
+#   * its destination UDP port named B on the diagram
+# - whatever the client (C1 or C2 on the diagram), all L2TP packets
+#   can be forwarded from the SSH connection to the UDP socket
+# - when WALT VPN server receives an L2TP packet from the UDP socket,
+#   it must check the L2TP session ID written in the L2TP packet header
+#   in order to transmit it to the appropriate SSH connection (this
+#   process occurs at point C on the diagram).
+#
+# This diagram only shows one ssh connection per client. In reality,
+# we have two streams per client, one holding packet lengths
+# information and one holding packet contents. We expect this to
+# further evolve in the future to allow multiple packet streams per
+# client, allowing to overcome the possible bottleneck of single-CPU
+# SSH encryption.
+#
+# in order to keep the C code simple in walt/vpn/ext/loops.c,
+# we manage clients streams (walt-vpn-endpoint) here in python code:
 # - python code manages connection of a new client endpoint stream.
 # - python code manages disconnection of a client endpoint stream.
 # - python code ensures that:
-#   * the tap fd of each client is a multiple of 8
-#   * the lengths stdin of each client is tap_fd + 1
-#   * the lengths stdout of each client is tap_fd + 2
-#   * the lengths ctrl connection is tap_fd + 3
-#   * the packets stdin of each client is tap_fd + 4
-#   * the packets stdout of each client is tap_fd + 5
-#   * the packets ctrl connection is tap_fd + 6
-#   * tap_fd + 7 is unused
+#   * the range of file descriptors for each client starts at
+#     a multiple of 8 (called fd_range_start)
+#   * the lengths stdin of each client is fd_range_start + 0
+#   * the lengths stdout of each client is fd_range_start + 1
+#   * the lengths ctrl connection is fd_range_start + 2
+#   * the packets stdin of each client is fd_range_start + 3
+#   * the packets stdout of each client is fd_range_start + 4
+#   * the packets ctrl connection is fd_range_start + 5
+#   * fd_range_start + 6 and 7 are unused
 # - python code helps managing the max_fd integer necessary for select() calls:
-#   * on_disconnect(tap_fd) returns new max_fd value
-#   * on_connect() returns tap_fd value of new client when both streams are
-#     accepted, 0 otherwise.
+#   * on_disconnect(fd_range_start) returns new max_fd value
+#   * on_connect() returns fd_range_start value of new client when both streams
+#     are accepted, 0 otherwise.
 #
-# note: having one tap per client allows walt-net bridging to work
-# correctly, transmitting data to appropriate tap depending on mac
+# note: having one virtual interface (L2TP) per client allows walt-net bridging
+# to work correctly, transmitting data to appropriate interface depending on mac
 # addresses already detected in the previous traffic.
 
 DEBUG = False
@@ -90,13 +166,12 @@ def listen_socket():
 
 def fd_offset(*args):
     return {
-        ('tap',) : 0,
-        ('lengths', 'stdin'): 1,
-        ('lengths', 'stdout'): 2,
-        ('lengths', 'ctrl'): 3,
-        ('packets', 'stdin'): 4,
-        ('packets', 'stdout'): 5,
-        ('packets', 'ctrl'): 6,
+        ('lengths', 'stdin'): 0,
+        ('lengths', 'stdout'): 1,
+        ('lengths', 'ctrl'): 2,
+        ('packets', 'stdin'): 3,
+        ('packets', 'stdout'): 4,
+        ('packets', 'ctrl'): 5,
     }[tuple(args)]
 
 def fd_relocate(fd, fd_range_start, *args):
@@ -105,6 +180,26 @@ def fd_relocate(fd, fd_range_start, *args):
         os.dup2(fd, new_fd)
         os.close(fd)
     return new_fd
+
+def send_env(fd, fd_range_start):
+    os.write(fd, (f"ENV L2TP_SERVER_TUNNEL_ID {L2TP_SERVER_TUNNEL_ID}" + \
+                  f"    L2TP_CLIENT_TUNNEL_ID {L2TP_CLIENT_TUNNEL_ID}" + \
+                  f"    L2TP_SERVER_SESSION_ID {fd_range_start}" + \
+                  f"    L2TP_CLIENT_SESSION_ID {fd_range_start}" + \
+                   "\n").encode('ASCII'))
+
+def create_virtual_interface(fd_range_start):
+    # create L2TP interface
+    session_id, peer_session_id = fd_range_start, fd_range_start
+    ifname = create_l2tp_interface(L2TP_SERVER_TUNNEL_ID, session_id, peer_session_id)
+    # bring it up, add it to bridge
+    check_call(f'ip link set up dev {ifname}', shell=True)
+    check_call(f'ip link set master {BRIDGE_INTF} dev {ifname}', shell=True)
+    print(f'added {ifname} to bridge {BRIDGE_INTF}')
+    return ifname
+
+def remove_virtual_interface(fd_range_start):
+    remove_l2tp_interface(L2TP_SERVER_TUNNEL_ID, fd_range_start)
 
 def on_connect():
     print('client stream connection')
@@ -132,7 +227,10 @@ def on_connect():
         if client_id not in context['clients_data']:
             # first stream connection for this client
             fd_range_start = stream_stdin
-            context['clients_data'][client_id] = dict(fd_range_start = fd_range_start)
+            context['clients_data'][client_id] = dict(
+                fd_range_start = fd_range_start
+            )
+            send_env(stream_stdout, fd_range_start)
             fds_ready = set()
             for stream_type, fd in (('ctrl', stream_ctrl), ('stdout', stream_stdout), ('stdin', stream_stdin)):
                 new_fd = fd_relocate(fd, fd_range_start, endpoint_mode, stream_type)
@@ -145,45 +243,49 @@ def on_connect():
         else:
             # first stream already connected, this is the second
             fd_range_start = context['clients_data'][client_id]['fd_range_start']
+            send_env(stream_stdout, fd_range_start)
             for stream_type, fd in (('ctrl', stream_ctrl), ('stdout', stream_stdout), ('stdin', stream_stdin)):
                 new_fd = fd_relocate(fd, fd_range_start, endpoint_mode, stream_type)
                 context['clients_data'][client_id][endpoint_mode + "_" + stream_type] = new_fd
-            # create TAP
-            tap_fd = fd_range_start + fd_offset('tap')
-            os.close(tap_fd)    # we want the tap here
-            tap, tap_name = createtap()
-            assert tap.fileno() == tap_fd
-            # bring it up, add it to bridge
-            subprocess.check_call('ip link set up dev %(intf)s' % \
-                                    dict(intf = tap_name), shell=True)
-            subprocess.check_call('ip link set master ' + BRIDGE_INTF + ' dev ' + tap_name, shell=True)
-            print('added ' + tap_name + ' to bridge ' + BRIDGE_INTF)
+            # create L2TP interface
+            ifname = create_virtual_interface(fd_range_start)
             # save python objects
-            context['clients_data'][client_id]['tap'] = tap
-            context['clients_per_tap'][tap_fd] = client_id
-            return tap_fd
+            context['clients_data'][client_id]['l2tp_ifname'] = ifname
+            context['clients_per_fd'][fd_range_start] = client_id
+            return fd_range_start
     except:
         traceback.print_exc()
         return -1
 
-def on_disconnect(tap_fd):
+def on_disconnect(fd_range_start):
     print('client disconnection')
     try:
         # close
-        for offset in range(1, 8):
-            os.close(tap_fd + offset)
-        client_id = context['clients_per_tap'].pop(tap_fd)
-        context['clients_data'][client_id]['tap'].close()
+        for offset in range(8):
+            os.close(fd_range_start + offset)
+        client_id = context['clients_per_fd'].pop(fd_range_start)
+        remove_virtual_interface(fd_range_start)
         del context['clients_data'][client_id]
         # return the new max fd
         if len(context['clients_data']) == 0:
-            return context['server_socket'].fileno()
+            return context['l2tp_socket'].fileno()
         else:
-            max_tap_fd = max(context['clients_per_tap'].keys())
-            return max_tap_fd - fd_offset('tap') + fd_offset('packets', 'stdin')
+            max_fd_range_start = max(context['clients_per_fd'].keys())
+            return max_fd_range_start + fd_offset('packets', 'stdin')
     except:
         traceback.print_exc()
         return -1
+
+def cleanup():
+    print('cleaning up...')
+    for fd_range_start in tuple(context['clients_per_fd'].keys()):
+        try:
+            on_disconnect(fd_range_start)
+        except:
+            traceback.print_exc()
+            print('trying to continue cleanup...')
+    context['l2tp_socket'].close()
+    remove_l2tp_tunnel(L2TP_SERVER_TUNNEL_ID)
 
 def run():
     # turn python callbacks into C callbacks
@@ -193,15 +295,24 @@ def run():
     # create listening socket
     s_serv = listen_socket()
     assert s_serv.fileno() == 3     # 0, 1, 2 for stdin, out, err
+    # create L2TP tunnel
+    tunnel_id, peer_tunnel_id = L2TP_SERVER_TUNNEL_ID, L2TP_CLIENT_TUNNEL_ID
+    create_l2tp_tunnel(tunnel_id, peer_tunnel_id)
+    # create L2TP UDP socket
+    l2tp_socket = create_l2tp_socket()
+    assert l2tp_socket.fileno() == 4
     fd_null = os.open(os.devnull, os.O_RDONLY)
     # save context
     context.update(
         fd_null = fd_null,
         server_socket = s_serv,
+        l2tp_socket = l2tp_socket,
         clients_data = {},
-        clients_per_tap = {}
+        clients_per_fd = {}
     )
     # ensure next file descriptor will be 8
     fd_padding(fd_null + 1, 8)
+    # handle cleanup on exit
+    atexit.register(cleanup)
     # start C loop
     server_transmission_loop(cb_on_connect, cb_on_disconnect)

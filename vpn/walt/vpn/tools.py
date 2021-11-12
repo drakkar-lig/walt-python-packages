@@ -1,26 +1,42 @@
-import fcntl, os, stat, struct, sys
-from pathlib import Path
+import os, sys, socket
+from subprocess import check_call
+from walt.vpn.const import L2TP_LOOPBACK_UDP_SPORT, L2TP_LOOPBACK_UDP_DPORT
 
-TUNSETIFF = 0x400454ca
-IFF_TAP = 0x0002
-IFF_NO_PI = 0x1000
-TUN_DEV_MAJOR = 10
-TUN_DEV_MINOR = 200
+# create an L2TP tunnel and interface
+def create_l2tp_tunnel(tunnel_id, peer_tunnel_id):
+    check_call(f'ip l2tp add tunnel \
+                    tunnel_id {tunnel_id} peer_tunnel_id {peer_tunnel_id} \
+                    encap udp local 127.0.0.1 remote 127.0.0.1 \
+                    udp_sport {L2TP_LOOPBACK_UDP_SPORT} \
+                    udp_dport {L2TP_LOOPBACK_UDP_DPORT}', shell=True)
 
-# create a TAP device
-def createtap():
-    devpath = Path('/dev/net/tun')
-    if not devpath.exists():
-        devpath.parent.mkdir(parents=True, exist_ok=True)
-        os.mknod(str(devpath), stat.S_IFCHR | 0o666, os.makedev(TUN_DEV_MAJOR, TUN_DEV_MINOR))
-    tap = open('/dev/net/tun', 'r+b', buffering=0)
-    # Tell it we want a TAP device and no packet headers
-    ifr = bytearray(struct.pack('16sH', b'', IFF_TAP | IFF_NO_PI))
-    fcntl.ioctl(tap, TUNSETIFF, ifr)
-    # Retrieve kernel chosen TAP device name
-    tap_name = struct.unpack('16sH', ifr)[0].decode('ascii').strip('\x00')
-    print('created ' + tap_name)
-    return tap, tap_name
+def remove_l2tp_tunnel(tunnel_id):
+    check_call(f'ip l2tp del tunnel \
+                    tunnel_id {tunnel_id}', shell=True)
+
+def create_l2tp_interface(tunnel_id, session_id, peer_session_id):
+    ifname = f"walt-l2tp-{session_id}"
+    check_call(f'ip l2tp add session \
+                    name {ifname} \
+                    tunnel_id {tunnel_id} \
+                    session_id {session_id} \
+                    peer_session_id {peer_session_id}', shell=True)
+    return ifname
+
+def remove_l2tp_interface(tunnel_id, session_id):
+    check_call(f'ip l2tp del session \
+                    tunnel_id {tunnel_id} \
+                    session_id {session_id}', shell=True)
+
+def create_l2tp_socket():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    # kernel will send us L2TP packets to be forwarded over the ssh tunnel
+    # on this UDP port
+    s.bind(('127.0.0.1', L2TP_LOOPBACK_UDP_DPORT))
+    # we will send packets coming from the ssh tunnel to the kernel by
+    # using this UDP port
+    s.connect(('127.0.0.1', L2TP_LOOPBACK_UDP_SPORT))
+    return s
 
 def read_n(fd, n):
     buf = b''

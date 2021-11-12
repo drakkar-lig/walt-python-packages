@@ -1,8 +1,10 @@
-import os, os.path, sys, shlex, struct, daemon, secrets, traceback
+import os, os.path, sys, shlex, struct, daemon, secrets, traceback, atexit
 from daemon.pidfile import PIDLockFile
 from subprocess import check_call, check_output, Popen, PIPE, TimeoutExpired, run, DEVNULL
 from select import select
-from walt.vpn.tools import createtap, read_n, enable_debug, debug, readline_unbuffered
+from walt.vpn.tools import read_n, enable_debug, debug, readline_unbuffered,               \
+     create_l2tp_tunnel, remove_l2tp_tunnel, create_l2tp_interface, remove_l2tp_interface, \
+     create_l2tp_socket
 from walt.vpn.ssh import ssh_with_identity
 from walt.vpn.ext._loops.lib import client_transmission_loop
 from walt.common.constants import UNSECURE_ECDSA_KEYPAIR
@@ -112,37 +114,77 @@ def do_vpn_client(info, walt_vpn_entrypoint):
     # setup credentials if needed
     if not PRIV_KEY_FILE.exists():
         sys.exit("Run the following command once, first: 'walt-vpn-setup-credentials <walt-server>'")
-
-    # Create TAP
-    tap, tap_name = createtap()
-
-    # create bridge
+    # create walt-net bridge
     if not (Path('/sys/class/net') / BRIDGE_INTF).exists():
         check_call('ip link add %s type bridge' % BRIDGE_INTF, shell=True)
     check_call('ip link set up dev %s' % BRIDGE_INTF, shell=True)
-
-    # bring it up, add it to bridge
-    check_call('ip link set up dev %(intf)s' % dict(intf = tap_name), shell=True)
-    check_call('ip link set master ' + BRIDGE_INTF + ' dev ' + tap_name, shell=True)
-
-    print('added ' + tap_name + ' to bridge ' + BRIDGE_INTF)
-
     # start loop
     if DEBUG or info.foreground:
         Path(PID_FILE).write_text("%d\n" % os.getpid())
-        vpn_client_loop(tap, walt_vpn_entrypoint)
+        vpn_client_loop(walt_vpn_entrypoint)
     else:
         print('Going to background.')
         with daemon.DaemonContext(
                     files_preserve = [tap],
                     pidfile = PIDLockFile(PID_FILE)):
-            vpn_client_loop(tap, walt_vpn_entrypoint)
+            vpn_client_loop(walt_vpn_entrypoint)
 
-def vpn_client_loop(tap, walt_vpn_entrypoint):
+def parse_env_line(fd):
+    env_line = readline_unbuffered(fd)
+    words = env_line.split()
+    if words[0] != 'ENV':
+        raise Exception('Server sent: ' + env_line + '. Expected ENV line instead.')
+    it = iter(words[1:])
+    env = {}
+    for attr in it:
+        value = next(it)
+        env[attr] = value
+    return env
+
+def create_virtual_interface(env):
+    # create L2TP interface
+    tunnel_id = env['L2TP_CLIENT_TUNNEL_ID']
+    peer_tunnel_id = env['L2TP_SERVER_TUNNEL_ID']
+    session_id = env['L2TP_CLIENT_SESSION_ID']
+    peer_session_id = env['L2TP_SERVER_SESSION_ID']
+    create_l2tp_tunnel(tunnel_id, peer_tunnel_id)
+    ifname = create_l2tp_interface(tunnel_id, session_id, peer_session_id)
+    # bring it up, add it to bridge
+    check_call(f'ip link set up dev {ifname}', shell=True)
+    check_call(f'ip link set master {BRIDGE_INTF} dev {ifname}', shell=True)
+    print(f'added {ifname} to bridge {BRIDGE_INTF}')
+    return ifname
+
+def remove_virtual_interface(env):
+    tunnel_id = env['L2TP_CLIENT_TUNNEL_ID']
+    session_id = env['L2TP_CLIENT_SESSION_ID']
+    remove_l2tp_interface(tunnel_id, session_id)
+    remove_l2tp_tunnel(tunnel_id)
+
+def init_env():
+    return dict(
+        popens = [],
+        ifname = None,
+        udp_socket = None
+    )
+
+env = init_env()
+
+def release_env():
+    # call wait() on subprocesses
+    for popen in env['popens']:
+        popen.wait()
+    if env['ifname'] is not None:
+        remove_virtual_interface(env)
+    if env['udp_socket'] is not None:
+        env['udp_socket'].close()
+    env.update(init_env())
+
+def vpn_client_loop(walt_vpn_entrypoint):
+    atexit.register(release_env)
     client_id = secrets.token_hex(8)
     while True:
         # Start the command to connect to server
-        popens = []
         args = ()
         try:
             for channel_type in ('lengths', 'packets'):
@@ -153,7 +195,7 @@ def vpn_client_loop(tap, walt_vpn_entrypoint):
                             priv_key = str(PRIV_KEY_FILE),
                             walt_vpn_entrypoint = walt_vpn_entrypoint
                         )), stdin=PIPE, stdout=PIPE, bufsize=0)
-                popens.append(popen)
+                env['popens'].append(popen)
                 args += (popen.stdin.fileno(), popen.stdout.fileno())
                 # server sends a line to indicate VPN protocol version
                 # we ignore it since this code only handles initial version 1 for now
@@ -161,7 +203,10 @@ def vpn_client_loop(tap, walt_vpn_entrypoint):
                 header = f"SETUP CLIENT_ID {client_id} ENDPOINT_MODE {channel_type}\n" + \
                           "RUN\n"
                 popen.stdin.write(header.encode("ASCII"))
-            args += (tap.fileno(),)
+                env.update(parse_env_line(popen.stdout.fileno()))
+            env['ifname'] = create_virtual_interface(env)
+            env['udp_socket'] = create_l2tp_socket()
+            args += (env['udp_socket'].fileno(),)
             # transmit packets
             print()
             print('-- ready! --')
@@ -174,9 +219,7 @@ def vpn_client_loop(tap, walt_vpn_entrypoint):
             print('Trying to reconnect in a few seconds...')
             sleep(5)
             should_continue = True
-        # call wait() on subprocesses
-        for popen in popens:
-            popen.wait()
+        release_env()
         if not should_continue:
             break
 
