@@ -1,6 +1,7 @@
 import os, sys, socket
 from subprocess import check_call
-from walt.vpn.const import L2TP_LOOPBACK_UDP_SPORT, L2TP_LOOPBACK_UDP_DPORT
+from walt.vpn.const import L2TP_LOOPBACK_UDP_SPORT, L2TP_LOOPBACK_UDP_DPORT, \
+                           BRIDGE_INTF, L2TP_INTERFACE_MTU
 
 # create an L2TP tunnel and interface
 def create_l2tp_tunnel(tunnel_id, peer_tunnel_id):
@@ -21,6 +22,12 @@ def create_l2tp_interface(tunnel_id, session_id, peer_session_id):
                     tunnel_id {tunnel_id} \
                     session_id {session_id} \
                     peer_session_id {peer_session_id}', shell=True)
+    check_call(f'ip link set \
+                    mtu {L2TP_INTERFACE_MTU} \
+                    master {BRIDGE_INTF} \
+                    up \
+                    dev {ifname}', shell=True)
+    print(f'added {ifname} to bridge {BRIDGE_INTF}')
     return ifname
 
 def remove_l2tp_interface(tunnel_id, session_id):

@@ -121,8 +121,6 @@ DEBUG = False
 if DEBUG:
     enable_debug()
 
-BRIDGE_INTF = "walt-net"
-MAX_SETUP_MSG_LEN = 1024
 WALT_VPN_STREAM_PROTO = 1
 
 context = dict(
@@ -192,10 +190,6 @@ def create_virtual_interface(fd_range_start):
     # create L2TP interface
     session_id, peer_session_id = fd_range_start, fd_range_start
     ifname = create_l2tp_interface(L2TP_SERVER_TUNNEL_ID, session_id, peer_session_id)
-    # bring it up, add it to bridge
-    check_call(f'ip link set up dev {ifname}', shell=True)
-    check_call(f'ip link set master {BRIDGE_INTF} dev {ifname}', shell=True)
-    print(f'added {ifname} to bridge {BRIDGE_INTF}')
     return ifname
 
 def remove_virtual_interface(fd_range_start):

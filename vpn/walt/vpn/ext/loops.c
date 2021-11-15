@@ -98,8 +98,8 @@ static inline int write_fd(int fd, unsigned char *start, unsigned char *end,
                             char *fd_label) {
     ssize_t sres;
     while (start < end) {
-        debug_printf("write fd=%d max_size=%ld\n", fd, end - start);
         sres = write(fd, start, end - start);
+        debug_printf("write fd=%d result=%ld\n", fd, sres);
         if (fd_label) {
             if (sres == 0) {
                 write_stderr("short write on ");
@@ -172,6 +172,7 @@ int cbuf_fill(circular_buffer_t *cbuf, int fd_in) {
             iov_idx += 1;
         }
         read_size = readv(fd_in, iov, iov_idx);
+        debug_printf("readv fd=%d result=%d\n", fd_in, read_size);
     }
     if (read_size == -1) {
         return -1;
@@ -184,38 +185,35 @@ int cbuf_fill(circular_buffer_t *cbuf, int fd_in) {
     return 0;
 }
 
-int cbuf_flush(circular_buffer_t *cbuf, int size, int fd_out) {
-    int write_size, iov_idx = 0;
-    struct iovec iov[2];
+int cbuf_flush(circular_buffer_t *cbuf, int size, struct iovec *iovecs) {
+    int iov_idx = 0, init_size = size;
     if (cbuf->fill_pos > cbuf->flush_pos) {
-        write_size = write(fd_out, cbuf->flush_pos, size);
+        iovecs[iov_idx].iov_base = cbuf->flush_pos;
+        iovecs[iov_idx].iov_len = size;
+        iov_idx += 1;
     }
     else {
-        iov[iov_idx].iov_base = cbuf->flush_pos;
+        iovecs[iov_idx].iov_base = cbuf->flush_pos;
         if (size <= cbuf->buf_end - cbuf->flush_pos) {
-            iov[iov_idx].iov_len = size;
+            iovecs[iov_idx].iov_len = size;
         }
         else {
-            iov[iov_idx].iov_len = cbuf->buf_end - cbuf->flush_pos;
+            iovecs[iov_idx].iov_len = cbuf->buf_end - cbuf->flush_pos;
         }
-        size -= iov[iov_idx].iov_len;
+        size -= iovecs[iov_idx].iov_len;
         iov_idx += 1;
         if (size > 0) {
-            iov[iov_idx].iov_base = cbuf->buf;
-            iov[iov_idx].iov_len = size;
+            iovecs[iov_idx].iov_base = cbuf->buf;
+            iovecs[iov_idx].iov_len = size;
             iov_idx += 1;
         }
-        write_size = writev(fd_out, iov, iov_idx);
     }
-    if (write_size == -1) {
-        return -1;
-    }
-    cbuf->flush_pos += write_size;
+    cbuf->flush_pos += init_size;
     if (cbuf->flush_pos >= cbuf->buf_end) {
         cbuf->flush_pos -= cbuf->size;
     }
-    cbuf->level -= write_size;
-    return 0;
+    cbuf->level -= init_size;
+    return iov_idx;
 }
 
 void cbuf_pass(circular_buffer_t *cbuf, int shift) {
@@ -249,26 +247,43 @@ int cbuf_available(circular_buffer_t *cbuf) {
     return cbuf->size - cbuf->level;
 }
 
-#define ETHERNET_MAX_SIZE   1514
-#define L2TP_HEADER_SIZE    16
-#define UDP_PAYLOAD_MAX_SIZE (L2TP_HEADER_SIZE + ETHERNET_MAX_SIZE)  // TODO: check this
-#define BUFFER_LENGTHS_SIZE 256
-#define LENGTH_SIZE         2         /* size to encode packet length */
-#define BUFFER_PACKETS_SIZE (UDP_PAYLOAD_MAX_SIZE << 5)    /* 32 times UDP_PAYLOAD_MAX_SIZE */
+#define UDP_PAYLOAD_MAX_SIZE    4096    /* ensured by interface MTU, see comment in const.py */
+#define BUFFER_LENGTHS_SIZE     256
+#define LENGTH_SIZE             2       /* size to encode packet length */
+#define PACKET_BATCH_SIZE       32
+#define BUFFER_PACKETS_SIZE     (UDP_PAYLOAD_MAX_SIZE << 5)    /* 32 times UDP_PAYLOAD_MAX_SIZE */
 
 int client_transmission_loop(int lengths_stdin, int lengths_stdout,
                              int packets_stdin, int packets_stdout, int sock_fd) {
-    unsigned char buf_packet[UDP_PAYLOAD_MAX_SIZE], buf_len[LENGTH_SIZE];
-    int res, max_fd;
-    ssize_t packet_len;
+    unsigned char buf_len[PACKET_BATCH_SIZE * LENGTH_SIZE], *plen;
+    int num_msgs, num_iovecs, res, max_fd, i;
+    ssize_t packet_len, total_size;
     fd_set fds, init_fds;
     circular_buffer_t lengths_buf, packets_buf;
+    struct mmsghdr recv_msgs[PACKET_BATCH_SIZE],
+                   send_msgs[PACKET_BATCH_SIZE];
+    /* send_iovecs will be used on a circular buffer, 2*PACKET_BATCH_SIZE is
+     * a worst case scenario. */
+    struct iovec recv_iovecs[PACKET_BATCH_SIZE],
+                 send_iovecs[2*PACKET_BATCH_SIZE];
+#ifdef DEBUG
+    int max_packet_len = 0;
+#endif
 
     /* when reading on ssh stdout, we are reading a continuous flow */
     cbuf_setup(&lengths_buf, BUFFER_LENGTHS_SIZE);
     cbuf_setup(&packets_buf, BUFFER_PACKETS_SIZE);
 
     redirect_sigint();
+
+    memset(recv_msgs, 0, sizeof(recv_msgs));
+    for (i = 0; i < PACKET_BATCH_SIZE; i++) {
+        recv_iovecs[i].iov_base         = malloc(sizeof(unsigned char) * UDP_PAYLOAD_MAX_SIZE);
+        recv_iovecs[i].iov_len          = UDP_PAYLOAD_MAX_SIZE;
+        recv_msgs[i].msg_hdr.msg_iov         = &recv_iovecs[i];
+        recv_msgs[i].msg_hdr.msg_iovlen      = 1;
+    }
+    memset(send_msgs, 0, sizeof(send_msgs));
 
     FD_ZERO(&init_fds);
     FD_SET(lengths_stdout, &init_fds);
@@ -291,24 +306,46 @@ int client_transmission_loop(int lengths_stdin, int lengths_stdout,
             break;
         }
         if (FD_ISSET(sock_fd, &fds)) {
-            /* read UDP socket */
-            res = read_fd_once(sock_fd, buf_packet, UDP_PAYLOAD_MAX_SIZE, &packet_len, "UDP socket");
+            /* read multiple UDP packets */
+            num_msgs = recvmmsg(sock_fd, recv_msgs, PACKET_BATCH_SIZE, MSG_DONTWAIT, NULL);
+            if (num_msgs == -1) {
+                perror("recvmmsg()");
+                status = STOPPED_SHOULD_REINIT;
+                break;
+            }
+            /* prepare next writes */
+            total_size = 0;
+            for (i = 0, plen = buf_len; i < num_msgs; ++i, plen += LENGTH_SIZE) {
+                packet_len = recv_msgs[i].msg_len;
+#ifdef DEBUG
+                if (packet_len > max_packet_len) {
+                    max_packet_len = packet_len;
+                    debug_printf("** max_packet_len %d **\n", max_packet_len);
+                }
+#endif
+                debug_printf("client -> server %d bytes\n", (int)packet_len);
+
+                store_packet_len(plen, packet_len);
+                send_iovecs[i].iov_base = recv_iovecs[i].iov_base;
+                send_iovecs[i].iov_len = packet_len;
+                total_size += packet_len;
+            }
+            /* write packets length */
+            res = write_fd(lengths_stdin, buf_len, plen, "ssh lengths channel");
             if (res == -1) {
                 status = STOPPED_SHOULD_REINIT;
                 break;
             }
-            /* write packet len */
-            store_packet_len(buf_len, packet_len);
-            res = write_fd(lengths_stdin, buf_len, buf_len + LENGTH_SIZE,
-                              "ssh lengths channel");
+            /* write packets content */
+            res = writev(packets_stdin, send_iovecs, num_msgs);
             if (res == -1) {
+                perror("writev()");
                 status = STOPPED_SHOULD_REINIT;
                 break;
             }
-            /* write packet content */
-            res = write_fd(packets_stdin, buf_packet, buf_packet + packet_len, "ssh packets channel");
-            if (res == -1) {
-                status = STOPPED_SHOULD_REINIT;
+            if (res < total_size) {
+                debug_printf("partial writev %d/%d\n", res, (int)total_size);
+                status = STOPPED_SHOULD_ABORT;
                 break;
             }
         }
@@ -321,16 +358,46 @@ int client_transmission_loop(int lengths_stdin, int lengths_stdout,
             cbuf_fill(&packets_buf, packets_stdout);
         }
 
-        /* write all complete packets to UDP socket */
-        while ((lengths_buf.level >= LENGTH_SIZE) && (packets_buf.level > 0)) {
+        /* look for complete packets and prepare sendmmsg() */
+        i = 0;
+        num_msgs = 0;
+        while ((lengths_buf.level >= LENGTH_SIZE) && (packets_buf.level > 0) && \
+               (num_msgs < PACKET_BATCH_SIZE)) {
             packet_len = cbuf_peek_big_endian_short(&lengths_buf);
             if (packets_buf.level < packet_len) {
                 break; // packet not fully obtained
             }
-            /* write packet on UDP socket */
-            cbuf_flush(&packets_buf, packet_len, sock_fd);
+#ifdef DEBUG
+            if (packet_len > max_packet_len) {
+                max_packet_len = packet_len;
+                debug_printf("** max_packet_len %d **\n", max_packet_len);
+            }
+#endif
+            debug_printf("server -> client %d bytes\n", (int)packet_len);
+            /* add to send_iovecs for this UDP packet */
+            num_iovecs = cbuf_flush(&packets_buf, packet_len, send_iovecs + i);
+            send_msgs[num_msgs].msg_hdr.msg_iov         = send_iovecs + i;
+            send_msgs[num_msgs].msg_hdr.msg_iovlen      = num_iovecs;
+            num_msgs += 1;
+            i += num_iovecs;
             /* pass packet length */
             cbuf_pass(&lengths_buf, LENGTH_SIZE);
+        }
+
+        /* send complete packets if any */
+        if (num_msgs > 0) {
+            res = sendmmsg(sock_fd, send_msgs, num_msgs, 0);
+            debug_printf("sendmmsg num_msgs=%d result=%d\n", num_msgs, res);
+            if (res == -1) {
+                perror("sendmmsg()");
+                status = STOPPED_SHOULD_REINIT;
+                break;
+            }
+            if (res < num_msgs) {
+                printf("incomplete sendmmsg()\n");
+                status = STOPPED_SHOULD_ABORT;
+                break;
+            }
         }
 
         /* stop reading when buffer has no more room for a new packet */
@@ -341,6 +408,7 @@ int client_transmission_loop(int lengths_stdin, int lengths_stdout,
             FD_SET(lengths_stdout, &init_fds);
         }
 
+        debug_printf("cbuf_available(&packets_buf) = %d\n", cbuf_available(&packets_buf));
         if (cbuf_available(&packets_buf) < UDP_PAYLOAD_MAX_SIZE) {
             FD_CLR(packets_stdout, &init_fds);
         }
@@ -350,6 +418,9 @@ int client_transmission_loop(int lengths_stdin, int lengths_stdout,
     }
     cbuf_release(&lengths_buf);
     cbuf_release(&packets_buf);
+    for (i = 0; i < PACKET_BATCH_SIZE; i++) {
+        free(recv_iovecs[i].iov_base);
+    }
     assert(status != RUNNING);
     return (status == STOPPED_SHOULD_REINIT);
 }
@@ -438,7 +509,7 @@ void server_transmission_loop(int(*on_connect)(), int(*on_disconnect)(int fd_ran
                         res = write_fd(ep_lengths_stdout_fd, buf_len, buf_len + LENGTH_SIZE, "ssh lengths channel");
                         if (res == 0) {
                             /* write packet content */
-                            debug_printf("writing packet of %ld bytes to walt-vpn-endpoint stdout\n", packet_len);
+                            debug_printf("server -> client %ld bytes\n", packet_len);
                             res = write_fd(ep_packets_stdout_fd, packet, packet + packet_len, "ssh packets channel");
                         }
                     }
@@ -455,7 +526,7 @@ void server_transmission_loop(int(*on_connect)(), int(*on_disconnect)(int fd_ran
                         }
                         if (res == 0) {
                             /* write packet to L2TP socket */
-                            debug_printf("writing packet of %ld bytes to L2TP socket\n", packet_len);
+                            debug_printf("client -> server %ld bytes\n", packet_len);
                             res = write_fd(L2TP_SOCK_FD, packet, packet + packet_len, "l2tp socket");
                         }
                     }

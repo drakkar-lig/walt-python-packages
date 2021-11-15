@@ -6,6 +6,7 @@ from walt.vpn.tools import read_n, enable_debug, debug, readline_unbuffered,    
      create_l2tp_tunnel, remove_l2tp_tunnel, create_l2tp_interface, remove_l2tp_interface, \
      create_l2tp_socket
 from walt.vpn.ssh import ssh_with_identity
+from walt.vpn.const import BRIDGE_INTF
 from walt.vpn.ext._loops.lib import client_transmission_loop
 from walt.common.constants import UNSECURE_ECDSA_KEYPAIR
 from walt.common.logs import LoggedApplication
@@ -18,7 +19,6 @@ DEBUG = False
 if DEBUG:
     enable_debug()
 
-BRIDGE_INTF = "walt-net"
 VPN_USER = "walt-vpn"
 PID_FILE = '/var/run/walt-vpn-client.pid'
 
@@ -149,10 +149,6 @@ def create_virtual_interface(env):
     peer_session_id = env['L2TP_SERVER_SESSION_ID']
     create_l2tp_tunnel(tunnel_id, peer_tunnel_id)
     ifname = create_l2tp_interface(tunnel_id, session_id, peer_session_id)
-    # bring it up, add it to bridge
-    check_call(f'ip link set up dev {ifname}', shell=True)
-    check_call(f'ip link set master {BRIDGE_INTF} dev {ifname}', shell=True)
-    print(f'added {ifname} to bridge {BRIDGE_INTF}')
     return ifname
 
 def remove_virtual_interface(env):
