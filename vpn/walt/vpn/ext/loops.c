@@ -53,47 +53,6 @@ void redirect_sigint() {
 /* note: ternary op in this macro is just here to avoid warn unused result */
 #define write_stderr(msg) (void)(write(2, msg, strlen(msg))?1:0)
 
-static inline int read_fd_once(int fd, unsigned char *start, ssize_t max_size,
-                                 ssize_t *out_length, char *fd_label) {
-    ssize_t sres;
-    debug_printf("read fd=%d max_size=%ld\n", fd, max_size);
-    sres = read(fd, start, max_size);
-    if (sres < 1) {
-        if (fd_label) {
-            if (sres == 0) {
-                write_stderr("short read on ");
-                write_stderr(fd_label);
-                write_stderr("\n");
-            }
-            else {
-                write_stderr(fd_label);
-                write_stderr(" read error\n");
-            }
-        }
-        return -1;
-    }
-    start += sres;
-    if (out_length != NULL) {
-        *out_length = sres;
-    }
-    return 0;
-}
-
-static inline int read_fd(int fd, unsigned char *start, ssize_t size,
-                          char *fd_label) {
-    ssize_t sres;
-    int res;
-    while (size > 0) {
-        res = read_fd_once(fd, start, size, &sres, fd_label);
-        if (res == -1) {
-            return res;
-        }
-        start += sres;
-        size -= sres;
-    }
-    return 0;
-}
-
 static inline int write_fd(int fd, unsigned char *start, unsigned char *end,
                             char *fd_label) {
     ssize_t sres;
@@ -128,168 +87,222 @@ static inline void store_packet_len(unsigned char *len_pos, ssize_t sres) {
     len_pos[1] = (unsigned char)(sres & 0xff);
 }
 
-typedef struct {
-    int size;
-    int level;
-    unsigned char *buf;
-    unsigned char *buf_end;
-    unsigned char *fill_pos;
-    unsigned char *flush_pos;
-} circular_buffer_t;
+/* we have to handle partial reads / writes when using readv() or writev().
+ * for this we define full_readv() and full_writev() below, and both
+ * of these functions call full_iov_work() for the internal machinery. */
+typedef ssize_t (*iov_func_t)(int fd, const struct iovec *iov, int iovcnt);
 
-int cbuf_setup(circular_buffer_t *cbuf, int size) {
-    cbuf->size = size;
-    cbuf->level = 0;
-    cbuf->buf = malloc(sizeof(unsigned char) * size);
-    if (cbuf->buf == NULL) {
+static inline int full_iov_work(iov_func_t f, int fd, struct iovec *iov, int iovcnt, ssize_t size) {
+    ssize_t result_size;
+    int res;
+    result_size = f(fd, iov, iovcnt);
+    if (result_size == -1) {
         return -1;
     }
-    cbuf->buf_end = cbuf->buf + size;
-    cbuf->fill_pos = cbuf->buf;
-    cbuf->flush_pos = cbuf->buf;
+    if (result_size == size) {
+        return 0; // ok done
+    }
+    size -= result_size;
+    // got a partial readv/writev, check where it stopped
+    // first, pass full segments
+    while (result_size >= (ssize_t)iov[0].iov_len) {
+        result_size -= iov[0].iov_len;
+        iov += 1;
+        iovcnt -= 1;
+    }
+    // if needed, update last partially read/written segment
+    if (result_size > 0) {
+        iov[0].iov_base += result_size;
+        iov[0].iov_len -= result_size;
+    }
+    // recurse
+    res = full_iov_work(f, fd, iov, iovcnt, size);
+    // restore partially read/written segment if changed
+    if (result_size > 0) {
+        iov[0].iov_base -= result_size;
+        iov[0].iov_len += result_size;
+    }
+    return res;
+}
+
+int full_readv(int fd, struct iovec *iov, int iovcnt, ssize_t size) {
+    int res = full_iov_work(readv, fd, iov, iovcnt, size);
+    if (res == -1) {
+        perror("readv()");
+        return -1;
+    }
     return 0;
 }
 
-void cbuf_release(circular_buffer_t *cbuf) {
-    free(cbuf->buf);
-}
-
-int cbuf_fill(circular_buffer_t *cbuf, int fd_in) {
-    int read_size, iov_idx = 0;
-    struct iovec iov[2];
-    if (cbuf->fill_pos < cbuf->flush_pos) {
-        read_size = read(fd_in, cbuf->fill_pos, cbuf->flush_pos - cbuf->fill_pos);
-    }
-    else {
-        if (cbuf->fill_pos < cbuf->buf_end) {
-            iov[iov_idx].iov_base = cbuf->fill_pos;
-            iov[iov_idx].iov_len = cbuf->buf_end - cbuf->fill_pos;
-            iov_idx += 1;
-        }
-        if (cbuf->buf < cbuf->flush_pos) {
-            iov[iov_idx].iov_base = cbuf->buf;
-            iov[iov_idx].iov_len = cbuf->flush_pos - cbuf->buf;
-            iov_idx += 1;
-        }
-        read_size = readv(fd_in, iov, iov_idx);
-        debug_printf("readv fd=%d result=%d\n", fd_in, read_size);
-    }
-    if (read_size == -1) {
+int full_writev(int fd, struct iovec *iov, int iovcnt, ssize_t size) {
+    int res = full_iov_work(writev, fd, iov, iovcnt, size);
+    if (res == -1) {
+        perror("writev()");
         return -1;
     }
-    cbuf->fill_pos += read_size;
-    if (cbuf->fill_pos >= cbuf->buf_end) {
-        cbuf->fill_pos -= cbuf->size;
-    }
-    cbuf->level += read_size;
     return 0;
 }
 
-int cbuf_flush(circular_buffer_t *cbuf, int size, struct iovec *iovecs) {
-    int iov_idx = 0, init_size = size;
-    if (cbuf->fill_pos > cbuf->flush_pos) {
-        iovecs[iov_idx].iov_base = cbuf->flush_pos;
-        iovecs[iov_idx].iov_len = size;
-        iov_idx += 1;
+#define UDP_PAYLOAD_MAX_SIZE                4096    /* ensured by interface MTU, see comment in const.py */
+#define PACKET_BATCH_BITS                   5
+#define PACKET_BATCH_SIZE                   (1<<PACKET_BATCH_BITS)
+/* caution: if changing LENGTH_SIZE, change two following macros too */
+#define LENGTH_SIZE                         2       /* size to encode packet length */
+/* since LENGTH_SIZE is 2, level on lengths buffer is on a length boundary
+ * if it is an even number */
+#define ON_LENGTH_BOUNDARY(level)           (((level) & 0x1) == 0)
+#define BUF_LEN_LEVEL_TO_NUM_MSGS(level)    ((level) >> 1)  /* divide by 2 */
+#define BUFFER_LENGTHS_SIZE                 (LENGTH_SIZE << PACKET_BATCH_BITS)
+
+struct io_buffers {
+    unsigned char buf_len[BUFFER_LENGTHS_SIZE];
+    struct mmsghdr recv_msgs[PACKET_BATCH_SIZE];
+    struct mmsghdr send_msgs[PACKET_BATCH_SIZE];
+    struct iovec recv_iovecs[PACKET_BATCH_SIZE];
+    struct iovec send_iovecs[PACKET_BATCH_SIZE];
+};
+
+void init_io_buffers(struct io_buffers *iobuf) {
+    int i;
+    memset(iobuf->recv_msgs, 0, sizeof(iobuf->recv_msgs));
+    memset(iobuf->send_msgs, 0, sizeof(iobuf->send_msgs));
+    for (i = 0; i < PACKET_BATCH_SIZE; i++) {
+        /* note: we reuse the same packet buffers for sending and receiving,
+         * but we prepare two pairs of struct iovec & struct mmsghdr vectors
+         * for indexing them quickly. */
+        iobuf->recv_iovecs[i].iov_base         = malloc(sizeof(unsigned char) * UDP_PAYLOAD_MAX_SIZE);
+        iobuf->recv_iovecs[i].iov_len          = UDP_PAYLOAD_MAX_SIZE;
+        iobuf->recv_msgs[i].msg_hdr.msg_iov    = &iobuf->recv_iovecs[i];
+        iobuf->recv_msgs[i].msg_hdr.msg_iovlen = 1;
+        iobuf->send_iovecs[i].iov_base                = iobuf->recv_iovecs[i].iov_base; /* shared with recv */
+        /* send_iovecs[i].iov_len will be adjusted when needed */
+        iobuf->send_msgs[i].msg_hdr.msg_iov    = &iobuf->send_iovecs[i];
+        iobuf->send_msgs[i].msg_hdr.msg_iovlen = 1;
     }
-    else {
-        iovecs[iov_idx].iov_base = cbuf->flush_pos;
-        if (size <= cbuf->buf_end - cbuf->flush_pos) {
-            iovecs[iov_idx].iov_len = size;
+}
+
+void free_io_buffers(struct io_buffers *iobuf) {
+    int i;
+    for (i = 0; i < PACKET_BATCH_SIZE; ++i) {
+        free(iobuf->recv_iovecs[i].iov_base);
+    }
+}
+
+int sock_to_streams(struct io_buffers *iobuf,
+                    int sock_fd, int lengths_fd, int packets_fd) {
+    unsigned char *plen;
+    int num_msgs, res, i;
+    ssize_t packet_len, total_size;
+
+    /* read multiple UDP packets */
+    num_msgs = recvmmsg(sock_fd, iobuf->recv_msgs, PACKET_BATCH_SIZE, MSG_DONTWAIT, NULL);
+    if (num_msgs == -1) {
+        perror("recvmmsg()");
+        status = STOPPED_SHOULD_REINIT;
+        return -1;
+    }
+    /* prepare next writes */
+    total_size = 0;
+    for (i = 0, plen = iobuf->buf_len; i < num_msgs; ++i, plen += LENGTH_SIZE) {
+        packet_len = iobuf->recv_msgs[i].msg_len;
+        debug_printf("l2tp -> ssh %d bytes\n", (int)packet_len);
+        store_packet_len(plen, packet_len);
+        iobuf->send_iovecs[i].iov_len = packet_len;
+        total_size += packet_len;
+    }
+    /* write packets length */
+    res = write_fd(lengths_fd, iobuf->buf_len, plen, "ssh lengths channel");
+    if (res == -1) {
+        status = STOPPED_SHOULD_REINIT;
+        return -1;
+    }
+    /* write packets content */
+    res = full_writev(packets_fd, iobuf->send_iovecs, num_msgs, total_size);
+    if (res == -1) {
+        status = STOPPED_SHOULD_REINIT;
+        return -1;
+    }
+    return 0;
+}
+
+static inline uint32_t l2tp_parse_session_id(unsigned char *l2tp_packet) {
+    /* session ID is defined as a 32-bit unsigned integer on bytes 4 to 7 of L2TP header */
+    return ntohl(*((uint32_t*)(l2tp_packet+4)));
+}
+
+int streams_to_sock(struct io_buffers *iobuf,
+                    int lengths_fd, int packets_fd, int sock_fd) {
+    unsigned char *plen;
+    int num_msgs, res, i;
+    ssize_t packet_len, total_size, read_size, buf_len_level;
+
+    /* read lengths buffer */
+    buf_len_level = 0;
+    while (1) {
+        read_size = read(lengths_fd, iobuf->buf_len + buf_len_level,
+                         BUFFER_LENGTHS_SIZE - buf_len_level);
+        if (read_size > 0) {
+            buf_len_level += read_size;
+            if (!ON_LENGTH_BOUNDARY(buf_len_level)) {
+                continue;   // highly unusual...
+            }
+            break;  // ok
         }
-        else {
-            iovecs[iov_idx].iov_len = cbuf->buf_end - cbuf->flush_pos;
+        if (read_size == -1) {
+            perror("read() on lengths ssh channel");
         }
-        size -= iovecs[iov_idx].iov_len;
-        iov_idx += 1;
-        if (size > 0) {
-            iovecs[iov_idx].iov_base = cbuf->buf;
-            iovecs[iov_idx].iov_len = size;
-            iov_idx += 1;
+        else {  // read_size is 0
+            fprintf(stderr, "empty read on lengths ssh channel\n");
         }
+        status = STOPPED_SHOULD_REINIT;
+        return -1;
     }
-    cbuf->flush_pos += init_size;
-    if (cbuf->flush_pos >= cbuf->buf_end) {
-        cbuf->flush_pos -= cbuf->size;
+    num_msgs = BUF_LEN_LEVEL_TO_NUM_MSGS(buf_len_level);
+
+    /* prepare full_readv() */
+    total_size = 0;
+    for (i = 0, plen = iobuf->buf_len; i < num_msgs; ++i, plen += LENGTH_SIZE) {
+        packet_len = compute_packet_len(plen);
+        debug_printf("ssh -> l2tp %d bytes\n", (int)packet_len);
+        /* add to send_iovecs for this UDP packet */
+        iobuf->send_iovecs[i].iov_len = packet_len;
+        total_size += packet_len;
     }
-    cbuf->level -= init_size;
-    return iov_idx;
-}
 
-void cbuf_pass(circular_buffer_t *cbuf, int shift) {
-    cbuf->flush_pos += shift;
-    if (cbuf->flush_pos >= cbuf->buf_end) {
-        cbuf->flush_pos -= cbuf->size;
+    /* read packets from packets_stdout */
+    res = full_readv(packets_fd, iobuf->send_iovecs, num_msgs, total_size);
+    debug_printf("full_readv num_msgs=%d total_size=%d result=%d\n",
+                   num_msgs, (int)total_size, res);
+    if (res == -1) {
+        status = STOPPED_SHOULD_REINIT;
+        return -1;
     }
-    cbuf->level -= shift;
-}
 
-int cbuf_peek_big_endian_short(circular_buffer_t *cbuf) {
-    int i1 = *(cbuf->flush_pos), i0;
-    if (cbuf->flush_pos + 1 == cbuf->buf_end) {
-        i0 = *(cbuf->buf);
+    /* send packets to L2TP socket */
+    res = sendmmsg(sock_fd, iobuf->send_msgs, num_msgs, 0);
+    debug_printf("sendmmsg num_msgs=%d result=%d\n", num_msgs, res);
+    if (res == -1) {
+        perror("sendmmsg()");
+        status = STOPPED_SHOULD_REINIT;
+        return -1;
     }
-    else {
-        i0 = *(cbuf->flush_pos + 1);
-    }
-    return (i1 << 8) + i0;
+    return 0;
 }
-
-int cbuf_empty(circular_buffer_t *cbuf) {
-    return (cbuf->level == 0);
-}
-
-int cbuf_full(circular_buffer_t *cbuf) {
-    return (cbuf->level == cbuf->size);
-}
-
-int cbuf_available(circular_buffer_t *cbuf) {
-    return cbuf->size - cbuf->level;
-}
-
-#define UDP_PAYLOAD_MAX_SIZE    4096    /* ensured by interface MTU, see comment in const.py */
-#define BUFFER_LENGTHS_SIZE     256
-#define LENGTH_SIZE             2       /* size to encode packet length */
-#define PACKET_BATCH_SIZE       32
-#define BUFFER_PACKETS_SIZE     (UDP_PAYLOAD_MAX_SIZE << 5)    /* 32 times UDP_PAYLOAD_MAX_SIZE */
 
 int client_transmission_loop(int lengths_stdin, int lengths_stdout,
                              int packets_stdin, int packets_stdout, int sock_fd) {
-    unsigned char buf_len[PACKET_BATCH_SIZE * LENGTH_SIZE], *plen;
-    int num_msgs, num_iovecs, res, max_fd, i;
-    ssize_t packet_len, total_size;
+    int res, max_fd;
     fd_set fds, init_fds;
-    circular_buffer_t lengths_buf, packets_buf;
-    struct mmsghdr recv_msgs[PACKET_BATCH_SIZE],
-                   send_msgs[PACKET_BATCH_SIZE];
-    /* send_iovecs will be used on a circular buffer, 2*PACKET_BATCH_SIZE is
-     * a worst case scenario. */
-    struct iovec recv_iovecs[PACKET_BATCH_SIZE],
-                 send_iovecs[2*PACKET_BATCH_SIZE];
-#ifdef DEBUG
-    int max_packet_len = 0;
-#endif
-
-    /* when reading on ssh stdout, we are reading a continuous flow */
-    cbuf_setup(&lengths_buf, BUFFER_LENGTHS_SIZE);
-    cbuf_setup(&packets_buf, BUFFER_PACKETS_SIZE);
+    struct io_buffers io_buffers;
 
     redirect_sigint();
 
-    memset(recv_msgs, 0, sizeof(recv_msgs));
-    for (i = 0; i < PACKET_BATCH_SIZE; i++) {
-        recv_iovecs[i].iov_base         = malloc(sizeof(unsigned char) * UDP_PAYLOAD_MAX_SIZE);
-        recv_iovecs[i].iov_len          = UDP_PAYLOAD_MAX_SIZE;
-        recv_msgs[i].msg_hdr.msg_iov         = &recv_iovecs[i];
-        recv_msgs[i].msg_hdr.msg_iovlen      = 1;
-    }
-    memset(send_msgs, 0, sizeof(send_msgs));
+    init_io_buffers(&io_buffers);
 
     FD_ZERO(&init_fds);
     FD_SET(lengths_stdout, &init_fds);
-    FD_SET(packets_stdout, &init_fds);
     FD_SET(sock_fd, &init_fds);
-    max_fd = MAX(MAX(lengths_stdout, packets_stdout), sock_fd) + 1;
+    max_fd = MAX(lengths_stdout, sock_fd) + 1;
 
     /* start select loop
        we will:
@@ -306,121 +319,15 @@ int client_transmission_loop(int lengths_stdin, int lengths_stdout,
             break;
         }
         if (FD_ISSET(sock_fd, &fds)) {
-            /* read multiple UDP packets */
-            num_msgs = recvmmsg(sock_fd, recv_msgs, PACKET_BATCH_SIZE, MSG_DONTWAIT, NULL);
-            if (num_msgs == -1) {
-                perror("recvmmsg()");
-                status = STOPPED_SHOULD_REINIT;
-                break;
-            }
-            /* prepare next writes */
-            total_size = 0;
-            for (i = 0, plen = buf_len; i < num_msgs; ++i, plen += LENGTH_SIZE) {
-                packet_len = recv_msgs[i].msg_len;
-#ifdef DEBUG
-                if (packet_len > max_packet_len) {
-                    max_packet_len = packet_len;
-                    debug_printf("** max_packet_len %d **\n", max_packet_len);
-                }
-#endif
-                debug_printf("client -> server %d bytes\n", (int)packet_len);
-
-                store_packet_len(plen, packet_len);
-                send_iovecs[i].iov_base = recv_iovecs[i].iov_base;
-                send_iovecs[i].iov_len = packet_len;
-                total_size += packet_len;
-            }
-            /* write packets length */
-            res = write_fd(lengths_stdin, buf_len, plen, "ssh lengths channel");
-            if (res == -1) {
-                status = STOPPED_SHOULD_REINIT;
-                break;
-            }
-            /* write packets content */
-            res = writev(packets_stdin, send_iovecs, num_msgs);
-            if (res == -1) {
-                perror("writev()");
-                status = STOPPED_SHOULD_REINIT;
-                break;
-            }
-            if (res < total_size) {
-                debug_printf("partial writev %d/%d\n", res, (int)total_size);
-                status = STOPPED_SHOULD_ABORT;
-                break;
-            }
+            sock_to_streams(&io_buffers, sock_fd, lengths_stdin, packets_stdin);
         }
-        else if (FD_ISSET(lengths_stdout, &fds)) {
-            debug_printf("lengths_stdout input\n");
-            cbuf_fill(&lengths_buf, lengths_stdout);
-        }
-        else {  // packets_stdout fd is set
-            debug_printf("packets_stdout input\n");
-            cbuf_fill(&packets_buf, packets_stdout);
-        }
-
-        /* look for complete packets and prepare sendmmsg() */
-        i = 0;
-        num_msgs = 0;
-        while ((lengths_buf.level >= LENGTH_SIZE) && (packets_buf.level > 0) && \
-               (num_msgs < PACKET_BATCH_SIZE)) {
-            packet_len = cbuf_peek_big_endian_short(&lengths_buf);
-            if (packets_buf.level < packet_len) {
-                break; // packet not fully obtained
-            }
-#ifdef DEBUG
-            if (packet_len > max_packet_len) {
-                max_packet_len = packet_len;
-                debug_printf("** max_packet_len %d **\n", max_packet_len);
-            }
-#endif
-            debug_printf("server -> client %d bytes\n", (int)packet_len);
-            /* add to send_iovecs for this UDP packet */
-            num_iovecs = cbuf_flush(&packets_buf, packet_len, send_iovecs + i);
-            send_msgs[num_msgs].msg_hdr.msg_iov         = send_iovecs + i;
-            send_msgs[num_msgs].msg_hdr.msg_iovlen      = num_iovecs;
-            num_msgs += 1;
-            i += num_iovecs;
-            /* pass packet length */
-            cbuf_pass(&lengths_buf, LENGTH_SIZE);
-        }
-
-        /* send complete packets if any */
-        if (num_msgs > 0) {
-            res = sendmmsg(sock_fd, send_msgs, num_msgs, 0);
-            debug_printf("sendmmsg num_msgs=%d result=%d\n", num_msgs, res);
-            if (res == -1) {
-                perror("sendmmsg()");
-                status = STOPPED_SHOULD_REINIT;
-                break;
-            }
-            if (res < num_msgs) {
-                printf("incomplete sendmmsg()\n");
-                status = STOPPED_SHOULD_ABORT;
-                break;
-            }
-        }
-
-        /* stop reading when buffer has no more room for a new packet */
-        if (cbuf_available(&lengths_buf) < LENGTH_SIZE) {
-            FD_CLR(lengths_stdout, &init_fds);
-        }
-        else {
-            FD_SET(lengths_stdout, &init_fds);
-        }
-
-        debug_printf("cbuf_available(&packets_buf) = %d\n", cbuf_available(&packets_buf));
-        if (cbuf_available(&packets_buf) < UDP_PAYLOAD_MAX_SIZE) {
-            FD_CLR(packets_stdout, &init_fds);
-        }
-        else {
-            FD_SET(packets_stdout, &init_fds);
+        else { // lengths_stdout fd is set
+            streams_to_sock(&io_buffers, lengths_stdout, packets_stdout, sock_fd);
         }
     }
-    cbuf_release(&lengths_buf);
-    cbuf_release(&packets_buf);
-    for (i = 0; i < PACKET_BATCH_SIZE; i++) {
-        free(recv_iovecs[i].iov_base);
-    }
+
+    free_io_buffers(&io_buffers);
+
     assert(status != RUNNING);
     return (status == STOPPED_SHOULD_REINIT);
 }
@@ -428,29 +335,118 @@ int client_transmission_loop(int lengths_stdin, int lengths_stdout,
 #define SERVER_SOCK_FD  3
 #define L2TP_SOCK_FD    4
 #define PACKET_BUFFER_SIZE  (LENGTH_SIZE + UDP_PAYLOAD_MAX_SIZE)
+#define LENGTHS_READ_FD_TO_SESSION_ID(fd)            ((fd)-0)
+#define SESSION_ID_TO_LENGTHS_READ_FD(session_id)    ((session_id)+0)
+#define SESSION_ID_TO_LENGTHS_WRITE_FD(session_id)   ((session_id)+1)
+#define SESSION_ID_TO_PACKETS_READ_FD(session_id)    ((session_id)+3)
+#define SESSION_ID_TO_PACKETS_WRITE_FD(session_id)   ((session_id)+4)
 
-static inline uint32_t l2tp_parse_session_id(unsigned char *l2tp_packet) {
-    /* session ID is defined as a 32-bit unsigned integer on bytes 4 to 7 of L2TP header */
-    return ntohl(*((uint32_t*)(l2tp_packet+4)));
+struct server_context {
+    fd_set fds;
+    fd_set init_fds;
+    int init_max_fd;
+    struct io_buffers io_buffers;
+    int(*on_disconnect)(int session_id);
+};
+
+int client_disconnection_handler(struct server_context *ctx, int session_id) {
+    int ep_lengths_stdin_fd = SESSION_ID_TO_LENGTHS_READ_FD(session_id);
+    printf("disconnecting client session_id=%d error=%s\n", session_id, strerror(errno));
+    FD_CLR(ep_lengths_stdin_fd, &ctx->init_fds); /* for next fd loop */
+    FD_CLR(ep_lengths_stdin_fd, &ctx->fds); /* for current fd loop */
+    ctx->init_max_fd = ctx->on_disconnect(session_id);
+    if (ctx->init_max_fd == -1) {
+        status = STOPPED_SHOULD_ABORT;
+        return -1;
+    }
+    return 0;
 }
 
-void server_transmission_loop(int(*on_connect)(), int(*on_disconnect)(int fd_range_start)) {
-    unsigned char *buf, *packet;
-    unsigned char buf_len[LENGTH_SIZE];
-    int res, max_fd, init_max_fd, fd, fd_range_start, ep_lengths_stdin_fd, ep_lengths_stdout_fd,
-        ep_packets_stdin_fd, ep_packets_stdout_fd;
-    ssize_t packet_len;
-    fd_set fds, init_fds;
+static inline int client_still_ok(struct server_context *ctx, int session_id) {
+    /* does the select() still listens for incoming data on this client connection?
+     * if not, this means we previously disconnected this client. */
+    return FD_ISSET(SESSION_ID_TO_LENGTHS_READ_FD(session_id), &ctx->init_fds);
+}
 
-    buf = malloc(PACKET_BUFFER_SIZE * sizeof(unsigned char));
-    packet = buf + LENGTH_SIZE;
+/* The following function is a variant of sock_to_streams() above function
+ * but used at the server.
+ * When receiving traffic on the L2TP socket, packets may target different
+ * clients. Thus the server has to read the session id from L2TP header
+ * in order to know on which ssh channels length and packet content should
+ * be sent.
+ * For efficiency, all messages available from the L2TP socket buffer are
+ * read at once. Then, these messages are processed per batch of consecutive
+ * messages having the same session id, thus targeting the same client. */
+int sock_to_streams_l2tp_dispatch(struct server_context *ctx) {
+    unsigned char *plen;
+    int num_msgs, res, i, first_i, session_id, prev_session_id;
+    ssize_t packet_len, total_size;
+    struct io_buffers *iobuf = &ctx->io_buffers;
+
+    /* read multiple UDP packets */
+    num_msgs = recvmmsg(L2TP_SOCK_FD, iobuf->recv_msgs, PACKET_BATCH_SIZE, MSG_DONTWAIT, NULL);
+    if (num_msgs == -1) {
+        perror("recvmmsg()");
+        status = STOPPED_SHOULD_REINIT;
+        return -1;
+    }
+
+    /* process them per batch of consecutive messages targeting the same client */
+    i = 0;
+    while (i < num_msgs) {
+        plen = iobuf->buf_len;
+        prev_session_id = -1;
+        first_i = i;
+        total_size = 0;
+        /* prepare next writes */
+        for (; i < num_msgs; ++i, plen += LENGTH_SIZE) {
+            /* read session id from L2TP header */
+            session_id = (int)l2tp_parse_session_id(iobuf->send_iovecs[i].iov_base);
+            if ((prev_session_id != -1) && (session_id != prev_session_id)) {
+                session_id = prev_session_id;
+                break;
+            }
+            debug_printf("found session_id=%d\n", session_id);
+            packet_len = iobuf->recv_msgs[i].msg_len;
+            debug_printf("l2tp -> ssh %d bytes\n", (int)packet_len);
+            store_packet_len(plen, packet_len);
+            iobuf->send_iovecs[i].iov_len = packet_len;
+            total_size += packet_len;
+        }
+        /* we may have disconnected this client, earlier in the processing of this message batch,
+         * by calling client_disconnection_handler() below */
+        if (!client_still_ok(ctx, session_id)) {
+            debug_printf("client session_id=%d is down\n", session_id);
+            continue;
+        }
+        /* write packets length */
+        res = write_fd(SESSION_ID_TO_LENGTHS_WRITE_FD(session_id),
+                       iobuf->buf_len, plen, "ssh lengths channel");
+        if (res == 0) {
+            /* write packets content */
+            res = full_writev(SESSION_ID_TO_PACKETS_WRITE_FD(session_id),
+                    &iobuf->send_iovecs[first_i], i - first_i, total_size);
+        }
+        if (res == -1) {
+            client_disconnection_handler(ctx, session_id);
+        }
+    }
+    return 0;
+}
+
+void server_transmission_loop(int(*on_connect)(), int(*on_disconnect)(int session_id)) {
+    int res, max_fd, fd, session_id, ep_lengths_stdin_fd, ep_packets_stdin_fd;
+    struct server_context ctx;
 
     redirect_sigint();
 
-    FD_ZERO(&init_fds);
-    FD_SET(SERVER_SOCK_FD, &init_fds);
-    FD_SET(L2TP_SOCK_FD, &init_fds);
-    init_max_fd = L2TP_SOCK_FD;
+    init_io_buffers(&ctx.io_buffers);
+    ctx.on_disconnect = on_disconnect;
+
+    FD_ZERO(&ctx.init_fds);
+    FD_SET(SERVER_SOCK_FD, &ctx.init_fds);
+    FD_SET(L2TP_SOCK_FD, &ctx.init_fds);
+    ctx.init_max_fd = L2TP_SOCK_FD;
 
     /* start select loop
      * python handles the smart part of the code and ensures that
@@ -459,96 +455,58 @@ void server_transmission_loop(int(*on_connect)(), int(*on_disconnect)(int fd_ran
 
     status = RUNNING;
     while (status == RUNNING) {
-        fds = init_fds;
-        max_fd = init_max_fd;
+        ctx.fds = ctx.init_fds;
+        max_fd = ctx.init_max_fd;
         debug_printf("select()");
-        res = select(max_fd + 1, &fds, NULL, NULL, NULL);
+        res = select(max_fd + 1, &ctx.fds, NULL, NULL, NULL);
         if (res < 1) {
             perror("select error");
             break;
         }
         for (fd = SERVER_SOCK_FD; fd <= max_fd; ++fd) {
-            if (FD_ISSET(fd, &fds)) {
+            if (FD_ISSET(fd, &ctx.fds)) {
                 if (fd == SERVER_SOCK_FD) {
-                    fd_range_start = on_connect();
-                    if (fd_range_start == -1) {
+                    session_id = on_connect();
+                    if (session_id == -1) {
                         status = STOPPED_SHOULD_ABORT;
                         break;
                     }
-                    if (fd_range_start == 0) {
+                    if (session_id == 0) {
                         /* we got 1st client stream, we need the 2nd one,
                          * nothing to do for now */
                         continue;
                     }
-                    ep_lengths_stdin_fd = fd_range_start +0;
-                    ep_packets_stdin_fd = fd_range_start +3;
-                    printf("new client fd_range_start=%d\n", fd_range_start);
-                    FD_SET(ep_lengths_stdin_fd, &init_fds);
-                    if (ep_packets_stdin_fd > init_max_fd) {
-                        init_max_fd = ep_packets_stdin_fd;
+                    ep_lengths_stdin_fd = SESSION_ID_TO_LENGTHS_READ_FD(session_id);
+                    ep_packets_stdin_fd = SESSION_ID_TO_PACKETS_READ_FD(session_id);
+                    printf("new client session_id=%d\n", session_id);
+                    FD_SET(ep_lengths_stdin_fd, &ctx.init_fds);
+                    if (ep_packets_stdin_fd > ctx.init_max_fd) {
+                        ctx.init_max_fd = ep_packets_stdin_fd;
                     }
                 }
                 else {
                     debug_printf("event on fd=%d\n", fd);
                     res = 0;    // ok, up to now
                     if (fd == L2TP_SOCK_FD) { // packet on L2TP UDP socket
-                        /* read data from L2TP socket */
-                        res = read_fd_once(L2TP_SOCK_FD, packet, UDP_PAYLOAD_MAX_SIZE, &packet_len, "l2tp socket");
-                        if (res == -1) {
-                            status = STOPPED_SHOULD_ABORT;
-                            break;
-                        }
-                        /* read session id from L2TP header
-                         * note: L2TP sessions are established using session ID = fd_range_start */
-                        fd_range_start = (int)l2tp_parse_session_id(packet);
-                        ep_lengths_stdout_fd = fd_range_start +1;
-                        ep_packets_stdout_fd = fd_range_start +4;
-                        debug_printf("found session_id=%d\n", fd_range_start);
-                        /* write packet len */
-                        store_packet_len(buf_len, packet_len);
-                        res = write_fd(ep_lengths_stdout_fd, buf_len, buf_len + LENGTH_SIZE, "ssh lengths channel");
-                        if (res == 0) {
-                            /* write packet content */
-                            debug_printf("server -> client %ld bytes\n", packet_len);
-                            res = write_fd(ep_packets_stdout_fd, packet, packet + packet_len, "ssh packets channel");
-                        }
+                        sock_to_streams_l2tp_dispatch(&ctx);
                     }
                     else { // not L2TP_SOCK_FD => ep_lengths_stdin_fd
-                        fd_range_start = fd;
                         ep_lengths_stdin_fd = fd;
-                        ep_packets_stdin_fd = fd_range_start + 3;
-                        /* read packet length as 2 bytes */
-                        res = read_fd(ep_lengths_stdin_fd, buf, LENGTH_SIZE, "ssh lengths channel");
-                        if (res == 0) {
-                            packet_len = compute_packet_len(buf);
-                            /* read packet data */
-                            res = read_fd(ep_packets_stdin_fd, packet, packet_len, "ssh packets channel");
-                        }
-                        if (res == 0) {
-                            /* write packet to L2TP socket */
-                            debug_printf("client -> server %ld bytes\n", packet_len);
-                            res = write_fd(L2TP_SOCK_FD, packet, packet + packet_len, "l2tp socket");
+                        session_id = LENGTHS_READ_FD_TO_SESSION_ID(fd);
+                        ep_packets_stdin_fd = SESSION_ID_TO_PACKETS_READ_FD(session_id);
+                        res = streams_to_sock(&ctx.io_buffers, ep_lengths_stdin_fd,
+                                              ep_packets_stdin_fd, L2TP_SOCK_FD);
+                        if (res == -1) {
+                            // client issue, disconnect
+                            client_disconnection_handler(&ctx, session_id);
                         }
                     }
-                    if (res == -1) {
-                        // client issue, disconnect
-                        ep_lengths_stdin_fd = fd_range_start;
-                        printf("disconnecting client fd_range_start=%d error=%s\n", fd_range_start, strerror(errno));
-                        FD_CLR(ep_lengths_stdin_fd, &init_fds);
-                        /* since we continue the loop on fds, avoid catching errors
-                           on ep_lengths_stdin_fd of the same client which we are disconnecting. */
-                        if (fd == L2TP_SOCK_FD) {
-                            FD_CLR(ep_lengths_stdin_fd, &fds); /* note: "&fds" here, not "&init_fds" */
-                        }
-                        init_max_fd = on_disconnect(fd_range_start);
-                        if (init_max_fd == -1) {
-                            status = STOPPED_SHOULD_ABORT;
-                            break;
-                        }
-                    }
+                }
+                if (status == STOPPED_SHOULD_ABORT) {
+                    break;
                 }
             }
         }
     }
-    free(buf);
+    free_io_buffers(&ctx.io_buffers);
 }

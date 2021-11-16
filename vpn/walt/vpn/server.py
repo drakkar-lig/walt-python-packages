@@ -107,6 +107,8 @@ from walt.vpn.ext._loops.lib import server_transmission_loop
 #   * the packets stdout of each client is fd_range_start + 4
 #   * the packets ctrl connection is fd_range_start + 5
 #   * fd_range_start + 6 and 7 are unused
+# - python codes ensures that the L2TP session ID written in the L2TP packet
+#   header for a given client equals fd_range_start.
 # - python code helps managing the max_fd integer necessary for select() calls:
 #   * on_disconnect(fd_range_start) returns new max_fd value
 #   * on_connect() returns fd_range_start value of new client when both streams
@@ -251,8 +253,9 @@ def on_connect():
         traceback.print_exc()
         return -1
 
-def on_disconnect(fd_range_start):
+def on_disconnect(session_id):
     print('client disconnection')
+    fd_range_start = session_id
     try:
         # close
         for offset in range(8):
