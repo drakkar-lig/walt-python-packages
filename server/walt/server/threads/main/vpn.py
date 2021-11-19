@@ -3,7 +3,7 @@ from pathlib import Path
 from time import time
 from collections import defaultdict
 from pkg_resources import resource_string
-from walt.common.tools import do, chown_tree
+from walt.common.tools import do
 from walt.common.constants import UNSECURE_ECDSA_KEYPAIR
 
 # Walt VPN clients should first connect with our unsecure key pair (written below).
@@ -33,30 +33,21 @@ from walt.common.constants import UNSECURE_ECDSA_KEYPAIR
 # period of time, we allow any other device request to wait for "walt vpn monitor" to
 # loop again and respond to this new request.
 
-WALT_VPN_USER = dict(
-    home_dir = Path("/var/lib/walt/vpn"),
-    authorized_keys_pattern = """
-# walt VPN secured access
-cert-authority,restrict,command="walt-vpn-endpoint" %(ca_pub_key)s
-# walt VPN authentication step
-restrict,command="walt-vpn-auth-tool $SSH_ORIGINAL_COMMAND" %(unsecure_pub_key)s
-""")
-
-VPN_CA_KEY = WALT_VPN_USER['home_dir'] / '.ssh' / 'vpn-ca-key'
-VPN_CA_KEY_PUB = WALT_VPN_USER['home_dir'] / '.ssh' / 'vpn-ca-key.pub'
-
-UNSECURE_KEY, UNSECURE_KEY_PUB = UNSECURE_ECDSA_KEYPAIR['openssh-priv'], UNSECURE_ECDSA_KEYPAIR['openssh-pub']
+WALT_VPN_USER_HOME = Path("/var/lib/walt/vpn")
+VPN_CA_KEY = WALT_VPN_USER_HOME / '.ssh' / 'vpn-ca-key'
+VPN_CA_KEY_PUB = WALT_VPN_USER_HOME / '.ssh' / 'vpn-ca-key.pub'
 
 PENDING_USER_RESPONSE_DELAY = 5*60  # seconds
 
 WAITING = 0
 PENDING_USER_RESPONSE = 1
 
+UNSECURE_KEY, UNSECURE_KEY_PUB = UNSECURE_ECDSA_KEYPAIR['openssh-priv'], UNSECURE_ECDSA_KEYPAIR['openssh-pub']
+
 class VPNManager:
     def __init__(self):
         self.waiting_requests = {}
         self.waiting_monitors = set()
-        self.verify_conf()
 
     # when a user types "walt vpn monitor", we get here
     def wait_grant_request(self, task):
@@ -133,28 +124,6 @@ class VPNManager:
             result = ('OK', 'Device access was denied.')
         self.waiting_requests.pop(device_mac)
         return result
-
-    def verify_conf(self):
-        home_dir = WALT_VPN_USER['home_dir']
-        if not home_dir.exists():     # if not configured
-            # create user walt-vpn
-            home_dir = WALT_VPN_USER['home_dir']
-            do("useradd -U -d %(home_dir)s walt-vpn" % dict(
-                home_dir = str(home_dir)
-            ))
-            # generate VPN CA key
-            VPN_CA_KEY.parent.mkdir(parents=True)
-            do("ssh-keygen -N '' -t ecdsa -b 521 -f %s" % str(VPN_CA_KEY))
-            ca_pub_key = VPN_CA_KEY_PUB.read_text().strip()
-            # create appropriate authorized_keys file
-            authorized_keys_file = home_dir / '.ssh' / 'authorized_keys'
-            authorized_keys_file.write_text(
-                WALT_VPN_USER['authorized_keys_pattern'] % dict(
-                ca_pub_key = ca_pub_key,
-                unsecure_pub_key = UNSECURE_KEY_PUB
-            ))
-            # fix owner to 'walt-vpn'
-            chown_tree(home_dir, 'walt-vpn', 'walt-vpn')
 
     def generate_device_keys(self, device_mac):
         device_id = 'vpn_' + device_mac.replace(':', '')
