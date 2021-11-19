@@ -9,7 +9,7 @@ from walt.common.constants import UNSECURE_ECDSA_KEYPAIR
 from walt.common.logs import LoggedApplication
 from plumbum import cli
 from pathlib import Path
-from time import time, sleep
+from time import sleep
 
 DEBUG = False
 
@@ -153,8 +153,11 @@ def vpn_client_loop(tap, walt_vpn_entrypoint):
         should_continue = client_transmission_loop(popen.stdin.fileno(),
                                                    popen.stdout.fileno(),
                                                    tap.fileno())
+        print('Transfer loop ended.')
         if not should_continue:
             break
+        sleep(5)
+        print('Restarting.')
 
 class WalTVPNClient(LoggedApplication):
     """Establish the VPN up to walt server"""

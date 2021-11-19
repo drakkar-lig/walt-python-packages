@@ -2,6 +2,7 @@
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/uio.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -11,6 +12,13 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>
+
+//#define DEBUG
+#ifdef DEBUG
+#define debug_printf(...) fprintf(stderr, __VA_ARGS__)
+#else
+#define debug_printf(...)   /* do nothing */
+#endif
 
 #define MIN(i, j) (((i) > (j))?(j):(i))
 #define MAX(i, j) (((i) > (j))?(i):(j))
@@ -67,21 +75,6 @@ static inline int read_fd_once(int fd, unsigned char *start, ssize_t max_size,
     return 0;
 }
 
-static inline int read_fd(int fd, unsigned char *start, ssize_t size,
-                          char *fd_label) {
-    ssize_t sres;
-    int res;
-    while (size > 0) {
-        res = read_fd_once(fd, start, size, &sres, fd_label);
-        if (res == -1) {
-            return res;
-        }
-        start += sres;
-        size -= sres;
-    }
-    return 0;
-}
-
 static inline int write_fd(int fd, unsigned char *start, unsigned char *end,
                             char *fd_label) {
     ssize_t sres;
@@ -104,6 +97,132 @@ static inline int write_fd(int fd, unsigned char *start, unsigned char *end,
     return 0;
 }
 
+typedef struct {
+    int size;
+    int level;
+    unsigned char *buf;
+    unsigned char *buf_end;
+    unsigned char *fill_pos;
+    unsigned char *flush_pos;
+} circular_buffer_t;
+
+int cbuf_setup(circular_buffer_t *cbuf, int size) {
+    cbuf->size = size;
+    cbuf->level = 0;
+    cbuf->buf = malloc(sizeof(unsigned char) * size);
+    if (cbuf->buf == NULL) {
+        return -1;
+    }
+    cbuf->buf_end = cbuf->buf + size;
+    cbuf->fill_pos = cbuf->buf;
+    cbuf->flush_pos = cbuf->buf;
+    return 0;
+}
+
+void cbuf_release(circular_buffer_t *cbuf) {
+    free(cbuf->buf);
+}
+
+int cbuf_fill(circular_buffer_t *cbuf, int fd_in) {
+    int read_size, iov_idx = 0;
+    struct iovec iov[2];
+    if (cbuf->fill_pos < cbuf->flush_pos) {
+        read_size = read(fd_in, cbuf->fill_pos, cbuf->flush_pos - cbuf->fill_pos);
+    }
+    else {
+        if (cbuf->fill_pos < cbuf->buf_end) {
+            iov[iov_idx].iov_base = cbuf->fill_pos;
+            iov[iov_idx].iov_len = cbuf->buf_end - cbuf->fill_pos;
+            iov_idx += 1;
+        }
+        if (cbuf->buf < cbuf->flush_pos) {
+            iov[iov_idx].iov_base = cbuf->buf;
+            iov[iov_idx].iov_len = cbuf->flush_pos - cbuf->buf;
+            iov_idx += 1;
+        }
+        read_size = readv(fd_in, iov, iov_idx);
+    }
+    if (read_size > 0) {
+        cbuf->fill_pos += read_size;
+        if (cbuf->fill_pos >= cbuf->buf_end) {
+            cbuf->fill_pos -= cbuf->size;
+        }
+        cbuf->level += read_size;
+        return 0;
+    }
+    if (read_size == 0) {
+        fprintf(stderr, "Empty read.\n");
+    }
+    return -1;
+}
+
+int cbuf_flush(circular_buffer_t *cbuf, int size, int fd_out) {
+    int write_size, iov_idx = 0;
+    struct iovec iov[2];
+    if (cbuf->fill_pos > cbuf->flush_pos) {
+        write_size = write(fd_out, cbuf->flush_pos, size);
+    }
+    else {
+        iov[iov_idx].iov_base = cbuf->flush_pos;
+        if (size <= cbuf->buf_end - cbuf->flush_pos) {
+            iov[iov_idx].iov_len = size;
+        }
+        else {
+            iov[iov_idx].iov_len = cbuf->buf_end - cbuf->flush_pos;
+        }
+        size -= iov[iov_idx].iov_len;
+        iov_idx += 1;
+        if (size > 0) {
+            iov[iov_idx].iov_base = cbuf->buf;
+            iov[iov_idx].iov_len = size;
+            iov_idx += 1;
+        }
+        write_size = writev(fd_out, iov, iov_idx);
+    }
+    if (write_size == -1) {
+        return -1;
+    }
+    cbuf->flush_pos += write_size;
+    if (cbuf->flush_pos >= cbuf->buf_end) {
+        cbuf->flush_pos -= cbuf->size;
+    }
+    cbuf->level -= write_size;
+    /* this is not necessary but in case of unnecessarily big buffers, it allows to
+     * use the start of the buffer in most cases, thus it improves cache locality */
+    if (cbuf->level == 0) {
+        cbuf->fill_pos = cbuf->buf;
+        cbuf->flush_pos = cbuf->buf;
+    }
+    return 0;
+}
+
+void cbuf_pass(circular_buffer_t *cbuf, int shift) {
+    cbuf->flush_pos += shift;
+    if (cbuf->flush_pos >= cbuf->buf_end) {
+        cbuf->flush_pos -= cbuf->size;
+    }
+    cbuf->level -= shift;
+}
+
+int cbuf_peek_big_endian_short(circular_buffer_t *cbuf) {
+    int i1 = *(cbuf->flush_pos), i0;
+    if (cbuf->flush_pos + 1 == cbuf->buf_end) {
+        i0 = *(cbuf->buf);
+    }
+    else {
+        i0 = *(cbuf->flush_pos + 1);
+    }
+    return (i1 << 8) + i0;
+}
+
+int cbuf_empty(circular_buffer_t *cbuf) {
+    return (cbuf->level == 0);
+}
+
+int cbuf_full(circular_buffer_t *cbuf) {
+    return (cbuf->level == cbuf->size);
+}
+
 #define ETHERNET_MAX_SIZE   1514
 #define BUFFER_SIZE_BITS    16
 #define BUFFER_SIZE         (1<<BUFFER_SIZE_BITS)
@@ -123,23 +242,17 @@ static inline void store_packet_len(unsigned char *len_pos, ssize_t sres) {
 }
 
 int ssh_tap_transfer_loop(int ssh_read_fd, int ssh_write_fd, int tap_fd) {
-    unsigned char *buf_tap_to_ssh, *buf_ssh_to_tap, *pos_tap_to_ssh,
-                  *len_pos_ssh_to_tap, *read_pos_ssh_to_tap, *limit1_ssh_to_tap,
-                  *limit2_ssh_to_tap, *end_packet;
+    unsigned char *buf_tap_to_ssh, *pos_tap_to_ssh;
     int res, max_fd;
-    ssize_t sres, packet_len, read_len_ssh_to_tap, max_read;
+    ssize_t sres, packet_len;
     fd_set fds, init_fds;
+    circular_buffer_t buf_ssh_to_tap;
 
     /* when reading on tap, 1 read() means 1 packet */
     buf_tap_to_ssh = malloc((LENGTH_SIZE + ETHERNET_MAX_SIZE) * sizeof(unsigned char));
     pos_tap_to_ssh = buf_tap_to_ssh + LENGTH_SIZE;
     /* when reading on ssh stdout, we are reading a continuous flow */
-    buf_ssh_to_tap = malloc(BUFFER_SIZE * sizeof(unsigned char));
-    read_len_ssh_to_tap = 0;
-    len_pos_ssh_to_tap = buf_ssh_to_tap;
-    read_pos_ssh_to_tap = buf_ssh_to_tap;
-    limit1_ssh_to_tap = buf_ssh_to_tap + BUFFER_LOOP_LIMIT_1;
-    limit2_ssh_to_tap = buf_ssh_to_tap + BUFFER_LOOP_LIMIT_2;
+    cbuf_setup(&buf_ssh_to_tap, BUFFER_SIZE);
 
     redirect_sigint();
 
@@ -186,73 +299,36 @@ int ssh_tap_transfer_loop(int ssh_read_fd, int ssh_write_fd, int tap_fd) {
              * with one write() per packet.
              * for efficiency, we read ssh stdout data into a buffer, which means
              * we read several packets at once, and reads might not be on packet
-             * boundaries.
-             * "several packets at once" means we set the maximum read size to match
-             * the end of the buffer minus the maximum packet size. ("limit 2")
-             * when getting near the end of the buffer, we handle the last packet
-             * differently: we ensure we will not read beyond the end of this packet.
-             * then, for next packets, we can resume the process from the start of
-             * the buffer.
-             * "near the end of the buffer" means twice the maximum packet size from
-             * the end. ("limit 1") */
-            if (read_pos_ssh_to_tap < limit1_ssh_to_tap) {   // read standard packet
-                max_read = limit2_ssh_to_tap - read_pos_ssh_to_tap;
-            }
-            else if (read_len_ssh_to_tap < LENGTH_SIZE) {   // read length of last packet in buffer
-                max_read = LENGTH_SIZE - read_len_ssh_to_tap;
-            }
-            else {  // read data of last packet in buffer
-                packet_len = compute_packet_len(len_pos_ssh_to_tap);
-                max_read = LENGTH_SIZE + packet_len - read_len_ssh_to_tap;
-            }
-
-            res = read_fd_once(ssh_read_fd, read_pos_ssh_to_tap, max_read,
-                         &sres, "ssh channel");
+             * boundaries. */
+            res = cbuf_fill(&buf_ssh_to_tap, ssh_read_fd);
             if (res == -1) {
+                debug_printf("failure while reading ssh channel: %s\n", strerror(errno));
                 status = STOPPED_SHOULD_REINIT;
                 break;
             }
 
-            read_len_ssh_to_tap += sres;
-            read_pos_ssh_to_tap += sres;
-
             /* write all complete packets to tap */
-            while (1) {
-                if (read_len_ssh_to_tap < LENGTH_SIZE) {
+            while (buf_ssh_to_tap.level >= LENGTH_SIZE) {
+
+                packet_len = cbuf_peek_big_endian_short(&buf_ssh_to_tap);
+                if (buf_ssh_to_tap.level < LENGTH_SIZE + packet_len) {
                     break;  // not enough data
                 }
 
-                packet_len = compute_packet_len(len_pos_ssh_to_tap);
-                if (read_len_ssh_to_tap < LENGTH_SIZE + packet_len) {
-                    break;  // not enough data
-                }
+                /* pass length field */
+                cbuf_pass(&buf_ssh_to_tap, LENGTH_SIZE);
 
                 /* write packet on tap */
-                end_packet = len_pos_ssh_to_tap + LENGTH_SIZE + packet_len;
-                res = write_fd(tap_fd, len_pos_ssh_to_tap + LENGTH_SIZE, end_packet,
-                                  "tap");
+                res = cbuf_flush(&buf_ssh_to_tap, packet_len, tap_fd);
                 if (res == -1) {
                     status = STOPPED_SHOULD_ABORT;
                     break;
-                }
-
-                /* update pointers for next packet */
-                read_len_ssh_to_tap -= LENGTH_SIZE + packet_len;
-                if (read_len_ssh_to_tap == 0) {
-                    /* we have read up to the packet boundary
-                     * => we can return to the start of the buffer */
-                    read_pos_ssh_to_tap = buf_ssh_to_tap;
-                    len_pos_ssh_to_tap = buf_ssh_to_tap;
-                }
-                else {
-                    /* jump to next packet */
-                    len_pos_ssh_to_tap += LENGTH_SIZE + packet_len;
                 }
             }
         }
     }
     free(buf_tap_to_ssh);
-    free(buf_ssh_to_tap);
+    cbuf_release(&buf_ssh_to_tap);
     assert(status != RUNNING);
     return (status == STOPPED_SHOULD_REINIT);
 }
