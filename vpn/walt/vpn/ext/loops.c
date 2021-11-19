@@ -122,7 +122,7 @@ static inline void store_packet_len(unsigned char *len_pos, ssize_t sres) {
     len_pos[1] = (unsigned char)(sres & 0xff);
 }
 
-int client_transmission_loop(int ssh_stdin, int ssh_stdout, int tap_fd) {
+int ssh_tap_transfer_loop(int ssh_read_fd, int ssh_write_fd, int tap_fd) {
     unsigned char *buf_tap_to_ssh, *buf_ssh_to_tap, *pos_tap_to_ssh,
                   *len_pos_ssh_to_tap, *read_pos_ssh_to_tap, *limit1_ssh_to_tap,
                   *limit2_ssh_to_tap, *end_packet;
@@ -144,9 +144,9 @@ int client_transmission_loop(int ssh_stdin, int ssh_stdout, int tap_fd) {
     redirect_sigint();
 
     FD_ZERO(&init_fds);
-    FD_SET(ssh_stdout, &init_fds);
+    FD_SET(ssh_read_fd, &init_fds);
     FD_SET(tap_fd, &init_fds);
-    max_fd = MAX(ssh_stdout, tap_fd) + 1;
+    max_fd = MAX(ssh_read_fd, tap_fd) + 1;
 
     /* start select loop
        we will:
@@ -173,7 +173,7 @@ int client_transmission_loop(int ssh_stdin, int ssh_stdout, int tap_fd) {
             /* prefix packet length as 2 bytes, big endian */
             store_packet_len(buf_tap_to_ssh, sres);
             /* write packet to ssh stdin */
-            res = write_fd(ssh_stdin, buf_tap_to_ssh, pos_tap_to_ssh + sres,
+            res = write_fd(ssh_write_fd, buf_tap_to_ssh, pos_tap_to_ssh + sres,
                               "ssh channel");
             if (res == -1) {
                 status = STOPPED_SHOULD_REINIT;
@@ -206,7 +206,7 @@ int client_transmission_loop(int ssh_stdin, int ssh_stdout, int tap_fd) {
                 max_read = LENGTH_SIZE + packet_len - read_len_ssh_to_tap;
             }
 
-            res = read_fd_once(ssh_stdout, read_pos_ssh_to_tap, max_read,
+            res = read_fd_once(ssh_read_fd, read_pos_ssh_to_tap, max_read,
                          &sres, "ssh channel");
             if (res == -1) {
                 status = STOPPED_SHOULD_REINIT;
@@ -257,156 +257,25 @@ int client_transmission_loop(int ssh_stdin, int ssh_stdout, int tap_fd) {
     return (status == STOPPED_SHOULD_REINIT);
 }
 
-#define ENDPOINT_STDIN  0
-#define ENDPOINT_STDOUT 1
-
-void endpoint_transmission_loop(int sock_fd) {
-    int res, max_fd;
-    fd_set fds;
-
-    redirect_sigint();
-
-    FD_ZERO(&fds);
-    FD_SET(ENDPOINT_STDIN, &fds);
-    FD_SET(ENDPOINT_STDOUT, &fds);
-    FD_SET(sock_fd, &fds);
-    max_fd = sock_fd + 1;
-
-    /* file descriptors were transmitted to VPN server
-       through UNIX socket ancilliary data.
-       we just monitor them until an error occurs.
-    */
-    res = select(max_fd, NULL, NULL, &fds /* error set */, NULL);
-    if (res < 1) {
-        perror("select error");
-    }
-    else {
-        write_stderr("error detected on a file descriptor, stopping.\n");
-    }
+int client_transmission_loop(int ssh_stdin, int ssh_stdout, int tap_fd) {
+    /* client runs a ssh process using subprocess.popen.
+     * - ssh_stdin allows to write packets on the standard input of this process
+     * - ssh_stdout allows to read packets transfered the other way and written
+     *   on the standard output of this process */
+    return ssh_tap_transfer_loop(ssh_stdout /* read from ssh channel */,
+                                 ssh_stdin /* write to ssh channel */,
+                                 tap_fd);
 }
 
-#define SERVER_SOCK_FD  3
-//#define DEBUG
-#ifdef DEBUG
-#define debug_printf printf
-#else
-#define debug_printf(...)   /* do nothing */
-#endif
-
-void server_transmission_loop(int(*on_connect)(), int(*on_disconnect)(int tap_fd)) {
-    unsigned char *buf, *packet;
-    int res, max_fd, init_max_fd, fd, sock_fd, tap_fd, ep_stdin_fd, ep_stdout_fd;
-    ssize_t packet_len;
-    fd_set fds, init_fds;
-
-    buf = malloc(PACKET_BUFFER_SIZE * sizeof(unsigned char));
-    packet = buf + LENGTH_SIZE;
-
-    redirect_sigint();
-
-    FD_ZERO(&init_fds);
-    FD_SET(SERVER_SOCK_FD, &init_fds);
-    init_max_fd = SERVER_SOCK_FD;
-
-    /* start select loop
-       we will just:
-       * accept all client endpoints that connect to /var/run/walt-vpn.sock
-       * for each client endpoint create a tap and add it to walt-net
-       * transfer packets coming from client stdin to the corresponding tap interface
-       * transfer packets coming from a tap interface to the corresponding client stdout
-       client code management is delegated to python using on_connect() and on_disconnect()
-       callbacks.
-       python code ensures that:
-       * the tap fd of each client endpoint is a multiple of 4
-       * the socket fd of each client endpoint is tap_fd + 1
-       * the stdin of each client endpoint is tap_fd + 2
-       * the stdout of each client endpoint is tap_fd + 3
-    */
-    status = RUNNING;
-    while (status == RUNNING) {
-        fds = init_fds;
-        max_fd = init_max_fd;
-        debug_printf("select()");
-        res = select(max_fd + 1, &fds, NULL, NULL, NULL);
-        if (res < 1) {
-            perror("select error");
-            break;
-        }
-        for (fd = SERVER_SOCK_FD; fd <= max_fd; ++fd) {
-            if (FD_ISSET(fd, &fds)) {
-                if (fd == SERVER_SOCK_FD) {
-                    tap_fd = on_connect();
-                    if (tap_fd == -1) {
-                        status = STOPPED_SHOULD_ABORT;
-                        break;
-                    }
-                    sock_fd = tap_fd +1;
-                    ep_stdin_fd = tap_fd +2;
-                    ep_stdout_fd = tap_fd +3;
-                    printf("new client tap_fd=%d sock_fd=%d ep_stdin_fd=%d ep_stdout_fd=%d\n",
-                            tap_fd, sock_fd, ep_stdin_fd, ep_stdout_fd);
-                    FD_SET(tap_fd, &init_fds);
-                    FD_SET(ep_stdin_fd, &init_fds);
-                    if (ep_stdin_fd > init_max_fd) {
-                        init_max_fd = ep_stdin_fd;
-                    }
-                }
-                else {
-                    debug_printf("event on fd=%d\n", fd);
-                    res = 0;    // ok, up to now
-                    if ((fd & 0x3) == 0) { // multiple of 4 => tap
-                        tap_fd = fd;
-                        ep_stdout_fd = fd + 3;
-                        /* read data from tap */
-                        res = read_fd_once(tap_fd, packet, ETHERNET_MAX_SIZE, &packet_len, "tap");
-                        if (res == 0) {
-                            /* prefix with packet len */
-                            store_packet_len(buf, packet_len);
-                            /* write to endpoint stdout */
-                            debug_printf("writing packet of %ld bytes to walt-vpn-endpoint stdout\n", packet_len);
-                            res = write_fd(ep_stdout_fd, buf, buf + (LENGTH_SIZE + packet_len), "ep stdout");
-                        }
-                    }
-                    else { // not multiple of 4 => walt-vpn-endpoint stdin
-                        tap_fd = fd - 2;
-                        ep_stdin_fd = fd;
-                        /* read packet length as 2 bytes */
-                        res = read_fd(ep_stdin_fd, buf, LENGTH_SIZE, "ep stdin");
-                        if (res == 0) {
-                            packet_len = compute_packet_len(buf);
-                            /* read packet data */
-                            res = read_fd(ep_stdin_fd, packet, packet_len, "ep stdin");
-                        }
-                        if (res == 0) {
-                            /* write packet on tap */
-                            debug_printf("writing packet of %ld bytes to tap\n", packet_len);
-                            res = write_fd(tap_fd, packet, packet + packet_len, "tap");
-                        }
-                    }
-                    if (res == -1) {
-                        // client issue, disconnect
-                        sock_fd = tap_fd +1;
-                        ep_stdin_fd = tap_fd +2;
-                        ep_stdout_fd = tap_fd +3;
-                        printf("disconnecting client tap_fd=%d sock_fd=%d "
-                               "ep_stdin_fd=%d ep_stdout_fd=%d error=%s\n",
-                               tap_fd, sock_fd, ep_stdin_fd, ep_stdout_fd, strerror(errno));
-                        FD_CLR(tap_fd, &init_fds);
-                        FD_CLR(ep_stdin_fd, &init_fds);
-                        /* since we continue the loop on fds, avoid catching errors
-                           on ep_stdin_fd of the same client which we are disconnecting. */
-                        if (fd == tap_fd) {
-                            FD_CLR(ep_stdin_fd, &fds);
-                        }
-                        init_max_fd = on_disconnect(tap_fd);
-                        if (init_max_fd == -1) {
-                            status = STOPPED_SHOULD_ABORT;
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-    }
-    free(buf);
+void endpoint_transmission_loop(int tap_fd) {
+    /* the client runs ssh <options> walt-vpn@<server> walt-vpn-endpoint
+     * (or, more precisely, walt-vpn-endpoint command is enforced by the
+     * authorized_keys file)
+     * - walt-vpn-endpoint stdin allows to read packets sent over the ssh
+     *   channel from the client
+     * - writting on walt-vpn-endpoint stdout allows to transfer packets
+     *   the other way */
+    ssh_tap_transfer_loop(0 /* stdin: read from ssh channel */,
+                          1 /* stdout: write to ssh channel */,
+                          tap_fd);
 }

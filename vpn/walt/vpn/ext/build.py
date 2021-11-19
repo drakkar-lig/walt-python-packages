@@ -3,8 +3,7 @@ ffibuilder = FFI()
 
 PROTOTYPES = """
 int client_transmission_loop(int ssh_stdin, int ssh_stdout, int tap_fd);
-void endpoint_transmission_loop(int sock_fd);
-void server_transmission_loop(int(*on_connect)(), int(*on_disconnect)(int));
+void endpoint_transmission_loop(int tap_fd);
 """
 
 ffibuilder.cdef(PROTOTYPES)
