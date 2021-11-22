@@ -127,7 +127,9 @@ int cbuf_fill(circular_buffer_t *cbuf, int fd_in) {
     int read_size, iov_idx = 0;
     struct iovec iov[2];
     if (cbuf->fill_pos < cbuf->flush_pos) {
-        read_size = read(fd_in, cbuf->fill_pos, cbuf->flush_pos - cbuf->fill_pos);
+        iov[iov_idx].iov_base = cbuf->fill_pos;
+        iov[iov_idx].iov_len = cbuf->flush_pos - cbuf->fill_pos;
+        iov_idx += 1;
     }
     else {
         if (cbuf->fill_pos < cbuf->buf_end) {
@@ -140,8 +142,8 @@ int cbuf_fill(circular_buffer_t *cbuf, int fd_in) {
             iov[iov_idx].iov_len = cbuf->flush_pos - cbuf->buf;
             iov_idx += 1;
         }
-        read_size = readv(fd_in, iov, iov_idx);
     }
+    read_size = readv(fd_in, iov, iov_idx);
     if (read_size > 0) {
         cbuf->fill_pos += read_size;
         if (cbuf->fill_pos >= cbuf->buf_end) {
@@ -160,7 +162,9 @@ int cbuf_flush(circular_buffer_t *cbuf, int size, int fd_out) {
     int write_size, iov_idx = 0;
     struct iovec iov[2];
     if (cbuf->fill_pos > cbuf->flush_pos) {
-        write_size = write(fd_out, cbuf->flush_pos, size);
+        iov[iov_idx].iov_base = cbuf->flush_pos;
+        iov[iov_idx].iov_len = size;
+        iov_idx += 1;
     }
     else {
         iov[iov_idx].iov_base = cbuf->flush_pos;
@@ -177,8 +181,8 @@ int cbuf_flush(circular_buffer_t *cbuf, int size, int fd_out) {
             iov[iov_idx].iov_len = size;
             iov_idx += 1;
         }
-        write_size = writev(fd_out, iov, iov_idx);
     }
+    write_size = writev(fd_out, iov, iov_idx);
     if (write_size == -1) {
         return -1;
     }
