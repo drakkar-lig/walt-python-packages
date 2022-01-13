@@ -57,8 +57,8 @@ class BlockingTasksService(object):
         res = nodes_set_poe(self.server, *args, **kwargs)
         context.task.return_result(res)
 
-    def run_shell_cmd(self, context, cmd):
-        res = run_shell_cmd(cmd)
+    def run_shell_cmd(self, context, *args, **kwargs):
+        res = run_shell_cmd(*args, **kwargs)
         context.task.return_result(res)
 
 class ServerBlockingThread(EvThread):
