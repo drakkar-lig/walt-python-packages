@@ -68,6 +68,8 @@ def parse_image_fullname(image_fullname):
     image_user, image_name = image_fullname.split('/')
     if image_name.endswith(':latest'):
         image_name = image_name[:-7]
+    elif ':' not in image_fullname:
+        image_fullname += ':latest'
     return image_fullname, image_user, image_name
 
 def format_image_fullname(user, image_name):

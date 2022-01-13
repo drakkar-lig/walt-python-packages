@@ -166,13 +166,10 @@ class NodeImageStore(object):
         an error message will be printed.
         """
         found = None
-        if '/' in image_name:
-            fullname = image_name
-        else:
-            username = requester.get_username()
-            if not username:
-                return None    # client already disconnected, give up
-            fullname = format_image_fullname(username, image_name)
+        username = requester.get_username()
+        if not username:
+            return None    # client already disconnected, give up
+        fullname = format_image_fullname(username, image_name)
         for image in self.images.values():
             if image.fullname == fullname:
                 found = image
