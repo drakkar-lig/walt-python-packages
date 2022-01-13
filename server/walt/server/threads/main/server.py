@@ -7,7 +7,7 @@ from walt.common.tcp import TCPServer
 from walt.common.formatting import format_sentence
 from walt.server.threads.main.blocking import BlockingTasksManager
 from walt.server.threads.main.db import ServerDB
-from walt.server.threads.main.images.image import format_image_fullname
+from walt.server.threads.main.images.image import format_image_fullname, parse_image_fullname
 from walt.server.threads.main.images.manager import NodeImageManager
 from walt.server.threads.main.interactive import InteractionManager
 from walt.server.threads.main.logs import LogsManager
@@ -229,13 +229,14 @@ class Server(object):
         node_info = self.nodes.get_node_info(requester, node_name)
         if node_info is None:
             return  # error already reported
+        fullname, username, image_name = parse_image_fullname(node_info.image)
         session = self.images.create_shell_session(
-                                requester, node_info.image, 'file transfer')
+                                requester, image_name, 'file transfer')
         if session == None:
             return  # issue already reported
         cmd = format_node_to_booted_image_transfer_cmd(
             node_ip = node_info.ip,
-            image_fullname = node_info.image,
+            image_fullname = fullname,
             container_name = session.container_name,
             **path_info
         )
@@ -246,6 +247,6 @@ class Server(object):
         def cb(res):
             requester.set_default_busy_label()
             self.image_shell_session_save(
-                requester, cb_unblock_client, session, session.image.name, True)
+                requester, cb_unblock_client, session, image_name, True)
         requester.set_busy_label('Transfering')
         self.blocking.run_shell_cmd(requester, cb, cmd, shell=True)
