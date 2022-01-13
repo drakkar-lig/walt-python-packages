@@ -248,4 +248,4 @@ class Server(object):
             self.image_shell_session_save(
                 requester, cb_unblock_client, session, session.image.name, True)
         requester.set_busy_label('Transfering')
-        self.blocking.run_shell_cmd(requester, cb, cmd)
+        self.blocking.run_shell_cmd(requester, cb, cmd, shell=True)
