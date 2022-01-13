@@ -80,7 +80,7 @@ def run_transfer(req_id, dst_dir, dst_name, src_path,
         if client_operand_index == 0:
             # client is sending
             writer = SmartWriter(f)
-            with tarfile.open(mode='w|', fileobj=writer, dereference=True) as archive:
+            with tarfile.open(mode='w|', fileobj=writer) as archive:
                 archive.add(src_path, arcname=dst_name, filter=set_root)
             # let the other end know we are done writing
             writer.shutdown_write()

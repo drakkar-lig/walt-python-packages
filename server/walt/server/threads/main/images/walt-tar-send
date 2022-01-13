@@ -1,0 +1,28 @@
+#!/bin/sh
+set -e
+src_path="$1"
+dst_name="$2"
+
+src_path="$(realpath "$src_path")"
+src_name="$(basename "$src_path")"
+src_parent="$(dirname "$src_path")"
+
+if [ "$src_name" = "$dst_name" ]
+then
+	# easy, fast path
+	cd "${src_parent}"
+	tar c "${src_name}"
+else
+	# slow path, 
+	# tar archive member name should be $dst_name, not $src_name
+	# let's copy src to a temp directory with appropriate name
+	tmp_dir=$(mktemp -d)
+	cd "${src_parent}"
+	tar c "${src_name}" | {
+		cd $tmp_dir
+		tar x
+		mv "${src_name}" "$dst_name"
+		tar c "$dst_name"
+	}
+	rm -rf $tmp_dir
+fi
