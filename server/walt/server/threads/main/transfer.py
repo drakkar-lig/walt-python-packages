@@ -2,6 +2,7 @@
 from walt.common.tcp import Requests
 from walt.server.threads.main.parallel import ParallelProcessSocketListener
 from walt.server.const import SSH_COMMAND
+from walt.server.threads.main.images.setup import script_path
 import os, random
 
 TYPE_CLIENT = 0
@@ -175,19 +176,18 @@ def validate_cp(image_or_node_label, server,
 
 def docker_wrap_cmd(cmd, input_needed = False):
     input_opt = '-i' if input_needed else ''
-    return '''\
-        podman run -q %(input_opt)s --name %%(container_name)s -w /root \
-        --entrypoint /bin/sh %%(image_fullname)s -c "%(cmd)s; sync; sync"
-    ''' % dict(cmd = cmd, input_opt = input_opt)
+    walt_tar_send = script_path('walt-tar-send')
+    return f'''\
+        podman run -q {input_opt} --name %(container_name)s -w /root \
+        -v {walt_tar_send}:/bin/walt-tar-send \
+        --entrypoint /bin/sh %(image_fullname)s -c "{cmd}; sync; sync" '''
 
 def ssh_wrap_cmd(cmd):
     return SSH_COMMAND + ' root@%(node_ip)s "' + cmd + '"'
 
 TarSendCommand='''\
-        mkdir -p /tmp/%(tmp_name)s && \
-        ln -s %(src_path)s /tmp/%(tmp_name)s/%(dst_name)s && \
-        cd /tmp/%(tmp_name)s && \
-        tar c -h %(dst_name)s && cd / && rm -rf /tmp/%(tmp_name)s '''
+        walt-tar-send %(src_path)s %(dst_name)s \
+        '''
 
 def get_absolute_path(path):
     if not path.startswith('/'):

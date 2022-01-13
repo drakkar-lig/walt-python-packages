@@ -29,7 +29,8 @@ NODE_SCRIPTS = {'walt-env': True,
                 'walt-notify-bootup': False,
                 'walt-init': False,
                 'walt-nfs-watchdog': False,
-                'walt-net-service': True}
+                'walt-net-service': True,
+                'walt-tar-send': False}
 
 TEMPLATE_ENV = dict(
     server_mac = get_mac_address(WALT_INTF),
@@ -78,6 +79,9 @@ HOSTS_FILE_CONTENT="""\
 ff02::1     ip6-allnodes
 ff02::2     ip6-allrouters
 """
+
+def script_path(script_name):
+    return resource_filename(__name__, script_name)
 
 def ensure_root_key_exists():
     if not os.path.isfile(SERVER_KEY_PATH):
@@ -174,8 +178,7 @@ def setup(mount_path):
     # copy walt scripts in <image>/bin, update template parameters
     image_bindir = mount_path + '/bin/'
     for script_name, template in NODE_SCRIPTS.items():
-        script_path = resource_filename(__name__, script_name)
-        shutil.copy(script_path, image_bindir)
+        shutil.copy(script_path(script_name), image_bindir)
         if template:
             update_template(image_bindir + script_name, TEMPLATE_ENV)
     # read image spec file if any
