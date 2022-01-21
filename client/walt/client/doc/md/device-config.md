@@ -13,7 +13,7 @@ One may also show or change several settings at once, and/or show or update them
 For instance:
 ```
 $ walt device config all-switches               # show
-$ walt device config all-switches lldp.explore=true poe.reboot=true
+$ walt device config all-switches lldp.explore=true poe.reboots=true
 $ walt node config virt-node-1,virt-node-2 ram=384M
 ```
 
