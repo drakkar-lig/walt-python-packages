@@ -34,6 +34,7 @@ Here is the set of settings currently allowed:
 | netsetup       | 'NAT' or 'LAN'         | nodes             | (3)   |
 | ram            | e.g. '384M' or '1G'    | virtual nodes     |       |
 | cpu.cores      | e.g. 1 or 4            | virtual nodes     |       |
+| disks          | e.g. '8G' or '32G,1T'  | virtual nodes     |       |
 
 Notes:
 1. See [`walt help show switch-install`](switch-install.md)

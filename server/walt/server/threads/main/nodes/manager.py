@@ -24,6 +24,7 @@ from walt.server.tools import get_server_ip
 
 VNODE_DEFAULT_RAM = "512M"
 VNODE_DEFAULT_CPU_CORES = 4
+VNODE_DEFAULT_DISKS = 'none'
 # We record virtual nodes serial console output here
 # (we avoid using the logging system for this in order to avoid adding network traffic)
 VNODE_LOG_DIR = Path('/var/lib/walt/logs/vnodes/')
@@ -35,7 +36,8 @@ MSG_NOT_VIRTUAL = "WARNING: %s is not a virtual node. IGNORED.\n"
 FS_CMD_PATTERN = SSH_COMMAND + ' root@%(node_ip)s "%%(prog)s %%(prog_args)s"'
 
 VNODE_CMD = "walt-virtual-node --mac %(mac)s --ip %(ip)s --model %(model)s --hostname %(name)s \
-                               --server-ip %(server_ip)s --cpu-cores %(cpu_cores)d --ram %(ram)s"
+                               --server-ip %(server_ip)s --cpu-cores %(cpu_cores)d --ram %(ram)s \
+                               --disks %(disks)s"
 CMD_START_VNODE = 'screen -S walt.node.%(hypmac)s -d -m \
                      script -f -t%(ttyrec_file)s.time -c "' + VNODE_CMD + '" %(ttyrec_file)s'
 CMD_ADD_SSH_KNOWN_HOST = "  mkdir -p /root/.ssh && ssh-keygen -F %(ip)s || \
@@ -234,6 +236,7 @@ class NodesManager(object):
             server_ip = get_server_ip(),
             cpu_cores = node.conf.get('cpu.cores', VNODE_DEFAULT_CPU_CORES),
             ram = node.conf.get('ram', VNODE_DEFAULT_RAM),
+            disks = node.conf.get('disks', VNODE_DEFAULT_DISKS),
             ttyrec_file = VNODE_LOG_DIR / (hypmac + str(int(time())) + '.tty')
         )
         print(cmd)

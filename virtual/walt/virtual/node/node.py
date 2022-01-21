@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import sys, subprocess, time, random, platform, re, atexit, signal, shlex, shutil
-from os import getpid, getenv
+from os import getpid, getenv, truncate
 from contextlib import contextmanager
 from walt.common.apilink import ServerAPILink
 from walt.common.logs import LoggedApplication
@@ -14,6 +14,7 @@ OS_ENCODING = sys.stdout.encoding
 HOST_CPU = platform.machine()
 VNODE_DEFAULT_PID_PATH = '/var/lib/walt/nodes/%(mac)s/pid'
 VNODE_DEFAULT_SCREEN_SESSION_PATH = '/var/lib/walt/nodes/%(mac)s/screen_session'
+VNODE_DEFAULT_DISKS_PATH = '/var/lib/walt/nodes/%(mac)s/disks'
 VNODE_IFUP_SCRIPT = shutil.which('walt-vnode-ifup')
 VNODE_IFDOWN_SCRIPT = shutil.which('walt-vnode-ifdown')
 
@@ -45,11 +46,13 @@ MANUFACTURER = "QEMU"
 QEMU_PROG = "qemu-system-" + HOST_CPU
 DEFAULT_QEMU_RAM = 512
 DEFAULT_QEMU_CORES = 4
+DEFAULT_QEMU_DISKS = ()
 QEMU_ARGS = QEMU_PROG + " \
                 -enable-kvm " + \
                 QEMU_MACHINE_DEF + "\
                 -m %(ram)d \
                 -smp %(cpu-cores)d \
+                %(disks)s \
                 -name %(name)s \
                 -nographic \
                 -netdev type=tap,id=mynet,vhost=on," + \
@@ -84,6 +87,28 @@ Usage: %(prog)s [--attach-usb] --mac <node_mac> --ip <node_ip> --model <node_mod
        %(prog)s [--attach-usb] --net-conf-udhcpc --mac <node_mac> --model <node_model>\
 """
 
+def get_qemu_disks(info):
+    if len(info._disks) == 0:
+        return ""
+    if info._disks_path is None:
+        disks_path = VNODE_DEFAULT_DISKS_PATH  % dict(mac = info._mac)
+    else:
+        disks_path = info._disks_path
+    Path(disks_path).mkdir(parents=True, exist_ok=True)
+    qemu_disk_opts = ''
+    for disk_index, disk_cap in enumerate(info._disks):
+        disk_cap_bytes = disk_cap * 1000000000
+        disk_path = Path(f'{disks_path}/disk_{disk_index}.dd')
+        if disk_path.exists():
+            # if not expected size, remove it
+            if disk_path.stat().st_size != disk_cap_bytes:
+                disk_path.unlink()
+        if not disk_path.exists():
+            disk_path.touch()
+            truncate(str(disk_path), disk_cap_bytes)
+        qemu_disk_opts += f' -drive file={disk_path},format=raw'
+    return qemu_disk_opts
+
 def get_env_start(info):
     # define initial env variables for ipxe_boot()
     if info._udhcpc:
@@ -109,6 +134,7 @@ def get_env_start(info):
     # but will be used when launching the boot-function boot_kvm()
     env['cpu-cores'] = info._cpu_cores
     env['ram'] = info._ram
+    env['disks'] = get_qemu_disks(info)
     env['attach-usb'] = info._attach_usb
     env['reboot-command'] = info._reboot_command
     return env
@@ -194,8 +220,10 @@ class WalTVirtualNode(LoggedApplication):
     _reboot_command = None  # default
     _pid_path = None        # default
     _screen_session_path = None  # default
+    _disks_path = None      # default
     _cpu_cores = DEFAULT_QEMU_CORES
     _ram = DEFAULT_QEMU_RAM
+    _disks = DEFAULT_QEMU_DISKS
 
     """run a virtual node"""
     def main(self):
@@ -211,6 +239,11 @@ class WalTVirtualNode(LoggedApplication):
     def set_screen_session_path(self, screen_session_path):
         """Set screen session file path"""
         self._screen_session_path = screen_session_path
+
+    @cli.switch("--disks-path", str)
+    def set_disks_path(self, disks_path):
+        """Set path where to save virtual node disk files"""
+        self._disks_path = disks_path
 
     @cli.switch("--attach-usb")
     def set_attach_usb(self):
@@ -250,13 +283,27 @@ class WalTVirtualNode(LoggedApplication):
     @cli.switch("--ram", str)
     def set_ram(self, ram):
         """specify node's ram amount (e.g. 512M or 1G)"""
-        if re.match(r'\d+[MG]', ram) is None:
+        if re.match(r'^\d+[MG]$', ram) is None:
             raise ValueError('Invalid RAM amount specified (should be for instance 512M or 1G).')
         # convert to megabytes
         ram_megabytes = int(ram[:-1])
         if ram[-1] == 'G':
             ram_megabytes *= 1024
         self._ram = ram_megabytes
+
+    @cli.switch("--disks", str)
+    def set_disks(self, disks):
+        """specify node's disks (e.g. none, 8G or "1T,32G")"""
+        if disks != "none" and re.match(r'^\d+[GT](,\d+[GT])*$', disks) is None:
+            raise ValueError('Invalid value for --disks (should be for instance none, 8G or "1T,32G").')
+        # convert to gigabytes
+        self._disks = []
+        if disks != 'none':
+            for capacity in disks.split(','):
+                cap_gigabytes = int(capacity[:-1])
+                if capacity[-1] == 'T':
+                    cap_gigabytes *= 1000
+                self._disks.append(cap_gigabytes)
 
     @cli.switch("--net-conf-udhcpc")
     def set_net_conf_udhcpc(self):
