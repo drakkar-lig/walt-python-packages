@@ -1,7 +1,8 @@
 import json, re
 from collections import defaultdict
 from walt.server.threads.main.network.netsetup import NetSetup
-from walt.server.threads.main.nodes.manager import VNODE_DEFAULT_RAM, VNODE_DEFAULT_CPU_CORES
+from walt.server.threads.main.nodes.manager import VNODE_DEFAULT_RAM, VNODE_DEFAULT_CPU_CORES, \
+                                                   VNODE_DEFAULT_DISKS
 from walt.common.tools import do
 from walt.common.formatting import format_sentence
 
@@ -13,6 +14,7 @@ class SettingsManager:
                                     'pretty_print': lambda int_val: NetSetup(int_val).readable_string() },
             'ram':              { 'category': 'virtual-nodes', 'value-check': self.correct_ram_value, 'default': VNODE_DEFAULT_RAM },
             'cpu.cores':        { 'category': 'virtual-nodes', 'value-check': self.correct_cpu_value, 'default': VNODE_DEFAULT_CPU_CORES },
+            'disks':            { 'category': 'virtual-nodes', 'value-check': self.correct_disks_value, 'default': VNODE_DEFAULT_DISKS },
             'type':             { 'category': 'unknown-devices', 'value-check': self.value_is_switch, 'default': 'unknown' },
             'lldp.explore':     { 'category': 'switches', 'value-check': self.correct_lldp_explore_value, 'default': False,
                                     'pretty_print': lambda bool_val: str(bool_val).lower() },
@@ -115,9 +117,17 @@ class SettingsManager:
             return False
 
     def correct_ram_value(self, requester, device_infos, setting_name, setting_value, all_settings):
-        if re.match(r'\d+[MG]', setting_value) is None:
+        if re.match(r'^\d+[MG]$', setting_value) is None:
             requester.stderr.write(
                 "Failed: '%s' is not a valid value for ram (expecting for instance 512M or 1G).\n" % setting_value)
+            return False
+        return True
+
+    def correct_disks_value(self, requester, device_infos, setting_name, setting_value, all_settings):
+        if setting_value != "none" and re.match(r'^\d+[GT](,\d+[GT])*$', setting_value) is None:
+            requester.stderr.write(
+                f"Failed: '{setting_value}' is not a valid value for option 'disks'.\n" + \
+                 "        Use for example 'none', or '8G' (1 disk), '32G,1T' (2 disks), etc.\n")
             return False
         return True
 
@@ -230,6 +240,8 @@ class SettingsManager:
                 db_settings['cpu.cores'] = int(setting_value)
                 should_reboot_nodes = True  # update in DB (below) is enough
             elif setting_name == 'ram':
+                should_reboot_nodes = True  # update in DB (below) is enough
+            elif setting_name == 'disks':
                 should_reboot_nodes = True  # update in DB (below) is enough
             elif setting_name in ('lldp.explore', 'poe.reboots', 'kexec.allow'):
                 setting_value = (setting_value.lower() == 'true')   # convert value to boolean
