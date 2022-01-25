@@ -30,9 +30,9 @@ class MarkdownRenderer:
         except termios.error:
             # Stdout seems not to be a terminal
             self.target_width = 80  # Minimal requirement
-    def render(self, text):
-        parser = commonmark.Parser()
-        ast = parser.parse(text)
+    def render(self, ast, selected_link_num):
+        self.link_num = 0
+        self.selected_link_num = selected_link_num
         walker = ast.walker()
         self.buf = ''
         event = walker.nxt()
@@ -51,7 +51,9 @@ class MarkdownRenderer:
             # markdown background color should span to right edge
             self.buf = self.buf.replace('\n', '\033[K\n')
             self.pop_context()
-    def lit(self, s):
+    def lit(self, s, reset = False):
+        if reset:
+            self.buf = ''
         self.buf += s
     def text(self, node, entering=None):
         self.lit(node.literal)
@@ -74,17 +76,22 @@ class MarkdownRenderer:
     def html_inline(self, node, entering):
         self.lit(node.literal)
     def link(self, node, entering):
-        if entering:
-            pass
+        if node.destination.endswith('.md'):
+            if entering:
+                if self.link_num == self.selected_link_num:
+                    self.stack_context(bold = True, underline = True)
+            else:
+                if self.link_num == self.selected_link_num:
+                    self.pop_context()
+                self.link_num += 1
         else:
-            if node.destination.endswith('.md'):
-                # this is a link for the web browser, ignore here
-                return
-            self.lit(' (')
-            self.stack_context(fg_color = FG_COLOR_URL)
-            self.lit(node.destination)
-            self.pop_context()
-            self.lit(')')
+            if not entering:
+                # replace [<text>](<url>) -> <text> (<url>)
+                self.lit(' (')
+                self.stack_context(fg_color = FG_COLOR_URL)
+                self.lit(node.destination)
+                self.pop_context()
+                self.lit(')')
     def paragraph(self, node, entering):
         if entering:
             node.saved_buf = self.buf
@@ -92,10 +99,11 @@ class MarkdownRenderer:
         else:
             if detect_table(self.buf):
                 table_buf = self.buf
-                self.buf = node.saved_buf
+                self.lit(node.saved_buf, reset = True)
                 render_table(self, table_buf)
             else:
-                self.buf = node.saved_buf + self.wrap_escaped(self.buf)
+                escaped = self.wrap_escaped(self.buf)
+                self.lit(node.saved_buf + escaped, reset = True)
             self.cr()
             self.cr()
     def block_quote(self, node, entering):
