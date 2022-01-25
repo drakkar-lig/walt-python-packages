@@ -1,25 +1,17 @@
-import os
-import sys
-
 from pkg_resources import resource_string, resource_listdir
-from walt.client.doc.markdown import MarkdownRenderer
 from walt.client.doc.pager import Pager
 
-def display_doc(topic):
+def get_md_content(topic, err_out=False):
     try:
-        content = resource_string(__name__, topic + ".md").decode('utf-8')
+        return resource_string(__name__, topic + ".md").decode('utf-8')
     except:
-        print('Sorry, no such help topic. (tip: use "walt help list")')
+        if err_out:
+            print('Sorry, no such help topic. (tip: use "walt help list")')
         return
-    if os.isatty(sys.stdout.fileno()):
-        renderer = MarkdownRenderer()
-        text = renderer.render(content)
-        pager = Pager()
-        pager.display(text)
-    else:
-        print(content)
-        # For debugging colors with hexdump, prefer:
-        #print(MarkdownRenderer().render(content))
+
+def display_doc(topic):
+    pager = Pager(get_md_content)
+    pager.display_topic(topic)
 
 def display_topic_list():
     file_list = sorted(resource_listdir(__name__, '.'))
