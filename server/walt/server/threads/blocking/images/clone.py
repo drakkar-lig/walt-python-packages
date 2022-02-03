@@ -329,7 +329,6 @@ def perform_clone(requester, repositories: Repositories, nodes_manager, clonable
         res = workflow_run(workflow, **context)
 
     if res:
-        requester.stdout.write('Done.\n')
         if existing_ws_image:
             return ('OK_BUT_REBOOT_NODES', ws_image_fullname)
         else:

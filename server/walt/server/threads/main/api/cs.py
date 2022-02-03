@@ -32,7 +32,7 @@ class CSAPI(APISession):
 
     @api_expose_method
     def create_vnode(self, context, node_name):
-        return context.server.create_vnode(context.requester.do_sync, node_name)
+        return context.server.create_vnode(context.requester.do_sync, context.task, node_name)
 
     @api_expose_method
     def remove_vnode(self, context, node_name):
