@@ -146,19 +146,55 @@ class Server(object):
         # this image should be unmounted.
         self.images.store.update_image_mounts()
 
-    def create_vnode(self, requester, name):
+    def create_vnode(self, requester, task, name):
         if not self.devices.validate_device_name(requester, name):
             return False
+        username = requester.get_username()
+        if username is None:
+            return False    # username already disconnected, give up
         mac, ip, model = self.nodes.generate_vnode_info()
-        vci = 'walt.node.' + model
-        # mimic a DHCP request from the node in order to
-        # bootstrap the registration procedure (possibly involving
-        # the download of a default image...)
-        self.add_or_update_device(vci, '', ip, mac, name = name, virtual = True)
+        image_fullname = format_image_fullname(username, model + '-default')
+        def on_image_ready():
+            requester.set_default_busy_label()
+            requester.stdout.write(f'Node {name} is now booting your image "{model}-default".\n')
+            requester.stdout.write(f'Use `walt node boot {name} <other-image>` if needed.\n')
+            self.create_vnode_using_image(name, mac, ip, model, image_fullname)
+        if image_fullname not in self.images.store:
+            requester.set_busy_label(f'Cloning image "{model}-default"')
+            clonable_link = f'hub:waltplatform/{model}-default:latest'
+            task.set_async()
+            def callback(clone_result):
+                status = clone_result[0]
+                if status == 'OK':
+                    on_image_ready()
+                    task.return_result(True)
+                elif status == 'FAILED':
+                    task.return_result(False)
+                else:
+                    requester.stderr.write('Unexpected result from clone operation!\n')
+                    task.return_result(False)
+            self.blocking.clone_image(requester, callback, clonable_link = clonable_link,
+                          force = False, image_name = None)
+        else:
+            on_image_ready()
+            return True
+
+    def create_vnode_using_image(self, name, mac, ip, model, image_fullname):
+        # declare node in db
+        self.devices.add_or_update(
+                type = 'node',
+                model = model,
+                ip = ip,
+                mac = mac,
+                name = name,
+                virtual = True
+        )
+        self.nodes.register_node(mac = mac,
+                                 model = model,
+                                 image_fullname = image_fullname)
         # start background vm
         node = self.devices.get_complete_device_info(mac)
         self.nodes.start_vnode(node)
-        return True
 
     def remove_vnode(self, requester, name):
         info = self.nodes.get_virtual_node_info(requester, name)

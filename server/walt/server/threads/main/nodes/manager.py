@@ -143,11 +143,12 @@ class NodesManager(object):
     def forget_vnode(self, node_mac):
         self.try_kill_vnode(node_mac)
 
-    def register_node(self, mac, model):
+    def register_node(self, mac, model, image_fullname = None):
         handle_registration_request(
                 db = self.db,
                 mac = mac,
                 model = model,
+                image_fullname = image_fullname,
                 blocking = self.blocking,
                 **self.other_kwargs
         )
