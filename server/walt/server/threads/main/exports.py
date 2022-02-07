@@ -24,4 +24,4 @@ def update_exported_filesystems(images_info, nodes):
     subnet = get_walt_subnet()
     root_paths, persist_paths = get_exports_info(images_info, nodes)
     nfs.update_exports(root_paths.items(), persist_paths, subnet)
-    nbfs.update_exports(root_paths.keys(), subnet)
+    nbfs.update_exports(root_paths.items(), subnet)
