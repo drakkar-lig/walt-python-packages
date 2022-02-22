@@ -78,11 +78,17 @@ The board will boot as a walt node.
 
 Raspberry Pi 3B+ and 4B boards have a more advanced firmware that may be used to boot over the network.
 In this case, the SD card is no longer needed. However, due to incorrect firmware behavior (3B+ model),
-and to the fact walt server has to detect the board model, you should boot the board at least once using
-a SD card (see previous subsection).
+eeprom flashing requirement (4B model), and to the fact walt server has to detect the board model, you
+must boot the board at least once using a SD card (see previous subsection).
 Once done, you can remove the SD card, and next bootups should work without it.
 
 Important notes:
+* If using a 4B board, the eeprom has to be flashed to allow network boot. This should be done
+  automatically when the board is first booted (with the SD card), thanks to appropriate boot files in
+  `rpi-sd-files.tar.gz`. However, in order to prevent this operation to repeat each time the board is
+  rebooted, the firmware renames `recovery.bin` to `RECOVERY.000`. Thus, if you want to use the same SD
+  card for the first boot of several 4B boards, after each boot rename `RECOVERY.000` back to
+  `recovery.bin` on the SD card before inserting it in another board.
 * This boot method is not as robust as the previous one: if, for any reason, communication with
   the server is temporarily broken, the board may fail to reboot and hang. (With the other boot method,
   the board would reboot as many times as required until the communication with the server is recovered.)
@@ -92,10 +98,6 @@ Important notes:
 * The SD card is the most fragile part of a raspberry pi board, thus working without it prevents most
   common hardware problems. Note, however, that the smart bootup mechanism used in walt allows to keep
   the SD card readonly, which greatly improves its lifetime anyway.
-* If using a 4B board, you should also run /bin/walt-update-firmware once the node is booted from its
-  SD card and running its default walt image. This script will update the firmware for network boot,
-  and the board will automatically reboot. Once this second boot is done, the board can work without a
-  SD card.
 
 
 ## How to identify and use the new node
