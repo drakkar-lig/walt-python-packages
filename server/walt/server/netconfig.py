@@ -46,10 +46,10 @@ def remove_mac_file(iface):
     os.remove(get_mac_file(iface))
 
 def get_vlan(iface_conf):
-    if 'vlan' in iface_conf:
-        return iface_conf['vlan']
-    else:
-        return None
+    return iface_conf.get('vlan', None)
+
+def get_raw_iface(iface_conf):
+    return iface_conf.get('raw-device', None)
 
 def set_iface_up(iface):
     do('ip link set up dev %s' % iface)
@@ -82,12 +82,20 @@ def create_bridge_iface(br_iface, interfaces, state_file):
     state_file.write(br_iface + '\n')
 
 def setup_native_conf(raw_iface, iface, state_file):
-    create_bridge_iface(iface, (raw_iface,), state_file)
-    # isc-dhcp-server reads packets in raw mode on its interface
-    # thus it detects 8021q (VLAN-tagged) packets it should not see.
-    # In order to work around this issue we do not let 8021q
-    # packets cross the bridge and reach our interface.
-    filter_out_8021q(raw_iface, iface)
+    if raw_iface is None:
+        # we cannot set a bridge interface up if no interface is
+        # linked to it. so we create a dummy interface device to
+        # fix this.
+        dummy_iface = f'{iface}-dummy'
+        create_dummy_iface(dummy_iface, state_file)
+        create_bridge_iface(iface, (dummy_iface,), state_file)
+    else:
+        create_bridge_iface(iface, (raw_iface,), state_file)
+        # isc-dhcp-server reads packets in raw mode on its interface
+        # thus it detects 8021q (VLAN-tagged) packets it should not see.
+        # In order to work around this issue we do not let 8021q
+        # packets cross the bridge and reach our interface.
+        filter_out_8021q(raw_iface, iface)
 
 def setup_vlan_conf(raw_iface, vlan, iface, state_file):
     vlan_iface = raw_iface + '.' + str(vlan)
@@ -102,18 +110,22 @@ def setup_ip_conf(iface, ip_conf):
                 ip_conf, iface))
 
 def up(iface, iface_conf):
-    raw_iface = iface_conf['raw-device']
-    # If the machine is booting, we may be here before the network interface
-    # card effectively appears.  Wait for it a little here.
-    if not succeeds("ip link show dev %s" % raw_iface):
-        print("Interface %s not found, waiting for it to appear…" % raw_iface)
-        time.sleep(WAIT_INTERFACE_DELAY)
+    raw_iface = get_raw_iface(iface_conf)
+    vlan = get_vlan(iface_conf)
+    if raw_iface is None and vlan is not None:
+        sys.exit(f'{iface} has wrong configuration: "vlan" but no "raw-device".')
+    if raw_iface is not None:
+        # If the machine is booting, we may be here before the network interface
+        # card effectively appears.  Wait for it a little here.
         if not succeeds("ip link show dev %s" % raw_iface):
-            # Here, it is really an error.  Interface should exist.
-            raise RuntimeError("Interface %s does not exist" % raw_iface)
+            print("Interface %s not found, waiting for it to appear…" % raw_iface)
+            time.sleep(WAIT_INTERFACE_DELAY)
+            if not succeeds("ip link show dev %s" % raw_iface):
+                # Here, it is really an error.  Interface should exist.
+                raise RuntimeError("Interface %s does not exist" % raw_iface)
     with open_state_file(iface, 'w') as state_file:
-        set_iface_up(raw_iface)
-        vlan = get_vlan(iface_conf)
+        if raw_iface is not None:
+            set_iface_up(raw_iface)
         if vlan:
             setup_vlan_conf(raw_iface, vlan, iface, state_file)
         else:
