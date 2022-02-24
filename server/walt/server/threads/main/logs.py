@@ -34,9 +34,9 @@ class LogsHub(object):
             self.handlers.remove(handler)
 
 class LogsStreamListener(object):
-    def __init__(self, db, hub, sock_file, **kwargs):
-        self.db = db
-        self.hub = hub
+    def __init__(self, manager, sock_file, **kwargs):
+        self.manager = manager
+        self.hub = manager.hub
         self.sock_file = sock_file
         self.stream_id = None
         self.server_timestamps = None
@@ -46,23 +46,7 @@ class LogsStreamListener(object):
         timestamps_mode = self.sock_file.readline().strip()
         self.server_timestamps = (timestamps_mode == b'NO_TIMESTAMPS')
         sender_ip, sender_port = self.sock_file.getpeername()
-        sender_info = self.db.select_unique('devices', ip = sender_ip)
-        if sender_info == None:
-            sender_mac = None
-        else:
-            sender_mac = sender_info.mac
-        stream_info = self.db.select_unique('logstreams',
-                            sender_mac = sender_mac, name = name)
-        if stream_info:
-            # found existing stream
-            stream_id = stream_info.id
-        else:
-            # register new stream
-            stream_id = self.db.insert('logstreams', returning='id',
-                            sender_mac = sender_mac, name = name)
-        # these are not needed anymore
-        self.db = None
-        return stream_id
+        return self.manager.get_stream_id(sender_ip, name)
 
     # let the event loop know what we are reading on
     def fileno(self):
@@ -72,6 +56,8 @@ class LogsStreamListener(object):
     def handle_event(self, ts):
         if self.stream_id == None:
             self.stream_id = self.register_stream()
+            if self.stream_id is None:
+                return False
             # register_stream() involves a read on the stream
             # to get its name.
             # supposedly that's why we have been woken up.
@@ -109,9 +95,9 @@ class LogsStreamListener(object):
 class NetconsoleListener(object):
     """Listens for netconsole messages sent by nodes over UDP, and store
     them as regular logs."""
-    def __init__(self, db, hub, port, **kwargs):
-        self.db = db
-        self.hub = hub
+    def __init__(self, manager, port, **kwargs):
+        self.manager = manager
+        self.hub = manager.hub
         self.s = udp_server_socket(port)
         self.sender_info = dict()
 
@@ -131,21 +117,10 @@ class NetconsoleListener(object):
         if sender_ip not in self.sender_info:
             # Cache IP -> stream ID association, to avoid hitting the
             # database for each received netconsole message.
-            sender_info = self.db.select_unique('devices', ip=sender_ip)
-            if sender_info == None:
-                sender_mac = None
-                stream_info = None
-            else:
-                sender_mac = sender_info.mac
-                stream_info = self.db.select_unique('logstreams', sender_mac=sender_mac,
-                                                    name='netconsole')
-            if stream_info:
-                # found existing stream
-                stream_id = stream_info.id
-            else:
-                # register new stream
-                stream_id = self.db.insert('logstreams', returning='id',
-                                           sender_mac=sender_mac, name='netconsole')
+            stream_id = self.manager.get_stream_id(sender_ip, 'netconsole')
+            if stream_id is None:
+                # ignore this UDP message, but obviously continue listening
+                return True
             # Second list element is the current pending message for this sender
             # (in some cases we may receive a line in multiple parts before getting
             # the end-of-line char)
@@ -177,13 +152,13 @@ PHASE_WAIT_FOR_BLCK_THREAD = 0
 PHASE_RETRIEVING_FROM_DB = 1
 PHASE_SENDING_TO_CLIENT = 2
 class LogsToSocketHandler(object):
-    def __init__(self, db, hub, sock_file, blocking, **kwargs):
-        self.db = db
+    def __init__(self, manager, sock_file, **kwargs):
+        self.manager = manager
         self.sock_file = sock_file
         self.cache = {}
         self.params = None
-        self.hub = hub
-        self.blocking = blocking
+        self.hub = manager.hub
+        self.blocking = manager.blocking
         self.phase = None
         self.realtime_buffer = []
         #sock.settimeout(1.0)
@@ -219,12 +194,7 @@ class LogsToSocketHandler(object):
     def write_to_client(self, stream_id, senders_filtered=False, **record):
         try:
             if stream_id not in self.cache:
-                self.cache[stream_id] = self.db.execute(
-                """SELECT d.name as sender, s.name as stream
-                   FROM logstreams s, devices d
-                   WHERE s.id = %s
-                     AND s.sender_mac = d.mac
-                """ % stream_id).fetchall()[0]._asdict()
+                self.cache[stream_id] = self.manager.get_stream_info(stream_id)
             stream_info = self.cache[stream_id]
             # when data comes from the db, senders are already filtered,
             # while data coming from the hub has to be filtered.
@@ -298,16 +268,39 @@ class LogsManager(object):
         tcp_server.register_listener_class(
                     req_id = Requests.REQ_DUMP_LOGS,
                     cls = LogsToSocketHandler,
-                    db = self.db,
-                    hub = self.hub,
-                    blocking = self.blocking)
+                    manager = self)
         tcp_server.register_listener_class(
                     req_id = Requests.REQ_NEW_INCOMING_LOGS,
                     cls = LogsStreamListener,
-                    db = self.db,
-                    hub = self.hub)
-        self.netconsole = NetconsoleListener(self.db, self.hub, WALT_SERVER_NETCONSOLE_PORT)
+                    manager = self)
+        self.netconsole = NetconsoleListener(self, WALT_SERVER_NETCONSOLE_PORT)
         self.netconsole.join_event_loop(ev_loop)
+
+    def get_stream_id(self, sender_ip, stream_name):
+        sender_info = self.db.select_unique('devices', ip = sender_ip)
+        if sender_info == None:
+            # sender device is unknown in database,
+            # this stream must be ignored
+            return None
+        sender_mac = sender_info.mac
+        stream_info = self.db.select_unique('logstreams',
+                            sender_mac = sender_mac, name = stream_name)
+        if stream_info:
+            # found existing stream
+            stream_id = stream_info.id
+        else:
+            # register new stream
+            stream_id = self.db.insert('logstreams', returning='id',
+                            sender_mac = sender_mac, name = stream_name)
+        return stream_id
+
+    def get_stream_info(self, stream_id):
+        return self.db.execute(
+                """SELECT d.name as sender, s.name as stream
+                   FROM logstreams s, devices d
+                   WHERE s.id = %s
+                     AND s.sender_mac = d.mac
+                """ % stream_id).fetchall()[0]._asdict()
 
     def forget_device(self, device_name):
         device_info = self.db.select_unique('devices', name=device_name)
