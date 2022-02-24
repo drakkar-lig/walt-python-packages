@@ -1,7 +1,6 @@
 import re, time
 from snimpy.snmp import SNMPException
 
-from walt.common.tools import get_mac_address
 from walt.common.formatting import format_sentence, human_readable_delay
 from walt.server import const
 from walt.server.threads.main import snmp
@@ -429,7 +428,7 @@ class TopologyManager(object):
         #   walt-net or walt-adm (thus we discard neighbors found from walt-out)
         # - if we still find several ones, we favor the ones which type is known
         #   as a switch
-        server_mac = get_mac_address(const.WALT_INTF)
+        server_mac = self.devices.server_mac
         unknown_neighbors = []
         for port, neighbor_mac, neighbor_port, confirmed in \
                 db_topology.get_neighbors(server_mac):

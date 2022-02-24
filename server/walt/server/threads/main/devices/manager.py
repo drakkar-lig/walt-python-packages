@@ -83,6 +83,15 @@ class DevicesManager(object):
         self.db = db
         self.server_ip = get_server_ip()
         self.netmask = str(get_walt_subnet().netmask)
+        self.server_mac = self.init_server_mac()
+
+    def init_server_mac(self):
+        server_mac = get_mac_address(const.WALT_INTF)
+        # register the server in the device list, if missing
+        self.add_or_update(
+                mac = server_mac, ip = str(self.server_ip),
+                type = 'server')
+        return server_mac
 
     def validate_device_name(self, requester, name):
         if self.get_device_info(requester, name, err_message = None) != None:
@@ -283,12 +292,7 @@ class DevicesManager(object):
                 devices += subset_devices
             return devices
         elif device_set == 'server':
-            server_mac = get_mac_address(const.WALT_INTF)
-            # register the server in the device list, if missing
-            self.add_or_update(
-                    mac = server_mac, ip = str(get_server_ip()),
-                type = 'server')
-            return [self.get_complete_device_info(server_mac)]
+            return [self.get_complete_device_info(self.server_mac)]
         else:
             username = requester.get_username()
             if not username:
