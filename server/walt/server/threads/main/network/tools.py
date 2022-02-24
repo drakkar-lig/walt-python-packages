@@ -38,10 +38,6 @@ def smallest_subnet_for_these_ip_addresses(ip1, ip2):
         if ip2 in net:
             return net
 
-def get_mac_address(intf):
-    with open('/sys/class/net/' + intf +'/address') as f:
-        return f.read().strip()
-
 def add_ip_to_interface(ip, subnet, intf):
     do('ip addr add %s/%d dev %s' % (ip, subnet.prefixlen, intf))
 
