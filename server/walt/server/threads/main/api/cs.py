@@ -67,6 +67,13 @@ class CSAPI(APISession):
             return tuple(n.name for n in nodes)
 
     @api_expose_method
+    def parse_set_of_devices(self, context, device_set, allowed_device_set = None):
+        devices = context.devices.parse_device_set(context.requester.do_sync, device_set,
+                                                   allowed_device_set = allowed_device_set)
+        if devices:
+            return tuple(d.name for d in devices)
+
+    @api_expose_method
     def includes_devices_not_owned(self, context, device_set, warn):
         return context.devices.includes_devices_not_owned(context.requester.do_sync, device_set, warn)
 

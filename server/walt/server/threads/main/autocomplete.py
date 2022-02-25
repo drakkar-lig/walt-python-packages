@@ -27,6 +27,13 @@ def complete_set_of_devices(server, partial_token):
                  'my-nodes', 'all-nodes' ]
     return complete_set(all_devices + keywords, partial_token)
 
+def complete_set_of_emitters(server, partial_token):
+    all_allowed_devices = list(dev.name for dev in server.db.select('devices')
+                                    if dev.name.startswith(partial_token) and \
+                                       dev.type in ('node', 'server'))
+    keywords = [ 'my-nodes', 'all-nodes', 'server' ]
+    return complete_set(all_allowed_devices + keywords, partial_token)
+
 def complete_rescan_set_of_devices(server, partial_token):
     # allow to complete a switch which has lldp exploration forbidden,
     # so that the user can try and get the informative error message.
@@ -204,6 +211,8 @@ def shell_autocomplete_switch(server, requester, username, argv):
         return complete_log_checkpoint(server, username)
     elif arg_type == 'HISTORY_RANGE':
         return complete_history_range(server, username, partial_token)
+    elif arg_type == 'SET_OF_EMITTERS':
+        return complete_set_of_emitters(server, partial_token)
     else:
         return ()
 

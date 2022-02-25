@@ -33,12 +33,12 @@ class Server(object):
         self.db = ServerDB()
         self.repositories = Repositories()
         self.blocking = BlockingTasksManager()
-        self.devices = DevicesManager(self.db)
+        self.tcp_server = TCPServer(WALT_SERVER_TCP_PORT)
+        self.logs = LogsManager(self.db, self.tcp_server, self.blocking, self.ev_loop)
+        self.devices = DevicesManager(self)
         self.topology = TopologyManager(self.devices, self.add_or_update_device)
         self.dhcpd = DHCPServer(self.db, self.ev_loop)
         self.images = NodeImageManager(self)
-        self.tcp_server = TCPServer(WALT_SERVER_TCP_PORT)
-        self.logs = LogsManager(self.db, self.tcp_server, self.blocking, self.ev_loop)
         self.interaction = InteractionManager(\
                         self.tcp_server, self.ev_loop)
         self.transfer = TransferManager(\
@@ -56,6 +56,7 @@ class Server(object):
         self.vpn = VPNManager()
 
     def prepare(self):
+        self.logs.catch_std_streams()
         tftp.prepare()
         self.tcp_server.join_event_loop(self.ev_loop)
         self.db.plan_auto_commit(self.ev_loop)

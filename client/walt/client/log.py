@@ -62,18 +62,39 @@ class WalTLogShowOrWait(WalTApplication):
                 argname = 'LOG_FORMAT',
                 default = DEFAULT_FORMAT_STRING,
                 help= """format used to print logs (see walt help show log-format)""")
-    set_of_nodes = cli.SwitchAttr(
-                "--nodes",
+    set_of_emitters = cli.SwitchAttr(
+                [ "--emitters", "--nodes" ],
                 str,
-                argname = 'SET_OF_NODES',
+                argname = 'SET_OF_EMITTERS',
                 default = 'my-nodes',
-                help= """targeted nodes (see walt help show node-terminology)""")
+                help= """selected emitters (see walt help show log-emitters)""")
     streams = cli.SwitchAttr(
                 "--streams",
                 str,
                 argname = 'STREAMS_REGEXP',
                 default = None,
                 help= """selected log streams (as a regular expr.)""")
+    platform_opt = cli.Flag(
+                "--platform",
+                default = False,
+                excludes = ['--emitters', '--nodes', '--streams', '--server'],
+                help= """shortcut for: --emitters server --streams platform.*""")
+    server_opt = cli.Flag(
+                "--server",
+                default = False,
+                excludes = ['--emitters', '--nodes', '--streams', '--platform'],
+                help= """shortcut for: --emitters server --streams daemon.*""")
+
+    def handle_shortcut_options(self):
+        if self.platform_opt:
+            self.set_of_emitters = 'server'
+            self.streams = 'platform.*'
+        elif self.server_opt:
+            self.set_of_emitters = 'server'
+            self.streams = 'daemon.*'
+
+    def get_senders(self, server):
+        return server.parse_set_of_devices(self.set_of_emitters, allowed_device_set='server,all-nodes')
 
     @staticmethod
     def analyse_history_range(server, history_range):
@@ -178,10 +199,11 @@ class WalTLogShow(WalTLogShowOrWait):
             print('You must specify at least 1 of the options --realtime and --history.')
             print("See 'walt help show log-realtime' and 'walt help show log-history' for more info.")
             return
+        self.handle_shortcut_options()
         if not WalTLogShowOrWait.verify_regexps(self.streams, logline_regexp):
             return
         with ClientToServerLink() as server:
-            senders = server.parse_set_of_nodes(self.set_of_nodes)
+            senders = self.get_senders(server)
             if senders == None:
                 return
             range_analysis = WalTLogShowOrWait.analyse_history_range(server, self.history_range)
@@ -262,10 +284,11 @@ class WalTLogWait(WalTLogShowOrWait):
     timeout = cli_timeout_switch()
 
     def main(self, logline_regexp):
+        self.handle_shortcut_options()
         if not WalTLogShowOrWait.verify_regexps(self.streams, logline_regexp):
             return
         with ClientToServerLink() as server:
-            senders = server.parse_set_of_nodes(self.set_of_nodes)
+            senders = self.get_senders(server)
             if senders == None:
                 return
             if self.time_margin != 0:
