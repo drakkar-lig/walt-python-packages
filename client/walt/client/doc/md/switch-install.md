@@ -43,24 +43,54 @@ its management IP through DHCP. Other default settings are OK.
 Note: if you test another switch model, we would be happy to get the results of your test.
 
 
-## Configuring the switch in WalT
+## How to identify the new switch in WALT
 
-By default, WalT may not detect that the equipment is a switch. Moreover, in some complex environments,
-remote administration of a given switch by WalT may not be allowed. Thus, in order to let WalT use these
-features, you must:
+When WALT server detects a switch for the first time, it names it 'switch-<6-hex-chars>' (for instance switch-18d55d),
+or 'unknown-<6-hex-chars>' (if WALT is unable to detect this device is a switch).
+The hex chars are taken from the right side of the switch mac address.
+In any case, a log line is emitted.
 
-* Run `walt device show` and look for any new device that was detected by WALT server. The first field of the
-  line will report the default name WALT gave to your switch. It should be `switch-<hhhhhh>` if WALT
-  could detect it is a switch, or `unknown-<hhhhhh>` otherwise.
-* Run `walt device rename "<type>-<hhhhhh>" "<your-switch-name>"` for convenience.
-* If the device type is `unknown`, run `walt device config <your-switch-name> type=switch`.
-* If your switch supports LLDP and/or PoE use `walt device config <your-switch-name> <settings>` to configure it. See next section.
-* If LLDP is enabled, run `walt device rescan` and `walt device tree`. Your switch should appear in the topology tree.
+Thus, you should be able to identify the new switch by checking the logs as follows:
+
+```
+$ walt log show --platform --history -5m: "new [(switch)|(device)]"
+10:50:15.498660 walt-server.platform.devices -> new switch name=switch-18d55d mac=6c:b0:ce:18:d5:5d ip=192.168.152.11
+$
+```
+
+If WALT is unable to detect this device is a switch, the log line will look like this instead:
+```
+10:50:15.498660 walt-server.platform.devices -> new device name=unknown-18d55d type=unknown mac=6c:b0:ce:18:d5:5d ip=192.168.152.11
+```
+In this example we see that WALT registered this unknown device with name `unknown-18d55d`.
+
+In such a case, run the following to let WALT know this new device is actually a switch:
+```
+$ walt device config unknown-18d55d type=switch
+Renaming unknown-18d55d to switch-18d55d for clarity.
+Done.
+$
+```
+
+In any case, when your switch is identified you can give it a more convenient name, for instance:
+```
+$ walt device rename switch-18d55d switch-netgear-426
+```
+
+
+## Enabling LLDP and/or PoE
+
+In some complex environments, remote administration of a given switch by WalT may not be allowed;
+or LLDP/PoE may not be available. Thus, these features are disabled by default. As a result, WALT
+must be explicitely allowed to use these features on a given switch, by using `walt device config`
+(see next section).
+
+When LLDP is enabled, after a little time (e.g. 10 minutes) you can run `walt device rescan` and
+`walt device tree`; your switch should appear in the network topology tree.
 
 Notes:
 - LLDP only works between two devices (two switches, or a switch and a node) when both devices have LLDP enabled.
   On a node, this means the running walt image must embed a LLDP daemon.
-- LLDP detection may need a few minutes.
 - In any case, keep in mind that topology exploration and PoE reboots are optional features. It should not prevent
   you from working with nodes.
 

@@ -1,9 +1,10 @@
-import re, pickle
+import re, pickle, sys
 from datetime import datetime
 from walt.common.constants import WALT_SERVER_NETCONSOLE_PORT
 from walt.common.tcp import read_pickle, write_pickle, \
                             Requests, PICKLE_VERSION
 from walt.common.udp import udp_server_socket
+from walt.server.tools import get_server_ip
 
 class LogsToDBHandler(object):
     def __init__(self, db):
@@ -259,10 +260,44 @@ class LogsToSocketHandler(object):
     def close(self):
         self.sock_file.close()
 
+class LoggerFile:
+    def __init__(self, logs_manager, stream_name, secondary_file):
+        self.logs_manager = logs_manager
+        self.stream_name = stream_name
+        self.secondary_file = secondary_file
+        self.buffer = ''
+        self._flushing = False
+    def write(self, s):
+        self.secondary_file.write(s)
+        self.buffer += s
+        # avoid recursive calls while flushing
+        if self._flushing:
+            return
+        self.do_flush()
+    def do_flush(self):
+        self._flushing = True
+        while True:
+            parts = self.buffer.split('\n')
+            if len(parts) == 1:
+                break
+            self.buffer = parts[-1]
+            for line in parts[:-1]:
+                self.logs_manager.server_log(self.stream_name, line)
+        self._flushing = False
+    def flush(self):
+        self.secondary_file.flush()
+    def fileno(self):
+        return self.secondary_file.fileno()
+    @property
+    def encoding(self):
+        return self.secondary_file.encoding
+
 class LogsManager(object):
     def __init__(self, db, tcp_server, blocking, ev_loop):
         self.db = db
+        self.server_ip = get_server_ip()
         self.blocking = blocking
+        self.server_log_cache = {}
         self.hub = LogsHub()
         self.hub.addHandler(LogsToDBHandler(db))
         tcp_server.register_listener_class(
@@ -275,6 +310,10 @@ class LogsManager(object):
                     manager = self)
         self.netconsole = NetconsoleListener(self, WALT_SERVER_NETCONSOLE_PORT)
         self.netconsole.join_event_loop(ev_loop)
+
+    def catch_std_streams(self):
+        sys.stdout = LoggerFile(self, 'daemon.stdout', sys.__stdout__)
+        sys.stderr = LoggerFile(self, 'daemon.stderr', sys.__stderr__)
 
     def get_stream_id(self, sender_ip, stream_name):
         sender_info = self.db.select_unique('devices', ip = sender_ip)
@@ -301,6 +340,18 @@ class LogsManager(object):
                    WHERE s.id = %s
                      AND s.sender_mac = d.mac
                 """ % stream_id).fetchall()[0]._asdict()
+
+    def platform_log(self, stream_name, line):
+        self.server_log('platform.' + stream_name, line)
+
+    def server_log(self, stream_name, line):
+        if stream_name not in self.server_log_cache:
+            self.server_log_cache[stream_name] = \
+                    self.get_stream_id(self.server_ip, stream_name)
+        stream_id = self.server_log_cache[stream_name]
+        self.hub.log(timestamp = datetime.now(),
+                     line = line,
+                     stream_id = stream_id)
 
     def forget_device(self, device_name):
         device_info = self.db.select_unique('devices', name=device_name)

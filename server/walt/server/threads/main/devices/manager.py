@@ -79,8 +79,9 @@ If one of them is actually a switch, use 'walt device config <name> type=switch'
 
 class DevicesManager(object):
 
-    def __init__(self, db):
-        self.db = db
+    def __init__(self, server):
+        self.db = server.db
+        self.logs = server.logs
         self.server_ip = get_server_ip()
         self.netmask = str(get_walt_subnet().netmask)
         self.server_mac = self.init_server_mac()
@@ -190,7 +191,8 @@ class DevicesManager(object):
             args_data['type'] = 'unknown'
         new_equipment = False
         modified = False
-        db_data = self.db.select_unique("devices", mac=args_data['mac']);
+        newly_identified = False
+        db_data = self.db.select_unique("devices", mac=args_data['mac'])
         if db_data:
             # -- device found in db
             updates = {}
@@ -202,13 +204,13 @@ class DevicesManager(object):
                     # we will generate a new one more appropriate for the new type
                     name = self.generate_device_name(**args_data)
                     updates['name'] = name
+                    self.logs.platform_log('devices', f'renamed {db_data.name} to {name} for clarity')
                     if 'requester' in args_data:
                         requester = args_data['requester']
-                        requester.stdout.write('Renaming %s to %s for clarity.\n' % (
-                            db_data.name, name
-                        ))
+                        requester.stdout.write(f'Renaming {db_data.name} to {name} for clarity.\n')
                 # now we know its type, so we consider we have a new equipment here.
                 new_equipment = True
+                newly_identified = True
                 print('Device: %s updating type, unknown -> %s' % (name, args_data['type']))
                 updates['type'] = args_data['type']
             if db_data.ip is None and args_data['ip'] is not None:
@@ -230,18 +232,33 @@ class DevicesManager(object):
             print('Device: %s is new, adding (%s, %s)' % (args_data['name'], args_data['ip'], args_data['type']))
             self.db.insert("devices", **args_data)
             modified = True
-            if args_data['type'] != 'unknown':
-                new_equipment = True
+            new_equipment = True
         # if new switch or node, insert in relevant table
+        # and submit platform logline
+        db_data = self.db.select_unique("devices", mac=args_data['mac'])    # refresh after prev updates
         if new_equipment:
-            if args_data['type'] == 'switch':
+            if newly_identified:
+                ident_log_line = f" (device type previously unknown)"
+            else:
+                ident_log_line = ""
+            if db_data.type == 'switch':
                 self.db.insert('switches', **args_data)
-            elif args_data['type'] == 'node':
+                dtype = "switch"
+                details = ""
+            elif db_data.type == 'node':
                 self.db.insert('nodes', **args_data)
+                dtype = "node"
+                details = f" model={args_data['model']}"
+            else:
+                dtype = "device"
+                details = f" type={db_data.type}"
+            info = f"name={db_data.name}{details} mac={db_data.mac} ip={db_data.ip}"
+            logline = f"new {dtype}{ident_log_line} {info}"
+            self.logs.platform_log('devices', logline)
         else:   # otherwise update them
-            if args_data['type'] == 'switch':
+            if db_data.type == 'switch':
                 self.db.update('switches', 'mac', **args_data)
-            elif args_data['type'] == 'node':
+            elif db_data.type == 'node':
                 self.db.update('nodes', 'mac', **args_data)
         if modified:
             self.db.commit()
@@ -282,17 +299,16 @@ class DevicesManager(object):
                     [d.name for d in not_owned], "No device", "Device", "Devices") + '\n')
             return True
 
-    def parse_device_set(self, requester, device_set, allow_empty=False):
+    def parse_device_set(self, requester, device_set, allowed_device_set=None, allow_empty=False):
+        devices = []
         if ',' in device_set:
-            devices = []
             for subset in device_set.split(','):
-                subset_devices = self.parse_device_set(requester, subset, True)
+                subset_devices = self.parse_device_set(requester, subset, allow_empty=True)
                 if subset_devices is None:
                     return None
                 devices += subset_devices
-            return devices
         elif device_set == 'server':
-            return [self.get_complete_device_info(self.server_mac)]
+            devices = [self.get_complete_device_info(self.server_mac)]
         else:
             username = requester.get_username()
             if not username:
@@ -315,10 +331,17 @@ class DevicesManager(object):
                 device_macs = [ dev_info.mac ]
             # get complete devices info
             devices = [self.get_complete_device_info(mac) for mac in device_macs]
-            if len(devices) == 0 and not allow_empty:
-                requester.stderr.write('No matching devices found! (tip: walt help show node-terminology)\n')
-                return None
-            return sorted(devices)
+        # verify selected devices are allowed
+        if allowed_device_set is not None:
+            allowed_dev_names = set(d.name for d in self.parse_device_set(requester, allowed_device_set))
+            for d in devices:
+                if d.name not in allowed_dev_names:
+                    requester.stderr.write(f"Invalid value '{device_set}'; allowed devices belong to '{allowed_device_set}'\n")
+                    return None
+        if len(devices) == 0 and not allow_empty:
+            requester.stderr.write('No matching devices found! (tip: walt help show node-terminology)\n')
+            return None
+        return sorted(devices)
 
     def as_device_set(self, names):
         return ','.join(sorted(names))
