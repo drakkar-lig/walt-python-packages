@@ -161,6 +161,8 @@ def setup(mount_path):
         failsafe_makedirs(mount_path + os.path.dirname(path))
         with open(mount_path + path, 'w') as f:
             f.write(content)
+    # ensure /etc/hosts has correct rights
+    os.chmod(mount_path + '/etc/hosts', 0o644)
     # set node DNS servers
     if os.path.exists(mount_path + '/etc/resolv.conf'):
         os.rename(mount_path + '/etc/resolv.conf', mount_path + '/etc/resolv.conf.saved')
