@@ -274,29 +274,33 @@ class SettingsManager:
         else:
             requester.stdout.write('Done.\n')
 
-    def get_device_config(self, requester, device_set):
+    def get_device_categories(self, device_info):
+        secondary_category = None
+        if device_info.type == 'unknown':
+            category = 'unknown-devices'
+        elif device_info.type == 'switch':
+            category = 'switches'
+        elif device_info.type == 'node':
+            if device_info.virtual:
+                category = 'virtual-nodes'
+                secondary_category = 'nodes'
+            else:
+                category = 'nodes'
+        elif device_info.type == 'server':
+            category = 'server'
+        else:
+            raise NotImplementedError('Unexpected device type in get_device_config_as_dict().')
+        return category, secondary_category
+
+    def get_device_config_data(self, requester, device_set):
+        result = {}
         # ensure the device set is correct
         device_infos = self.server.devices.parse_device_set(requester, device_set)
         if device_infos is None:
             return  # issue already reported
-        configs = defaultdict(lambda: defaultdict(list))
         for device_info in device_infos:
             # check device category
-            secondary_category = None
-            if device_info.type == 'unknown':
-                category = 'unknown-devices'
-            elif device_info.type == 'switch':
-                category = 'switches'
-            elif device_info.type == 'node':
-                if device_info.virtual:
-                    category = 'virtual-nodes'
-                    secondary_category = 'nodes'
-                else:
-                    category = 'nodes'
-            elif device_info.type == 'server':
-                category = 'server'
-            else:
-                raise NotImplementedError('Unexpected device type in get_device_config().')
+            category, secondary_category = self.get_device_categories(device_info)
             # retrieve device settings
             settings = dict(device_info.conf)
             # add default value of unspecified settings
@@ -304,9 +308,23 @@ class SettingsManager:
                 if setting_info['category'] in (category, secondary_category) \
                         and setting_name not in settings:
                     settings[setting_name] = setting_info['default']
+            result[device_info.name] = {
+                'category': category,
+                'settings': settings
+            }
+        return result
+
+    def get_device_config(self, requester, device_set):
+        config_data = self.get_device_config_data(requester, device_set)
+        if config_data is None:
+            return  # issue already reported
+        configs = defaultdict(lambda: defaultdict(list))
+        for device_name, device_conf in config_data.items():
+            category = device_conf['category']
+            settings = device_conf['settings']
             # append to the list of devices having this same config
             sorted_config = tuple(sorted(settings.items()))
-            configs[category][sorted_config].append(device_info.name)
+            configs[category][sorted_config].append(device_name)
         # print groups of devices having the same config
         parts = []
         for category, category_labels in (

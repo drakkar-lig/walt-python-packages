@@ -19,7 +19,7 @@ def get_topics():
     return (filename[:-3] for filename in file_list \
             if filename.endswith('.md'))
 
-def get_described_topics():
+def iter_topic_header():
     for topic in get_topics():
         md_content = get_md_content(topic)
         header = ''
@@ -30,9 +30,13 @@ def get_described_topics():
                 break
         yield (topic, header)
 
+def get_described_topics():
+    topic_dict = { topic: header for topic, header in iter_topic_header() }
+    max_topic_len = max(len(topic) for topic in topic_dict.keys())
+    for topic, header in topic_dict.items():
+        yield f"{topic:<{max_topic_len}} -- {header}"
+
 def display_topic_list():
     print('The following help topics are available:')
-    topic_dict = { topic: header for topic, header in get_described_topics() }
-    max_topic_len = max(len(topic) for topic in topic_dict.keys())
-    for topic, header in sorted(topic_dict.items()):
-        print(f"{topic:<{max_topic_len}} -- {header}")
+    for described_topic in sorted(get_described_topics()):
+        print(described_topic)

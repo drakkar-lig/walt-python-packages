@@ -5,6 +5,7 @@ from walt.client.application import WalTCategoryApplication, WalTApplication
 from walt.client.link import ClientToServerLink, connect_to_tcp_server
 from walt.client.tools import confirm
 from walt.client.timeout import start_timeout, stop_timeout, timeout_reached, cli_timeout_switch
+from walt.client.types import LOG_CHECKPOINT
 
 DATE_FORMAT_STRING= '%Y-%m-%d %H:%M:%S'
 DATE_FORMAT_STRING_HUMAN= '<YYYY>-<MM>-<DD> <hh>:<mm>:<ss>'
@@ -204,7 +205,7 @@ class WalTLogShow(WalTLogShowOrWait):
 class WalTLogAddCheckpoint(WalTApplication):
     """Record a checkpoint (reference point in time)"""
     ORDERING = 3
-    date = cli.SwitchAttr("--date", str, default=None,
+    date = cli.SwitchAttr("--date", str, argname='LOG_CHECKPOINT_DATE', default=None,
                           help="specify date (see walt help show log-checkpoint)")
     def main(self, checkpoint_name):
         with ClientToServerLink() as server:
@@ -230,7 +231,7 @@ class WalTLogAddCheckpoint(WalTApplication):
 class WalTLogRemoveCheckpoint(WalTApplication):
     """Remove a checkpoint"""
     ORDERING = 4
-    def main(self, checkpoint_name):
+    def main(self, checkpoint_name : LOG_CHECKPOINT):
         with ClientToServerLink() as server:
             server.remove_checkpoint(checkpoint_name)
 
@@ -249,7 +250,7 @@ class WalTLogWait(WalTLogShowOrWait):
     mode = cli.SwitchAttr(
                 "--mode",
                 cli.Set("ALL", "ANY", case_sensitive = False),
-                argname = 'MODE',
+                argname = 'LOG_WAIT_MODE',
                 default = 'ANY',
                 help= """specify mode (see walt help show log-wait)""")
     time_margin = cli.SwitchAttr(

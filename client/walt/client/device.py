@@ -4,6 +4,8 @@ from walt.client.interactive import run_device_ping
 from walt.client.tools import confirm
 from walt.common.tools import deserialize_ordered_dict
 from walt.client.application import WalTCategoryApplication, WalTApplication
+from walt.client.types import DEVICE, SET_OF_DEVICES, \
+                              RESCAN_SET_OF_DEVICES, DEVICE_CONFIG_PARAM
 
 class WalTDevice(WalTCategoryApplication):
     """management of WalT platform devices"""
@@ -42,7 +44,7 @@ class WalTDeviceShow(WalTApplication):
 class WalTDeviceRescan(WalTApplication):
     """rescan the network devices involved in the platform"""
     ORDERING = 3
-    def main(self, device_set='server,explorable-switches'):
+    def main(self, device_set:RESCAN_SET_OF_DEVICES='server,explorable-switches'):
         with ClientToServerLink() as server:
             server.device_rescan(device_set)
 
@@ -50,7 +52,7 @@ class WalTDeviceRescan(WalTApplication):
 class WalTRenameDevice(WalTApplication):
     """rename a device"""
     ORDERING = 4
-    def main(self, old_name, new_name):
+    def main(self, old_name:DEVICE, new_name):
         with ClientToServerLink() as server:
             server.rename(old_name, new_name)
 
@@ -58,7 +60,7 @@ class WalTRenameDevice(WalTApplication):
 class WalTDevicePing(WalTApplication):
     """check that a device is reachable on WalT network"""
     ORDERING = 6
-    def main(self, device_name):
+    def main(self, device_name:DEVICE):
         device_ip = None
         with ClientToServerLink() as server:
             device_ip = server.get_device_ip(device_name)
@@ -78,7 +80,7 @@ class WalTDeviceForget(WalTApplication):
     """let the WalT system forget about an obsolete device"""
     ORDERING = 7
     _force = False # default
-    def main(self, device_name):
+    def main(self, device_name:DEVICE):
         with ClientToServerLink() as server:
             # check if server knows this device
             device_info = server.get_device_info(device_name)
@@ -108,7 +110,7 @@ class WalTDeviceForget(WalTApplication):
 class WalTDeviceConfig(WalTApplication):
     """get or set devices configuration"""
     ORDERING = 5
-    def main(self, device_set, *configuration):
+    def main(self, device_set:SET_OF_DEVICES, *configuration:DEVICE_CONFIG_PARAM):
         with ClientToServerLink() as server:
             device_set = server.develop_device_set(device_set)
             if device_set is None:

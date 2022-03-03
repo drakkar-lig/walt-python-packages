@@ -51,4 +51,11 @@ class WalTRescanHubAccount(WalTUpdateHubMeta):
     """alias to 'update-hub-meta' subcommand"""
     pass
 
+@WalTAdvanced.subcommand("dump-bash-autocomplete")
+class WalTDumpBashAutocomplete(WalTApplication):
+    """dump bash auto-completion code"""
+    def main(self):
+        import walt.client.autocomplete.dump as dumper
+        dumper.dump_bash_autocomplete(self)
+
 WALT_CLIENT_CATEGORY = "advanced", WalTAdvanced

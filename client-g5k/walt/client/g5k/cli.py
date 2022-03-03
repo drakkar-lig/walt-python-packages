@@ -11,6 +11,7 @@ from walt.client.g5k.recipes import new_recipe, \
 from walt.client.g5k.printer import print_info
 from walt.client.g5k.deploy.status import get_deployment_status, \
                                           exit_if_walt_platform_deployed
+from walt.client.g5k.types import G5K_RECIPE
 
 # when working with grid'5000, the first thing we
 # want to do is to deploy the WalT platform.
@@ -24,7 +25,7 @@ class WalTG5K(WalTCategoryApplication):
 class WalTG5KDeploy(WalTApplication):
     """deploy WalT on Grid'5000 infrastructure"""
     ORDERING = 1
-    def main(self, recipe_name=None):
+    def main(self, recipe_name : G5K_RECIPE = None):
         exit_if_walt_platform_deployed()
         if recipe_name is None:
             recipe_info = new_recipe()
@@ -76,7 +77,7 @@ class WalTG5KCreateRecipe(WalTApplication):
 class WalTG5KEditRecipe(WalTApplication):
     """edit a WalT deployment recipe"""
     ORDERING = 7
-    def main(self, recipe_name):
+    def main(self, recipe_name : G5K_RECIPE):
         recipe_info = get_recipe_info(recipe_name)
         if edit_recipe(recipe_info):
             save_recipe(recipe_name, recipe_info)
@@ -88,7 +89,7 @@ class WalTG5KEditRecipe(WalTApplication):
 class WalTG5KPrintRecipe(WalTApplication):
     """print a WalT deployment recipe"""
     ORDERING = 8
-    def main(self, recipe_name):
+    def main(self, recipe_name : G5K_RECIPE):
         recipe_info = get_recipe_info(recipe_name)
         print_recipe(recipe_info)
 
@@ -96,5 +97,5 @@ class WalTG5KPrintRecipe(WalTApplication):
 class WalTG5KRemoveRecipe(WalTApplication):
     """remove a WalT deployment recipe"""
     ORDERING = 9
-    def main(self, recipe_name):
+    def main(self, recipe_name : G5K_RECIPE):
         remove_recipe(recipe_name)

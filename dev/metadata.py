@@ -10,7 +10,7 @@ PACKAGE_GENERIC_INFO = dict(
 PACKAGE_SPECIFIC_INFO = {
     "walt-client": dict(
         subdir = 'client',
-        requires = [ 'plumbum>=1.4.2', 'commonmark>=0.7.5',
+        requires = [ 'plumbum>=1.7.2', 'commonmark>=0.7.5',
                      'pygments>=2.2.0', 'walt-common==%(upload)s'],
         extras_require = {
             'g5k': [ 'walt-client-g5k==%(upload)s' ]
@@ -20,7 +20,8 @@ PACKAGE_SPECIFIC_INFO = {
             description = "WalT control tool.",
             entry_points = {
                 'console_scripts': [
-                    'walt = walt.client.client:run'
+                    'walt = walt.client.client:run',
+                    'walt-autocomplete-helper = walt.client.autocomplete.helper:autocomplete_helper'
                 ]
             },
             data_files = [
@@ -62,7 +63,7 @@ PACKAGE_SPECIFIC_INFO = {
     ),
     "walt-server": dict(
         subdir = 'server',
-        requires = [    'plumbum>=1.4.2', 'snimpy>=0.8.3',
+        requires = [    'plumbum>=1.7.2', 'snimpy>=0.8.3',
                         'pysnmp>=4.4.12',
                         'ipaddress>=1.0.7','requests>=2.21.0',
                         'sdnotify>=0.3.0',
@@ -128,7 +129,7 @@ PACKAGE_SPECIFIC_INFO = {
     ),
     "walt-common": dict(
         subdir = 'common',
-        requires = ['plumbum>=1.4.2','requests>=2.21.0', 'python-dateutil>=2.8.1'],
+        requires = ['plumbum>=1.7.2','requests>=2.21.0', 'python-dateutil>=2.8.1'],
         version_str = '%(upload)s',
         setup = dict(
             description = "WalT common python modules."

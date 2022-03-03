@@ -9,7 +9,7 @@ Then use 'walt image clone <clonable_link>' to clone them
 into your working set.
 """
 
-def show(db, images, requester, refresh):
+def show(db, images, requester, refresh, names_only):
     username = requester.get_username()
     if not username:
         return None     # client already disconnected, give up
@@ -32,8 +32,14 @@ def show(db, images, requester, refresh):
         # default images of node models present on the platform.
         if images.clone_default_images(requester):
             # succeeded, restart the process to print new images
-            return show(db, images, requester, refresh)
+            return show(db, images, requester, refresh, names_only)
         else:
-            return MSG_WS_IS_EMPTY
-    header = [ 'Name', 'In-use', 'Created', 'Ready', 'Compatibility' ]
-    return columnate(tabular_data, header)
+            if names_only:
+                return ''
+            else:
+                return MSG_WS_IS_EMPTY
+    if names_only:
+        return '\n'.join(row[0] for row in tabular_data)
+    else:
+        header = [ 'Name', 'In-use', 'Created', 'Ready', 'Compatibility' ]
+        return columnate(tabular_data, header)
