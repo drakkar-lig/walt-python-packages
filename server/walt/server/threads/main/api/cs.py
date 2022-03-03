@@ -27,8 +27,8 @@ class CSAPI(APISession):
         return context.devices.show()
 
     @api_expose_method
-    def show_nodes(self, context, username, show_all):
-        return context.nodes.show(username, show_all)
+    def show_nodes(self, context, username, show_all, names_only=False):
+        return context.nodes.show(username, show_all, names_only)
 
     @api_expose_method
     def create_vnode(self, context, node_name):
@@ -162,8 +162,8 @@ class CSAPI(APISession):
         return context.server.repositories.hub.login(dh_peer, auth_conf, context.requester.do_sync)
 
     @api_expose_method
-    def show_images(self, context, refresh):
-        return context.images.show(context.requester.do_sync, refresh)
+    def show_images(self, context, refresh, names_only=False):
+        return context.images.show(context.requester.do_sync, refresh, names_only)
 
     @api_expose_method
     def create_image_shell_session(self, context, image_name, task_label):
@@ -252,3 +252,7 @@ class CSAPI(APISession):
     @api_expose_method
     def get_vpn_proxy_setup_script(self, context):
         return context.server.vpn.get_vpn_proxy_setup_script()
+
+    @api_expose_method
+    def shell_autocomplete(self, context, username, argv, debug=False):
+        return context.server.shell_autocomplete(context.requester.do_sync, username, argv, debug=debug)

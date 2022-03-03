@@ -21,6 +21,7 @@ from walt.server.threads.main.transfer import TransferManager
 from walt.server.threads.main.apisession import APISession
 from walt.server.threads.main.network import tftp
 from walt.server.threads.main.vpn import VPNManager
+from walt.server.threads.main.autocomplete import shell_autocomplete
 from walt.server.threads.main.transfer import validate_cp, \
                     format_node_to_booted_image_transfer_cmd
 
@@ -286,3 +287,6 @@ class Server(object):
                 requester, cb_unblock_client, session, image_name, True)
         requester.set_busy_label('Transfering')
         self.blocking.run_shell_cmd(requester, cb, cmd, shell=True)
+
+    def shell_autocomplete(self, requester, username, argv, debug=False):
+        return shell_autocomplete(self, requester, username, argv, debug=debug)

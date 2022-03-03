@@ -38,11 +38,16 @@ class WalT(WalTToolboxApplication):
 
 @wrap_client_command
 def run():
-    # optimize loading time by adding only the category specified, if any
-    if len(sys.argv) == 1 or add_category(WalT, sys.argv[1]) == False:
+    # optimize loading time by adding only the category specified, when possible
+    # excluded cases:
+    # - user just typed 'walt'
+    # - user typed 'walt advanced dump-bash-autocomplete'
+    # - user typed 'walt <missing-category> [...]'
+    if len(sys.argv) == 1 or \
+       tuple(sys.argv[1:3]) == ('advanced', 'dump-bash-autocomplete') or \
+       add_category(WalT, sys.argv[1]) == False:
         add_all_categories(WalT)
     WalT.run()
-
 
 if __name__ == '__main__':
     run()

@@ -48,8 +48,8 @@ class NodeImageManager:
         return publish(self.store, self.blocking, requester, task, image_name, **kwargs)
     def squash(self, requester, task_callback, image_name, confirmed):
         return squash(self.store, self.blocking, requester, task_callback, image_name, confirmed)
-    def show(self, requester, refresh):
-        return show(self.db, self.store, requester, refresh)
+    def show(self, requester, refresh, names_only):
+        return show(self.db, self.store, requester, refresh, names_only)
     def rename(self, requester, image_name, new_name):
         rename(self.store, self.repositories, requester, image_name, new_name)
     def remove(self, requester, image_name):
@@ -74,12 +74,17 @@ class NodeImageManager:
                 if self.store.warn_if_would_reboot_nodes(requester, image_name):
                     return 'NEEDS_CONFIRM'
         return 'OK'
+    def get_image_filesystem(self, requester, image_name):
+        image = self.store.get_user_image_from_name(requester, image_name)
+        if image is None:
+            return None
+        return image.filesystem
     def get_cp_entity_filesystem(self, requester, image_name, **info):
         if image_name == 'booted-image':
             image_fullname = info['node_image']
             return self.store[image_fullname].filesystem
         else:
-            return self.store.get_user_image_from_name(requester, image_name).filesystem
+            return self.get_image_filesystem(requester, image_name)
     def get_cp_entity_attrs(self, requester, image_name, **info):
         return dict(image_name=image_name)
     def fix_owner(self, requester, other_user):

@@ -199,8 +199,8 @@ class NodesManager(object):
         cb_kwargs = dict(requester = requester, task = task)
         node_request(self.ev_loop, (node,), req, self.blink_callback, cb_kwargs)
 
-    def show(self, username, show_all):
-        return show(self.db, username, show_all)
+    def show(self, username, show_all, names_only):
+        return show(self.db, username, show_all, names_only)
 
     def generate_vnode_info(self):
         # random mac address generation
@@ -357,10 +357,15 @@ class NodesManager(object):
         else:
             return 'OK'
 
-    def get_cp_entity_filesystem(self, requester, node_name, **info):
+    def get_node_filesystem(self, requester, node_name):
         node_ip = self.get_node_ip(requester, node_name)
+        if node_ip is None:
+            return None
         self.prepare_ssh_access_for_ip(node_ip)
         return self.filesystems[node_ip]
+
+    def get_cp_entity_filesystem(self, requester, node_name, **info):
+        return self.get_node_filesystem(requester, node_name)
 
     def get_cp_entity_attrs(self, requester, node_name, **info):
         owned = not self.devices.includes_devices_not_owned(requester, node_name, True)

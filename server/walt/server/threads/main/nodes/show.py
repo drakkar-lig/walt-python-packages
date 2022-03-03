@@ -73,7 +73,7 @@ def generate_table(title, footnote, records, *col_titles):
     header = list(col_titles)
     return format_paragraph(title, columnate(table, header=header), footnote)
 
-def show(db, username, show_all):
+def show(db, username, show_all, names_only):
     res_user, res_free, res_other, res_not_ready = [], [], [], []
     res = db.execute(NODE_SHOW_QUERY)
     for record in res:
@@ -86,6 +86,12 @@ def show(db, username, show_all):
                 res_free.append(record)
             else:
                 res_other.append(record)
+    if names_only:
+        if show_all:
+            all_records = res_user + res_free + res_other + res_not_ready
+        else:
+            all_records = res_user
+        return "\n".join(record.name for record in all_records)
     result_msg = ''
     if len(res_user) == 0 and not show_all:
         return MSG_USING_NO_NODES + '\n' + MSG_RERUN_WITH_ALL

@@ -1,4 +1,5 @@
 from walt.client.application import WalTCategoryApplication, WalTApplication
+from walt.client.types import HELP_TOPIC
 
 class WalTHelp(WalTCategoryApplication):
     """help sub-commands"""
@@ -9,7 +10,7 @@ class WalTHelp(WalTCategoryApplication):
 class WalTHelpShow(WalTApplication):
     """displays help about a given topic"""
     USAGE = 'walt help show [topic=help-intro]\n'
-    def main(self, topic = 'help-intro'):
+    def main(self, topic : HELP_TOPIC = 'help-intro'):
         from walt.client.doc.md import display_doc
         display_doc(topic)
 

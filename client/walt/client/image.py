@@ -7,6 +7,8 @@ from walt.client.interactive import run_image_shell_prompt
 from walt.client.transfer import run_transfer_with_image
 from walt.client.auth import get_auth_conf
 from walt.client.application import WalTCategoryApplication, WalTApplication
+from walt.client.types import IMAGE, IMAGE_CLONE_URL, \
+                              IMAGE_CP_SRC, IMAGE_CP_DST
 
 class WalTImage(WalTCategoryApplication):
     """management of WalT-nodes operating system images"""
@@ -26,7 +28,7 @@ class WalTImageClone(WalTApplication):
     """clone a remote image into your working set"""
     ORDERING = 3
     _force = False # default
-    def main(self, clonable_image_link, image_name=None):
+    def main(self, clonable_image_link : IMAGE_CLONE_URL, image_name=None):
         with ClientToServerLink() as server_link:
             server_link.set_busy_label('Validating / Cloning')
             res = server_link.clone_image(clonable_image_link,
@@ -41,7 +43,7 @@ class WalTImageClone(WalTApplication):
 class WalTImagePublish(WalTApplication):
     """publish a WalT image on the docker hub"""
     ORDERING = 9
-    def main(self, image_name):
+    def main(self, image_name : IMAGE):
         with ClientToServerLink() as server_link:
             server_link.set_busy_label('Validating / Publishing')
             auth_conf = get_auth_conf(server_link)
@@ -52,18 +54,22 @@ class WalTImageShow(WalTApplication):
     """display your working set of walt images"""
     ORDERING = 1
     _refresh = False # default
+    _names_only = False # default
     def main(self):
         with ClientToServerLink() as server:
-            print(server.show_images(self._refresh))
+            print(server.show_images(self._refresh, self._names_only))
     @cli.autoswitch(help='resync image list from Docker daemon.')
     def refresh(self):
         self._refresh = True
+    @cli.autoswitch(help='list image names only')
+    def names_only(self):
+        self._names_only = True
 
 @WalTImage.subcommand("shell")
 class WalTImageShell(WalTApplication):
     """modify an image through an interactive shell"""
     ORDERING = 4
-    def main(self, image_name):
+    def main(self, image_name : IMAGE):
         with ClientToServerLink() as server:
             session_info = server.create_image_shell_session(
                             image_name, 'shell session')
@@ -99,7 +105,7 @@ class WalTImageShell(WalTApplication):
 class WalTImageRemove(WalTApplication):
     """remove an image from your working set"""
     ORDERING = 7
-    def main(self, image_name):
+    def main(self, image_name : IMAGE):
         with ClientToServerLink() as server:
             server.remove_image(image_name)
 
@@ -107,7 +113,7 @@ class WalTImageRemove(WalTApplication):
 class WalTImageRename(WalTApplication):
     """rename an image of your working set"""
     ORDERING = 8
-    def main(self, image_name, new_image_name):
+    def main(self, image_name : IMAGE, new_image_name):
         with ClientToServerLink() as server:
             server.rename_image(image_name, new_image_name)
 
@@ -115,7 +121,7 @@ class WalTImageRename(WalTApplication):
 class WalTImageDuplicate(WalTApplication):
     """duplicate an image of your working set"""
     ORDERING = 6
-    def main(self, image_name, new_image_name):
+    def main(self, image_name : IMAGE, new_image_name):
         with ClientToServerLink() as server:
             server.duplicate_image(image_name, new_image_name)
 
@@ -127,7 +133,7 @@ class WalTImageCp(WalTApplication):
     walt image cp <local-path> <image>:<path>
     walt image cp <image>:<path> <local-path>
     """
-    def main(self, src, dst):
+    def main(self, src: IMAGE_CP_SRC, dst: IMAGE_CP_DST):
         with ClientToServerLink() as server:
             info = server.validate_image_cp(src, dst)
             if info == None:
@@ -162,7 +168,7 @@ class WalTImageCp(WalTApplication):
 class WalTImageSquash(WalTApplication):
     """squash all layers of an image into one"""
     ORDERING = 10
-    def main(self, image_name):
+    def main(self, image_name: IMAGE):
         with ClientToServerLink() as server:
             status = server.squash_image(image_name, False)
             if status == 'NEEDS_CONFIRM':

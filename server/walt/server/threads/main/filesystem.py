@@ -25,6 +25,8 @@ class BetterPopen:
         return self.f_stdout_r
     def send_signal(self, sig):
         self.proc.send_signal(sig)
+    def poll(self):
+        return self.proc.poll()
     def __del__(self):
         self.close()
     def close(self):
@@ -53,31 +55,54 @@ class Filesystem:
         self.popen = None
     def wrap_cmd(self, cmd):
         return f'{cmd} 2>/dev/null || true\n'
-    def run_cmds(self, cmds):
+    def send_cmd(self, cmd):
+        # check if the running background process is still alive
+        if self.popen is not None:
+            return_code = self.popen.poll()
+            if return_code is not None:
+                # background process stopped
+                self.close()
+        # open or reopen background process if needed
         if self.popen is None:
             self.popen = BetterPopen(self.cmd_interpreter, self.kill_function)
-        for cmd in cmds:
-            self.popen.stdin.write(self.wrap_cmd(cmd).encode('ascii'))
+        self.popen.stdin.write(self.wrap_cmd(cmd).encode('ascii'))
+    def read_reply_line(self):
         return self.popen.stdout.readline().decode('ascii')
-    def run_cmd(self, cmd):
-        return self.run_cmds((cmd,))
     def ping(self):
-        return self.run_cmd('echo ok').strip() == 'ok'
+        self.send_cmd('echo ok')
+        alive = (self.read_reply_line().strip() == 'ok')
+        if not alive:
+            self.close()
+        return alive
     def get_file_type(self, path):
-        if len(self.run_cmd('find %s' % path)) == 0:
+        self.send_cmd('find %s' % path)
+        if len(self.read_reply_line()) == 0:
             return None
         cmds = []
         for ftype in [ 'f', 'd' ]:
-            cmds.append('find %(path)s -type %(ftype)s -maxdepth 0 -exec echo -n %(ftype)s \;' % \
+            self.send_cmd('find %(path)s -type %(ftype)s -maxdepth 0 -exec echo -n %(ftype)s \;' % \
                 dict(
                     path = path,
                     ftype = ftype
                 ))
-        cmds.append('echo')
-        result = self.run_cmds(cmds).strip()
+        self.send_cmd('echo')
+        result = self.read_reply_line().strip()
         if len(result) > 0:
             return result
         return 'o'  # other
+    def get_completions(self, partial_path):
+        """complete a partial path remotely"""
+        # the following process allows to add an ending slash to dir entries
+        self.send_cmd(f'find {partial_path}* -maxdepth 0 "!" -type d -exec echo "{{}}" \;')
+        self.send_cmd(f'find {partial_path}* -maxdepth 0 -type d -exec echo "{{}}/" \;')
+        self.send_cmd('echo')
+        possible = []
+        while True:
+            path = self.read_reply_line().strip()
+            if path == '':  # empty line marks the end (cf. "echo" above)
+                break
+            possible.append(path)
+        return tuple(possible)
     def close(self):
         if self.popen is not None:
             self.popen.close()

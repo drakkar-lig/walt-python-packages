@@ -78,14 +78,17 @@ def save_recipe(recipe_name, recipe_info):
     recipe_file = get_recipe_file(recipe_name)
     recipe_file.write_text(json.dumps(recipe_info))
 
-def list_recipes():
+def list_recipes(names_only = False):
     ensure_recipes_dir_exists()
-    recipe_names = [ (entry.name[:-5],) \
+    recipe_names = [ entry.name[:-5] \
             for entry in RECIPES_STORAGE_DIR.iterdir() ]
+    if names_only:
+        return '\n'.join(recipe_names)
     if len(recipe_names) == 0:
         print('Found no recipes.')
     else:
-        print(columnate(recipe_names, ['recipe name']))
+        rows = [(name,) for name in recipe_names]
+        print(columnate(rows, ['recipe name']))
 
 def remove_recipe(recipe_name):
     recipe_file = get_recipe_file(recipe_name)
