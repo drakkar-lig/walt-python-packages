@@ -11,6 +11,7 @@ from walt.server.threads.main import exports
 from walt.server.threads.main.images.image import NodeImage, format_image_fullname
 from walt.server.threads.main.images.setup import setup
 from walt.server.threads.main.network import tftp
+from walt.server.threads.main.filesystem import FilesystemsCache
 
 if typing.TYPE_CHECKING:
     from walt.server.threads.main.server import Server
@@ -27,6 +28,8 @@ if typing.TYPE_CHECKING:
 # if this deadline is reached and if true unmount the image.
 # If ever an image is reused before the grace time is expired, then the
 # deadline is removed.
+
+FS_CMD_PATTERN = 'podman run -i --rm -w /root --entrypoint /bin/sh %(fs_id)s'
 
 MOUNT_GRACE_TIME = 60
 MOUNT_GRACE_TIME_MARGIN = 10
@@ -67,6 +70,8 @@ class NodeImageStore(object):
         self.images: dict[str, NodeImage] = {}
         self.mounts = set()
         self.deadlines = {}
+        self.filesystems = FilesystemsCache(server.ev_loop, FS_CMD_PATTERN,
+                            lambda popen: popen.stdin.write(b'exit\n'))
 
     def refresh(self, startup = False):
         db_images = { db_img.fullname: db_img.ready \
@@ -250,6 +255,10 @@ class NodeImageStore(object):
         nodes_found = self.db.select("nodes")
         exports.update_exported_filesystems(images_info, nodes_found)
         tftp.update(self.db, self)
+        # release filesystem interpreters
+        for image_id in to_be_unmounted:
+            if image_id in self.filesystems:
+                del self.filesystems[image_id]
         # unmount images found above
         # note: this must be done after nfs unmount (otherwise directories would
         # be locked by the NFS export)
@@ -257,6 +266,8 @@ class NodeImageStore(object):
             self.unmount(image_id)
 
     def cleanup(self):
+        # release filesystem interpreters
+        self.filesystems.cleanup()
         if len(self.mounts) > 0:
             # release nfs mounts
             exports.update_exported_filesystems([], [])
@@ -307,6 +318,9 @@ class NodeImageStore(object):
             return get_mount_path(image_id)
         else:
             return None
+
+    def get_filesystem(self, image_id):
+        return self.filesystems[image_id]
 
     def mount(self, image_id, fullname = None):
         if image_id in self.mounts:
