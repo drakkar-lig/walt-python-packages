@@ -9,7 +9,7 @@ from time import time
 
 from walt.common.tools import do
 from walt.server.const import SSH_COMMAND
-from walt.server.threads.main.filesystem import Filesystem
+from walt.server.threads.main.filesystem import FilesystemsCache
 from walt.server.threads.main.network.netsetup import NetSetup
 from walt.server.threads.main.network.tools import ip, get_walt_subnet
 from walt.server.threads.main.nodes.clock import NodesClockSyncInfo
@@ -33,7 +33,7 @@ VNODE_SCREEN_SESSION_PATH = '/var/lib/walt/nodes/%(mac)s/screen_session'
 
 MSG_NOT_VIRTUAL = "WARNING: %s is not a virtual node. IGNORED.\n"
 
-FS_CMD_PATTERN = SSH_COMMAND + ' root@%(node_ip)s "%%(prog)s %%(prog_args)s"'
+FS_CMD_PATTERN = SSH_COMMAND + ' root@%(fs_id)s "sh"'   # use node_ip as our fs ID
 
 VNODE_CMD = "walt-virtual-node --mac %(mac)s --ip %(ip)s --model %(model)s --hostname %(name)s \
                                --server-ip %(server_ip)s --cpu-cores %(cpu_cores)d --ram %(ram)s \
@@ -54,6 +54,8 @@ class NodesManager(object):
         self.ev_loop = ev_loop
         self.clock = NodesClockSyncInfo(ev_loop)
         self.expose_manager = ExposeManager(tcp_server, ev_loop)
+        self.filesystems = FilesystemsCache(ev_loop, FS_CMD_PATTERN,
+                            lambda popen: popen.send_signal(signal.SIGINT))
 
     def prepare(self):
         # set booted flag of all nodes to False for now
@@ -122,6 +124,8 @@ class NodesManager(object):
         for vnode in self.db.select('devices', type = 'node', virtual = True):
             self.try_kill_vnode(vnode.mac)
         self.cleanup_netsetup()
+        # cleanup filesystem interpreters
+        self.filesystems.cleanup()
 
     def cleanup_netsetup(self):
         # drop rules set by prepare_netsetup
@@ -356,7 +360,7 @@ class NodesManager(object):
     def get_cp_entity_filesystem(self, requester, node_name, **info):
         node_ip = self.get_node_ip(requester, node_name)
         self.prepare_ssh_access_for_ip(node_ip)
-        return Filesystem(FS_CMD_PATTERN % dict(node_ip = node_ip))
+        return self.filesystems[node_ip]
 
     def get_cp_entity_attrs(self, requester, node_name, **info):
         owned = not self.devices.includes_devices_not_owned(requester, node_name, True)
