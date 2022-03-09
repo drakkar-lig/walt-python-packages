@@ -1,5 +1,5 @@
 
-Welcome to WalT integrated help.
+WalT help startup page
 
 # Admin documentation
 
