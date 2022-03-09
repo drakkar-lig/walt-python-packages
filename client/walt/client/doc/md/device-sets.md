@@ -1,5 +1,5 @@
 
-# Device and node sets: targetting several devices in a single walt command
+# Device and node sets: use several devices at once
 
 Many walt commands allow you to target several devices (e.g. nodes, switches) at once.
 

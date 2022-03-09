@@ -1,5 +1,5 @@
 
-# Walt server setup from a fresh Debian operating system
+# Walt server setup from a fresh Debian OS
 
 ## Overview
 
