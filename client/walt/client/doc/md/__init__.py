@@ -1,3 +1,4 @@
+import re
 from pkg_resources import resource_string, resource_listdir
 from walt.client.doc.pager import Pager
 
@@ -13,8 +14,25 @@ def display_doc(topic):
     pager = Pager(get_md_content)
     pager.display_topic(topic)
 
+def get_topics():
+    file_list = resource_listdir(__name__, '.')
+    return (filename[:-3] for filename in file_list \
+            if filename.endswith('.md'))
+
+def get_described_topics():
+    for topic in get_topics():
+        md_content = get_md_content(topic)
+        header = ''
+        for line in re.split('[\n#]+', md_content):
+            line = line.strip()
+            if len(line) > 0:
+                header = line
+                break
+        yield (topic, header)
+
 def display_topic_list():
-    file_list = sorted(resource_listdir(__name__, '.'))
     print('The following help topics are available:')
-    print((', '.join(filename[:-3] for filename in file_list \
-            if filename.endswith('.md'))))
+    topic_dict = { topic: header for topic, header in get_described_topics() }
+    max_topic_len = max(len(topic) for topic in topic_dict.keys())
+    for topic, header in sorted(topic_dict.items()):
+        print(f"{topic:<{max_topic_len}} -- {header}")
