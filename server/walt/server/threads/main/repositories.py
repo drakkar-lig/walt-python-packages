@@ -6,7 +6,6 @@ import shutil
 import sys
 import time
 import uuid
-from datetime import datetime
 from pathlib import Path
 from subprocess import CalledProcessError
 
@@ -18,16 +17,7 @@ DOCKER_HUB_TIMEOUT=None
 SKOPEO_RETRIES=10
 REGISTRY='docker.io'
 MAX_IMAGE_LAYERS = 128
-
-def parse_date(created_at):
-    # strptime does not support parsing nanosecond precision
-    # remove last 3 decimals of this number
-    created_at = re.sub(r'([0-9]{6})[0-9]*', r'\1', created_at)
-    dt = datetime.strptime(created_at, "%Y-%m-%d %H:%M:%S.%f %z %Z")
-    # remove subsecond precision (not needed)
-    dt = dt.replace(microsecond=0)
-    # convert to local time
-    return dt.astimezone().replace(tzinfo=None)
+METADATA_CACHE_FILE = Path('/var/cache/walt/images.metadata')
 
 # 'buildah mount' does not mount the overlay filesystem with appropriate options to allow nfs export.
 # let's fix this.
@@ -74,7 +64,16 @@ def add_repo(fullname):
 class DockerLocalClient:
     def __init__(self):
         self.names_cache = {}
-        self.metadata_cache = {}
+        self.metadata_cache = self.load_metadata_cache_file()
+    def load_metadata_cache_file(self):
+        if METADATA_CACHE_FILE.exists():
+            return json.loads(METADATA_CACHE_FILE.read_text())
+        else:
+            return {}
+    def save_metadata_cache_file(self):
+        if not METADATA_CACHE_FILE.exists():
+            METADATA_CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        METADATA_CACHE_FILE.write_text(json.dumps(self.metadata_cache))
     def clear_name_cache(self):
         self.names_cache = {}
     def tag(self, old_fullname, new_fullname):
@@ -110,7 +109,7 @@ class DockerLocalClient:
         labels = image_info['labels'].split('[')[1].split(']')[0]
         labels = { l:v for l, v in (lv.split(':') for lv in labels.split()) }
         editable = (image_info['num_layers'] < MAX_IMAGE_LAYERS)
-        created_at = parse_date(image_info['created_at'])
+        created_at = image_info['created_at']
         return {
             'labels': labels,
             'editable': editable,
@@ -143,6 +142,7 @@ class DockerLocalClient:
                 self.metadata_cache[image_id] = old_metadata_cache[image_id]
                 continue
             self.metadata_cache[image_id] = self.get_metadata(image_id)
+        self.save_metadata_cache_file()
     def get_images(self):
         self.refresh_cache()
         for fullname, image_id in self.names_cache.items():
@@ -169,7 +169,6 @@ class DockerLocalClient:
             metadata = dict(
                 image_id = image_id,
                 **self.deep_inspect(image_id))
-            self.metadata_cache[image_id] = metadata
         return metadata
     def stop_container(self, cont_name):
         podman.rm("-f", "-i", cont_name)
