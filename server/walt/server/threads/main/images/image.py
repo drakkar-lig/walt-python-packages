@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import typing
+from datetime import datetime
 
 if typing.TYPE_CHECKING:
     from walt.server.threads.main.images.store import NodeImageStore
@@ -87,6 +88,16 @@ def validate_image_name(requester, image_name):
     requester.stderr.write(ERROR_BAD_IMAGE_NAME)
     return False
 
+def parse_date(created_at):
+    # strptime does not support parsing nanosecond precision
+    # remove last 3 decimals of this number
+    created_at = re.sub(r'([0-9]{6})[0-9]*', r'\1', created_at)
+    dt = datetime.strptime(created_at, "%Y-%m-%d %H:%M:%S.%f %z %Z")
+    # remove subsecond precision (not needed)
+    dt = dt.replace(microsecond=0)
+    # convert to local time
+    return dt.astimezone().replace(tzinfo=None)
+
 class NodeImage(object):
     def __init__(self, store: NodeImageStore, fullname):
         self.store = store
@@ -107,7 +118,7 @@ class NodeImage(object):
         return self.metadata['image_id']
     @property
     def created_at(self):
-        return self.metadata['created_at']
+        return parse_date(self.metadata['created_at'])
     @property
     def labels(self):
         return self.metadata['labels']
