@@ -4,8 +4,8 @@ Usage:
     walt log add-checkpoint [SWITCHES] checkpoint_name
 
 Meta-switches:
-    -h, --help            Prints this help message and quits
+    -h, --help                          Prints this help message and quits
 
 Switches:
-    --date VALUE:str      specify date (see walt help show log-checkpoint)
+    --date LOG_CHECKPOINT_DATE:str      specify date (see walt help show log-checkpoint)
 

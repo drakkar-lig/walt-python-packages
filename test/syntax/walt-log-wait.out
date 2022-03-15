@@ -4,14 +4,15 @@ Usage:
     walt log wait [SWITCHES] logline_regexp
 
 Meta-switches:
-    -h, --help                        Prints this help message and quits
+    -h, --help                                   Prints this help message and quits
 
 Switches:
-    --format LOG_FORMAT:str           format used to print logs (see walt help show log-format); the default is {timestamp:%H:%M:%S.%f}
-                                      {sender}.{stream} -> {line}
-    --mode MODE                       specify mode (see walt help show log-wait); the default is ANY
-    --nodes SET_OF_NODES:str          targeted nodes (see walt help show node-terminology); the default is my-nodes
-    --streams STREAMS_REGEXP:str      selected log streams (as a regular expr.)
-    --time-margin SECONDS:int         also look in recent past logs if they matched
-    --timeout SECONDS:int             stop if still waiting after this number of seconds; the default is -1
+    --emitters, --nodes SET_OF_EMITTERS:str      selected emitters (see walt help show log-emitters); the default is my-nodes
+    --format LOG_FORMAT:str                      format used to print logs (see walt help show log-format); the default is {timestamp:%H:%M:%S.%f} {sender}.{stream} -> {line}
+    --mode LOG_WAIT_MODE              specify mode (see walt help show log-wait); the default is ANY
+    --platform                                   shortcut for: --emitters server --streams platform.*; excludes --emitters, --nodes, --streams, --server
+    --server                                     shortcut for: --emitters server --streams daemon.*; excludes --emitters, --nodes, --streams, --platform
+    --streams STREAMS_REGEXP:str                 selected log streams (as a regular expr.)
+    --time-margin SECONDS:int                    also look in recent past logs if they matched
+    --timeout SECONDS:int                        stop if still waiting after this number of seconds; the default is -1
 

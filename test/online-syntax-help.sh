@@ -1,4 +1,9 @@
 
+# note: to generate a file syntax/<cmd>.out use
+# LC_ALL=C <cmd> --help | sed -e "s/:{.*}//" > syntax/<cmd>.out
+# for instance:
+# LC_ALL=C walt advanced --help | sed -e "s/:{.*}//" > syntax/walt-advanced.out
+
 check_expected_syntax() {
     out_filename="$1"
     # cmd is deduced from file name, by removing ".out" prefix,

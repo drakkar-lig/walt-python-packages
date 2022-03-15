@@ -1,0 +1,8 @@
+dump bash auto-completion code
+
+Usage:
+    walt advanced dump-bash-autocomplete [SWITCHES] 
+
+Meta-switches:
+    -h, --help      Prints this help message and quits
+
