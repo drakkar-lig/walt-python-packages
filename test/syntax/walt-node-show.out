@@ -4,8 +4,9 @@ Usage:
     walt node show [SWITCHES] 
 
 Meta-switches:
-    -h, --help      Prints this help message and quits
+    -h, --help        Prints this help message and quits
 
 Switches:
-    --all           show nodes used by other users too
+    --all             show nodes used by other users too
+    --names-only      list node names only
 

@@ -1,0 +1,45 @@
+#!/usr/bin/env expect
+set stty_init "rows 50 cols 190"
+variable ctrl_c \003
+
+spawn bash --norc -i -l
+expect "# $"
+# start by removing any existing completion feature
+send "complete -r\r"
+expect "# $"
+send "walt advanced dump-bash-autocomplete > /tmp/auto.sh\r"
+expect "# $"
+send ". /tmp/auto.sh\r"
+expect "# $"
+
+proc test_complete {cmd expected tabs tabs_text} {
+    set timeout 10
+    send "$cmd$tabs"
+    expect {
+        "$expected"  { }
+        timeout { puts "\ntimeout: '$cmd$tabs_text' not completed properly!"; exit 1 }
+    }
+    set timeout 1
+    send $::ctrl_c
+    expect "# $"
+    send "\r"
+    expect "# $"
+}
+
+proc test_tab_complete {cmd expected} {
+    test_complete "$cmd" "$expected" "\t" "<tab>"
+}
+
+proc test_tabtab_complete {cmd expected} {
+    test_complete "$cmd" "$expected" "\t\t" "<tab><tab>"
+}
+
+set file_data [read stdin]
+
+set data [split $file_data "\n"]
+foreach line $data {
+    eval "$line"
+}
+
+send "exit\r"
+puts "\n"
