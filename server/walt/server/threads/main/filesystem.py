@@ -1,4 +1,4 @@
-import os, shlex
+import os
 from time import time
 from subprocess import Popen, STDOUT, TimeoutExpired
 
@@ -9,13 +9,12 @@ def pipe():
     return f_r, f_w
 
 class BetterPopen:
-    WAIT_TIMEOUT_SECS = 0.1
     def __init__(self, cmd, kill_function):
         self.kill_function = kill_function
         self.f_stdin_r, self.f_stdin_w = pipe()
         self.f_stdout_r, self.f_stdout_w = pipe()
         # os.setpgrp(): signals should not be propagated to child process
-        self.proc = Popen(shlex.split(cmd), preexec_fn=os.setpgrp,
+        self.proc = Popen(cmd, preexec_fn=os.setpgrp, shell=True,
                     stdin=self.f_stdin_r, stdout=self.f_stdout_w, stderr=STDOUT)
     @property
     def stdin(self):
@@ -30,7 +29,7 @@ class BetterPopen:
     def __del__(self):
         self.close()
     def close(self):
-        if self.proc is not None:
+        if getattr(self, 'proc', None) is not None:
             # call kill function
             self.kill_function(self)
             proc = self.proc
@@ -50,29 +49,51 @@ class BetterPopen:
 
 class Filesystem:
     def __init__(self, cmd_interpreter, kill_function):
-        self.cmd_interpreter = cmd_interpreter
+        self.cmd_interpreter = f'{cmd_interpreter} || echo FAILED'
         self.kill_function = kill_function
         self.popen = None
+        self.popen_started = False
     def wrap_cmd(self, cmd):
         return f'{cmd} 2>/dev/null || true\n'
-    def send_cmd(self, cmd):
+    def check_bg_process_ok(self):
         # check if the running background process is still alive
         if self.popen is not None:
             return_code = self.popen.poll()
-            if return_code is not None:
+            if return_code is None:
+                return True     # bg process still alive => no return code yet
+            else:
                 # background process stopped
                 self.close()
+        return False
+    def send_cmd(self, cmd):
+        self.check_bg_process_ok()
         # open or reopen background process if needed
         if self.popen is None:
             self.popen = BetterPopen(self.cmd_interpreter, self.kill_function)
+            self.popen.stdin.write(self.wrap_cmd('echo STARTED').encode('ascii'))
         self.popen.stdin.write(self.wrap_cmd(cmd).encode('ascii'))
     def read_reply_line(self):
-        return self.popen.stdout.readline().decode('ascii')
-    def ping(self):
+        for _ in range(100):
+            line = self.popen.stdout.readline().decode('ascii').strip()
+            if line == 'FAILED':
+                self.close()
+                return ''
+            if self.popen_started:
+                return line
+            if line == 'STARTED':
+                self.popen_started = True
+                continue
+            if line == '':
+                if not self.check_bg_process_ok():
+                    return ''
+        return ''
+    def ping(self, retries=1):
         self.send_cmd('echo ok')
-        alive = (self.read_reply_line().strip() == 'ok')
+        alive = (self.read_reply_line() == 'ok')
         if not alive:
             self.close()
+            if retries > 0:
+                return self.ping(retries-1)
         return alive
     def get_file_type(self, path):
         self.send_cmd('find %s' % path)
@@ -86,7 +107,7 @@ class Filesystem:
                     ftype = ftype
                 ))
         self.send_cmd('echo')
-        result = self.read_reply_line().strip()
+        result = self.read_reply_line()
         if len(result) > 0:
             return result
         return 'o'  # other
@@ -98,7 +119,7 @@ class Filesystem:
         self.send_cmd('echo')
         possible = []
         while True:
-            path = self.read_reply_line().strip()
+            path = self.read_reply_line()
             if path == '':  # empty line marks the end (cf. "echo" above)
                 break
             possible.append(path)
@@ -107,6 +128,7 @@ class Filesystem:
         if self.popen is not None:
             self.popen.close()
             self.popen = None
+            self.popen_started = False
 
 class FilesystemsCache:
     LOOP_RELEASE_PERIOD = 60

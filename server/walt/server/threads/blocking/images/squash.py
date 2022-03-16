@@ -3,6 +3,7 @@ def squash(requester, server, image_fullname):
     store = server.images.store
     image = store[image_fullname]
     in_use = image.in_use
+    image.filesystem.close()
     image.squash()
     requester.stdout.write('Image was squashed successfully.\n')
     if in_use:

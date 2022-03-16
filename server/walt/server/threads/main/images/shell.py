@@ -66,6 +66,9 @@ class ImageShellSession(object):
                 continue
             if event['Status'] in ('cleanup', 'died') and event['Name'] == self.container_name:
                 break
+        # if overriding, ensure the filesystem is not locking the image
+        if self.image.fullname == image_fullname:
+            self.image.filesystem.close()
         # commit
         print('committing %s...' % self.container_name)
         self.repositories.local.commit(self.container_name, image_fullname)

@@ -11,6 +11,7 @@ if typing.TYPE_CHECKING:
 def do_rename(images, repositories: Repositories, image, new_name):
     new_fullname = format_image_fullname(image.user, new_name)
     # rename the image
+    image.filesystem.close()
     repositories.local.tag(image.fullname, new_fullname)
     repositories.local.rmi(image.fullname)
     # update the store
