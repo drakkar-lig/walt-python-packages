@@ -9,6 +9,7 @@ if typing.TYPE_CHECKING:
 
 
 def do_duplicate(images, repositories: Repositories, image, new_name):
+    image.filesystem.close()
     new_fullname = format_image_fullname(image.user, new_name)
     # add a tag to the image
     repositories.local.tag(image.fullname, new_fullname)

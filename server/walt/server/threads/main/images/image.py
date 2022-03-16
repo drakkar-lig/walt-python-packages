@@ -148,5 +148,4 @@ class NodeImage(object):
     def mounted(self):
         return self.store.image_is_mounted(self.image_id)
     def squash(self):
-        self.filesystem.close()
         self.repositories.local.squash(self.fullname)

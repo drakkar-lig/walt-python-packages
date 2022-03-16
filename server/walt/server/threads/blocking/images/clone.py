@@ -143,7 +143,9 @@ def verify_compatibility_issue(image_store, requester, ws_image_fullname,
         requester.stderr.write(sentence)
         return False    # give up
 
-def remove_ws_image(repositories: Repositories, ws_image_fullname, **args):
+def remove_ws_image(image_store, repositories: Repositories, ws_image_fullname, **args):
+    ws_image = image_store[ws_image_fullname]
+    ws_image.filesystem.close()
     repositories.local.untag(ws_image_fullname)
 
 def remove_server_image(repositories: Repositories, remote_image_fullname, **args):
