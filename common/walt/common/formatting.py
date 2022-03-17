@@ -104,34 +104,6 @@ def columnate(tabular_data, header = None):
         for row in columnate_iterate_rows(tabular_data, header))
     return formatted[:-1]    # remove ending eol
 
-def columnate_iterate_tty(tabular_data, tty_rows, tty_cols, header):
-    tabular_data = columnate_sanitize_data(tabular_data)
-    if header is not None:
-        header = columnate_sanitize_header(header)
-    all_rows = []
-    str_format = None
-    for row in columnate_iterate_rows(tabular_data, header):
-        all_rows.append(row)
-        new_str_format, sep_line = get_columnate_format(*all_rows)
-        should_reprint = True
-        if str_format is None:
-            should_reprint = False
-        if should_reprint and new_str_format == str_format:
-            should_reprint = False
-        if should_reprint and tty_rows < len(all_rows) +1:
-            should_reprint = False
-        if should_reprint:
-            all_rows_formatted = list(columnate_format_row(new_str_format, sep_line, row) \
-                                         for row in all_rows)
-            if max(len(line) for line in all_rows_formatted) > tty_cols:
-                should_reprint = False
-        str_format = new_str_format
-        if should_reprint:
-            yield '\x1b[%(up)dA' % dict(up=len(all_rows)-1)
-            yield ''.join(all_rows_formatted)
-        else:
-            yield columnate_format_row(str_format, sep_line, row)
-
 def display_transient_label(stdout, label):
     stdout.write('\r' + label + ' ')
     stdout.flush()

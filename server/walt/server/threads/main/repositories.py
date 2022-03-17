@@ -1,3 +1,4 @@
+import asyncio
 import itertools
 import json
 import re
@@ -12,6 +13,7 @@ from subprocess import CalledProcessError
 from walt.common.crypto.blowfish import BlowFish
 from walt.common.formatting import indicate_progress
 from walt.server.exttools import buildah, podman, skopeo, mount, umount, findmnt, docker
+from walt.server.tools import async_json_http_get
 
 DOCKER_HUB_TIMEOUT=None
 SKOPEO_RETRIES=10
@@ -243,15 +245,21 @@ class DockerLocalClient:
 
 class DockerDaemonClient:
     def images(self):
+        return asyncio.run(self.async_images())
+    async def async_images(self):
+        results = []
         for line in docker.image.ls('--format', '{{.Repository}} {{.Tag}}',
                                     '--filter', 'dangling=false',
                                     '--filter', 'label=walt.node.models').splitlines():
             repo_name, tag = line.strip().split()
             if tag == '<none>':
                 continue
-            yield repo_name + ':' + tag
+            results.append(repo_name + ':' + tag)
+        return results
     def get_labels(self, image_fullname):
-        json_labels = docker.image.inspect('--format', '{{json .Config.Labels}}', image_fullname)
+        return asyncio.run(self.async_get_labels(image_fullname))
+    async def async_get_labels(self, image_fullname):
+        json_labels = await docker.image.inspect.awaitable('--format', '{{json .Config.Labels}}', image_fullname)
         return json.loads(json_labels)
     def checker(self, line):
         if 'error' in line.lower():
@@ -291,42 +299,46 @@ class DockerHubClient:
         label = 'Pushing %s' % image_fullname
         indicate_progress(sys.stdout, label, stream, self.checker)
         return True
-    def search(self, term):
-        results = []
+    async def async_search(self, term):
         for page in itertools.count(1):
             url = 'https://index.docker.io/v1/search?q=%(term)s&n=100&page=%(page)s' % \
                     dict(   term = term,
                             page = page)
-            page_info = requests.get(url).json()
-            results += page_info['results']
+            page_info = await async_json_http_get(url)
+            for result in page_info['results']:
+                yield result
             if page_info['num_pages'] == page:
                 break
-        return results
-    def list_user_repos(self, user):
+    async def async_list_user_repos(self, user):
         url = 'https://hub.docker.com/v2/repositories/%(user)s/?page_size=100' % \
                     dict(user = user)
+        repos = []
         while url is not None:
-            page_info = requests.get(url).json()
+            page_info = await async_json_http_get(url)
             for res in page_info['results']:
-                yield res['name']
+                repos.append(res['name'])
             url = page_info['next']
-    def list_image_tags(self, image_name):
+        return repos
+    async def async_list_image_tags(self, image_name):
         url = 'https://registry.hub.docker.com/v1/repositories/%(image_name)s/tags' % \
                     dict(image_name = image_name)
-        for elem in requests.get(url, timeout=DOCKER_HUB_TIMEOUT).json():
+        tags = []
+        data = await async_json_http_get(url)
+        for elem in data:
             tag = requests.utils.unquote(elem['name'])
-            yield tag
-    def get_config(self, fullname):
+            tags += [ tag ]
+        return tags
+    async def async_get_config(self, fullname):
         print('retrieving config from hub: ' + fullname)
         for _ in range(SKOPEO_RETRIES):
             try:
-                data = skopeo.inspect('--config', 'docker://docker.io/' + fullname)
+                data = await skopeo.inspect.awaitable('--config', 'docker://docker.io/' + fullname)
                 return json.loads(data)
             except:
                 continue
         raise Exception('Failed to download config for image: ' + fullname)
-    def get_labels(self, fullname):
-        config = self.get_config(fullname)
+    async def async_get_labels(self, fullname):
+        config = await self.async_get_config(fullname)
         if 'config' not in config:
             print('{fullname}: unknown image config format.'.format(fullname=fullname))
             return {}

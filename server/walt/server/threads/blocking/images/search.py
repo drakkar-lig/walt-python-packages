@@ -1,14 +1,15 @@
 from __future__ import annotations
 
+import asyncio
 import subprocess
 import typing
 from collections import defaultdict
 
-from walt.common.formatting import columnate, columnate_iterate_tty
+from walt.common.formatting import columnate
 from walt.common.version import __version__
 from walt.server.threads.blocking.images.metadata import \
-    pull_user_metadata
-from walt.server.tools import format_node_models_list
+    async_pull_user_metadata
+from walt.server.tools import format_node_models_list, async_merge_generators
 
 if typing.TYPE_CHECKING:
     from walt.server.threads.main.repositories import Repositories
@@ -54,67 +55,46 @@ class Search(object):
             return False
         user, image_name = parts
         return self.validate(image_name, user, location)
-    # search yields results in the form (<user>, <image_name>, <location>),
-    # sorted by <user>, then <image_name>, and <location>.
-    # since this can take time, we compute all results for one user,
-    # then yield them for immediate display.
-    def search(self):
-        all_users = set()
-        # search for local images and users
-        local_user_images = defaultdict(set)
+    # search yields results in the form (<image_fullname>, <location>, <labels>)
+    async def async_search(self):
+        async for record in async_merge_generators(
+                                self.async_search_walt(),
+                                self.async_search_daemon(),
+                                self.async_search_hub()
+                            ):
+            yield record
+    async def async_search_walt(self):
+        # search for local images
         for fullname in self.image_store:
             if self.validate_fullname(fullname, LOCATION_WALT_SERVER):
-                user = fullname.split('/')[0]
-                all_users.add(user)
-                local_user_images[user].add(fullname)
-        # search for docker daemon images and users
-        docker_daemon_user_images = defaultdict(set)
+                yield (fullname, LOCATION_WALT_SERVER, self.image_store[fullname].labels)
+    async def async_search_daemon(self):
+        # search for docker daemon images
         if self.repositories.daemon is not None:
             try:
-                docker_images = self.repositories.daemon.images()
+                docker_images = await self.repositories.daemon.async_images()
             except subprocess.CalledProcessError:
                 self.requester.stderr.write("Docker daemon is unreachable: it will not be queried. (but docker hub will)")
             else:
                 for fullname in docker_images:
                     if self.validate_fullname(fullname, LOCATION_DOCKER_DAEMON):
-                        user = fullname.split('/')[0]
-                        all_users.add(user)
-                        docker_daemon_user_images[user].add(fullname)
-        # search for hub users
+                        labels = await self.repositories.daemon.async_get_labels(fullname)
+                        yield (fullname, LOCATION_DOCKER_DAEMON, labels)
+    async def async_search_hub(self):
+        # search for hub images
         # (detect walt users by their 'walt_metadata' dummy image)
-        hub_users = set()
-        for waltuser_info in self.repositories.hub.search('walt_metadata'):
+        generators = []
+        async for waltuser_info in self.repositories.hub.async_search('walt_metadata'):
             if '/walt_metadata' in waltuser_info['name']:
                 user = waltuser_info['name'].split('/')[0]
-                all_users.add(user)
-                hub_users.add(user)
-        # search images of each user
-        for user in sorted(all_users):
-            images_and_labels = defaultdict(dict)
-            # search on docker hub
-            if user in hub_users:
-                # read metadata to detect walt images of this user
-                user_metadata = pull_user_metadata(self.repositories, user)
-                for fullname, info in user_metadata['walt.user.images'].items():
-                    if self.validate_fullname(fullname, LOCATION_DOCKER_HUB):
-                        image_name = fullname.split('/')[1]
-                        images_and_labels[image_name][LOCATION_DOCKER_HUB] = info['labels']
-            # search on local server
-            for fullname in local_user_images[user]:
-                image_user, image_name = fullname.split('/')
-                images_and_labels[image_name][LOCATION_WALT_SERVER] = \
-                                            self.image_store[fullname].labels
-            # search on docker daemon
-            for fullname in docker_daemon_user_images[user]:
-                image_user, image_name = fullname.split('/')
-                images_and_labels[image_name][LOCATION_DOCKER_DAEMON] = \
-                                            self.repositories.daemon.get_labels(fullname)
-            # yield results
-            for image_name in sorted(images_and_labels):
-                locations = sorted(images_and_labels[image_name])
-                for location in locations:
-                    labels = images_and_labels[image_name][location]
-                    yield (user, image_name, location, labels)
+                generators += [ self.async_search_hub_user_images(user) ]
+        async for record in async_merge_generators(*generators):
+            yield record
+    async def async_search_hub_user_images(self, user):
+        user_metadata = await async_pull_user_metadata(self.repositories, user)
+        for fullname, info in user_metadata['walt.user.images'].items():
+            if self.validate_fullname(fullname, LOCATION_DOCKER_HUB):
+                yield fullname, LOCATION_DOCKER_HUB, info['labels']
 
 def short_image_name(image_name):
     if image_name.endswith(':latest'):
@@ -134,16 +114,21 @@ def clonable_link(location, user, image_name, min_version = None):
             short_image_name(image_name)
     )
 
-def discard_images_in_ws(it, username):
+async def async_parse_fullnames(it):
+    async for fullname, location, labels in it:
+        image_user, image_name = fullname.split('/')
+        yield image_user, image_name, location, labels
+
+async def async_discard_images_in_ws(it, username):
     # images owned by the requester and present locally on
     # the server are not considered "remote images".
     # (they belong to the working set of the user, instead.)
-    for user, image_name, location, labels in it:
+    async for user, image_name, location, labels in it:
         if user != username or location != LOCATION_WALT_SERVER:
             yield user, image_name, location, labels
 
-def format_result(it):
-    for user, image_name, location, labels in it:
+async def async_format_result(it):
+    async for user, image_name, location, labels in it:
         min_version = labels.get('walt.server.minversion', None)
         if min_version is not None:
             try:
@@ -158,7 +143,7 @@ def format_result(it):
                 clonable_link(location, user, image_name, min_version))
 
 # this implements walt image search
-def perform_search(repositories: Repositories, image_store, requester, keyword, tty_mode):
+async def async_perform_search(repositories: Repositories, image_store, requester, keyword, tty_mode):
     username = requester.get_username()
     if not username:
         return None    # client already disconnected, give up
@@ -169,31 +154,24 @@ def perform_search(repositories: Repositories, image_store, requester, keyword, 
         validate = None
     # search
     search = Search(repositories, image_store, requester, validate)
-    it = search.search()
-    it = discard_images_in_ws(it, username)
-    it = format_result(it)
+    it = search.async_search()
+    it = async_parse_fullnames(it)
+    it = async_discard_images_in_ws(it, username)
+    it = async_format_result(it)
 
-    found = False
-    if tty_mode:
-        # allow escape-codes to reprint lines, if a new row has columns
-        # with a size larger than previous ones.
-        # (unless terminal size is too small)
-        tty_size = requester.get_win_size()
-        for s in columnate_iterate_tty(it, header = SEARCH_HEADER,
-                       tty_rows = tty_size['rows'], tty_cols = tty_size['cols']):
-            found = True
-            requester.stdout.write(s)
+    rows = []
+    async for t in it:
+        rows.append(t)
+        if tty_mode:
+            requester.stdout.write(f'{len(rows)} matches\r')
+    if len(rows) > 0:
+        s = columnate(rows, SEARCH_HEADER)
+        requester.stdout.write(s + '\n')
     else:
-        # wait for all results to be available, in order to compute
-        # the appropriate column formatting.
-        s = columnate(it, SEARCH_HEADER)
-        if len(s) > 0:
-            found = True
-            requester.stdout.write(s + '\n')
-    if not found:
         requester.stderr.write(MSG_SEARCH_NO_MATCH)
 
 # this implements walt image search
 def search(requester, server: Server, keyword, tty_mode):
-    return perform_search(server.repositories, server.images.store, requester, keyword, tty_mode)
+    return asyncio.run(async_perform_search(
+            server.repositories, server.images.store, requester, keyword, tty_mode))
 

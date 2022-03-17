@@ -1,8 +1,9 @@
 from collections import namedtuple
-
+from aiostream import stream
 from walt.server import conf
 from walt.server.autoglob import autoglob
 import pickle, resource
+import asyncio, aiohttp
 
 # are you sure you want to understand what follows? This is sorcery...
 nt_index = 0
@@ -56,3 +57,23 @@ def set_rlimits():
 def get_server_ip() -> str:
     """Load the server IP address on walt-net from the configuration file."""
     return conf['network']['walt-net']['ip'].split('/')[0]
+
+async def async_json_http_get(url):
+    timeout = aiohttp.ClientTimeout(total=3) # was 30
+    async with aiohttp.ClientSession(timeout=timeout) as session:
+        async with session.get(url) as response:
+            return await response.json()
+
+async def async_gather_tasks(tasks):
+    # make sure all asyncio tasks are run up to their result or exception
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    for res in results:
+        if isinstance(res, Exception):
+            raise res
+    return results
+
+async def async_merge_generators(*generators):
+    merged_generator = stream.merge(*generators)
+    async with merged_generator.stream() as streamer:
+        async for item in streamer:
+            yield item

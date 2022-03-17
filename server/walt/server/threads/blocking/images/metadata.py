@@ -3,7 +3,9 @@ from __future__ import annotations
 import typing
 
 from walt.server.exttools import buildah
+from walt.server.tools import async_gather_tasks
 import json, base64
+import asyncio
 
 if typing.TYPE_CHECKING:
     from walt.server.threads.main.repositories import Repositories
@@ -11,17 +13,36 @@ if typing.TYPE_CHECKING:
 
 
 def collect_user_metadata(repositories: Repositories, user):
-    walt_images = {}
-    for repo in repositories.hub.list_user_repos(user):
+    return asyncio.run(async_collect_user_metadata(repositories, user))
+
+async def async_collect_user_metadata(repositories: Repositories, user):
+    tasks = []
+    repos = await repositories.hub.async_list_user_repos(user)
+    for repo in repos:
         reponame = user + '/' + repo
-        for tag in repositories.hub.list_image_tags(reponame):
-            fullname = reponame + ':' + tag
-            labels = repositories.hub.get_labels(fullname)
-            if 'walt.node.models' in labels:
-                walt_images[fullname] = dict(
-                    labels = labels
-                )
+        tasks += [ asyncio.create_task(async_collect_repo_metadata(repositories, reponame)) ]
+    results = await async_gather_tasks(tasks)
+    walt_images = {}
+    for repo_images in results:
+        walt_images.update(repo_images)
     return { 'walt.user.images': walt_images }
+
+async def async_collect_repo_metadata(repositories: Repositories, reponame):
+    tags = await repositories.hub.async_list_image_tags(reponame)
+    tasks, fullnames = [], []
+    for tag in tags:
+        fullname = reponame + ':' + tag
+        task = asyncio.create_task(repositories.hub.async_get_labels(fullname))
+        tasks.append(task)
+        fullnames.append(fullname)
+    results = await async_gather_tasks(tasks)
+    walt_images = {}
+    for fullname, labels in zip(fullnames, results):
+        if 'walt.node.models' in labels:
+            walt_images[fullname] = dict(
+                labels = labels
+            )
+    return walt_images
 
 def push_user_metadata(repositories: Repositories, dh_peer, auth_conf, requester, user, metadata):
     encoded = base64.b64encode(json.dumps(metadata).encode('UTF-8'))
@@ -39,8 +60,11 @@ def push_user_metadata(repositories: Repositories, dh_peer, auth_conf, requester
     buildah.rmi(fullname)
 
 def pull_user_metadata(repositories: Repositories, user):
+    return asyncio.run(async_pull_user_metadata(repositories, user))
+
+async def async_pull_user_metadata(repositories: Repositories, user):
     try:
-        labels = repositories.hub.get_labels(
+        labels = await repositories.hub.async_get_labels(
                 '%(user)s/walt_metadata:latest' % dict(user = user))
         encoded = labels['metadata']
         return json.loads(base64.b64decode(encoded).decode('UTF-8'))

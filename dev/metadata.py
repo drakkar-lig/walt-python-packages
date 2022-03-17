@@ -70,6 +70,8 @@ PACKAGE_SPECIFIC_INFO = {
                         'psycopg2-binary>=2.8.2',
                         'gevent>=21.1.2',
                         'bottle>=0.12.19',
+                        'aiohttp>=3.8.1',
+                        'aiostream>=0.4.4',
                         'walt-common==%(upload)s',
                         'walt-virtual==%(upload)s',
                         'walt-vpn==%(upload)s'],
