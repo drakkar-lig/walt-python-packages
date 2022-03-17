@@ -3,6 +3,7 @@ from __future__ import annotations
 import shutil
 from subprocess import run, PIPE, Popen
 import sys
+import asyncio
 
 
 class ExtTool:
@@ -33,6 +34,16 @@ class ExtTool:
     def stream(self):
         return StreamExtTool(*self.path)
 
+    async def awaitable(self, *args, out_stream = 'stdout'):
+        popen_stream_arg = { out_stream: asyncio.subprocess.PIPE }
+        args = self.path + args
+        popen = await asyncio.create_subprocess_exec(
+                        *args, **popen_stream_arg)
+        stream = getattr(popen, out_stream)
+        output = await stream.read()
+        await popen.wait()
+        return output.decode(sys.stdout.encoding)
+
     def __getattr__(self, attr):
         sub_path = self.path + (attr,)
         sub_tool = ExtTool(*sub_path)
@@ -45,7 +56,6 @@ class ExtTool:
                    input=input,
                    stdout=PIPE,
                    encoding=sys.stdout.encoding).stdout.strip()
-
 
 class StreamExtTool:
     def __init__(self, *path):
@@ -77,7 +87,6 @@ class StreamExtTool:
                     popen.wait()
                     raise
         return read_stream()
-
 
 buildah = ExtTool.get_executable('buildah')
 podman = ExtTool.get_executable('podman')
