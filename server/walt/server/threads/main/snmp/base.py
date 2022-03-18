@@ -1,6 +1,9 @@
 #!/usr/bin/env python
 import re, pickle
 from snimpy import manager, snmp
+from pathlib import Path
+
+VARIANTS_CACHE_FILE = Path('/var/cache/walt/snmp.variants')
 
 class SNMPBitField(object):
     def __init__(self, snmpfield, shift = 0):
@@ -73,14 +76,14 @@ class Variant:
 
 class VariantsCache:
     def __init__(self):
-        try:
-            with open('/var/lib/walt/snmp.cache', 'rb') as f:
-                self.cache = pickle.load(f)
-        except:
+        if VARIANTS_CACHE_FILE.exists():
+            self.cache = pickle.loads(VARIANTS_CACHE_FILE.read_bytes())
+        else:
             self.cache = {}
     def save(self):
-        with open('/var/lib/walt/snmp.cache', 'wb') as f:
-            pickle.dump(self.cache, f)
+        if not VARIANTS_CACHE_FILE.exists():
+            VARIANTS_CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        VARIANTS_CACHE_FILE.write_bytes(pickle.dumps(self.cache))
     def get(self, topic_msg, host):
         return self.cache.get((topic_msg, host), None)
     def set(self, topic_msg, host, variant_name):
