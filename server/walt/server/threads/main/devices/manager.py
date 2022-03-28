@@ -152,6 +152,8 @@ class DevicesManager(object):
 
     def get_name_from_ip(self, ip):
         device_info = self.db.select_unique("devices", ip=ip)
+        if device_info is None:
+            return None
         return device_info.name
 
     def notify_unknown_ip(self, requester, device_name):
