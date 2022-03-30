@@ -4,7 +4,7 @@
 ## Overview
 
 These are the steps you should follow to install the walt server system on a machine freshly installed
-with debian 10 (buster) operating system.
+with debian 11 (bullseye) operating system.
 
 Note that walt server software interacts with various network daemons (lldpd, snmpd, dhcpd, ptpd, ntpd,
 tftpd, nfsd), thus you should not run other software related to network management on this walt server
@@ -15,8 +15,8 @@ machine.
 
 ```
 $ grep non-free /etc/apt/sources.list || sed -i -e 's/main/main non-free/g' /etc/apt/sources.list
-$ apt-get update
-$ apt-get install --upgrade --no-install-recommends \
+$ apt update
+$ apt install --upgrade --no-install-recommends \
         apt-transport-https ca-certificates gnupg2 curl gnupg-agent \
         software-properties-common binfmt-support qemu-user-static \
         lldpd snmp snmpd openssh-server snmp-mibs-downloader iputils-ping \
@@ -29,22 +29,16 @@ $ apt-get install --upgrade --no-install-recommends \
 
 ```
 $ URL="https://download.docker.com/linux/debian"
-$ curl -sSL $URL/gpg | sudo apt-key add -
-$ echo "deb [arch=amd64] $URL buster stable" > /etc/apt/sources.list.d/docker.list
-$ URL="https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/Debian_10"
-$ curl -sSL $URL/Release.key | sudo apt-key add -
-$ echo "deb $URL/ /" > /etc/apt/sources.list.d/libcontainers.list
-$ grep -RIq "^[^#]*buster-backports" /etc/apt/ || \
-        echo "deb http://deb.debian.org/debian buster-backports main" \
-            >> /etc/apt/sources.list.d/libcontainers.list
+$ KEYRING="/usr/share/keyrings/docker-archive-keyring.gpg"
+$ curl -sSL $URL/gpg | gpg --dearmor > $KEYRING
+$ echo "deb [arch=amd64 signed-by=$KEYRING] $URL buster stable" > /etc/apt/sources.list.d/docker.list
 ```
 
 ## 3- Install a second set of packages
 
 ```
-$ apt-get update
-$ apt-get install -t buster-backports --upgrade libseccomp2
-$ apt-get install --upgrade --no-install-recommends \
+$ apt update
+$ apt install --upgrade --no-install-recommends \
         docker-ce docker-ce-cli containerd.io podman buildah skopeo
 ```
 
@@ -75,37 +69,12 @@ $ git checkout -b dev origin/dev
 $ make install
 ```
 
-## 6- Update dhcpd configuration
+## 6- Disable dhcpd default service
 
 ```
-$ sed -i -e 's/INTERFACESv4=.*/INTERFACESv4="walt-net"/g' /etc/default/isc-dhcp-server
-$ cat > /etc/systemd/system/isc-dhcp-server.service << EOF
-[Unit]
-Documentation=man:systemd-sysv-generator(8)
-SourcePath=/etc/init.d/isc-dhcp-server
-Description=LSB: DHCP server
-Before=multi-user.target
-Before=graphical.target
-After=remote-fs.target
-After=network-online.target
-After=slapd.service
-After=nss-lookup.target
-Wants=network-online.target
-
-[Service]
-Type=forking
-PIDFile=/run/dhcpd.pid
-Restart=on-failure
-RestartSec=5
-TimeoutSec=5min
-IgnoreSIGPIPE=no
-KillMode=process
-GuessMainPID=no
-RemainAfterExit=yes
-SuccessExitStatus=5 6
-ExecStart=/etc/init.d/isc-dhcp-server start
-ExecStop=/etc/init.d/isc-dhcp-server stop
-EOF
+$ systemctl stop isc-dhcp-server
+$ systemctl disable isc-dhcp-server
+$
 ```
 
 ## 7- Update tftpd configuration
@@ -166,7 +135,13 @@ $ echo 'DAEMON_ARGS="-x -c -s -e -D snmp"' > /etc/default/lldpd
 ## 10- Update snmpd configuration
 
 ```
-$ sed -i -e 's/.*community.*localhost/rocommunity private localhost/' /etc/snmp/snmpd.conf
+$ cat > /etc/snmp/snmpd.conf << EOF
+agentAddress udp:127.0.0.1:161
+rocommunity private localhost
+rouser authOnlyUser
+master agentx
+EOF
+$
 ```
 
 ## 11- Run walt automated setup commands
