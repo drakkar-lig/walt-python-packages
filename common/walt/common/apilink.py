@@ -56,14 +56,15 @@ class APIChannel(object):
 # read a remote attribute. Thus all remote attributes must be functions.
 
 class AttrCallAggregator(object):
-    def __init__(self, handler, path = ()):
+    def __init__(self, handler, path = ''):
         self.path = path
         self.handler = handler
     def __getattr__(self, attr):
-        return AttrCallAggregator(self.handler, self.path + (attr,))
+        return AttrCallAggregator(self.handler, f'{self.path}.{attr}')
+    def __getitem__(self, idx):
+        return AttrCallAggregator(self.handler, f'{self.path}[{repr(idx)}]')
     def __call__(self, *args, **kwargs):
-        path = '.'.join(self.path)
-        return self.handler(path, args, kwargs)
+        return self.handler(self.path[1:], args, kwargs)
 
 class AttrCallRunner(object):
     def __init__(self, handler):
@@ -71,7 +72,13 @@ class AttrCallRunner(object):
     def do(self, path, args, kwargs):
         obj = self.handler
         for attr in path.split('.'):
-            obj = getattr(obj, attr)
+            if '[' in attr:
+                attr, rest = attr.split('[', maxsplit=1)
+                subs = rest[:-1]
+                obj = getattr(obj, attr)
+                obj = obj[eval(subs)]
+            else:
+                obj = getattr(obj, attr)
         return obj(*args, **kwargs)
 
 # Sometimes we start a long running process on the server and wait for
