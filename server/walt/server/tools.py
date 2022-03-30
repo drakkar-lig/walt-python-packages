@@ -2,13 +2,60 @@ from collections import namedtuple
 from aiostream import stream
 from walt.server import conf
 from walt.server.autoglob import autoglob
+from ipaddress import ip_address, ip_network, IPv4Address
+from typing import Union
+from walt.server import conf
+
 import pickle, resource
 import asyncio, aiohttp
+import sys
+import pdb
 
-# are you sure you want to understand what follows? This is sorcery...
+def fix_pdb():
+    # monkey patch pdb for usage in a subprocess
+    pdb.SavedPdb = pdb.Pdb
+    class BetterPdb(pdb.SavedPdb):
+        def interaction(self, *args, **kwargs):
+            try:
+                sys.stdin = open('/dev/stdin')
+                pdb.SavedPdb.interaction(self, *args, **kwargs)
+            finally:
+                sys.stdin = sys.__stdin__
+    pdb.Pdb = BetterPdb
+
+# wrapper to make a named tuple serializable using pickle
+# even if it was built from a local class
+class SerializableNT:
+    def __init__(self, nt=None):
+        self.nt = nt
+    def __getstate__(self):
+        return self.nt._asdict()
+    def __setstate__(self, d):
+        self.nt = to_named_tuple(d)
+    def __getattr__(self, attr):
+        return getattr(self.nt, attr)
+    def __iter__(self):
+        return iter(self.nt)
+    def __len__(self):
+        return len(self.nt)
+    def __getitem__(self, i):
+        return self.nt[i]
+    def __lt__(self, other):
+        return self.nt < other
+    def __gt__(self, other):
+        return self.nt > other
+    def __eq__(self, other):
+        return self.nt == other
+    @staticmethod
+    def get_factory(nt_cls):
+        def create(*args, **kwargs):
+            nt = nt_cls(*args, **kwargs)
+            return SerializableNT(nt)
+        return create
+
 nt_index = 0
 nt_classes = {}
-def to_named_tuple(d):
+def build_named_tuple_cls(d):
     global nt_index
     code = pickle.dumps(sorted(d.keys()))
     if code not in nt_classes:
@@ -18,9 +65,12 @@ def to_named_tuple(d):
                 d = self._asdict()
                 d.update(**kwargs)
                 return to_named_tuple(d)
-        nt_classes[code] = NT
+        nt_classes[code] = SerializableNT.get_factory(NT)
         nt_index += 1
-    return nt_classes[code](**d)
+    return nt_classes[code]
+
+def to_named_tuple(d):
+    return build_named_tuple_cls(d)(**d)
 
 def merge_named_tuples(nt1, nt2):
     d = nt1._asdict()
@@ -77,3 +127,59 @@ async def async_merge_generators(*generators):
     async with merged_generator.stream() as streamer:
         async for item in streamer:
             yield item
+
+def ip(ip_as_str):
+    return ip_address(str(ip_as_str))
+
+def net(net_as_str):
+    return ip_network(str(net_as_str), strict=False)
+
+def get_walt_subnet():
+    return net(conf['network']['walt-net']['ip'])
+
+def get_walt_adm_subnet():
+    walt_adm_conf = conf['network'].get('walt-adm', None)
+    if walt_adm_conf is None:
+        return None
+    else:
+        return net(walt_adm_conf['ip'])
+
+def ip_in_walt_network(input_ip):
+    subnet = get_walt_subnet()
+    return ip(input_ip) in subnet
+
+def ip_in_walt_adm_network(input_ip):
+    subnet = get_walt_adm_subnet()
+    if subnet is None:
+        return False
+    else:
+        return ip(input_ip) in subnet
+
+def get_dns_servers() -> [Union[str, IPv4Address]]:
+    local_server_is_dns_server = False
+    dns_list = []
+    with open('/etc/resolv.conf', 'r') as f:
+        for line in f:
+            line = line.strip()
+            if len(line) == 0:
+                continue
+            if line[0] == '#':
+                continue
+            if line.startswith('nameserver'):
+                for dns_ip in line.split(' ')[1:]:
+                    dns_ip = ip_address(dns_ip)
+                    if dns_ip.version != 4:
+                        # Not supported by dhcpd in our IPv4 configuration
+                        continue
+                    if dns_ip.is_loopback:
+                        local_server_is_dns_server = True
+                        continue
+                    dns_list.append(dns_ip)
+    # If walt server is a DNS server, and no other DNS is available, let the
+    # walt nodes use it (but not with its localhost address!)
+    if local_server_is_dns_server and len(dns_list) == 0:
+        dns_list.append(get_server_ip())
+    # Still no DNS server...  Hope that this one is reachable
+    if len(dns_list) == 0:
+        dns_list.append('8.8.8.8')
+    return dns_list

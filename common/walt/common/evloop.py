@@ -5,6 +5,9 @@ from select import poll, select, POLLIN, POLLPRI, POLLOUT
 from time import time
 from heapq import heappush, heappop
 
+class BreakLoopRequested(Exception):
+    pass
+
 POLL_OPS_READ = POLLIN | POLLPRI
 POLL_OPS_WRITE = POLLOUT
 
@@ -74,9 +77,8 @@ class EventLoop(object):
             return (self.planned_events[0][0] - time())*1000
 
     def update_listener(self, listener, events=POLL_OPS_READ):
-        fd = listener.fileno()
-        self.poller.unregister(fd)
-        self.poller.register(fd, events)
+        self.remove_listener(listener, should_close=False)
+        self.register_listener(listener, events)
 
     def register_listener(self, listener, events=POLL_OPS_READ):
         fd = listener.fileno()
@@ -84,24 +86,31 @@ class EventLoop(object):
         self.poller.register(fd, events)
         #print 'new listener:', listener
 
-    def remove_listener(self, in_listener):
+    def remove_listener(self, in_listener, should_close=True):
         #print 'removing ' + str(in_listener)
         #sys.stdout.flush()
         # find fd
         for fd, listener in self.listeners.items():
             if listener is in_listener:
                 break
+        del self.listeners[fd]
+        self.poller.unregister(fd)
+        if not should_close:
+            return  # done
         # do no fail in case of issue in listener.close()
         # because anyway we do not need this listener anymore
         try:
-            listener.close()
+            in_listener.close()
+        except BreakLoopRequested:
+            raise
         except Exception as e:
-            print('warning: got exception in listener.close():', e)
-        del self.listeners[fd]
-        self.poller.unregister(fd)
+            print('warning: got exception in listener.close():', repr(e))
 
-    def loop(self):
+    def loop(self, loop_condition = None):
         while True:
+            if loop_condition is not None:
+                if not loop_condition():
+                    break
             # handle any expired planned event
             now = time()
             while len(self.planned_events) > 0 and \
