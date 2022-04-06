@@ -125,13 +125,13 @@ class DockerLocalClient:
             return False
     def refresh_cache(self):
         self.names_cache = {}
-        for line in buildah.images('--format', '{{.ID}}|{{.Name}}:{{.Tag}}',
-                                   '--filter', 'dangling=false',
-                                   '--no-trunc').splitlines():
-            sha_id, buildah_image_name = line.split('|')
+        for line in podman.images('--format', 'table {{.ID}}|{{.Repository}}:{{.Tag}}',
+                                    '--filter', 'dangling=false',
+                                    '--no-trunc', '--noheading').splitlines():
+            sha_id, podman_image_name = line.split('|')
             image_id = sha_id[7:]   # because it starts with "sha256:"
             # buildah may manage several repos, we do not need it here, discard this repo prefix
-            fullname = buildah_image_name.split('/', 1)[1]
+            fullname = podman_image_name.split('/', 1)[1]
             if not '/' in fullname:
                 continue
             self.names_cache[fullname] = image_id
