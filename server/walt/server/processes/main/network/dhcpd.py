@@ -50,7 +50,9 @@ if (vci = "PXEClient:Arch:00000:UNDI:002001") {
         # no filename is given here.
     }
     elsif ((binary-to-ascii(16,8,":",substring(hardware, 1, 3)) = "b8:27:eb") or
-           (binary-to-ascii(16,8,":",substring(hardware, 1, 3)) = "dc:a6:32")) {
+           (binary-to-ascii(16,8,":",substring(hardware, 1, 3)) = "28:cd:c1") or
+           (binary-to-ascii(16,8,":",substring(hardware, 1, 3)) = "dc:a6:32") or
+           (binary-to-ascii(16,8,":",substring(hardware, 1, 3)) = "e4:5f:01")) {
         # native rpi3b+ network boot
         option vendor-class-identifier "PXEClient";
         option vendor-encapsulated-options "Raspberry Pi Boot";
