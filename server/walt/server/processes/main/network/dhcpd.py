@@ -24,6 +24,7 @@ option client-architecture code 93 = unsigned integer 16;
 authoritative; # allow sending DHCP NAKs
 next-server %(walt_server_ip)s;
 option tftp-server-name "%(walt_server_ip)s";
+option ntp-servers %(walt_server_ip)s;
 option broadcast-address %(subnet_broadcast)s;
 
 # get the vendor class identifier if available
