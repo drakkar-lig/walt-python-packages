@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import io
+import shlex
+import subprocess
 from pathlib import Path
 
 from walt.common.tools import failsafe_symlink
 
 SYSTEMD_DEFAULT_DIR = Path("/etc/systemd/system")
-
 
 def install_unit(unit_name: str, unit_content: io.BytesIO,
                  install_prefix: Path = None, systemd_dir: Path = SYSTEMD_DEFAULT_DIR):
@@ -55,3 +56,14 @@ def enable_unit(unit_name: str, wanted_by: str | list[str],
         wants_path = install_dir / (w_by + '.wants') / unit_name
         wants_path.parent.mkdir(parents=True, exist_ok=True)
         failsafe_symlink(str(unit_file_path), str(wants_path))
+
+def disable_unit(unit_name: str):
+    """Disable a systemd service in the filesystem.
+
+    :param unit_name: Full unit name (with extension).
+    """
+    # thanks to the --root option, systemctl operates on the file
+    # system directly, instead of communicating with the systemd
+    # daemon; thus this code should work in a Dockerfile RUN step.
+    subprocess.run(shlex.split(
+        f'systemctl --root=/ disable {unit_name}'))

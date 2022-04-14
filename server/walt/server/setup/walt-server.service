@@ -9,13 +9,8 @@ Description=WalT server daemon
 Requires=walt-server-netconfig.service
 After=walt-server-netconfig.service
 # needs lldp
-Requires=lldpd.service
-After=lldpd.service
-# needs ptpd, but we must be initialized (ip on walt-net)
-# otherwise ptpd will fail to start (thus the 'Before=',
-# and the 'Type=notify' below).
+Wants=walt-server-lldpd.service
 Wants=ptpd.service
-Before=ptpd.service
 
 [Service]
 Environment=PYTHONUNBUFFERED=1

@@ -340,7 +340,7 @@ class TopologyManager(object):
         for device in devices:
             if device.type == 'server':
                 self.collect_connected_devices(requester, server, server_mac, server_ip, topology,
-                    "walt server", "localhost", device.mac, const.SERVER_SNMP_CONF)
+                    "walt server", server_ip, device.mac, const.SERVER_SNMP_CONF)
             elif device.type == 'switch':
                 if not device.conf.get('lldp.explore', False):
                     self.print_message(requester,

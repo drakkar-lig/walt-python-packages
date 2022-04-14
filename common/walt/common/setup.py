@@ -45,6 +45,11 @@ class WaltGenericSetup(cli.Application):
                                     install_prefix = self._install_prefix,
                                     systemd_dir = self._systemd_dir)
 
+    def disable_systemd_services(self, systemd_services):
+        self._assert_init_is({"SYSTEMD", None})
+        for service in systemd_services:
+            systemd.disable_unit(service)
+
     def setup_busybox_init_services(self, busybox_services):
         self._assert_init_is({"BUSYBOX", None})
         for service in busybox_services:

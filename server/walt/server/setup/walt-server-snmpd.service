@@ -1,0 +1,25 @@
+# walt-server-snmpd - WalT platform SNMP daemon
+#
+# The WalT platform provides a lightweight distributed testbed for
+# sensor networks, distributed protocols, distributed data
+# management.
+
+[Unit]
+Documentation=man:snmpd
+Description=WalT SNMP server (based on snmpd)
+Requires=walt-server-netconfig.service
+After=walt-server-netconfig.service
+
+[Service]
+Type=simple
+Environment=SNMPD_BINARY_NAME=snmpd
+Environment=SNMPD_USER=Debian-snmp
+Environment=SNMPD_GROUP=Debian-snmp
+Environment=SNMPD_AGENTX_SOCKET=/run/walt/agentx-master.socket
+RuntimeDirectory=walt
+StateDirectory=walt/services/snmpd
+PIDFile=/run/walt/snmpd.pid
+ExecStart=walt-server-snmpd
+
+[Install]
+WantedBy=walt-server-netconfig.service
