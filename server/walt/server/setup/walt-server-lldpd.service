@@ -1,0 +1,32 @@
+# walt-server-lldpd - WalT platform LLDP daemon
+#
+# The WalT platform provides a lightweight distributed testbed for
+# sensor networks, distributed protocols, distributed data
+# management.
+
+[Unit]
+Documentation=man:lldpd
+Description=WalT LLDP server (based on lldpd)
+Requires=walt-server-netconfig.service
+After=walt-server-netconfig.service
+
+[Service]
+Type=notify
+NotifyAccess=main
+Environment=LLDPD_BINARY_NAME=lldpd
+Environment=SNMPD_AGENTX_SOCKET=/run/walt/agentx-master.socket
+RuntimeDirectory=walt
+StateDirectory=walt/services/lldpd
+PIDFile=/run/walt/lldpd.pid
+ExecStart=walt-server-lldpd
+Restart=on-failure
+PrivateTmp=yes
+ProtectHome=yes
+ProtectKernelTunables=no
+ProtectControlGroups=yes
+ProtectKernelModules=yes
+#ProtectSystem=full
+
+[Install]
+WantedBy=walt-server-netconfig.service
+

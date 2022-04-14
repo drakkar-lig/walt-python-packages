@@ -7,8 +7,9 @@ from walt.server.processes.main.network.netsetup import NetSetup
 from walt.server.tools import ip, get_walt_subnet, get_dns_servers
 
 # STATE_DIRECTORY is set by systemd to the daemon's state directory.  By
-# default, it is the same as /var/lib/walt
-DHCPD_CONF_FILE = Path(os.getenv("STATE_DIRECTORY", "/var/lib/walt")) / 'dhcpd.conf'
+# default, it is /var/lib/walt
+DHCPD_CONF_FILE = Path(os.getenv("STATE_DIRECTORY", "/var/lib/walt")) / \
+                    'services' / 'dhcpd' / 'dhcpd.conf'
 
 CONF_PATTERN = """
 #
@@ -232,15 +233,12 @@ class DHCPServer(object):
                     mac=item.mac,
                     netsetup=item.netsetup))
         conf = generate_dhcpd_conf(subnet, devices)
-        try:
-            with open(DHCPD_CONF_FILE, 'r') as conf_file:
-                old_conf = conf_file.read()
-        except FileNotFoundError:
-            # No configuration file, consider it is empty and create it
-            old_conf = ""
+        old_conf = ""
+        if DHCPD_CONF_FILE.exists():
+            old_conf = DHCPD_CONF_FILE.read_text()
         if conf != old_conf:
-            with open(DHCPD_CONF_FILE, 'w') as conf_file:
-                conf_file.write(conf)
+            DHCPD_CONF_FILE.parent.mkdir(parents=True, exist_ok=True)
+            DHCPD_CONF_FILE.write_text(conf)
             force = True # perform the restart below
         if force == True:
             self.config_version += 1

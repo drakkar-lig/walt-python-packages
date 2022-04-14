@@ -1,0 +1,24 @@
+# walt-server-tftpd - WalT platform TFTP daemon
+#
+# The WalT platform provides a lightweight distributed testbed for
+# sensor networks, distributed protocols, distributed data
+# management.
+
+[Unit]
+Documentation=man:in.tftpd
+Description=WalT TFTP server (based on tftpd-hpa)
+Requires=walt-server-netconfig.service
+After=walt-server-netconfig.service
+
+[Service]
+Type=forking
+Environment=TFTPD_BINARY_NAME=in.tftpd
+Environment=TFTPD_USER=tftp
+Environment=TFTP_ROOT=/var/lib/walt
+RuntimeDirectory=walt
+StateDirectory=walt/services/tftpd
+PIDFile=/run/walt/tftpd.pid
+ExecStart=walt-server-tftpd
+
+[Install]
+WantedBy=walt-server-netconfig.service

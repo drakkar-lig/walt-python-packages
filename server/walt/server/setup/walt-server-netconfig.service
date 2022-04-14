@@ -1,3 +1,9 @@
+# walt-server-netconfig - WalT platform network management
+#
+# The WalT platform provides a lightweight distributed testbed for
+# sensor networks, distributed protocols, distributed data
+# management.
+
 [Unit]
 Description=WalT platform network management
 # Minimal requirements on the network

@@ -183,3 +183,12 @@ def get_dns_servers() -> [Union[str, IPv4Address]]:
     if len(dns_list) == 0:
         dns_list.append('8.8.8.8')
     return dns_list
+
+def ensure_text_file_content(path, content):
+    update_file = True
+    if path.exists():
+        if path.read_text() == content:
+            update_file = False
+    if update_file:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content)

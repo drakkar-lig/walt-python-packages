@@ -1,0 +1,22 @@
+# walt-server-ptpd - WalT platform PTP daemon
+#
+# The WalT platform provides a lightweight distributed testbed for
+# sensor networks, distributed protocols, distributed data
+# management.
+
+[Unit]
+Documentation=man:in.ptpd
+Description=WalT PTP server (based on ptpd2)
+Requires=walt-server-netconfig.service
+After=walt-server-netconfig.service
+
+[Service]
+Type=simple
+Environment=PTPD_BINARY_NAME=ptpd
+Environment=PTPD_STATUS_FILE=/run/walt/ptpd.status
+RuntimeDirectory=walt
+StateDirectory=walt/services/ptpd
+ExecStart=walt-server-ptpd
+
+[Install]
+WantedBy=walt-server-netconfig.service
