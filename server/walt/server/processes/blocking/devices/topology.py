@@ -7,7 +7,7 @@ from walt.server.processes.blocking import snmp
 from walt.server.processes.blocking.snmp import NoSNMPVariantFound
 from walt.server.processes.blocking.devices.grouper import Grouper
 from walt.server.processes.blocking.devices.tree import Tree
-from walt.server.tools import ip_in_walt_network, ip_in_walt_adm_network, to_named_tuple
+from walt.server.tools import ip_in_walt_network, ip_in_walt_adm_network, to_named_tuple, get_server_ip
 
 NOTE_EXPLAIN_UNREACHABLE = "devices marked with parentheses were not detected at last scan"
 NOTE_EXPLAIN_UNKNOWN = "type of devices marked with <? ... ?> is unknown"
@@ -335,9 +335,11 @@ class TopologyManager(object):
         print(message)
 
     def collect_devices(self, requester, server, topology, devices):
+        server_mac = server.devices.get_server_mac()
+        server_ip = get_server_ip()
         for device in devices:
             if device.type == 'server':
-                self.collect_connected_devices(requester, server, topology,
+                self.collect_connected_devices(requester, server, server_mac, server_ip, topology,
                     "walt server", "localhost", device.mac, const.SERVER_SNMP_CONF)
             elif device.type == 'switch':
                 if not device.conf.get('lldp.explore', False):
@@ -346,13 +348,13 @@ class TopologyManager(object):
                     continue
                 snmp_conf = { 'version': device.conf.get('snmp.version'),
                               'community': device.conf.get('snmp.community') }
-                self.collect_connected_devices(requester, server, topology,
+                self.collect_connected_devices(requester, server, server_mac, server_ip, topology,
                     device.name, device.ip, device.mac, snmp_conf)
             else:
                 self.print_message(requester,
                     'Querying %-25s INVALID (can only scan switches or the server)' % device.name)
 
-    def collect_connected_devices(self, requester, server, topology, host_name,
+    def collect_connected_devices(self, requester, server, server_mac, server_ip, topology, host_name,
                                     host_ip, host_mac, host_snmp_conf):
         print("Querying %s..." % host_name)
         if host_ip is None:
@@ -377,6 +379,14 @@ class TopologyManager(object):
                                 neighbor_info['sysname']
             print('---- found on %s %s -- port %d: %s %s %s' % \
                         (host_name, host_mac, port, ip, mac, sysname))
+            # The switch connected to the server detects the mac address of the physical
+            # network interface, which is different from the mac address of walt-net (the one
+            # we use to identify the server in our database).
+            # However walt-server-lldpd is setup to properly announce the IP address of walt-net
+            # as its management address.
+            # Thus if ip is server ip, we update mac address to the one of walt-net.
+            if ip == server_ip:
+                mac = server_mac
             topology.register_neighbor(host_mac, port, mac)
             info = dict(mac = mac, ip = ip)
             db_info = server.devices.get_complete_device_info(mac)
