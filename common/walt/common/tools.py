@@ -208,3 +208,11 @@ def chown_tree(path, user, group):
         else:
             shutil.chown(str(p_entry), user, group)
     shutil.chown(str(path), user, group)
+
+def verify_root_login_shell():
+    if os.getuid() != 0:
+        raise Exception('This command must be run as root. Aborting.')
+    if os.environ.get('LOGNAME') != 'root':
+        print('This command must be run in a root login shell.')
+        print('If you first logged in as a different user, use `su --login root`.')
+        raise Exception('This command must be run in a root login shell. Aborting.')

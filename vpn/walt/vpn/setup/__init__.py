@@ -1,16 +1,11 @@
 from plumbum import cli
 
 from walt.common.setup import WaltGenericSetup
+from walt.common.tools import verify_root_login_shell
 from walt.vpn.setup.user import setup_user
 
-SYSTEMD_SERVICES = {
-    "walt-vpn-server.service": {},
-    "walt-vpn-server.socket": {
-        'WantedBy': "sockets.target"
-    }
-}
+SYSTEMD_SERVICES = [ "walt-vpn-server.service", "walt-vpn-server.socket" ]
 BUSYBOX_SERVICE_FILES = ["S51waltvpnclient"]
-
 
 class WalTVPNSetup(WaltGenericSetup):
     package = __name__
@@ -22,6 +17,7 @@ class WalTVPNSetup(WaltGenericSetup):
 
     def main(self):
         """install WalT VPN software"""
+        verify_root_login_shell()
         if self._type == 'SERVER':
             setup_user()
             self.setup_systemd_services(SYSTEMD_SERVICES)
