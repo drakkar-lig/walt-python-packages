@@ -31,30 +31,40 @@ class WaltGenericSetup(cli.Application):
 
     def setup_systemd_services(self, systemd_services):
         self._assert_init_is({"SYSTEMD", None})
-        for service, options in systemd_services.items():
-            service_file_content = resource_stream(self.package, service)
+        for service in systemd_services:
+            service_file_content = resource_stream(self.package, service).read()
             systemd.install_unit(service, service_file_content,
                                  install_prefix=self._install_prefix,
                                  systemd_dir=self._systemd_dir)
-            try:
-                wanted_by = options['WantedBy']
-            except LookupError:
-                pass  # By default, do not enable unit
-            else:
-                systemd.enable_unit(service, wanted_by,
-                                    install_prefix = self._install_prefix,
-                                    systemd_dir = self._systemd_dir)
 
     def disable_systemd_services(self, systemd_services):
         self._assert_init_is({"SYSTEMD", None})
         for service in systemd_services:
-            systemd.disable_unit(service)
+            systemd.disable_unit(service,
+                                 install_prefix=self._install_prefix,
+                                 systemd_dir=self._systemd_dir)
+
+    def systemd_unit_exists(self, unit_name):
+        return systemd.unit_exists(unit_name,
+                                   install_prefix=self._install_prefix)
 
     def setup_busybox_init_services(self, busybox_services):
         self._assert_init_is({"BUSYBOX", None})
         for service in busybox_services:
             service_file_content = resource_stream(self.package, service)
             busybox_init.install_service(service, service_file_content, self._install_prefix)
+
+    def start_systemd_services(self, systemd_services):
+        self._assert_init_is({"SYSTEMD", None})
+        assert self._install_prefix is None, \
+               "Function start_systemd_services() only works when install_prefix is not specified."
+        systemd.start_units(systemd_services)
+
+    def stop_systemd_services(self, systemd_services):
+        self._assert_init_is({"SYSTEMD", None})
+        assert self._install_prefix is None, \
+               "Function stop_systemd_services() only works when install_prefix is not specified."
+        systemd.stop_units(systemd_services)
 
     @cli.switch("--init-system", cli.Set('SYSTEMD', 'BUSYBOX', case_sensitive=False), mandatory=False)
     def set_init_system(self, init_system):

@@ -3,7 +3,7 @@
 
 ## Overview
 
-These are the steps you should follow to install the walt server system on a machine freshly installed
+These are the steps you should follow (as root user) to install the walt server system on a machine freshly installed
 with debian 11 (bullseye) operating system.
 
 Note that walt server software interacts with various network daemons (lldpd, snmpd, dhcpd, ptpd, ntpd,
@@ -14,41 +14,17 @@ machine.
 ## 1- Install a first set of packages
 
 ```
-$ grep non-free /etc/apt/sources.list || sed -i -e 's/main/main non-free/g' /etc/apt/sources.list
 $ apt update
-$ apt install --upgrade --no-install-recommends \
-        apt-transport-https ca-certificates gnupg2 curl gnupg-agent \
-        software-properties-common binfmt-support qemu-user-static \
-        lldpd snmp snmpd openssh-server snmp-mibs-downloader iputils-ping \
-        libsmi2-dev isc-dhcp-server nfs-kernel-server uuid-runtime postgresql \
-        ntpdate ntp lockfile-progs ptpd tftpd-hpa ebtables qemu-kvm bridge-utils \
-        screen ifupdown gcc python3-dev git make sudo expect netcat
+$ apt install -y gcc python3-dev libsmi2-dev python3-apt gpg curl git make
 ```
 
-## 2- Define secondary package repositories
-
-```
-$ URL="https://download.docker.com/linux/debian"
-$ KEYRING="/usr/share/keyrings/docker-archive-keyring.gpg"
-$ curl -sSL $URL/gpg | gpg --dearmor > $KEYRING
-$ echo "deb [arch=amd64 signed-by=$KEYRING] $URL buster stable" > /etc/apt/sources.list.d/docker.list
-```
-
-## 3- Install a second set of packages
-
-```
-$ apt update
-$ apt install --upgrade --no-install-recommends \
-        docker-ce docker-ce-cli containerd.io podman buildah skopeo
-```
-
-## 4- Install python package manager
+## 2- Install python package manager
 
 ```
 $ curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py && python3 get-pip.py
 ```
 
-## 5- Install walt software
+## 3- Install walt software
 
 Here you have two options:
 - Install the last official version of walt (recommended)
@@ -69,103 +45,13 @@ $ git checkout -b dev origin/dev
 $ make install
 ```
 
-## 6- Disable dhcpd default service
-
-```
-$ systemctl stop isc-dhcp-server
-$ systemctl disable isc-dhcp-server
-$
-```
-
-## 7- Update tftpd configuration
-
-```
-$ cat > /etc/default/tftpd-hpa << EOF
-TFTP_USERNAME="tftp"
-TFTP_DIRECTORY="/var/lib/walt"
-TFTP_ADDRESS="0.0.0.0:69"
-TFTP_OPTIONS="-v -v --secure --map-file /etc/tftpd/map"
-EOF
-$
-$ mkdir /etc/tftpd
-$ cat > /etc/tftpd/map << EOF
-# these first lines ensures compatibility of legacy
-# bootloader configurations.
-r boot/rpi-.*\.uboot start.uboot
-r boot/pc-x86-64.ipxe start.ipxe
-# generic replacement pattern
-r .* nodes/\i/tftp/\0
-EOF
-$
-```
-
-## 8- Update ptpd configuration
-
-```
-$ cat > /etc/default/ptpd << EOF
-# Set to "yes" to actually start ptpd automatically
-START_DAEMON=yes
-# Add command line options for ptpd
-PTPD_OPTS="-c /etc/ptpd.conf"
-EOF
-$
-$ cat > /etc/ptpd.conf << EOF
-ptpengine:interface=walt-net
-ptpengine:preset=masteronly
-global:cpuaffinity_cpucore=0
-global:ignore_lock=Y
-global:log_file=/var/log/ptpd.log
-global:log_status=y
-ptpengine:domain=42
-ptpengine:ip_dscp=46
-ptpengine:ip_mode=hybrid
-ptpengine:log_delayreq_interval=3
-ptpengine:log_sync_interval=3
-ptpengine:log_announce_interval=3
-EOF
-$
-```
-
-## 9- Update lldpd configuration
-
-```
-$ echo 'DAEMON_ARGS="-x -c -s -e -D snmp"' > /etc/default/lldpd
-```
-
-## 10- Update snmpd configuration
-
-```
-$ cat > /etc/snmp/snmpd.conf << EOF
-agentAddress udp:127.0.0.1:161
-rocommunity private localhost
-rouser authOnlyUser
-master agentx
-EOF
-$
-```
-
-## 11- Run walt automated setup commands
+## 4- Run walt automated setup command
 
 ```
 $ walt-server-setup
-$ walt-vpn-setup --type SERVER --init-system SYSTEMD
 ```
 
-## 12- Create walt server spec file
-
-```
-$ mkdir -p /etc/walt
-$ cat > /etc/walt/server.spec << EOF
-{
-    # optional features implemented
-    # -----------------------------
-    "features": [ "ptp" ]
-}
-EOF
-$
-```
-
-## 13- Network configuration and testing
+## 5- Network configuration and testing
 
 At this point, you should return to server install procedure [`walt help show server-install`](server-install.md)
 for the remaining configuration and testing.

@@ -1,12 +1,5 @@
 from walt.common.setup import WaltGenericSetup
 
-SYSTEMD_SERVICES = {
-    "walt-logs.service": {
-        'WantedBy': "multi-user.target"
-    }
-}
-
-
 class WaltNodeSetup(WaltGenericSetup):
     package = __name__
 
@@ -16,7 +9,7 @@ class WaltNodeSetup(WaltGenericSetup):
 
     def main(self):
         """install WalT node software"""
-        self.setup_systemd_services(SYSTEMD_SERVICES)
+        self.setup_systemd_services(['walt-logs.service'])
 
 
 def run():
