@@ -22,7 +22,7 @@ class ExtTool:
         cmd_fullpath = shutil.which(cmdname)
         if cmd_fullpath is None:
             if required:
-                raise
+                raise Exception(f'Executable {cmdname} not found on OS.')
             else:
                 return None
         return ExtTool(cmd_fullpath)
