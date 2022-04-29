@@ -1,3 +1,4 @@
+from pathlib import Path
 from walt.common.constants import WALT_SERVER_TCP_PORT
 from walt.common.devices.registry import get_device_info_from_mac
 from walt.common.tcp import TCPServer
@@ -20,6 +21,8 @@ from walt.server.processes.main.vpn import VPNManager
 from walt.server.processes.main.autocomplete import shell_autocomplete
 from walt.server.processes.main.transfer import validate_cp, \
                     format_node_to_booted_image_transfer_cmd
+
+KVM_DEV_FILE = Path('/dev/kvm')
 
 class Server(object):
 
@@ -137,6 +140,9 @@ class Server(object):
         self.images.store.update_image_mounts()
 
     def create_vnode(self, requester, task, name):
+        if not KVM_DEV_FILE.exists():
+            requester.stderr.write(f'Failed because virtualization is not enabled on server CPU (missing {KVM_DEV_FILE}).\n')
+            return False
         if not self.devices.validate_device_name(requester, name):
             return False
         username = requester.get_username()
