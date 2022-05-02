@@ -6,7 +6,7 @@ from pygments.formatters import Terminal256Formatter
 import termios
 from walt.client.doc.color import *
 from walt.client.doc.mdtable import detect_table, render_table
-from walt.client.term import TTYSettings
+from walt.common.term import TTYSettings
 
 MAX_TARGET_WIDTH = 120
 

@@ -6,7 +6,7 @@ from walt.common.api import api, api_expose_method, api_expose_attrs
 from walt.common.apilink import ServerAPILink, BaseAPIService
 from walt.common.tcp import client_sock_file
 from walt.common.constants import WALT_SERVER_TCP_PORT
-from walt.client.term import TTYSettings
+from walt.common.term import TTYSettings
 from walt.client.update import check_update
 from walt.client.startup import init_config
 from walt.client.plugins import get_hook

@@ -3,7 +3,7 @@ import sys, io, signal, shutil, pickle, socket
 from sys import stdin, stdout
 from select import select
 from socket import SHUT_WR
-from walt.client.term import TTYSettings
+from walt.common.term import TTYSettings
 from walt.client.link import connect_to_tcp_server
 from walt.common.io import unbuffered, read_and_copy
 from walt.common.tcp import Requests, write_pickle, PICKLE_VERSION

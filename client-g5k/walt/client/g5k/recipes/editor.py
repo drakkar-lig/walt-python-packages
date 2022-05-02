@@ -2,7 +2,7 @@ import sys
 from datetime import datetime
 from plumbum.cli.terminal import prompt
 from walt.common.formatting import highlight
-from walt.client.term import alternate_screen_buffer, clear_screen, choose
+from walt.common.term import alternate_screen_buffer, clear_screen, choose
 from walt.client.g5k.recipes.tools import get_total_node_count
 from walt.client.g5k.recipes.const import SCHEDULE_DESC
 from walt.client.g5k.recipes.printer import print_recipe
