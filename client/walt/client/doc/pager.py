@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import re, os, sys, commonmark, traceback
 from walt.client.doc.color import RE_ESC_COLOR
-from walt.client.term import TTYSettings
+from walt.common.term import TTYSettings
 from walt.client.doc.markdown import MarkdownRenderer
 
 SCROLL_HELP = '<up>/<down>, <page-up>/<page-down>: scroll'
