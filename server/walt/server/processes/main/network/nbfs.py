@@ -3,7 +3,7 @@ import os, signal
 from walt.server.spec import server_has_feature
 
 NBFSD_PID_PATH = Path('/var/lib/nbfs/nbfsd.pid')
-NBFS_EXPORTS_PATH = Path('/etc/nbfs/exports')
+NBFS_EXPORTS_PATH = Path('/etc/nbfs/exports.d/walt.exports')
 
 IMAGE_EXPORT_PATTERN = """\
 %(image_mountpoint)s %(walt_subnet)s(fsid=%(fsid)s)
