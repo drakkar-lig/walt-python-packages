@@ -10,8 +10,7 @@ walt-image-shell-helper "%(image_fullname)s" "%(container_name)s" """
 class PromptSocketListener(ParallelProcessSocketListener):
     def update_params(self):
         self.params.update(
-            env={'TERM':'xterm'},
-            want_tty=True    # preferably start subprocess in a virtual terminal
+            env={'TERM':'xterm'}
         )
 
 class SQLPromptSocketListener(PromptSocketListener):

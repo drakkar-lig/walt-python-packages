@@ -1,12 +1,12 @@
 #!/usr/bin/env python
-import sys, io
+import sys, io, signal, shutil, pickle, socket
 from sys import stdin, stdout
 from select import select
 from socket import SHUT_WR
 from walt.client.term import TTYSettings
 from walt.client.link import connect_to_tcp_server
 from walt.common.io import unbuffered, read_and_copy
-from walt.common.tcp import Requests, write_pickle
+from walt.common.tcp import Requests, write_pickle, PICKLE_VERSION
 
 SQL_SHELL_MESSAGE = """\
 Type \dt for a list of tables.
@@ -20,20 +20,22 @@ Caution: changes will be lost on next node reboot.
 Run 'walt help show shells' for more info.
 """
 
+
 class PromptClient(object):
     def __init__(self, req_id, capture_output = False, **params):
         self.capture_output = capture_output
+        self.resize_handler_called = False
         if sys.stdout.isatty() and sys.stdin.isatty():
-            self.client_tty = True
+            self.tty_mode = True
             self.tty_settings = TTYSettings()
             # send terminal width and provided parameters
             params.update(
                 win_size = self.tty_settings.win_size
             )
         else:
-            self.client_tty = False
+            self.tty_mode = False
         # tell server whether we are on a tty
-        params.update(client_tty = self.client_tty)
+        params.update(tty_mode = self.tty_mode)
         # connect
         self.sock_file = connect_to_tcp_server()
         # write request id
@@ -43,6 +45,20 @@ class PromptClient(object):
         write_pickle(params, self.sock_file)
         # make stdin unbuffered
         self.stdin_reader = unbuffered(stdin, 'rb')
+
+    def resize_handler(self, signum, frame):
+        self.resize_handler_called = True
+        if self.tty_mode:
+            termsize = shutil.get_terminal_size()
+            buf = pickle.dumps({'evt': 'window_resize',
+                                'lines': termsize.lines,
+                                'columns': termsize.columns },
+                               protocol = PICKLE_VERSION)
+            self.sock_file.write(buf)
+            self.sock_file.flush()
+
+    def toggle_sigwinch_mask(self, action):
+        signal.pthread_sigmask(action, set([signal.SIGWINCH]))
 
     def run(self):
         if self.capture_output:
@@ -67,11 +83,20 @@ class PromptClient(object):
         # server (command outputs, prompts) will not be perfect
         # because of network latency. Thus we let the server terminal
         # handle the echo.
-        if self.client_tty:
+        if self.tty_mode:
             self.tty_settings.set_raw_no_echo()
+            signal.signal(signal.SIGWINCH, self.resize_handler)
         try:
             while True:
+                if self.tty_mode:
+                    self.toggle_sigwinch_mask(signal.SIG_UNBLOCK)
                 rlist, wlist, elist = select(fds, [], fds)
+                if self.tty_mode:
+                    self.toggle_sigwinch_mask(signal.SIG_BLOCK)
+                if self.resize_handler_called:
+                    # select has been interrupted by the SIGWINCH signal
+                    self.resize_handler_called = False  # reset for next time
+                    continue                            # return to select()
                 if len(elist) > 0 and len(rlist) == 0:
                     break
                 fd = rlist[0].fileno()
@@ -79,13 +104,23 @@ class PromptClient(object):
                     if read_and_copy(self.sock_file, out_buffer) == False:
                         break
                 else:
-                    if read_and_copy(self.stdin_reader, self.sock_file) == False:
-                        # stdin was probably closed, inform the server input is ending
-                        # and continue by reading socket only
-                        self.sock_file.shutdown(SHUT_WR)
-                        fds = [ self.sock_file ]
+                    try:
+                        buf = self.stdin_reader.read(4096)
+                        if buf == b'':
+                            # stdin was probably closed, inform the server input is ending
+                            # and continue by reading socket only
+                            self.sock_file.shutdown(SHUT_WR)
+                            fds = [ self.sock_file ]
+                            continue
+                        if self.tty_mode:
+                            buf = pickle.dumps({'evt': 'input_data', 'data': buf},
+                                               protocol = PICKLE_VERSION)
+                        self.sock_file.write(buf)
+                        self.sock_file.flush()
+                    except socket.error:
+                        break
         finally:
-            if self.client_tty:
+            if self.tty_mode:
                 self.tty_settings.restore()
         if self.capture_output:
             return captured.getvalue()
