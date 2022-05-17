@@ -27,9 +27,13 @@ class TTYSettings(object):
         return buf
 
 @contextmanager
-def alternate_screen_buffer():
+def alternate_screen_buffer(mouse_wheel_as_arrow_keys=False):
     sys.stdout.write('\x1b[?1049h')
+    if mouse_wheel_as_arrow_keys:
+        sys.stdout.write('\x1b[?1007h')
     yield
+    if mouse_wheel_as_arrow_keys:
+        sys.stdout.write('\x1b[?1007l')
     sys.stdout.write('\x1b[?1049l')
 
 def clear_screen():

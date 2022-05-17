@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import re, os, sys, commonmark, traceback
 from walt.client.doc.color import RE_ESC_COLOR
-from walt.common.term import TTYSettings
+from walt.common.term import TTYSettings, alternate_screen_buffer
 from walt.client.doc.markdown import MarkdownRenderer
 
 SCROLL_HELP = '<up>/<down>, <page-up>/<page-down>: scroll'
@@ -24,12 +24,12 @@ class Pager:
         if os.isatty(sys.stdout.fileno()):
             try:
                 self.tty.set_raw_no_echo()
-                self.pager_main_loop(topic, 0)
+                with alternate_screen_buffer(mouse_wheel_as_arrow_keys=True):
+                    self.pager_main_loop(topic, 0)
             except Exception as e:
                 sys.stdout.write('\r\n\x1b[0m')
                 traceback.print_exception(e)
             finally:
-                sys.stdout.write('\r\n\x1b[0m')
                 self.tty.restore()
         else:
             print(content)
@@ -87,7 +87,6 @@ class Pager:
         return page_height, footer
     def pager_main_loop(self, topic, depth):
         # activate the pager
-        first_rendering = True
         should_load_topic = True
         should_render = True
         while True:
@@ -116,13 +115,8 @@ class Pager:
                     lines += [ '' ] * (page_height-num_lines)
                     num_lines = page_height
                 # to avoid the terminal scrolls, we restart the drawing at
-                # the top-left corner.  But we should not do this the first
-                # time, else we kill the terminal content that existed
-                # before we were launched.
-                if first_rendering:
-                    first_rendering = False
-                else:
-                    sys.stdout.write('\x1b[H')
+                # the top-left corner.
+                sys.stdout.write('\x1b[H')
                 # the lines displayed are actually in range
                 # [index:index+page_height], but if one of the previous
                 # lines entered a 'bold' zone for example, (esc code '\e[1m'
