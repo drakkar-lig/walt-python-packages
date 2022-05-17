@@ -1,9 +1,9 @@
 #!/usr/bin/env python
-import os, pty, shlex, fcntl, termios, sys, socket, signal
+import os, pty, shlex, fcntl, termios, sys, socket, signal, pickle
 from subprocess import Popen, STDOUT
 from walt.common.io import read_and_copy
 from walt.common.tcp import read_pickle
-from walt.common.tty import set_tty_size_raw
+from walt.common.tty import set_tty_size_raw, set_tty_size
 
 class ForkPtyProcessListener(object):
     def __init__(self, slave_pid, env):
@@ -50,8 +50,7 @@ class ParallelProcessSocketListener(object):
         env = os.environ.copy()
         if 'env' in self.params:
             env.update(self.params['env'])
-        if 'want_tty' in self.params and self.params['want_tty'] \
-                and 'client_tty' in self.params and self.params['client_tty']:
+        if 'tty_mode' in self.params and self.params['tty_mode'] is True:
             self.start_pty(cmd_args, env)
         else:
             self.start_popen(cmd_args, env)
@@ -111,20 +110,35 @@ class ParallelProcessSocketListener(object):
             self.params['cmd'] = self.get_command(**self.params)
             # we now have all info to start the child process
             self.start()
-        elif self.monitor_r is None:
-            # otherwise we are all set. Thus, getting input data means
-            # the user wrote something on the prompt (i.e. the socket)
-            # we just have to copy this to the slave process input
-            return read_and_copy(
-                self.client_sock_file, self.slave_w)
         else:
-            # we were monitoring self.monitor_r, thus getting here means
-            # our child popen process closed its end of the pipe (monitor_w)
-            # which probably means it ended.
-            popen.wait()
-            client_sock_file.close()
-            os.close(self.monitor_r)
-            return False
+            # otherwise we are all set. Getting here means
+            # we got input data or the child process ended.
+            if self.monitor_r is None:
+                # tty mode --
+                # in this mode input data and window resize events are
+                # multiplexed on the socket.
+                try:
+                    evt_info = pickle.load(self.client_sock_file)
+                    if evt_info['evt'] == 'input_data':
+                        self.slave_w.write(evt_info['data'])
+                        self.slave_w.flush()
+                    elif evt_info['evt'] == 'window_resize':
+                        win_size = (evt_info['lines'], evt_info['columns'])
+                        set_tty_size(self.slave_w.fileno(), win_size)
+                except Exception as e:
+                    print(e)
+                    self.close()    # issue
+                    return False
+            else:
+                # popen mode --
+                # in this mode the child process reads raw data directly on
+                # the socket, and we are just monitoring self.monitor_r, thus
+                # getting here means our child popen process closed its end
+                # of the pipe (monitor_w) which probably means it ended.
+                popen.wait()
+                self.client_sock_file.close()
+                os.close(self.monitor_r)
+                return False
     def close(self):
         if self.client_sock_file:
             self.client_sock_file.close()
