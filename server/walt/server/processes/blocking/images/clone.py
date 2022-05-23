@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import subprocess
 import typing
 import uuid
@@ -53,6 +54,13 @@ in use, and the target image is not compatible with %s.
 
 # Subroutines
 # -----------
+def fix_image_name(requester, image_name):
+    new_name = re.sub('[^a-z0-9:]+', '-', image_name.lower())
+    if new_name != image_name:
+        requester.stdout.write(
+            f'Image will be recorded as "{new_name}" since original name is not valid in WALT.\n')
+    return new_name
+
 def parse_clonable_link(requester, clonable_link):
     bad = False
     parts = clonable_link.split(':', 1)
@@ -233,11 +241,11 @@ def perform_clone(requester, docker_daemon, hub, nodes_manager,
 
     if image_name is None:
         # if not specified, name it the same as remote image
-        ws_image_fullname = "%s/%s" % (username, remote_image_name)
-    else:
-        ws_image_fullname = "%s/%s" % (username, image_name)
-        if ':' not in image_name:
-            ws_image_fullname += ':latest'
+        image_name = fix_image_name(requester, remote_image_name)
+
+    ws_image_fullname = "%s/%s" % (username, image_name)
+    if ':' not in image_name:
+        ws_image_fullname += ':latest'
     remote_image_fullname = "%s/%s" % (remote_user, remote_image_name)
 
     # analyse our context
