@@ -12,6 +12,7 @@ class ServerDB(PostgresDB):
         # parent constructor
         PostgresDB.__init__(self)
         # create the db schema
+        # tables
         self.execute("""CREATE TABLE IF NOT EXISTS devices (
                     mac TEXT PRIMARY KEY,
                     ip TEXT,
@@ -48,6 +49,15 @@ class ServerDB(PostgresDB):
                     username TEXT,
                     timestamp TIMESTAMP,
                     name TEXT);""")
+        # indexes
+        self.execute("""CREATE INDEX IF NOT EXISTS logs_timestamp_idx
+                         ON logs ( timestamp );""")
+        self.execute("""CREATE INDEX IF NOT EXISTS logstreams_sender_mac_name_idx
+                         ON logstreams ( sender_mac, name );""")
+        self.execute("""CREATE INDEX IF NOT EXISTS devices_ip_idx
+                         ON devices ( ip );""")
+        self.execute("""CREATE INDEX IF NOT EXISTS checkpoints_username_idx
+                         ON checkpoints ( username );""")
         # migration v4 -> v5
         if not self.column_exists('devices', 'conf'):
             self.execute("""ALTER TABLE devices
