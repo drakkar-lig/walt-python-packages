@@ -259,3 +259,14 @@ If `/bin/walt-reboot` returns, even successfully, the calling script `walt-net-s
 
 Caution: if providing an advanced way to reboot (e.g. kexec), one must take care not blindly rebooting the same kernel and initrd: the node may have been associated to a different image.
 
+### 7- label "walt.image.preferred-name"
+
+If this image will be the default image for several new node models, one may specify this label to indicate the "preferred image name" (see explanation below).
+For example:
+
+```
+LABEL walt.image.preferred-name="rpi-default:latest"
+```
+
+When a new user types `walt image show` for the first time, a set of default images is automatically cloned. These are the default images for the node models already present on the platform.
+However, a default image often handles several node models. For instance, the default image for raspberry pi boards can handle all B models, from rpi-b to rpi-4-b. In earlier walt versions, the new user obtained various clones of this image, named `rpi-b-default`, `rpi-b-plus-default`, ... and `rpi-4-b-default` (as long as all these models are present on the platform). Now only one clone will be created, and it will be named according to this label if defined.
