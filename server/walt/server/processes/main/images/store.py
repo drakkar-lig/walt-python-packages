@@ -359,10 +359,20 @@ class NodeImageStore(object):
         if len(node_models) == 0:   # no nodes
             return False
         requester.set_busy_label('Cloning default images')
-        for model in node_models:
+        while len(node_models) > 0:
+            model = node_models.pop()
             default_image = self.get_default_image_fullname(model)
-            ws_image = username + '/' + default_image.split('/')[1]
+            # if default image has a 'preferred-name' tag, clone it with that name
+            default_image_labels = self.images[default_image].labels
+            image_name = default_image_labels.get('walt.image.preferred-name')
+            if image_name is None:
+                # no 'preferred-name' tag, reuse name of default image
+                image_name = default_image.split('/')[1]
+            ws_image = username + '/' + image_name
             self.repository.tag(default_image, ws_image)
             self.register_image(ws_image, True)
+            # remove from remaining models all models declared in label "walt.node.models"
+            image_models = default_image_labels.get('walt.node.models').split(',')
+            node_models -= set(image_models)
         requester.set_default_busy_label()
         return True

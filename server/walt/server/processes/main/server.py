@@ -149,30 +149,37 @@ class Server(object):
         if username is None:
             return False    # username already disconnected, give up
         mac, ip, model = self.nodes.generate_vnode_info()
-        image_fullname = format_image_fullname(username, model + '-default')
-        def on_image_ready():
+        default_image_fullname = format_image_fullname('waltplatform', model + '-default')
+        def on_default_image_ready():
+            default_image_labels = self.images.store[default_image_fullname].labels
+            image_name = default_image_labels.get('walt.image.preferred-name')
+            if image_name is None:
+                # no 'preferred-name' tag, reuse name of default image
+                image_name = model + '-default'
+                renaming = False
+            else:
+                renaming = True
+            user_image_fullname = format_image_fullname(username, image_name)
+            if user_image_fullname not in self.images.store:
+                self.repository.tag(default_image_fullname, user_image_fullname)
+                self.images.store.register_image(user_image_fullname, True)
+                requester.stdout.write(
+                    f'Default image for {model} was saved as "{image_name}" in your working set.\n')
+            requester.set_busy_label(f'Registering virtual node')
+            self.create_vnode_using_image(name, mac, ip, model, user_image_fullname)
             requester.set_default_busy_label()
-            requester.stdout.write(f'Node {name} is now booting your image "{model}-default".\n')
+            requester.stdout.write(f'Node {name} is now booting your image "{image_name}".\n')
             requester.stdout.write(f'Use `walt node boot {name} <other-image>` if needed.\n')
-            self.create_vnode_using_image(name, mac, ip, model, image_fullname)
-        if image_fullname not in self.images.store:
-            requester.set_busy_label(f'Cloning image "{model}-default"')
-            clonable_link = f'hub:waltplatform/{model}-default:latest'
+        if default_image_fullname not in self.images.store:
+            requester.set_busy_label(f'Downloading default image for "{model}"')
             task.set_async()
-            def callback(clone_result):
-                status = clone_result[0]
-                if status == 'OK':
-                    on_image_ready()
-                    task.return_result(True)
-                elif status == 'FAILED':
-                    task.return_result(False)
-                else:
-                    requester.stderr.write('Unexpected result from clone operation!\n')
-                    task.return_result(False)
-            self.blocking.clone_image(requester, callback, clonable_link = clonable_link,
-                          force = False, image_name = None)
+            def callback(pull_result):
+                self.images.store.refresh()
+                on_default_image_ready()
+                task.return_result(True)
+            self.blocking.pull_image(default_image_fullname, callback)
         else:
-            on_image_ready()
+            on_default_image_ready()
             return True
 
     def create_vnode_using_image(self, name, mac, ip, model, image_fullname):
