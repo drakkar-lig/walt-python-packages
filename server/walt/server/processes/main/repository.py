@@ -86,26 +86,22 @@ class WalTLocalRepository:
         # it removes all docker tags irrespectively of the one specified).
         podman.rmi(self.add_repo(fullname))
         self.names_cache.pop(fullname, None)
-    def deep_inspect(self, image_id_or_fullname):
-        podman_id = image_id_or_fullname
-        if '/' in podman_id:
-            podman_id = self.add_repo(podman_id)
-        image_info = podman.inspect('--format',
-            '{ "labels": "{{.Labels}}", "num_layers": {{len .RootFS.Layers}}, "created_at": "{{.Created}}" }',
-            podman_id)
-        image_info = json.loads(image_info)
-        # unfortunately some recent versions of podman do not work with {{json .Labels}} format,
-        # so we parse the default format obtained with {{.Labels}}.
-        # we get a value such as "map[walt.node.models:pc-x86-64 walt.server.minversion:4]"
-        labels = image_info['labels'].split('[')[1].split(']')[0]
-        labels = { l:v for l, v in (lv.split(':') for lv in labels.split()) }
-        editable = (image_info['num_layers'] < MAX_IMAGE_LAYERS)
-        created_at = image_info['created_at']
-        return {
-            'labels': labels,
-            'editable': editable,
-            'created_at': created_at
-        }
+    def deep_inspect(self, image_ids):
+        print('deep_inspect', image_ids)
+        images_info = podman.inspect('--format', 'json', *image_ids)
+        images_info = json.loads(images_info)
+        results = {}
+        for image_id, image_info in zip(image_ids, images_info):
+            labels = image_info['Labels']
+            if labels is None:
+                labels = {}
+            results[image_id] = dict(
+                labels = labels,
+                editable = (len(image_info['RootFS']['Layers']) < MAX_IMAGE_LAYERS),
+                created_at = image_info['Created'].replace('T', ' ').replace('Z', ' +0000 UTC'),
+                image_id = image_id
+            )
+        return results
     def image_exists(self, fullname):
         try:
             podman.image.exists(self.add_repo(fullname))
@@ -126,13 +122,18 @@ class WalTLocalRepository:
             self.names_cache[fullname] = image_id
         old_metadata_cache = self.metadata_cache
         self.metadata_cache = {}
+        missing_ids = set()
         for image_id in set(self.names_cache.values()):
             if image_id in self.metadata_cache:
                 continue
             if image_id in old_metadata_cache:
                 self.metadata_cache[image_id] = old_metadata_cache[image_id]
                 continue
-            self.metadata_cache[image_id] = self.get_metadata(image_id)
+            missing_ids.add(image_id)
+        if len(missing_ids) > 0:
+            missing_ids = tuple(missing_ids)
+            images_info = self.deep_inspect(missing_ids)
+            self.metadata_cache.update(images_info)
         self.save_metadata_cache_file()
     def get_images(self):
         self.refresh_cache()
@@ -142,24 +143,17 @@ class WalTLocalRepository:
             if 'walt.node.models' not in self.metadata_cache[image_id]['labels']:
                 continue
             yield fullname
-    def get_metadata(self, image_id_or_fullname):
-        if ':' in image_id_or_fullname:
-            # fullname
-            fullname = image_id_or_fullname
-            image_id = self.names_cache.get(fullname)
-            if image_id is None:
-                self.refresh_cache()
-            image_id = self.names_cache.get(fullname)
-            if image_id is None:
-                return None
-        else:
-            # image_id
-            image_id = image_id_or_fullname
+    def get_metadata(self, fullname):
+        image_id = self.names_cache.get(fullname)
+        if image_id is None:
+            self.refresh_cache()
+        image_id = self.names_cache.get(fullname)
+        if image_id is None:
+            return None
         metadata = self.metadata_cache.get(image_id)
         if metadata is None:
-            metadata = dict(
-                image_id = image_id,
-                **self.deep_inspect(image_id))
+            self.refresh_cache()
+        metadata = self.metadata_cache.get(image_id)
         return metadata
     def stop_container(self, cont_name):
         podman.rm("-f", "-i", cont_name)
