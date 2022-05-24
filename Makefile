@@ -32,27 +32,23 @@ INSTALLABLE_PACKAGES_ON_SERVER=common virtual vpn server client
 GNUMAKEFLAGS=--no-print-directory
 SUDO=$(shell test `whoami` = root && echo -n || echo "sudo -H")
 PIP=$(shell echo `which pip3`)
+PIP_INSTALL=$(PIP) install --ignore-installed greenlet
 
 # ------
-install: $(patsubst %,%.install,$(INSTALLABLE_PACKAGES_ON_SERVER))
+install: $(patsubst %,%.wheel,$(INSTALLABLE_PACKAGES_ON_SERVER))
+	$(SUDO) $(PIP_INSTALL) $(patsubst %,./%,$(INSTALLABLE_PACKAGES_ON_SERVER))
+
+uninstall: $(patsubst %,%.uninstall,$(INSTALLABLE_PACKAGES_ON_SERVER))
 
 pull: $(patsubst %,%.pull,$(INSTALLABLE_PACKAGES_ON_SERVER))
 
 clean: $(patsubst %,%.clean,$(ALL_PACKAGES))
 
-client.%: common.%
-server.%: common.% virtual.% vpn.%
-node.%: common.%
-virtual.%: common.%
-vpn.%: common.%
-client-g5k.%: client.%
-
 %.clean: %.info
 	@cd $*; pwd; python3 setup.py clean --all
 
-%.install: %.info
-	@$(MAKE) $*.uninstall
-	@cd $*; pwd; python3 setup.py bdist_wheel && $(SUDO) $(PIP) install .
+%.wheel: %.info
+	@cd $*; pwd; python3 setup.py bdist_wheel
 
 %.info:
 	@$(MAKE) $*/walt/$(subst -,/,$*)/info.py
