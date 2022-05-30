@@ -11,6 +11,8 @@ import asyncio, aiohttp
 import sys
 import pdb
 
+DEFAULT_JSON_HTTP_TIMEOUT = 10
+
 def fix_pdb():
     # monkey patch pdb for usage in a subprocess
     pdb.SavedPdb = pdb.Pdb
@@ -108,8 +110,8 @@ def get_server_ip() -> str:
     """Load the server IP address on walt-net from the configuration file."""
     return conf['network']['walt-net']['ip'].split('/')[0]
 
-async def async_json_http_get(url):
-    timeout = aiohttp.ClientTimeout(total=3) # was 30
+async def async_json_http_get(url, timeout=DEFAULT_JSON_HTTP_TIMEOUT):
+    timeout = aiohttp.ClientTimeout(total=timeout)
     async with aiohttp.ClientSession(timeout=timeout) as session:
         async with session.get(url) as response:
             return await response.json()
