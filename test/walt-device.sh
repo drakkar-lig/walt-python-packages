@@ -87,3 +87,7 @@ define_test "walt device rename" as {
     # restore
     walt device rename "$newname" "$name"
 }
+
+define_test "walt device forget (on non existing device)" as {
+    walt device forget eazgzaezgeriogahregu
+}
