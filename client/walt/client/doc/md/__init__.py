@@ -1,4 +1,4 @@
-import re
+import re, sys
 from pkg_resources import resource_string, resource_listdir
 from walt.client.doc.pager import Pager
 
@@ -11,8 +11,11 @@ def get_md_content(topic, err_out=False):
         return
 
 def display_doc(topic):
-    pager = Pager(get_md_content)
-    pager.display_topic(topic)
+    if sys.stdout.isatty() and sys.stdin.isatty():
+        pager = Pager(get_md_content)
+        pager.display_topic(topic)
+    else:
+        print(get_md_content(topic, err_out=True))
 
 def get_topics():
     file_list = resource_listdir(__name__, '.')
