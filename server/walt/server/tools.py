@@ -194,3 +194,9 @@ def ensure_text_file_content(path, content):
     if update_file:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content)
+
+def add_image_repo(fullname):
+    if fullname.startswith('walt/'):
+        return 'localhost/' + fullname
+    else:
+        return 'docker.io/' + fullname
