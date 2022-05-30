@@ -125,6 +125,8 @@ class CSAPI(APISession):
     @api_expose_method
     def get_device_info(self, context, device_name):
         device_info = context.devices.get_device_info(context.requester, device_name)
+        if device_info is None:
+            return None
         return serialize_ordered_dict(device_info._asdict())
 
     @api_expose_method
