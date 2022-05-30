@@ -190,8 +190,7 @@ class RPCProcessConnector(ProcessConnector):
             elif event[0] == 'RESULT':
                 local_req_id, result = event[1], event[2]
                 if isinstance(result, Exception):
-                    print(current_process().name + ': Remote exception propagated here.')
-                    raise result
+                    print(current_process().name + ': Remote exception returned here.')
                 sync = self.submitted_tasks[local_req_id].sync
                 cb = self.submitted_tasks[local_req_id].result_cb
                 if cb != None:
