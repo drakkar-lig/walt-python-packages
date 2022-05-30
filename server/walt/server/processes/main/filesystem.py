@@ -45,12 +45,24 @@ class BetterPopen:
     def close(self):
         if self.return_code is None:
             # call kill function
-            self.kill_function(self)
+            try:
+                self.kill_function(self)
+            except Exception as e:
+                print('filesystem.close() -- ignored exception:', e)
             # close our ends of the pipes
-            os.close(self.stdin.fileno())
-            os.close(self.stdout.fileno())
+            try:
+                os.close(self.stdin.fileno())
+            except Exception as e:
+                print('filesystem.close() -- ignored exception:', e)
+            try:
+                os.close(self.stdout.fileno())
+            except Exception as e:
+                print('filesystem.close() -- ignored exception:', e)
             # wait for end of child
-            self.wait()
+            try:
+                self.wait()
+            except Exception as e:
+                print('filesystem.close() -- ignored exception:', e)
 
 class Filesystem:
     def __init__(self, cmd_interpreter):
@@ -63,12 +75,14 @@ class Filesystem:
     def check_bg_process_ok(self):
         # check if the running background process is still alive
         if self.popen is not None:
-            return_code = self.popen.poll()
-            if return_code is None:
-                return True     # bg process still alive => no return code yet
-            else:
-                # background process stopped
-                self.close()
+            try:
+                return_code = self.popen.poll()
+                if return_code is None:
+                    return True     # bg process still alive => no return code yet
+            except:
+                pass
+            # background process stopped
+            self.close()
         return False
     def send_cmd(self, cmd):
         self.check_bg_process_ok()
