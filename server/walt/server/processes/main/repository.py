@@ -5,6 +5,7 @@ from pathlib import Path
 from subprocess import CalledProcessError
 
 from walt.server.exttools import buildah, podman, mount, umount, findmnt
+from walt.server.tools import add_image_repo
 
 MAX_IMAGE_LAYERS = 128
 METADATA_CACHE_FILE = Path('/var/cache/walt/images.metadata')
@@ -70,12 +71,12 @@ class WalTLocalRepository:
     def tag(self, old_fullname, new_fullname):
         if self.image_exists(new_fullname):
             # take care not making previous version of image a dangling image
-            podman.rmi(self.add_repo(new_fullname))
+            podman.rmi(add_image_repo(new_fullname))
         if old_fullname in self.names_cache:
             self.names_cache[new_fullname] = self.names_cache[old_fullname]
         else:
             self.names_cache.pop(new_fullname, None)
-        podman.tag(old_fullname, self.add_repo(new_fullname))
+        podman.tag(old_fullname, add_image_repo(new_fullname))
     def rmi(self, fullname, ignore_missing = False):
         self.untag(fullname, ignore_missing = ignore_missing)
     def untag(self, fullname, ignore_missing = False):
@@ -84,7 +85,7 @@ class WalTLocalRepository:
         # caution: we are not using "podman untag" because its behaviour is
         # unexpected (at least in version 1.9.3: when an image has several docker tags,
         # it removes all docker tags irrespectively of the one specified).
-        podman.rmi(self.add_repo(fullname))
+        podman.rmi(add_image_repo(fullname))
         self.names_cache.pop(fullname, None)
     def deep_inspect(self, image_ids):
         print('deep_inspect', image_ids)
@@ -104,7 +105,7 @@ class WalTLocalRepository:
         return results
     def image_exists(self, fullname):
         try:
-            podman.image.exists(self.add_repo(fullname))
+            podman.image.exists(add_image_repo(fullname))
             return True
         except CalledProcessError:
             return False

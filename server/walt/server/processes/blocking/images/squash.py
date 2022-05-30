@@ -1,16 +1,17 @@
 from walt.server.processes.blocking.images.commit import commit_image
 from walt.server.exttools import buildah
+from walt.server.tools import add_image_repo
 from subprocess import CalledProcessError
 
 def squash_image(local_images, image_fullname):
     cont_name = 'squash:' + image_fullname
     try:
-        buildah('from', '--pull-never', '--name', cont_name, image_fullname)
+        buildah('from', '--pull-never', '--name', cont_name, add_image_repo(image_fullname))
     except CalledProcessError:
         print('Note: walt server was probably not stopped properly and container still exists.')
         print('      removing container and restarting command.')
         buildah.rm(cont_name)
-        buildah('from', '--pull-never', '--name', cont_name, image_fullname)
+        buildah('from', '--pull-never', '--name', cont_name, add_image_repo(image_fullname))
     commit_image(local_images, cont_name, image_fullname, tool=buildah, opts=('--squash',))
 
 # this implements walt image squash
