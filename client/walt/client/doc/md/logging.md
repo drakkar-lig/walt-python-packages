@@ -7,12 +7,32 @@ WalT provides a subsystem to save and query experiment logs. This page describes
 
 Let's start with some basic notions:
 * A **logline** is a line of text transmitted from a node to the server, and then to any client that would query it.
-* A **timestamp** and a **sender** (the WalT node that emitted it) is associated with each logline.
+* A **timestamp** and an **emitter** (the device that emitted it, i.e. a node or the server) is associated with each logline.
 * A **logstream** is a subset of loglines. Logstreams have a name, which can be used to filter logs easily.
 
 All loglines and logstreams are saved in a database on the server.
 
-## How to generate experiment logs
+Two kinds of logs exist:
+* Platform-generated logs
+* Experiment logs
+
+
+## Platform logs
+
+The platform generates log lines by itself when an important event occurs, or for debugging purpose.
+
+For instance, the following command displays log lines in realtime when an important event occur:
+```
+$ walt log show --realtime --platform
+```
+
+This other example fetches and displays walt server daemon logs generated during the 5 last minutes:
+```
+$ walt log show --history -5m: --server
+```
+
+
+## Experiment logs
 
 WalT will not generate experiment logs by itself. However, all WalT nodes provide tools you can use in order to emit loglines while your experiment is running. For example, you could write an experiment script `experiment1.sh` such as:
 ```bash
@@ -67,12 +87,13 @@ This one is not always available because it is based on a python package and sys
 
 ## How to query / display / work with experiment logs
 
-The main entrypoint to display experiment logs is subcommand `walt log show`.
+The main entrypoint to display experiment logs is subcommand `walt log show` (see [`walt help show log-show`](log-show.md)).
 
-Depending on what you want to achieve, checkout the appropriate help page in the following list.
+Depending on what you want to achieve, you may get more information in the following help pages:
 
 * Retrieving past logs: [`walt help show log-history`](log-history.md)
 * Printing logs in real time: [`walt help show log-realtime`](log-realtime.md)
 * Updating log display format: [`walt help show log-format`](log-format.md)
+* Filtering log emitters: [`walt help show log-emitters`](log-emitters.md)
 * Synchronizing a script based on logs: [`walt help show log-wait`](log-wait.md)
 * Using log checkpoints: [`walt help show log-checkpoint`](log-checkpoint.md)
