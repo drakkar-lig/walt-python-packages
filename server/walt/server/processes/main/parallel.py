@@ -20,10 +20,10 @@ class ForkPtyProcessListener(object):
                 self.env.slave_r, self.env.client_sock_file)
     def end_child(self):
         try:
-            os.kill(self.slave_pid, signal.SIGTERM)
+            os.kill(self.slave_pid, signal.SIGKILL)
         except OSError:
             pass
-        os.wait()   # wait for child's end
+        os.waitpid(self.slave_pid, 0)   # wait for child's end
     def close(self):
         self.end_child()
         self.env.close()
@@ -126,7 +126,7 @@ class ParallelProcessSocketListener(object):
                         win_size = (evt_info['lines'], evt_info['columns'])
                         set_tty_size(self.slave_w.fileno(), win_size)
                 except Exception as e:
-                    print(e)
+                    print(self, e)
                     self.close()    # issue
                     return False
             else:
