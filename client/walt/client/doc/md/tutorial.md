@@ -418,7 +418,7 @@ Now that our image is running on two nodes, we can connect to them and start the
 
 ```console
 $ walt node shell rpi-sw3-3-pong
-Caution: changes will be lost on next node reboot.
+Caution: changes outside /persist will be lost on next node reboot.
 Run 'walt help show shells' for more info.
 
 root@rpi-sw3-3-pong:~# ./pong.sh
@@ -428,7 +428,7 @@ On another terminal connect to the other Raspberry Pi and start the client side.
 
 ```console
 $ walt node shell rpi-sw3-2-ping
-Caution: changes will be lost on next node reboot.
+Caution: changes outside /persist will be lost on next node reboot.
 Run 'walt help show shells' for more info.
 
 root@rpi-sw3-2-ping:~# ./ping.sh

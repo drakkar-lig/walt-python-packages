@@ -40,7 +40,7 @@ This will catch all loglines emitted from my nodes. (see [`walt help show log-re
 Then, on a second terminal:
 ```
 $ walt node shell node1
-Caution: changes will be lost on next node reboot.
+Caution: changes outside /persist will be lost on next node reboot.
 Run 'walt help show shells' for more info.
 
 root@node1:~# dmesg | walt-log-cat kernel-log
