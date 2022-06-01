@@ -4,7 +4,7 @@ from walt.server import conf
 from walt.server.autoglob import autoglob
 from ipaddress import ip_address, ip_network, IPv4Address
 from typing import Union
-from walt.server import conf
+from multiprocessing import current_process
 
 import pickle, resource
 import asyncio, aiohttp
@@ -19,6 +19,7 @@ def fix_pdb():
     class BetterPdb(pdb.SavedPdb):
         def interaction(self, *args, **kwargs):
             try:
+                self.prompt = f"(Pdb {current_process().name}) "
                 sys.stdin = open('/dev/stdin')
                 pdb.SavedPdb.interaction(self, *args, **kwargs)
             finally:
