@@ -16,7 +16,7 @@ Notice: this is a limited virtual environment.
 Run 'walt help show shells' for more info.
 """
 NODE_SHELL_MESSAGE = """\
-Caution: changes will be lost on next node reboot.
+Caution: changes outside /persist will be lost on next node reboot.
 Run 'walt help show shells' for more info.
 """
 
