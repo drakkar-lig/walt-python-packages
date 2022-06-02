@@ -1,23 +1,104 @@
 #!/bin/sh
 
+RETRY_DELAY_SECONDS=5
+RETRY_COUNT=2
+NC_FIFO="/tmp/nc-$$.fifo"
+CONNECT_MAX_DELAY=5
+DELAY_BEFORE_REBOOT=10
+
+# we need variables walt_server_ip and walt_server_notify_bootup_port
+. /bin/walt-env
+
+do_reboot()
+{
+    # if we got here as part of a clean OS shutdown,
+    # let the OS complete this shutdown
+    sleep ${DELAY_BEFORE_REBOOT}
+    reboot -f
+}
+
+on_exit()
+{
+    echo "[bg] walt-notify-bootup exited! What happened?? Will reboot."
+    do_reboot
+}
+
+trap on_exit EXIT
+echo "[bg] walt-notify-bootup started."
+
+busybox mkfifo $NC_FIFO
+
+wait_for_ssh() {
+    while [ 1 ]
+    do
+        echo | busybox nc 127.0.0.1 22 >/dev/null 2>&1 && break
+        sleep 1
+    done
+}
+
+call_image_bootup_script() {
+    if [ -f "mnt/fs_union/bin/on-bootup" ]
+    then
+        if [ -x "mnt/fs_union/bin/on-bootup" ]
+        then
+            cd mnt/fs_union && chroot . bin/on-bootup
+        else
+            echo "WARNING: cannot run /bin/on-bootup (execute permission missing)." >&2
+        fi
+    fi
+}
+
+run_permanent_connection() {
+	{
+		echo REQ_NOTIFY_BOOTUP_STATUS
+        # keep nc stdin open until we detect a disconnection
+        # otherwise nc stops immediately
+		read feeback < $NC_FIFO
+	} | busybox nc $walt_server_ip $walt_server_notify_bootup_port | {
+		read empty_read   # detect disconnection or failed connection
+		echo STOP > $NC_FIFO
+	}
+}
+
+timestamp() {
+    busybox date +%s
+}
+
 # We consider the node is ready when its
 # sshd service is ready to accept connections.
-while [ 1 ]
-do
-    echo | busybox nc 127.0.0.1 22 >/dev/null 2>&1 && break
-    sleep 1
-done
+wait_for_ssh
 
 # call script /bin/on-bootup if image provides it
-if [ -f "mnt/fs_union/bin/on-bootup" ]
-then
-    if [ -x "mnt/fs_union/bin/on-bootup" ]
-    then
-        cd mnt/fs_union && chroot . bin/on-bootup
-    else
-        echo "WARNING: cannot run /bin/on-bootup (execute permission missing)." >&2
-    fi
-fi
+call_image_bootup_script
 
-# send notification to server
-/bin/walt-rpc node_bootup_event >/dev/null
+# we maintain a permanent connection to walt server.
+# opening it will set our status to "booted".
+# if this connection is closed on our side, the server
+# can detect we are down. if this connection is closed
+# on server side, we know that the server is down and
+# images are probably umounted, so we reboot.
+retries=$RETRY_COUNT
+while true
+do
+    t0=$(timestamp)
+    run_permanent_connection
+    t1=$(timestamp)
+    delay=$((t1 - t0))
+    # in rare cases a TCP connection may fail, so we must try
+    # a few times.
+    # however it is quite hard for us to distinguish a failed
+    # connection attempt from a succeeded connection which ends
+    # much later because of a server-side issue.
+    # we guess the right cause by measuring the time between t0
+    # and t1.
+    if [ $delay -le $CONNECT_MAX_DELAY -a $retries -gt 0 ]
+    then
+        retries=$((retries - 1))
+        echo "[bg] walt-notify-bootup: reconnecting attempt after ${RETRY_DELAY_SECONDS} seconds"
+        sleep ${RETRY_DELAY_SECONDS}
+        continue
+    else
+        echo "[bg] walt-notify-bootup: failed or lost connection to walt server! Will reboot."
+        do_reboot
+    fi
+done

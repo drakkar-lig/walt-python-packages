@@ -36,6 +36,7 @@ TEMPLATE_ENV = dict(
     server_ip = str(get_server_ip()),
     walt_server_rpc_port = WALT_SERVER_DAEMON_PORT,
     walt_server_logs_port = WALT_SERVER_TCP_PORT,
+    walt_server_notify_bootup_port = WALT_SERVER_TCP_PORT,
     walt_node_net_service_port = WALT_NODE_NET_SERVICE_PORT
 )
 

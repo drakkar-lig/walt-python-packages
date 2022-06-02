@@ -18,6 +18,7 @@ class Requests(object):
     REQ_TCP_TO_NODE = 11
     REQ_FAKE_TFTP_GET = 12
     REQ_VPN_NODE_IMAGE = 13
+    REQ_NOTIFY_BOOTUP_STATUS = 14
 
     # the request id message may be specified directly as
     # as a decimal string (e.g. '4') or by the corresponding
@@ -61,6 +62,8 @@ class RWSocketFile:
         return self.sock.shutdown(mode)
     def getpeername(self):
         return self.sock.getpeername()
+    def setsockopt(self, *args):
+        return self.sock.setsockopt(*args)
     def __getattr__(self, attr):
         if attr in ('write', 'flush'):
             f = self.file_w
