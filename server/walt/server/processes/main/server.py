@@ -47,7 +47,8 @@ class Server(object):
                                   images=self.images.store,
                                   dhcpd=self.dhcpd,
                                   repository=self.repository,
-                                  devices=self.devices)
+                                  devices=self.devices,
+                                  logs=self.logs)
         self.settings = SettingsManager(server=self)
         self.vpn = VPNManager()
 

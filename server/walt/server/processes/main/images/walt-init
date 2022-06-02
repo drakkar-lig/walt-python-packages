@@ -9,6 +9,7 @@ ROOTFS_BUSYBOX_APPLETS="
     mktemp mkfifo sed cat rm
 "
 IMAGE_SCRIPTS="
+    /bin/walt-env
     /bin/walt-nfs-watchdog /bin/walt-net-service
     /bin/walt-notify-bootup /bin/walt-rpc
     /bin/walt-clock-sync /bin/walt-timeout
@@ -105,12 +106,14 @@ prepare_rootfs()
     cd - >/dev/null
 }
 
-# we will start 2 background processes in a chroot rooted in memory
+# we will start background processes in a chroot rooted in memory
 # (at /tmp/rootfs, and /tmp is a tmpfs filesystem):
-# * an nfs watchdog that will monitor the nfs mount and reboot the
-#   node if nfs connection is lost
+# * a network fs watchdog that will monitor the network filesystem
+#   mount and reboot the node if fs connection is lost
 # * a lightweight network service able to fulfill soft-reboot and
 #   led blink requests coming from the server
+# * a service which establishes a permanent TCP connection to the
+#   server, in order to reflect node bootup status
 # We could not start those processes on the final rootfs because
 # they could be affected by NFS disconnections or various other OS
 # issues possibly occurring on the image.

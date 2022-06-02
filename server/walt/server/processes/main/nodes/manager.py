@@ -13,6 +13,7 @@ from walt.server.processes.main.filesystem import FilesystemsCache
 from walt.server.processes.main.network.netsetup import NetSetup
 from walt.server.processes.main.nodes.clock import NodesClockSyncInfo
 from walt.server.processes.main.nodes.expose import ExposeManager
+from walt.server.processes.main.nodes.status import NodeBootupStatusManager
 from walt.server.processes.main.nodes.netservice import node_request
 from walt.server.processes.main.nodes.reboot import reboot_nodes
 from walt.server.processes.main.nodes.register \
@@ -43,15 +44,17 @@ CMD_ADD_SSH_KNOWN_HOST = "  mkdir -p /root/.ssh && ssh-keygen -F %(ip)s || \
                             ssh-keyscan -t ecdsa %(ip)s >> /root/.ssh/known_hosts"
 
 class NodesManager(object):
-    def __init__(self, tcp_server, ev_loop, db, blocking, devices, **kwargs):
+    def __init__(self, tcp_server, ev_loop, db, blocking, devices, logs, **kwargs):
         self.db = db
         self.devices = devices
+        self.logs = logs
         self.blocking = blocking
         self.other_kwargs = kwargs
         self.wait_info = WaitInfo()
         self.ev_loop = ev_loop
         self.clock = NodesClockSyncInfo(ev_loop)
         self.expose_manager = ExposeManager(tcp_server, ev_loop)
+        self.status_manager = NodeBootupStatusManager(tcp_server, self)
         self.filesystems = FilesystemsCache(ev_loop, FS_CMD_PATTERN)
 
     def prepare(self):
@@ -312,9 +315,8 @@ class NodesManager(object):
         # (if we manage to reboot them, they will be unreachable
         #  for a little time; if we do not manage to reboot them,
         #  this probably means they are down, thus not booted...)
-        for node in nodes:
-            self.db.update('nodes', 'mac', mac = node.mac, booted = False);
-        self.db.commit()
+        self.change_nodes_bootup_status(nodes = nodes, booted = False,
+                                        cause = 'reboot requested')
         reboot_nodes(   nodes_manager = self,
                         blocking = self.blocking,
                         ev_loop = self.ev_loop,
@@ -338,13 +340,38 @@ class NodesManager(object):
         nodes = self.parse_node_set(requester, node_set)
         self.wait_info.wait(requester, task, nodes)
 
-    def node_bootup_event(self, node_name):
-        node_info = self.get_node_info(None, node_name)
-        # update booted flag in db
-        self.db.update('nodes', 'mac', mac=node_info.mac, booted=True)
-        self.db.commit()
-        # unblock any related "walt node wait" command.
-        self.wait_info.node_bootup_event(node_info)
+    def change_nodes_bootup_status(self, nodes_ip=None, nodes=None, booted=True, cause=None):
+        if nodes is None:
+            nodes = []
+        if nodes_ip is not None:
+            for node_ip in nodes_ip:
+                node_info = None
+                node_name = self.devices.get_name_from_ip(node_ip)
+                if node_name is not None:
+                    node_info = self.get_node_info(None, node_name)
+                if node_info is None:
+                    # if a virtual node was removed, when tcp connection timeout is reached
+                    # we get here. ignore.
+                    continue
+                nodes.append(node_info)
+        for node_info in nodes:
+            if node_info.booted != booted:
+                # update booted flag in db
+                self.db.update('nodes', 'mac', mac = node_info.mac, booted = booted);
+                self.db.commit()
+                # generate a log line
+                if booted:
+                    status = 'booted'
+                else:
+                    status = 'down'
+                if cause is None:
+                    suffix = ''
+                else:
+                    suffix = f' (cause: {cause})'
+                self.logs.platform_log('nodes', f'node {node_info.name} is {status}{suffix}')
+                # unblock any related "walt node wait" command.
+                if booted:
+                    self.wait_info.node_bootup_event(node_info)
 
     def develop_node_set(self, requester, node_set):
         nodes = self.parse_node_set(requester, node_set)
