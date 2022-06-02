@@ -1,5 +1,8 @@
 import re
 import pickle
+from walt.server import const
+from walt.common.tools import get_mac_address
+from walt.server.tools import get_server_ip
 from walt.server.processes.db.postgres import PostgresDB
 from time import time
 
@@ -93,7 +96,34 @@ class ServerDB(PostgresDB):
                             WHERE fullname NOT IN (
                                 SELECT DISTINCT image FROM nodes
                             );""")
-            self.commit()
+        # fix server entry
+        self.fix_server_device_entry()
+        # commit
+        self.commit()
+
+    def fix_server_device_entry(self):
+        server_ip = get_server_ip()
+        server_mac = get_mac_address(const.WALT_INTF)
+        server_entry = self.select_unique('devices', mac=server_mac)
+        if server_entry is None:
+            self.insert('devices', mac=server_mac, ip=server_ip,
+                                   name='walt-server', type='server')
+        else:
+            self.update('devices', 'mac', mac=server_mac, ip=server_ip,
+                                   name='walt-server', type='server')
+        # ensure wrong entries were not left out by previous versions
+        # of walt server code
+        wrong_entries = self.execute(
+                """SELECT mac FROM devices
+                   WHERE mac != %s
+                     AND (  ip = %s OR
+                            type = 'server' OR
+                            name = 'walt-server' );
+                """, (server_mac, server_ip))
+        for entry in wrong_entries:
+            self.delete('topology', mac1=entry.mac)
+            self.delete('topology', mac2=entry.mac)
+            self.delete('devices', mac=entry.mac)
 
     def column_exists(self, table_name, column_name):
         col_info = self.select_unique(
