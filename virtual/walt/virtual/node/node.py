@@ -210,8 +210,9 @@ def node_loop(info):
             print("Starting...")
             env = get_env_start(info)
             ipxe_boot(env)
-    except NotImplementedError as e:
-        print((str(e)))
+    except Exception as e:
+        print('Exception in node_loop()')
+        import traceback; traceback.print_exc()
         time.sleep(120)
 
 class WalTVirtualNode(LoggedApplication):
