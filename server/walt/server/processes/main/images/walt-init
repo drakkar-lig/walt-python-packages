@@ -10,7 +10,7 @@ ROOTFS_BUSYBOX_APPLETS="
 "
 IMAGE_SCRIPTS="
     /bin/walt-env
-    /bin/walt-nfs-watchdog /bin/walt-net-service
+    /bin/walt-fs-watchdog /bin/walt-net-service
     /bin/walt-notify-bootup /bin/walt-rpc
     /bin/walt-clock-sync /bin/walt-timeout
 "
@@ -125,7 +125,7 @@ prepare_rootfs()
 # handle these features in all WalT images.
 start_background_processes()
 {
-    run_script_in_rootfs bg walt-nfs-watchdog
+    run_script_in_rootfs bg walt-fs-watchdog
     run_script_in_rootfs bg walt-net-service mnt/fs_union
     run_script_in_rootfs bg walt-notify-bootup
 }

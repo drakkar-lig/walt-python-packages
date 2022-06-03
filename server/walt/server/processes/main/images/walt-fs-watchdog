@@ -1,0 +1,34 @@
+#!/bin/sh
+# we want to reboot if ever the network filesystem root is lost.
+set -e
+
+DELAY_BEFORE_REBOOT=10
+
+do_reboot()
+{
+    # if we got here as part of a clean OS shutdown,
+    # let the OS complete this shutdown
+    sleep ${DELAY_BEFORE_REBOOT}
+    reboot -f
+}
+
+on_exit()
+{
+    echo "[bg] walt-fs-watchdog exited! What happened?? Will reboot."
+    do_reboot
+}
+
+trap on_exit EXIT
+echo "[bg] walt-fs-watchdog started."
+
+while [ 1 ]
+do
+    /bin/walt-timeout 20 ls -l mnt/nfsroot/bin/walt-init >/dev/null || {
+        echo "[bg] Network filesystem share was lost! Will reboot."
+        # if filesystem was unmounted as part of a clean OS shutdown,
+        # let the OS complete this shutdown
+        sleep ${DELAY_BEFORE_REBOOT}
+        do_reboot
+    }
+    sleep 5
+done

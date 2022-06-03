@@ -27,7 +27,7 @@ NODE_SCRIPTS = {'walt-env': True,
                 'walt-clock-sync': False,
                 'walt-notify-bootup': False,
                 'walt-init': False,
-                'walt-nfs-watchdog': False,
+                'walt-fs-watchdog': False,
                 'walt-net-service': True,
                 'walt-tar-send': False}
 
