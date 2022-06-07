@@ -226,6 +226,18 @@ class NodesManager(object):
         listener = self.logs.monitor_file(popen.stdout, node.ip, 'virtualconsole')
         self.vnodes[node.mac] = popen, listener
 
+    def vnode_console_input(self, node_mac, buf):
+        # qemu has escape sequences starting with <ctrl-a>. we do not want
+        # to let them accessible to the user.
+        # to send a <ctrl-a> to the quest, we send <ctrl-a><ctrl-a> to qemu.
+        if buf == b'\x01':
+            buf = b'\x01\x01'
+        popen = self.vnodes[node_mac][0]
+        try:
+            popen.stdin.write(buf)
+        except Exception as e:
+            print('vnode_console_input to {node_mac} failed: {e}')
+
     def get_node_info(self, requester, node_name):
         device_info = self.devices.get_device_info(requester, node_name)
         if device_info == None:
@@ -260,6 +272,12 @@ class NodesManager(object):
         if nodes == None:
             return () # error already reported
         return tuple(node.ip for node in nodes)
+
+    def get_nodes_info(self, requester, node_set):
+        nodes = self.parse_node_set(requester, node_set)
+        if nodes == None:
+            return () # error already reported
+        return nodes
 
     def get_nodes_using_image(self, image_fullname):
         nodes = self.db.select('nodes', image = image_fullname)

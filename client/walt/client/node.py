@@ -3,6 +3,7 @@ import time, sys
 from plumbum import cli
 from walt.client.device import WalTDevice
 
+from walt.common.tools import SilentBusyIndicator
 from walt.common.formatting import format_sentence_about_nodes
 from walt.client.link import ClientToServerLink
 from walt.client.tools import confirm
@@ -10,6 +11,7 @@ from walt.client.config import conf
 from walt.client.interactive import run_node_cmd, \
                                     run_device_ping, \
                                     NODE_SHELL_MESSAGE
+from walt.client.console import run_node_console
 from walt.client.transfer import run_transfer_with_node
 from walt.client.expose import TCPExposer
 from walt.client.application import WalTCategoryApplication, WalTApplication
@@ -67,6 +69,26 @@ class WalTNode(WalTCategoryApplication):
                 res = run_node_cmd(ip, cmdargs, tty, capture_output)
                 if capture_output:
                     return res
+
+    @staticmethod
+    def run_console(node_name):
+        indicator = SilentBusyIndicator()
+        with ClientToServerLink(busy_indicator = indicator) as server:
+            if not WalTDevice.confirm_devices_not_owned(server, node_name):
+                return
+            nodes_info = server.get_nodes_info(node_name)
+            if len(nodes_info) == 0:
+                return  # issue already reported
+            elif len(nodes_info) > 1:
+                sys.stderr.write(
+                    'Error: this command must target 1 node only.\n')
+                return
+            node_info = nodes_info[0]
+            if node_info['virtual'] is False:
+                sys.stderr.write(
+                    'Error: console is only available on virtual nodes.\n')
+                return
+            run_node_console(server, node_info)
 
     @staticmethod
     def boot_nodes(node_set, image_name_or_default):
@@ -132,7 +154,7 @@ class WalTNodeRename(WalTApplication):
 @WalTNode.subcommand("blink")
 class WalTNodeBlink(WalTApplication):
     """make a node blink for a given number of seconds"""
-    ORDERING = 12
+    ORDERING = 13
     def main(self, node_name : NODE, duration=60):
         try:
             seconds = int(duration)
@@ -176,7 +198,7 @@ class WalTNodeBoot(WalTApplication):
 @WalTNode.subcommand("deploy")
 class WalTNodeDeploy(WalTApplication):
     """alias to 'boot' subcommand"""
-    ORDERING = 15
+    ORDERING = 16
     def main(self, node_set : SET_OF_NODES, image_name_or_default : IMAGE_OR_DEFAULT):
         return WalTNode.boot_nodes(node_set, image_name_or_default)
 
@@ -191,14 +213,21 @@ class WalTNodePing(WalTApplication):
         if node_ip:
             run_device_ping(node_ip)
 
+@WalTNode.subcommand("console")
+class WalTNodeConsole(WalTApplication):
+    """connect to the console of a WalT node"""
+    ORDERING = 12
+    def main(self, node_name : NODE):
+        WalTNode.run_console(node_name)
+
 @WalTNode.subcommand("shell")
 class WalTNodeShell(WalTApplication):
     """run an interactive shell connected to the node"""
     ORDERING = 3
     def main(self, node_name : NODE):
-        WalTNode.run_cmd(   node_name, False, [ ],
-                            startup_msg = NODE_SHELL_MESSAGE,
-                            tty = True)
+        WalTNode.run_cmd(node_name, False, [ ],
+                         startup_msg = NODE_SHELL_MESSAGE,
+                         tty = True)
 
 @WalTNode.subcommand("run")
 class WalTNodeRun(WalTApplication):
@@ -250,7 +279,7 @@ class WalTNodeCp(WalTApplication):
 @WalTNode.subcommand("wait")
 class WalTNodeWait(WalTApplication):
     """wait for bootup notification of a node (or set of nodes)"""
-    ORDERING = 13
+    ORDERING = 14
     timeout = cli_timeout_switch()
     def main(self, node_set : SET_OF_NODES):
         with ClientToServerLink() as server_link:
@@ -260,7 +289,7 @@ class WalTNodeWait(WalTApplication):
 @WalTNode.subcommand("expose")
 class WalTNodeExpose(WalTApplication):
     """expose a network port of a node on the local machine"""
-    ORDERING = 14
+    ORDERING = 15
     @cli.positional(str, int, int)
     def main(self, node_name : NODE, node_port, local_port):
         node_ip = None

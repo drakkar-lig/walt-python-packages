@@ -49,6 +49,8 @@ class LogsFlowFromServer(object):
         write_pickle(kwargs, self.f)
     def close(self):
         self.f.close()
+    def fileno(self):
+        return self.f.fileno()
 
 class WalTLog(WalTCategoryApplication):
     """management of logs"""
