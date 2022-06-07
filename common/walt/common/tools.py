@@ -129,7 +129,7 @@ class RealBusyIndicator:
     def set_default_label(self):
         self.set_label(self.default_label)
 
-class FakeBusyIndicator:
+class SilentBusyIndicator:
     def __getattr__(self, attr):
         return lambda *args: None
 
@@ -140,7 +140,7 @@ class BusyIndicator:
         if is_interactive:
             return RealBusyIndicator(*args)
         else:
-            return FakeBusyIndicator()
+            return SilentBusyIndicator()
 
 def fd_copy(fd_src, fd_dst, size):
     try:

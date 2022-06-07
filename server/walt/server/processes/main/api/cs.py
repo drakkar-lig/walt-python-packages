@@ -48,6 +48,11 @@ class CSAPI(APISession):
         return context.nodes.get_nodes_ip(context.requester, node_set)
 
     @api_expose_method
+    def get_nodes_info(self, context, node_set):
+        return tuple(info._asdict() for info in \
+                context.nodes.get_nodes_info(context.requester, node_set))
+
+    @api_expose_method
     def get_device_ip(self, context, device_name):
         return context.devices.get_device_ip(
                         context.requester, device_name)
@@ -60,6 +65,10 @@ class CSAPI(APISession):
     @api_expose_method
     def blink(self, context, node_name, blink_status):
         return context.nodes.blink(context.requester, context.task, node_name, blink_status)
+
+    @api_expose_method
+    def vnode_console_input(self, context, node_mac, buf):
+        context.nodes.vnode_console_input(node_mac, buf)
 
     @api_expose_method
     def parse_set_of_nodes(self, context, node_set):
