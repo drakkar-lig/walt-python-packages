@@ -57,21 +57,6 @@ def failsafe_symlink(src_target, dst_path, force_relative = False):
     # create the symlink
     os.symlink(src_target, dst_path)
 
-# Note: json comments are not allowed in the standard
-# and thus not handled in the json python module.
-# We handle them manually.
-def read_json(file_path):
-    content = None
-    try:
-        with open(file_path) as f:
-            # filter out comments
-            filtered = re.sub('#.*', '', f.read())
-            # read valid json
-            content = json.loads(filtered, object_pairs_hook=OrderedDict)
-    except:
-        pass
-    return content
-
 # use the following like this:
 #
 # with AutoCleaner(<obj>) as <var>:

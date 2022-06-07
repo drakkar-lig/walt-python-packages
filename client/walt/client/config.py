@@ -1,8 +1,9 @@
-import json, re, os
+import yaml, re, os
 from os.path import expanduser
 from collections import OrderedDict
-from walt.common.tools import read_json
+from walt.common.config import load_conf
 from getpass import getpass
+from pathlib import Path
 
 CONFIG_FILE_TOP_COMMENT="""\
 WalT configuration file
@@ -49,17 +50,17 @@ def decode(coded_value):
     return xor(bytes.fromhex(coded_value)).decode('UTF-8')
 
 def get_config_file():
-    return expanduser('~/.waltrc')
+    return Path(expanduser('~/.waltrc'))
 
 def get_config_from_file():
     config_file = get_config_file()
     modified = False
-    conf = read_json(config_file)
-    if conf == None:
-        if os.path.exists(config_file):
-            print("Warning: %s file exists, but it could not be parsed properly." \
+    try:
+        conf = load_conf(config_file, optional=True)
+    except:
+        print("Warning: %s file exists, but it could not be parsed properly." \
                             % config_file)
-        conf = OrderedDict()
+        conf = {}
     for key in conf:
         if key in CONFIG_CODED_ITEMS:
             conf[key] = decode(conf[key])
@@ -73,9 +74,8 @@ class ConfigFileSaver(object):
     def __exit__(self, type, value, tb):
         # concatenate all and write the file
         config_file = get_config_file()
-        with open(config_file, 'w') as f:
-            f.write(self.printed())
-        os.chmod(config_file, 0o600)
+        config_file.write_text(self.printed())
+        config_file.chmod(0o600)
         print('\nConfiguration was stored in %s.\n' % config_file)
     def add_item_group(self, desc, explain=None):
         self.item_groups.append(dict(
@@ -99,36 +99,29 @@ class ConfigFileSaver(object):
     def printed(self):
         lines = [ '' ]
         self.comment_section(lines, CONFIG_FILE_TOP_COMMENT)
-        lines.extend(['', '{'])
-        last_item_line = None
+        lines.append('')
         for item_group in self.item_groups:
             desc = item_group['desc']
             explain = item_group['explain']
-            # add group-level 'json comments'
+            # add group-level comments
             lines.append('')
             self.comment_section(
                     lines,
-                    '%s\n%s' % (desc, re.sub('.', '-', desc)),
-                    indent = 4)
+                    '%s\n%s' % (desc, re.sub('.', '-', desc)))
             if explain:
                 self.comment_section(
-                    lines, explain, indent = 4)
+                    lines, explain)
             # add items
             for item in item_group['items']:
                 key     = item['key']
                 value   = item['value']
                 comment = item['comment']
                 if comment:
-                    self.comment_section(lines, comment, indent = 4)
-                # get json output for this item only
+                    self.comment_section(lines, comment)
+                # get yaml output for this item only
                 # (by creating a temporary dictionary with just this item)
-                item_and_value = json.dumps({key:value}, indent=4).splitlines()[1:-1]
-                item_and_value[-1] += ','
-                lines.extend(item_and_value)
-                last_item_line = len(lines) -1
-        # remove the comma after the last item
-        lines[last_item_line] = lines[last_item_line][:-1]
-        lines.append('}')
+                item_and_value = yaml.dump({key:value})
+                lines.append(item_and_value)
         return '\n'.join(lines) + '\n'
 
 def save_config(conf):

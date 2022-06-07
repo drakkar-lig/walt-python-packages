@@ -135,7 +135,8 @@ PACKAGE_SPECIFIC_INFO = {
     ),
     "walt-common": dict(
         subdir = 'common',
-        requires = ['plumbum>=1.7.2','requests>=2.21.0', 'python-dateutil>=2.8.1'],
+        requires = ['plumbum>=1.7.2','requests>=2.21.0',
+                    'python-dateutil>=2.8.1', 'pyyaml>=5.3.1' ],
         version_str = '%(upload)s',
         setup = dict(
             description = "WalT common python modules."
