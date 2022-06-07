@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import sys, io, signal, shutil, pickle, socket
+import os, sys, io, signal, shutil, pickle, socket
 from sys import stdin, stdout
 from select import select
 from socket import SHUT_WR
@@ -32,6 +32,10 @@ class PromptClient(object):
             params.update(
                 win_size = self.tty_settings.win_size
             )
+            if 'TERM' in os.environ:
+                params.update(
+                    env = { 'TERM': os.environ['TERM'] }
+                )
         else:
             self.tty_mode = False
         # tell server whether we are on a tty
