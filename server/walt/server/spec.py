@@ -1,15 +1,15 @@
-from walt.common.tools import read_json
+from walt.common.config import load_conf
+from pathlib import Path
 
-SERVER_SPEC_PATH = '/etc/walt/server.spec'
+SERVER_SPEC_PATH = Path('/etc/walt/server.spec')
 SERVER_SPEC = None
 
 def get_server_spec():
     global SERVER_SPEC
     if SERVER_SPEC is None:
-        try:
-            SERVER_SPEC = read_json(SERVER_SPEC_PATH)
-        except:
-            sys.stderr.write('Failed to parse /etc/walt/server.spec (should be json).')
+        SERVER_SPEC = load_conf(SERVER_SPEC_PATH, optional = True)
+        if SERVER_SPEC is None:
+            SERVER_SPEC = {}
     return SERVER_SPEC
 
 def reload_server_spec():
