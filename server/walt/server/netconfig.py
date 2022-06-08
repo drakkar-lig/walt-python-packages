@@ -66,7 +66,6 @@ def create_vlan_iface(raw_iface, vlan, vlan_iface, state_file):
     state_file.write(vlan_iface + '\n')
 
 def create_bridge_iface(br_iface, interfaces, state_file):
-    do('ip link add %s type bridge' % br_iface)
     if os.path.exists(get_mac_file(br_iface)):
         with open_mac_file(br_iface, 'r') as mac_file:
             mac = mac_file.readline()
@@ -75,7 +74,7 @@ def create_bridge_iface(br_iface, interfaces, state_file):
         with open_mac_file(br_iface, 'w') as mac_file:
             mac_file.write(mac + '\n')
             mac_file.flush()
-    do('ip link set dev %s address %s' % (br_iface, mac))
+    do(f'ip link add {br_iface} address {mac} type bridge')
     for iface in interfaces:
         do('ip link set dev %s master %s' % (iface, br_iface))
     set_iface_up(br_iface)
