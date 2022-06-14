@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import sys, subprocess, time, random, platform, re, atexit, signal, shlex, shutil
+import os, sys, subprocess, time, random, platform, re, signal, shlex, shutil, atexit
 from os import getpid, getenv, truncate
 from contextlib import contextmanager
 from walt.common.apilink import ServerAPILink
@@ -61,6 +61,15 @@ QEMU_ARGS = QEMU_PROG + " \
                 -serial mon:stdio \
                 -no-reboot \
                 -kernel %(boot-kernel)s"
+STATE = dict(
+    QEMU_PID = None,
+    STOPPING = False,
+    SAVED_STDIN = os.dup(0)
+)
+os.close(0)
+
+def restore_stdout():
+    os.dup2(SAVED_STDOUT, 1)
 
 def get_qemu_usb_args():
     model_file = Path('/proc/device-tree/model')
@@ -151,7 +160,23 @@ def boot_kvm(env):
         qemu_args += " -append '%(boot-kernel-cmdline)s'"
     cmd = qemu_args % env
     print(' '.join(cmd.split()))  # print with multiple spaces shrinked
-    subprocess.call(shlex.split(cmd))
+    args = shlex.split(cmd)
+    pid = os.fork()
+    if pid == 0:
+        # child
+        os.dup2(STATE['SAVED_STDIN'], 0) # restore stdin
+        os.close(STATE['SAVED_STDIN'])
+        os.dup2(1, 2)           # duplicate stdout on stderr
+        # the qemu process should not automatically receive signals targetting
+        # its parent process, thus we run it in a different session
+        os.setsid()
+        os.execlp(args[0], *args)
+    else:
+        # parent
+        STATE['QEMU_PID'] = pid
+        # wait until the child ends
+        pid, exit_status = os.waitpid(STATE['QEMU_PID'], 0)
+        STATE['QEMU_PID'] = None
     if env['reboot-command'] is not None:
         subprocess.call(env['reboot-command'], shell=True)
 
@@ -202,18 +227,18 @@ def node_loop(info):
     random.seed()
     save_pid(info)
     save_screen_session(info)
-    try:
-        while True:
+    while not STATE['STOPPING']:
+        try:
             # wait randomly to mitigate simultaneous load of various
             # virtual nodes
             random_wait()
             print("Starting...")
             env = get_env_start(info)
             ipxe_boot(env)
-    except Exception as e:
-        print('Exception in node_loop()')
-        import traceback; traceback.print_exc()
-        time.sleep(120)
+        except Exception as e:
+            print('Exception in node_loop()')
+            import traceback; traceback.print_exc()
+            time.sleep(2)
 
 class WalTVirtualNode(LoggedApplication):
     _udhcpc = False         # default
@@ -316,5 +341,31 @@ class WalTVirtualNode(LoggedApplication):
         """define a command to be called if virtual machine reboots"""
         self._reboot_command = shell_command
 
+def kill_vm():
+    if STATE['QEMU_PID'] is not None:
+        os.kill(STATE['QEMU_PID'], signal.SIGTERM)
+
+def on_sighup_restart_vm():
+    def signal_handler(sig, frame):
+        print('SIGHUP received. restarting VM.')
+        kill_vm()
+    signal.signal(signal.SIGHUP, signal_handler)
+
+def on_sigterm_terminate():
+    def signal_handler(sig, frame):
+        print('SIGTERM received. Stopping virtual node.')
+        STATE['STOPPING'] = True
+        kill_vm()
+    signal.signal(signal.SIGTERM, signal_handler)
+
+def on_exit():
+    vm_pid = STATE['QEMU_PID']
+    if vm_pid is not None:
+        kill_vm()
+        os.waitpid(vm_pid, 0)
+
 def run():
+    atexit.register(on_exit)
+    on_sighup_restart_vm()
+    on_sigterm_terminate()
     WalTVirtualNode.run()
