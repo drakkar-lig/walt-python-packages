@@ -53,7 +53,9 @@ class ProcessListener:
 
 class EventLoop(object):
     def __init__(self):
-        self.listeners = {}
+        self.listeners_per_fd = {}
+        self.fd_per_listener_id = {}
+        self.fd_of_listeners_with_is_valid_method = set()
         self.planned_events = []
         self.poller = poll()
 
@@ -82,25 +84,26 @@ class EventLoop(object):
 
     def register_listener(self, listener, events=POLL_OPS_READ):
         fd = listener.fileno()
-        self.listeners[fd] = listener
+        self.listeners_per_fd[fd] = listener
+        self.fd_per_listener_id[id(listener)] = fd
+        if hasattr(listener, 'is_valid'):
+            self.fd_of_listeners_with_is_valid_method.add(fd)
         self.poller.register(fd, events)
         #print 'new listener:', listener
 
-    def remove_listener(self, in_listener, should_close=True):
-        #print 'removing ' + str(in_listener)
-        #sys.stdout.flush()
-        # find fd
-        for fd, listener in self.listeners.items():
-            if listener is in_listener:
-                break
-        del self.listeners[fd]
+    def remove_listener(self, listener, should_close=True):
+        listener_id = id(listener)
+        fd = self.fd_per_listener_id[listener_id]
+        del self.listeners_per_fd[fd]
+        del self.fd_per_listener_id[listener_id]
+        self.fd_of_listeners_with_is_valid_method.discard(fd)
         self.poller.unregister(fd)
         if not should_close:
             return  # done
         # do no fail in case of issue in listener.close()
         # because anyway we do not need this listener anymore
         try:
-            in_listener.close()
+            listener.close()
         except BreakLoopRequested:
             raise
         except Exception as e:
@@ -126,19 +129,17 @@ class EventLoop(object):
                         next_ts, callback = callback, repeat_delay = repeat_delay, **kwargs)
             # if a listener provides a method is_valid(),
             # check it and remove it if result is False
-            for listener in list(self.listeners.values()):
-                try:
-                    if listener.is_valid() == False:
-                        # some data may have been buffered, we check this.
-                        # (if this is the case, then we will delay the
-                        # removal of this listener)
-                        r, w, x = select([listener], [], [], 0)
-                        if len(r) == 0:     # ok, no data
-                            self.remove_listener(listener)
-                except AttributeError:
-                    pass # this listener does not implement is_valid()
+            for fd in tuple(self.fd_of_listeners_with_is_valid_method):
+                listener = self.listeners_per_fd[fd]
+                if listener.is_valid() == False:
+                    # some data may have been buffered, we check this.
+                    # (if this is the case, then we will delay the
+                    # removal of this listener)
+                    r, w, x = select([listener], [], [], 0)
+                    if len(r) == 0:     # ok, no data
+                        self.remove_listener(listener)
             # stop the loop if no more listeners
-            if len(self.listeners) == 0:
+            if len(self.listeners_per_fd) == 0:
                 break
             # wait for an event
             res = self.poller.poll(self.get_timeout())
@@ -146,20 +147,20 @@ class EventLoop(object):
             ts = time()
             if len(res) == 0:
                 continue    # poll() was stopped because of the timeout
-            # process the event
-            fd, ev = res[0]
-            listener = self.listeners[fd]
-            # if error, we will remove the listener below
-            should_close = not is_event_ok(ev)
-            if not should_close:
-                # no error, let the listener
-                # handle the event
-                res = listener.handle_event(ts)
-                # if False was returned, we will
-                # close this listener.
-                should_close = (res == False)
-            if should_close:
-                self.remove_listener(listener)
+            # process the events
+            for fd, ev in res:
+                listener = self.listeners_per_fd[fd]
+                # if error, we will remove the listener below
+                should_close = not is_event_ok(ev)
+                if not should_close:
+                    # no error, let the listener
+                    # handle the event
+                    res = listener.handle_event(ts)
+                    # if False was returned, we will
+                    # close this listener.
+                    should_close = (res == False)
+                if should_close:
+                    self.remove_listener(listener)
 
     def do(self, cmd, callback = None):
         p = ProcessListener(cmd, callback)
