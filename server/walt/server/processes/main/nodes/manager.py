@@ -95,7 +95,8 @@ class NodesManager(object):
 
     def try_kill_vnode(self, node_mac):
         if node_mac in self.vnodes:
-            popen = self.vnodes[node_mac]
+            popen, listener = self.vnodes[node_mac]
+            listener.close()
             popen.close()
             del self.vnodes[node_mac]
 
@@ -222,7 +223,8 @@ class NodesManager(object):
         )
         print(cmd)
         popen = BetterPopen(cmd, lambda popen: popen.send_signal(signal.SIGTERM), shell=False)
-        self.vnodes[node.mac] = popen
+        listener = self.logs.monitor_file(popen.stdout, node.ip, 'virtualconsole')
+        self.vnodes[node.mac] = popen, listener
 
     def get_node_info(self, requester, node_name):
         device_info = self.devices.get_device_info(requester, node_name)

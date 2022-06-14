@@ -93,6 +93,33 @@ class LogsStreamListener(object):
     def close(self):
         self.sock_file.close()
 
+class FileListener:
+    """Listens for chunks output by given file and save them as logs."""
+    def __init__(self, hub, fileobj, stream_id):
+        self.hub = hub
+        self.file = fileobj
+        self.stream_id = stream_id
+
+    def fileno(self):
+        return self.file.fileno()
+
+    def handle_event(self, ts):
+        try:
+            chunk = self.file.read(4096)
+            if len(chunk) == 0:
+                return False
+        except:
+            return False
+        timestamp = ts
+        if not isinstance(timestamp, datetime):
+            timestamp = datetime.fromtimestamp(timestamp)
+        record = dict(timestamp=timestamp, line=repr(chunk), stream_id=self.stream_id)
+        self.hub.log(**record)
+        return True
+
+    def close(self):
+        self.file.close()
+
 class NetconsoleListener(object):
     """Listens for netconsole messages sent by nodes over UDP, and store
     them as regular logs."""
@@ -295,6 +322,7 @@ class LoggerFile:
 
 class LogsManager(object):
     def __init__(self, db, tcp_server, blocking, ev_loop):
+        self.ev_loop = ev_loop
         self.db = db
         self.server_ip = get_server_ip()
         self.blocking = blocking
@@ -312,11 +340,17 @@ class LogsManager(object):
         self.netconsole = NetconsoleListener(self, WALT_SERVER_NETCONSOLE_PORT)
         self.netconsole.join_event_loop(ev_loop)
 
+    def monitor_file(self, fileobj, sender_ip, stream_name):
+        stream_id = self.get_stream_id(sender_ip, stream_name, 'chunk')
+        listener = FileListener(self.hub, fileobj, stream_id)
+        self.ev_loop.register_listener(listener)
+        return listener
+
     def catch_std_streams(self):
         sys.stdout = LoggerFile(self, 'daemon.stdout', sys.__stdout__)
         sys.stderr = LoggerFile(self, 'daemon.stderr', sys.__stderr__)
 
-    def get_stream_id(self, sender_ip, stream_name):
+    def get_stream_id(self, sender_ip, stream_name, mode='line'):
         sender_info = self.db.select_unique('devices', ip = sender_ip)
         if sender_info == None:
             # sender device is unknown in database,
@@ -331,7 +365,8 @@ class LogsManager(object):
         else:
             # register new stream
             stream_id = self.db.insert('logstreams', returning='id',
-                            sender_mac = sender_mac, name = stream_name)
+                            sender_mac = sender_mac, name = stream_name,
+                            mode = mode)
         return stream_id
 
     def get_stream_info(self, stream_id):
