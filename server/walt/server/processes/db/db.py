@@ -6,14 +6,17 @@ from walt.server.tools import get_server_ip
 from walt.server.processes.db.postgres import PostgresDB
 from time import time
 
-EV_AUTO_COMMIT              = 0
-EV_AUTO_COMMIT_PERIOD       = 2
+EV_AUTO_COMMIT                  = 0
+EV_AUTO_COMMIT_PERIOD           = 2
+LOGS_AGGREGATION_THRESHOLD_SECS = 0.002
 
 class ServerDB(PostgresDB):
 
     def __init__(self):
         # parent constructor
         PostgresDB.__init__(self)
+        # timestamp for logs deframentation
+        self.timestamp_last_logs = None
         # create the db schema
         # tables
         self.execute("""CREATE TABLE IF NOT EXISTS devices (
@@ -96,6 +99,11 @@ class ServerDB(PostgresDB):
                             WHERE fullname NOT IN (
                                 SELECT DISTINCT image FROM nodes
                             );""")
+        # migration v7 -> v8
+        if not self.column_exists('logstreams', 'mode'):
+            self.execute("""CREATE TYPE logmode AS ENUM ('line', 'chunk');""")
+            self.execute("""ALTER TABLE logstreams
+                            ADD COLUMN mode logmode DEFAULT 'line';""")
         # fix server entry
         self.fix_server_device_entry()
         # commit
@@ -146,7 +154,44 @@ class ServerDB(PostgresDB):
 
     def handle_planned_event(self, ev_type):
         assert(ev_type == EV_AUTO_COMMIT)
+        if self.timestamp_last_logs != None:
+            self.defragment_last_logs(self.timestamp_last_logs)
+            self.timestamp_last_logs = None
         self.commit()
+
+    def defragment_last_logs(self, timestamp_last_logs):
+        self.execute("""
+            WITH q1 AS (
+                    SELECT l.*, EXTRACT(EPOCH FROM(timestamp - (lag(timestamp, 1) OVER w))) > %s AS high_delay
+                    FROM logs l, logstreams s
+                    WHERE l.stream_id = s.id
+                      AND s.mode = 'chunk'
+                      AND timestamp >= %s
+                    WINDOW w AS (PARTITION BY l.stream_id ORDER BY timestamp ASC)),
+                 q2 AS (
+                    SELECT *, (sum(coalesce(high_delay::int, 0)) OVER w) AS group_id
+                    FROM q1
+                    WINDOW w AS (PARTITION BY stream_id ORDER BY timestamp ASC))
+            SELECT stream_id, min(timestamp) AS timestamp,
+                   replace(string_agg(line, '+' ORDER BY timestamp), '''+b''', '') AS line
+            INTO TEMPORARY TABLE aggregated_logs
+            FROM q2
+            GROUP BY stream_id, group_id;
+        """, (LOGS_AGGREGATION_THRESHOLD_SECS, timestamp_last_logs))
+        self.execute("""
+            DELETE FROM logs l
+            WHERE l.timestamp >= %s
+              AND l.stream_id IN (
+                SELECT id FROM logstreams WHERE mode = 'chunk'
+            );
+        """, (timestamp_last_logs,))
+        self.execute("""
+            INSERT INTO logs
+            SELECT * FROM aggregated_logs;
+        """)
+        self.execute("""
+            DROP TABLE aggregated_logs;
+        """)
 
     def create_server_logs_cursor(self, **kwargs):
         sql, args = self.format_logs_query('l.*', ordering='l.timestamp', **kwargs)
@@ -224,3 +269,13 @@ class ServerDB(PostgresDB):
             DELETE FROM devices d WHERE d.name = %s;
         """,  (dev_name,)*7)
         self.commit()
+
+    def insert(self, table, returning=None, **kwargs):
+        if table == "logs":
+            if self.timestamp_last_logs is None:
+                self.timestamp_last_logs = kwargs['timestamp']
+            else:
+                self.timestamp_last_logs = min(
+                    self.timestamp_last_logs,
+                    kwargs['timestamp'])
+        return super().insert(table, returning=returning, **kwargs)
