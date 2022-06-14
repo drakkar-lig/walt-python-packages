@@ -8,6 +8,7 @@ from pathlib import Path
 from time import time
 
 from walt.common.tools import do
+from walt.common.popen import BetterPopen
 from walt.server.const import SSH_COMMAND
 from walt.server.processes.main.filesystem import FilesystemsCache
 from walt.server.processes.main.network.netsetup import NetSetup
@@ -25,21 +26,14 @@ from walt.server.tools import get_server_ip, ip, get_walt_subnet
 VNODE_DEFAULT_RAM = "512M"
 VNODE_DEFAULT_CPU_CORES = 4
 VNODE_DEFAULT_DISKS = 'none'
-# We record virtual nodes serial console output here
-# (we avoid using the logging system for this in order to avoid adding network traffic)
-VNODE_LOG_DIR = Path('/var/lib/walt/logs/vnodes/')
-VNODE_PID_PATH = '/var/lib/walt/nodes/%(mac)s/pid'
-VNODE_SCREEN_SESSION_PATH = '/var/lib/walt/nodes/%(mac)s/screen_session'
 
 MSG_NOT_VIRTUAL = "WARNING: %s is not a virtual node. IGNORED.\n"
 
 FS_CMD_PATTERN = SSH_COMMAND + ' root@%(fs_id)s "sh"'   # use node_ip as our fs ID
 
-VNODE_CMD = "walt-virtual-node --mac %(mac)s --ip %(ip)s --model %(model)s --hostname %(name)s \
+CMD_START_VNODE = "walt-virtual-node --mac %(mac)s --ip %(ip)s --model %(model)s --hostname %(name)s \
                                --server-ip %(server_ip)s --cpu-cores %(cpu_cores)d --ram %(ram)s \
                                --disks %(disks)s"
-CMD_START_VNODE = 'screen -S walt.node.%(hypmac)s -d -m \
-                     script -f -t%(ttyrec_file)s.time -c "' + VNODE_CMD + '" %(ttyrec_file)s'
 CMD_ADD_SSH_KNOWN_HOST = "  mkdir -p /root/.ssh && ssh-keygen -F %(ip)s || \
                             ssh-keyscan -t ecdsa %(ip)s >> /root/.ssh/known_hosts"
 
@@ -56,6 +50,7 @@ class NodesManager(object):
         self.expose_manager = ExposeManager(tcp_server, ev_loop)
         self.status_manager = NodeBootupStatusManager(tcp_server, self)
         self.filesystems = FilesystemsCache(ev_loop, FS_CMD_PATTERN)
+        self.vnodes = {}
 
     def prepare(self):
         # set booted flag of all nodes to False for now
@@ -98,30 +93,16 @@ class NodesManager(object):
                 """ % NetSetup.NAT):
             do("iptables --insert WALT --source '%s' --jump ACCEPT" % node_info.ip)
 
-    def get_vnode_screen_session_name(self, node_mac):
-        # get screen session
-        hypmac = node_mac.replace(':','-')
-        try:
-            return subprocess.check_output(
-                'screen -ls | grep -ow "[[:digit:]]*.walt.node.%(hypmac)s"' % \
-                dict(hypmac = hypmac), shell=True).strip().decode(sys.stdout.encoding)
-        except subprocess.CalledProcessError:
-            # no screen session (killed or not started yet)
-            return None
-
     def try_kill_vnode(self, node_mac):
-        session_name = self.get_vnode_screen_session_name(node_mac)
-        if session_name is not None:
-            pid_path = Path(VNODE_PID_PATH % dict(mac = node_mac))
-            try:
-                pid = int(pid_path.read_text())
-                os.kill(pid, signal.SIGTERM)
-            except:
-                pass
+        if node_mac in self.vnodes:
+            popen = self.vnodes[node_mac]
+            popen.close()
+            del self.vnodes[node_mac]
 
     def cleanup(self):
         # stop virtual nodes
         for vnode in self.db.select('devices', type = 'node', virtual = True):
+            print(f'stop vnode {vnode.name}')
             self.try_kill_vnode(vnode.mac)
         self.cleanup_netsetup()
         # cleanup filesystem interpreters
@@ -229,23 +210,19 @@ class NodesManager(object):
         # (e.g. walt server process was killed), kill it
         self.try_kill_vnode(node.mac)
         # start vnode
-        VNODE_LOG_DIR.mkdir(parents=True, exist_ok=True)
-        hypmac = node.mac.replace(':', '-')
-        print(VNODE_CMD)
         cmd = CMD_START_VNODE % dict(
             mac = node.mac,
-            hypmac = hypmac,
             ip = node.ip,
             model = node.model,
             name = node.name,
             server_ip = get_server_ip(),
             cpu_cores = node.conf.get('cpu.cores', VNODE_DEFAULT_CPU_CORES),
             ram = node.conf.get('ram', VNODE_DEFAULT_RAM),
-            disks = node.conf.get('disks', VNODE_DEFAULT_DISKS),
-            ttyrec_file = VNODE_LOG_DIR / (hypmac + str(int(time())) + '.tty')
+            disks = node.conf.get('disks', VNODE_DEFAULT_DISKS)
         )
         print(cmd)
-        subprocess.Popen(shlex.split(cmd))
+        popen = BetterPopen(cmd, lambda popen: popen.send_signal(signal.SIGTERM), shell=False)
+        self.vnodes[node.mac] = popen
 
     def get_node_info(self, requester, node_name):
         device_info = self.devices.get_device_info(requester, node_name)

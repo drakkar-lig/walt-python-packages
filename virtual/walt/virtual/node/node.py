@@ -68,8 +68,22 @@ STATE = dict(
 )
 os.close(0)
 
-def restore_stdout():
-    os.dup2(SAVED_STDOUT, 1)
+# This script is usually called from a terminal in raw mode,
+# so replace '\n' with '\r\n' for end of lines, and flush
+# after each write.
+class StdStreamWrapper:
+    def __init__(self, stream):
+        self.stream = stream
+    def write(self, buf):
+        self.stream.write(buf.replace('\n', '\r\n'))
+        self.stream.flush()
+    def flush(self):
+        pass
+    def fileno(self):
+        return self.stream.fileno()
+
+sys.stdout = StdStreamWrapper(sys.stdout)
+sys.stderr = StdStreamWrapper(sys.stderr)
 
 def get_qemu_usb_args():
     model_file = Path('/proc/device-tree/model')
