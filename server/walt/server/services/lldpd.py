@@ -5,10 +5,10 @@ from walt.server import conf
 from walt.server.tools import get_server_ip
 
 # These env variables should be set by systemd service unit file
-RUNTIME_DIRECTORY = Path(os.getenv("RUNTIME_DIRECTORY", "/run/walt"))
+RUNTIME_DIRECTORY = Path(os.getenv("RUNTIME_DIRECTORY", "/run/walt/lldpd"))
 LLDPD_BINARY_NAME = Path(os.getenv("LLDPD_BINARY_NAME", "lldpd"))
-SNMPD_AGENTX_SOCKET = Path(os.getenv("SNMPD_AGENTX_SOCKET", '/run/walt/agentx-master.socket'))
-PID_FILE = Path(os.getenv("PIDFILE", "/run/walt/lldpd.pid"))
+SNMPD_AGENTX_SOCKET = Path(os.getenv("SNMPD_AGENTX_SOCKET", '/run/walt/snmpd/agentx-master.socket'))
+PID_FILE = Path(os.getenv("PIDFILE", "/run/walt/lldpd/lldpd.pid"))
 
 def get_walt_net_physical_interface():
     return conf['network']['walt-net'].get('raw-device', None)

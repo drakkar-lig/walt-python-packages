@@ -6,7 +6,7 @@ from walt.server.tools import ensure_text_file_content
 # These env variables should be set by systemd service unit file
 STATE_DIRECTORY = Path(os.getenv("STATE_DIRECTORY", "/var/lib/walt/services/ptpd"))
 PTPD_BINARY_NAME = Path(os.getenv("PTPD_BINARY_NAME", "ptpd"))
-PTPD_STATUS_FILE = Path(os.getenv("PTPD_STATUS_FILE", "/run/walt/ptpd.status"))
+PTPD_STATUS_FILE = Path(os.getenv("PTPD_STATUS_FILE", "/run/walt/ptpd/ptpd.status"))
 
 PTPD_CONF_CONTENT = f"""\
 ptpengine:interface=walt-net

@@ -13,8 +13,8 @@ After=walt-server-netconfig.service
 [Service]
 Type=simple
 Environment=PTPD_BINARY_NAME=ptpd
-Environment=PTPD_STATUS_FILE=/run/walt/ptpd.status
-RuntimeDirectory=walt
+Environment=PTPD_STATUS_FILE=/run/walt/ptpd/ptpd.status
+RuntimeDirectory=walt/ptpd
 StateDirectory=walt/services/ptpd
 ExecStart=walt-server-ptpd
 

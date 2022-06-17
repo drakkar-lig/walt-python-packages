@@ -14,10 +14,10 @@ After=walt-server-netconfig.service
 Type=notify
 NotifyAccess=main
 Environment=LLDPD_BINARY_NAME=lldpd
-Environment=SNMPD_AGENTX_SOCKET=/run/walt/agentx-master.socket
-RuntimeDirectory=walt
+Environment=SNMPD_AGENTX_SOCKET=/run/walt/snmpd/agentx-master.socket
+RuntimeDirectory=walt/lldpd
 StateDirectory=walt/services/lldpd
-PIDFile=/run/walt/lldpd.pid
+PIDFile=/run/walt/lldpd/lldpd.pid
 ExecStart=walt-server-lldpd
 Restart=on-failure
 PrivateTmp=yes

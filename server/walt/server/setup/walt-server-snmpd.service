@@ -15,10 +15,10 @@ Type=simple
 Environment=SNMPD_BINARY_NAME=snmpd
 Environment=SNMPD_USER=Debian-snmp
 Environment=SNMPD_GROUP=Debian-snmp
-Environment=SNMPD_AGENTX_SOCKET=/run/walt/agentx-master.socket
-RuntimeDirectory=walt
+Environment=SNMPD_AGENTX_SOCKET=/run/walt/snmpd/agentx-master.socket
+RuntimeDirectory=walt/snmpd
 StateDirectory=walt/services/snmpd
-PIDFile=/run/walt/snmpd.pid
+PIDFile=/run/walt/snmpd/snmpd.pid
 ExecStart=walt-server-snmpd
 
 [Install]

@@ -10,7 +10,6 @@ Requires=walt-server-netconfig.service
 After=walt-server-netconfig.service
 # needs lldp
 Wants=walt-server-lldpd.service
-Wants=ptpd.service
 
 [Service]
 Environment=PYTHONUNBUFFERED=1
@@ -21,7 +20,7 @@ NotifyAccess=all
 # no startup timeout, because it can take a long time
 # if the user is installing the platform.
 TimeoutStartSec=infinity
-RuntimeDirectory=walt
+RuntimeDirectory=walt/daemon
 StateDirectory=walt
 EnvironmentFile=-/etc/default/walt-server
 EnvironmentFile=-/etc/sysconfig/walt-server
