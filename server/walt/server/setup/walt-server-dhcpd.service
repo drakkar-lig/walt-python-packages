@@ -8,9 +8,9 @@ After=walt-server-netconfig.service
 ConditionPathExists=/var/lib/walt/services/dhcpd/dhcpd.conf
 
 [Service]
-RuntimeDirectory=walt
+RuntimeDirectory=walt/dhcpd
 StateDirectory=walt/services/dhcpd
-PIDFile=/run/walt/dhcpd.pid
+PIDFile=/run/walt/dhcpd/dhcpd.pid
 ExecStartPre=touch ${STATE_DIRECTORY}/dhcpd.leases
 ExecStart=/usr/sbin/dhcpd -f -4 -q walt-net \
             -pf ${RUNTIME_DIRECTORY}/dhcpd.pid \

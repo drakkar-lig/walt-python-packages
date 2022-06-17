@@ -8,8 +8,8 @@ STATE_DIRECTORY = Path(os.getenv("STATE_DIRECTORY", "/var/lib/walt/services/snmp
 SNMPD_BINARY_NAME = Path(os.getenv("SNMPD_BINARY_NAME", "snmpd"))
 SNMPD_USER = Path(os.getenv("SNMPD_USER", "Debian-snmp"))
 SNMPD_GROUP = Path(os.getenv("SNMPD_GROUP", "Debian-snmp"))
-SNMPD_AGENTX_SOCKET = Path(os.getenv("SNMPD_AGENTX_SOCKET", '/run/walt/agentx-master.socket'))
-PID_FILE = Path(os.getenv("PIDFILE", "/run/walt/snmpd.pid"))
+SNMPD_AGENTX_SOCKET = Path(os.getenv("SNMPD_AGENTX_SOCKET", '/run/walt/snmpd/agentx-master.socket'))
+PID_FILE = Path(os.getenv("PIDFILE", "/run/walt/snmpd/snmpd.pid"))
 
 SNMPD_CONF_FILE_CONTENT = f"""\
 agentaddress udp:{get_server_ip()}:161
