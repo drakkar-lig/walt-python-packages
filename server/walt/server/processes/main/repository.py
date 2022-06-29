@@ -1,4 +1,5 @@
 import json
+import os
 import shutil
 import time
 from pathlib import Path
@@ -9,6 +10,7 @@ from walt.server.tools import add_image_repo
 
 MAX_IMAGE_LAYERS = 128
 METADATA_CACHE_FILE = Path('/var/cache/walt/images.metadata')
+IMAGE_LAYERS_DIR = '/var/lib/containers/storage/overlay'
 
 # 'buildah mount' does not mount the overlay filesystem with appropriate options to allow nfs export.
 # let's fix this.
@@ -36,6 +38,9 @@ def remount_with_nfs_export_option(mountpoint):
             if incompat_volatile.exists():
                 shutil.rmtree(incompat_volatile)
             break
+    # when having many layers, podman specifies them relative to the
+    # following directory
+    os.chdir(IMAGE_LAYERS_DIR)
     # re-mount
     mount('-t', fstype, '-o', ','.join(new_options), source, mountpoint)
 
