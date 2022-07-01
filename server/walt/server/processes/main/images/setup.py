@@ -2,6 +2,7 @@ import os
 import os.path
 import shutil
 from collections import OrderedDict
+from pathlib import Path
 
 from pkg_resources import resource_filename
 
@@ -61,7 +62,7 @@ FILES = {
     '/etc/ssh/ssh_host_ecdsa_key': UNSECURE_ECDSA_KEYPAIR['openssh-priv'],
     '/etc/ssh/ssh_host_ecdsa_key.pub': UNSECURE_ECDSA_KEYPAIR['openssh-pub'],
     '/etc/dropbear/dropbear_ecdsa_host_key': UNSECURE_ECDSA_KEYPAIR['dropbear'],
-    '/etc/hosts': """\
+    '/etc/hosts': b"""\
 127.0.0.1   localhost
 ::1     localhost ip6-localhost ip6-loopback
 ff02::1     ip6-allnodes
@@ -146,8 +147,7 @@ def setup(mount_path):
         # ensure server has a pub key
         ensure_root_key_exists()
         # we will authorize the server to connect to nodes
-        with open(SERVER_KEY_PATH + '.pub') as f:
-            FILES['/root/.ssh/authorized_keys'] = f.read()
+        FILES['/root/.ssh/authorized_keys'] = Path(SERVER_KEY_PATH + '.pub').read_bytes()
     # /etc/dropbear is a symlink to /var/run/dropbear on some images.
     # * /var/run/dropbear is an absolute path, thus we should mind not
     #   being directed to server files!
@@ -159,8 +159,7 @@ def setup(mount_path):
     # copy files listed in variable FILES on the image
     for path, content in FILES.items():
         failsafe_makedirs(mount_path + os.path.dirname(path))
-        with open(mount_path + path, 'w') as f:
-            f.write(content)
+        Path(mount_path + path).write_bytes(content)
     # ensure /etc/hosts has correct rights
     os.chmod(mount_path + '/etc/hosts', 0o644)
     # set node DNS servers

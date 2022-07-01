@@ -42,7 +42,8 @@ PENDING_USER_RESPONSE_DELAY = 5*60  # seconds
 WAITING = 0
 PENDING_USER_RESPONSE = 1
 
-UNSECURE_KEY, UNSECURE_KEY_PUB = UNSECURE_ECDSA_KEYPAIR['openssh-priv'], UNSECURE_ECDSA_KEYPAIR['openssh-pub']
+UNSECURE_KEY = UNSECURE_ECDSA_KEYPAIR['openssh-priv'].decode('ascii')
+UNSECURE_KEY_PUB = UNSECURE_ECDSA_KEYPAIR['openssh-pub'].decode('ascii')
 
 class VPNManager:
     def __init__(self):
