@@ -11,4 +11,4 @@ else
 fi
 
 # run the command
-$cmd_prefix "$@"
+exec $cmd_prefix "$@"
