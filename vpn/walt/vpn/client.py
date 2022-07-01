@@ -75,10 +75,10 @@ def setup_credentials(walt_vpn_entrypoint):
     if not SSH_CONF_DIR.is_dir():
         SSH_CONF_DIR.mkdir()
     if not UNSECURE_PRIV_KEY_FILE.exists():
-        UNSECURE_PRIV_KEY_FILE.write_text(UNSECURE_ECDSA_KEYPAIR['openssh-priv'])
+        UNSECURE_PRIV_KEY_FILE.write_bytes(UNSECURE_ECDSA_KEYPAIR['openssh-priv'])
         UNSECURE_PRIV_KEY_FILE.chmod(0o600)
     if not UNSECURE_PUB_KEY_FILE.exists():
-        UNSECURE_PUB_KEY_FILE.write_text(UNSECURE_ECDSA_KEYPAIR['openssh-pub'])
+        UNSECURE_PUB_KEY_FILE.write_bytes(UNSECURE_ECDSA_KEYPAIR['openssh-pub'])
     while True:
         try:
             cred_info = check_output(ssh_with_identity(

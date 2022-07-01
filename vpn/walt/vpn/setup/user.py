@@ -14,7 +14,7 @@ restrict,command="walt-vpn-auth-tool $SSH_ORIGINAL_COMMAND" %(unsecure_pub_key)s
 VPN_CA_KEY = WALT_VPN_USER['home_dir'] / '.ssh' / 'vpn-ca-key'
 VPN_CA_KEY_PUB = WALT_VPN_USER['home_dir'] / '.ssh' / 'vpn-ca-key.pub'
 
-UNSECURE_KEY_PUB = UNSECURE_ECDSA_KEYPAIR['openssh-pub']
+UNSECURE_KEY_PUB = UNSECURE_ECDSA_KEYPAIR['openssh-pub'].decode('ascii')
 
 def setup_user():
     home_dir = WALT_VPN_USER['home_dir']
