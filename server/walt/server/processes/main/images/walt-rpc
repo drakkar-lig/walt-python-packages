@@ -1,32 +1,73 @@
-#!/bin/sh
+#!/bin/busybox sh
 
 func_call=$1
-NC_FIFO="/tmp/nc-$$.fifo"
-busybox mkfifo $NC_FIFO
+NC_FIFO_4="/tmp/nc-$$-4.fifo"
+NC_FIFO_5="/tmp/nc-$$-5.fifo"
+NC_FIFO_6="/tmp/nc-$$-6.fifo"
+busybox mkfifo $NC_FIFO_4
+busybox mkfifo $NC_FIFO_5
+busybox mkfifo $NC_FIFO_6
 
-{
-    cat << EOF
+cleanup() {
+    rm $NC_FIFO_4 $NC_FIFO_5 $NC_FIFO_6
+}
+
+on_term() {
+    echo Received SIGTERM >&2
+    kill $nc_pid
+    kill $req_pid
+    kill $rcv_pid
+    cleanup
+    exit 3
+}
+
+trap on_term TERM
+
+requester() {
+    exec 4>$NC_FIFO_4
+    exec 6<$NC_FIFO_6
+    cat >&4 << EOF
 REQ_API_SESSION
 NSAPI
 ('API_CALL', '$func_call', (), {})
 EOF
-    read feedback < $NC_FIFO
-    echo "('CLOSE')"
-} | busybox nc %(server_ip)s %(walt_server_rpc_port)s | {
-    read server_version
-    read response_word1 response_rest
+    read feedback <&6
+    echo "('CLOSE')" >&4
+}
+
+receiver() {
+    exec 5<$NC_FIFO_5
+    exec 6>$NC_FIFO_6
+    read server_version <&5
+    read response_word1 response_rest <&5
     word2=$(echo -n "$response_rest" | sed -e 's/.$//')
     if [ "$response_word1" = "('RESULT'," ]
     then
-        echo $word2
-        echo DONE > $NC_FIFO
-        return 0
+        echo $word2	# print result to stdout
+        echo DONE >&6
+	exit 0
     else
-        echo $word2 >&2
-        echo ISSUE > $NC_FIFO
-        return 1  # exception
+        echo $word2 >&2	# print issue to stderr
+        echo ISSUE >&6
+	exit 1
     fi
 }
-exit_code=$?
-rm $NC_FIFO
-exit $exit_code
+
+connector() {
+    exec busybox nc %(server_ip)s %(walt_server_rpc_port)s <$NC_FIFO_4 >$NC_FIFO_5
+}
+
+connector &
+nc_pid=$!
+requester &
+req_pid=$!
+receiver &
+rcv_pid=$!
+
+wait $nc_pid
+wait $req_pid
+wait $rcv_pid
+ret_code=$?
+
+cleanup
+exit $ret_code
