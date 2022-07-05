@@ -31,6 +31,7 @@ class ImageShellSession(object):
         username = requester.get_username()
         if not username:
             cb_return_status('GIVE_UP')    # client already disconnected, give up
+            self.cleanup()
             return
         # 1st step: validate new name
         existing_image = self.images.get_user_image_from_name(
@@ -90,19 +91,20 @@ class ImageShellSession(object):
         if self.image.fullname == image_fullname:
             # same name, we are modifying the image
             requester.stdout.write('Image %s updated.\n' % new_image_name)
-            self.image.task_label = None
             status = 'OK_BUT_REBOOT_NODES'
         else:
             # we are saving changes to a new image, leaving the initial one
             # unchanged
             requester.stdout.write('New image %s saved.\n' % new_image_name)
-            self.image.task_label = None
             status = 'OK_SAVED'
         cb_return_status(status)
+        self.cleanup()
 
     def cleanup(self):
-        print('shell cleanup')
-        self.events.close()
-        self.repository.stop_container(self.container_name)
-        self.image.task_label = None
+        if self.container_name is not None:
+            print('shell cleanup')
+            self.events.close()
+            self.repository.stop_container(self.container_name)
+            self.image.task_label = None
+            self.container_name = None
 

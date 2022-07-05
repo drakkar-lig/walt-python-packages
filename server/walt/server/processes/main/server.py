@@ -244,7 +244,7 @@ class Server(object):
     def validate_cp(self, requester, image_or_node_label, src, dst):
         return validate_cp(image_or_node_label, self, requester, src, dst)
 
-    def node_cp_to_booted_image(self, requester, task, node_name, **path_info):
+    def node_cp_to_booted_image(self, requester, task, api_session, node_name, **path_info):
         node_info = self.nodes.get_node_info(requester, node_name)
         if node_info is None:
             return  # error already reported
@@ -253,6 +253,8 @@ class Server(object):
                                 requester, image_name, 'file transfer')
         if session == None:
             return  # issue already reported
+        # ensure session.cleanup() will be called when client disconnects
+        api_session.register_session_object(session)
         cmd = format_node_to_booted_image_transfer_cmd(
             node_ip = node_info.ip,
             image_fullname = fullname,
