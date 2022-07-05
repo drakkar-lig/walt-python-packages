@@ -1,5 +1,6 @@
-import shlex, datetime, requests, subprocess, json, sys
+import shlex, datetime, requests, subprocess, json, sys, gzip
 from pathlib import Path
+from pkg_resources import resource_filename
 from walt.common.version import __version__ as WALT_VERSION
 from walt.server.setup.pip import install_pip, pip
 from walt.server.setup.apt import fix_dpkg_options, package_is_installed, get_debconf_selection, \
@@ -203,3 +204,29 @@ def install_os_on_image():
     fix_docker_keyring()
     fix_dpkg_options()
     fix_packets(upgrade_packets = True)     # have up-to-date packets on image
+
+def has_diversion(path):
+    diversion = subprocess.run(f'dpkg-divert --list {path}'.split(),
+                   stdout=subprocess.PIPE).stdout.strip()
+    return len(diversion) > 0
+
+def divert(path, diverted_path):
+    subprocess.run(f'dpkg-divert --divert {diverted_path} --rename {path}'.split(),
+                   check=True, stdout=subprocess.PIPE)
+
+# 'conmon' binary distributed in bullseye has a serious issue
+# causing possibly truncated stdout in podman [run|exec]).
+# we replace it with a more up-to-date binary statically compiled
+# using the nix-based method.
+def fix_conmon():
+    if not has_diversion('/usr/bin/conmon'):
+        print('Fixing issue with conmon tool... ', end=''); sys.stdout.flush()
+        divert('/usr/bin/conmon', '/usr/bin/conmon.distrib')
+        conmon_gz_path = resource_filename(__name__, 'conmon.gz')
+        conmon_gz_content = Path(conmon_gz_path).read_bytes()
+        conmon_content = gzip.decompress(conmon_gz_content)
+        conmon_fixed_path = Path('/usr/bin/conmon.fixed')
+        conmon_fixed_path.write_bytes(conmon_content)
+        conmon_fixed_path.chmod(0o755)
+        print('done')
+        Path('/usr/bin/conmon').symlink_to('/usr/bin/conmon.fixed')
