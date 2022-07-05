@@ -105,7 +105,7 @@ class CSAPI(APISession):
 
     @api_expose_method
     def node_cp_to_booted_image(self, context, node_name, **path_info):
-        return context.server.node_cp_to_booted_image(context.requester, context.task, node_name, **path_info)
+        return context.server.node_cp_to_booted_image(context.requester, context.task, self, node_name, **path_info)
 
     @api_expose_method
     def wait_for_nodes(self, context, node_set):
