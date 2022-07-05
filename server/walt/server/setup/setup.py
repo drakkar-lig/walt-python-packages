@@ -4,7 +4,7 @@ from pathlib import Path
 from walt.common import systemd
 from walt.common.setup import WaltGenericSetup
 from walt.common.tools import verify_root_login_shell
-from walt.server.setup.ossetup import get_os_codename, upgrade_os, install_os, fix_os, install_os_on_image
+from walt.server.setup.ossetup import get_os_codename, upgrade_os, install_os, fix_os, fix_conmon, install_os_on_image
 from walt.server.setup.conf import fix_other_conf_files, setup_default_server_conf, ask_server_conf
 
 WALT_SERVICES = [
@@ -29,18 +29,18 @@ WALT_MAIN_SERVICE = 'walt-server.service'
 
 OS_ACTIONS = {
     'image-install': {
-        'bullseye': ('install_os_on_image', 'disable_os_services', 'setup_walt_services',
+        'bullseye': ('install_os_on_image', 'fix_conmon', 'disable_os_services', 'setup_walt_services',
                      'fix_other_conf_files', 'setup_default_server_conf', 'update_completion'),
     },
     'install': {
-        'bullseye': ('install_os', 'disable_os_services', 'setup_walt_services',
+        'bullseye': ('install_os', 'fix_conmon', 'disable_os_services', 'setup_walt_services',
                      'fix_other_conf_files', 'ask_server_conf', 'systemd_reload',
                      'start_walt_services', 'update_completion', 'msg_ready'),
     },
     'upgrade': {
-        'buster': ('stop_services', 'upgrade_os', 'disable_os_services', 'setup_walt_services',
+        'buster': ('stop_services', 'upgrade_os', 'fix_conmon', 'disable_os_services', 'setup_walt_services',
                    'fix_other_conf_files', 'update_completion', 'msg_reboot'),
-        'bullseye': ('stop_services', 'fix_os', 'disable_os_services', 'setup_walt_services',
+        'bullseye': ('stop_services', 'fix_os', 'fix_conmon', 'disable_os_services', 'setup_walt_services',
                      'fix_other_conf_files', 'may_ask_server_conf', 'systemd_reload', 'start_walt_services',
                      'update_completion', 'msg_ready'),
     }
@@ -134,6 +134,9 @@ class WalTServerSetup(WaltGenericSetup):
 
     def fix_os(self):
         fix_os()
+
+    def fix_conmon(self):
+        fix_conmon()
 
     def install_os_on_image(self):
         install_os_on_image()
