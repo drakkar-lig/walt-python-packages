@@ -9,7 +9,6 @@ import signal
 import subprocess
 import sys
 from collections import OrderedDict
-from datetime import datetime, timedelta
 from fcntl import fcntl, F_GETFD, F_SETFD, F_GETFL, F_SETFL, FD_CLOEXEC
 from pathlib import Path
 
@@ -87,45 +86,32 @@ def get_kernel_bootarg(in_bootarg):
             if name == in_bootarg:
                 return val
 
-PROGRESS_INDICATOR_PERIOD = timedelta(seconds=1.0)
-
 class RealBusyIndicator:
     def __init__(self, label):
         self.default_label = label
         self.label = label
-        self.last_time = None
-        self.next_time = None
         self.msg_len = 0
         self.char_idx = 0
     def start(self):
         self.char_idx = 0
-        self.last_time = None
-        self.next_time = datetime.now() + PROGRESS_INDICATOR_PERIOD
     def write_stdout(self, s):
         sys.stdout.write(s)
         sys.stdout.flush()
     def update(self):
-        if datetime.now() > self.next_time:
-            wheel_char = "\\|/-"[self.char_idx]
-            if self.last_time is not None:
-                self.erase_previous()
-            msg = self.label + "... " + wheel_char
-            self.write_stdout(msg)
-            self.msg_len = len(msg)
-            self.last_time = datetime.now()
-            self.next_time = self.last_time + PROGRESS_INDICATOR_PERIOD
-            self.char_idx = (self.char_idx+1) % 4
+        wheel_char = "\\|/-"[self.char_idx]
+        self.erase_previous()
+        msg = self.label + "... " + wheel_char
+        self.write_stdout(msg)
+        self.msg_len = len(msg)
+        self.char_idx = (self.char_idx+1) % 4
     def erase_previous(self):
         self.write_stdout("\r" + (' ' * self.msg_len) + "\r")
     def done(self):
-        if self.last_time != None:
-            self.erase_previous()
+        self.reset()
     def reset(self):
-        self.done()
-        self.start()
+        self.erase_previous()
     def set_label(self, label):
         self.label = label
-        self.char_idx = 0
     def set_default_label(self):
         self.set_label(self.default_label)
 
