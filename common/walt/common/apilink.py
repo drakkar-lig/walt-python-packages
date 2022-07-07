@@ -170,7 +170,9 @@ class ServerAPIConnection(object):
             if len(r) == 0: # if timeout
                 continue
             # otherwise, there is something to process on the api connection
-            self.indicator.reset()  # apparently the server is no longer busy
+            # handle_api_call() may cause something to be printed on our
+            # stdout, so let's temporarily erase the busy indicator message
+            self.indicator.reset()
             try:
                 event = self.api_channel.read()
             except Exception as e:
