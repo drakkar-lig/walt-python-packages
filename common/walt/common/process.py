@@ -177,11 +177,9 @@ class RPCProcessConnector(ProcessConnector):
     def handle_event(self, ts):
         return self.handle_next_event()
     def handle_next_event(self):
-        events = []
+        events = [ self.read() ]
         while self.poll():
             events.append(self.read())
-        if len(events) == 0:
-            return False    # no data, quit
         events.sort(key=lambda x: PRIORITIES[x[0]])
         for event in events:
             if event[0] == 'API_CALL':
