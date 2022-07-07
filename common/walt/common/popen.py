@@ -46,22 +46,22 @@ class BetterPopen:
         #print(f'__del__ {os.getpid()}')
         self.close()
     def close(self):
+        # call kill function
         if self.return_code is None:
-            # call kill function
             try:
                 self.kill_function(self)
             except Exception as e:
                 print('filesystem.close() -- ignored exception:', e)
-            # close our ends of the pipes
-            try:
-                os.close(self.stdin.fileno())
-            except Exception as e:
-                print('filesystem.close() -- ignored exception:', e)
-            try:
-                os.close(self.stdout.fileno())
-            except Exception as e:
-                print('filesystem.close() -- ignored exception:', e)
-            # wait for end of child
+        # close our ends of the pipes
+        for f in self.stdin, self.stdout:
+            if f is not None:
+                try:
+                    f.close()
+                except Exception as e:
+                    print('filesystem.close() -- ignored exception:', e)
+        self.stdin, self.stdout = None, None
+        # wait for end of child
+        if self.return_code is None:
             try:
                 self.wait()
             except Exception as e:
