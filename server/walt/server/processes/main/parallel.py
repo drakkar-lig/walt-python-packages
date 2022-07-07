@@ -35,6 +35,7 @@ class ParallelProcessSocketListener(object):
         self.client_sock_file = sock_file
         self.slave_r, self.slave_w = None, None
         self.monitor_r = None
+        self.popen = None
         self.send_client('READY\n')
     def send_client(self, s):
         self.client_sock_file.write(s.encode('UTF-8'))
@@ -66,7 +67,7 @@ class ParallelProcessSocketListener(object):
         # the parent should communicate.
         # use unbuffered communication with the slave process
         self.slave_r = os.fdopen(os.dup(fd_slave), 'rb', 0)
-        self.slave_w = os.fdopen(os.dup(fd_slave), 'wb', 0)
+        self.slave_w = os.fdopen(fd_slave, 'wb', 0)
         # create a new listener on the event loop for reading
         # what the slave process outputs
         process_listener = ForkPtyProcessListener(slave_pid, self)
@@ -101,12 +102,10 @@ class ParallelProcessSocketListener(object):
             # we did not get the parameters yet, let's do it
             self.params = read_pickle(self.client_sock_file)
             if self.params == None:
-                self.close()    # issue
-                return False
+                return False    # issue, this will call self.close()
             self.update_params()
             if self.prepare(**self.params) == False:
-                self.close()    # issue
-                return False
+                return False    # issue, this will call self.close()
             self.params['cmd'] = self.get_command(**self.params)
             # we now have all info to start the child process
             self.start()
@@ -127,18 +126,14 @@ class ParallelProcessSocketListener(object):
                         set_tty_size(self.slave_w.fileno(), win_size)
                 except Exception as e:
                     print(self, e)
-                    self.close()    # issue
-                    return False
+                    return False    # issue, this will call self.close()
             else:
                 # popen mode --
                 # in this mode the child process reads raw data directly on
                 # the socket, and we are just monitoring self.monitor_r, thus
                 # getting here means our child popen process closed its end
                 # of the pipe (monitor_w) which probably means it ended.
-                popen.wait()
-                self.client_sock_file.close()
-                os.close(self.monitor_r)
-                return False
+                return False # this will call self.close()
     def close(self):
         if self.client_sock_file:
             self.client_sock_file.close()
@@ -149,4 +144,9 @@ class ParallelProcessSocketListener(object):
         if self.slave_w:
             self.slave_w.close()
             self.slave_w = None
-
+        if self.popen:
+            self.popen.wait()
+            self.popen = None
+        if self.monitor_r:
+            os.close(self.monitor_r)
+            self.monitor_r = None
