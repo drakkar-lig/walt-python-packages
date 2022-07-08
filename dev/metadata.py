@@ -108,7 +108,6 @@ PACKAGE_SPECIFIC_INFO = {
                     'walt-virtual-node = walt.virtual.node:run'
                 ]
             },
-            scripts = [ 'sh/walt-vnode-ifup', 'sh/walt-vnode-ifdown' ],
             include_package_data = True
         )
     ),

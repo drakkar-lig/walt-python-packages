@@ -26,6 +26,7 @@ from walt.server.tools import get_server_ip, ip, get_walt_subnet
 VNODE_DEFAULT_RAM = "512M"
 VNODE_DEFAULT_CPU_CORES = 4
 VNODE_DEFAULT_DISKS = 'none'
+VNODE_DEFAULT_NETWORKS = 'walt-net'
 
 MSG_NOT_VIRTUAL = "WARNING: %s is not a virtual node. IGNORED.\n"
 
@@ -33,7 +34,7 @@ FS_CMD_PATTERN = SSH_COMMAND + ' root@%(fs_id)s "sh"'   # use node_ip as our fs 
 
 CMD_START_VNODE = "walt-virtual-node --mac %(mac)s --ip %(ip)s --model %(model)s --hostname %(name)s \
                                --server-ip %(server_ip)s --cpu-cores %(cpu_cores)d --ram %(ram)s \
-                               --disks %(disks)s"
+                               --disks %(disks)s --networks %(networks)s"
 CMD_ADD_SSH_KNOWN_HOST = "  mkdir -p /root/.ssh && ssh-keygen -F %(ip)s || \
                             ssh-keyscan -t ecdsa %(ip)s >> /root/.ssh/known_hosts"
 
@@ -219,7 +220,8 @@ class NodesManager(object):
             server_ip = get_server_ip(),
             cpu_cores = node.conf.get('cpu.cores', VNODE_DEFAULT_CPU_CORES),
             ram = node.conf.get('ram', VNODE_DEFAULT_RAM),
-            disks = node.conf.get('disks', VNODE_DEFAULT_DISKS)
+            disks = node.conf.get('disks', VNODE_DEFAULT_DISKS),
+            networks = node.conf.get('networks', VNODE_DEFAULT_NETWORKS)
         )
         print(cmd)
         popen = BetterPopen(cmd, lambda popen: popen.send_signal(signal.SIGTERM), shell=False)

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import random
 import re
 import shlex
 import shutil
@@ -202,3 +203,15 @@ def verify_root_login_shell():
         print('This command must be run in a root login shell.')
         print('If you first logged in as a different user, use `su --login root`.')
         raise Exception('This command must be run in a root login shell. Aborting.')
+
+def get_persistent_random_mac(mac_file):
+    mac_file_path = Path(mac_file)
+    if mac_file_path.exists():
+        return mac_file_path.read_text().strip()
+    else:
+        mac = ':'.join(["%02x" % x for x in [ 0x52, 0x54, 0x00,
+                            random.randint(0x00, 0x7f),
+                            random.randint(0x00, 0xff),
+                            random.randint(0x00, 0xff) ]])
+        mac_file_path.write_text(mac + '\n')
+        return mac

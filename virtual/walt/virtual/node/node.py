@@ -5,8 +5,10 @@ from contextlib import contextmanager
 from walt.common.apilink import ServerAPILink
 from walt.common.logs import LoggedApplication
 from walt.common.fakeipxe import ipxe_boot
-from walt.common.tools import failsafe_makedirs
+from walt.common.tools import failsafe_makedirs, get_persistent_random_mac
+from walt.common.settings import parse_vnode_disks_value, parse_vnode_networks_value
 from walt.virtual.node.udhcpc import udhcpc_fake_netboot
+from pkg_resources import resource_string
 from plumbum import cli
 from pathlib import Path
 
@@ -15,8 +17,9 @@ HOST_CPU = platform.machine()
 VNODE_DEFAULT_PID_PATH = '/var/lib/walt/nodes/%(mac)s/pid'
 VNODE_DEFAULT_SCREEN_SESSION_PATH = '/var/lib/walt/nodes/%(mac)s/screen_session'
 VNODE_DEFAULT_DISKS_PATH = '/var/lib/walt/nodes/%(mac)s/disks'
-VNODE_IFUP_SCRIPT = shutil.which('walt-vnode-ifup')
-VNODE_IFDOWN_SCRIPT = shutil.which('walt-vnode-ifdown')
+VNODE_DEFAULT_NETWORKS_PATH = '/var/lib/walt/nodes/%(mac)s/networks'
+VNODE_IFUP_SCRIPT_TEMPLATE = resource_string(__name__, 'walt-vnode-ifup').decode('utf-8')
+VNODE_IFDOWN_SCRIPT_TEMPLATE = resource_string(__name__, 'walt-vnode-ifdown').decode('utf-8')
 
 # the following values have been selected from output of
 # qemu-system-<host-cpu> -machine help
@@ -47,17 +50,16 @@ QEMU_PROG = "qemu-system-" + HOST_CPU
 DEFAULT_QEMU_RAM = 512
 DEFAULT_QEMU_CORES = 4
 DEFAULT_QEMU_DISKS = ()
+DEFAULT_QEMU_NETWORKS = { 'walt-net' : {} }
 QEMU_ARGS = QEMU_PROG + " \
                 -enable-kvm " + \
                 QEMU_MACHINE_DEF + "\
                 -m %(ram)d \
                 -smp %(cpu-cores)d \
                 %(disks)s \
+                %(networks)s \
                 -name %(name)s \
                 -nographic \
-                -netdev type=tap,id=mynet,vhost=on," + \
-                       "script=" + VNODE_IFUP_SCRIPT + ",downscript=" + VNODE_IFDOWN_SCRIPT + " \
-                -device " + QEMU_NET_DRIVER + ",mac=%(mac)s,netdev=mynet \
                 -serial mon:stdio \
                 -no-reboot \
                 -kernel %(boot-kernel)s"
@@ -132,6 +134,43 @@ def get_qemu_disks(info):
         qemu_disk_opts += f' -drive file={disk_path},format=raw'
     return qemu_disk_opts
 
+def get_qemu_networks(info):
+    if info._networks_path is None:
+        networks_path = VNODE_DEFAULT_NETWORKS_PATH  % dict(mac = info._mac)
+    else:
+        networks_path = info._networks_path
+    Path(networks_path).mkdir(parents=True, exist_ok=True)
+    hostid = getattr(info, '_hostname', None)
+    if hostid is None:
+        hostid = info._mac
+    qemu_networks_opts = ''
+    for network_name, network_restrictions in info._networks.items():
+        ifup_script = Path(networks_path) / f'{network_name}-ifup.sh'
+        ifdown_script = Path(networks_path) / f'{network_name}-ifdown.sh'
+        intf_alias = f'tap to {network_name} of {hostid}'
+        if 'lat_us' not in network_restrictions:
+            network_restrictions['lat_us'] = ''
+        if 'bw_Mbps' not in network_restrictions:
+            network_restrictions['bw_Mbps'] = ''
+        for path, template in ((ifup_script, VNODE_IFUP_SCRIPT_TEMPLATE),
+                               (ifdown_script, VNODE_IFDOWN_SCRIPT_TEMPLATE)):
+            path.write_text(template % dict(
+                network_name = network_name,
+                intf_alias = intf_alias,
+                **network_restrictions
+            ))
+            path.chmod(0o755)
+        if network_name == 'walt-net':
+            mac = info._mac
+        else:
+            mac_file = Path(networks_path) / f'{network_name}.mac'
+            mac = get_persistent_random_mac(mac_file)
+        netdev_opts = f'type=tap,id={network_name},vhost=on,' + \
+                      f'script={ifup_script},downscript={ifdown_script}'
+        device_opts = f'{QEMU_NET_DRIVER},mac={mac},netdev={network_name}'
+        qemu_networks_opts += f' -netdev {netdev_opts} -device {device_opts}'
+    return qemu_networks_opts
+
 def get_env_start(info):
     # define initial env variables for ipxe_boot()
     if info._udhcpc:
@@ -158,6 +197,7 @@ def get_env_start(info):
     env['cpu-cores'] = info._cpu_cores
     env['ram'] = info._ram
     env['disks'] = get_qemu_disks(info)
+    env['networks'] = get_qemu_networks(info)
     env['attach-usb'] = info._attach_usb
     env['reboot-command'] = info._reboot_command
     return env
@@ -261,9 +301,11 @@ class WalTVirtualNode(LoggedApplication):
     _pid_path = None        # default
     _screen_session_path = None  # default
     _disks_path = None      # default
+    _networks_path = None   # default
     _cpu_cores = DEFAULT_QEMU_CORES
     _ram = DEFAULT_QEMU_RAM
     _disks = DEFAULT_QEMU_DISKS
+    _networks = DEFAULT_QEMU_NETWORKS
 
     """run a virtual node"""
     def main(self):
@@ -284,6 +326,11 @@ class WalTVirtualNode(LoggedApplication):
     def set_disks_path(self, disks_path):
         """Set path where to save virtual node disk files"""
         self._disks_path = disks_path
+
+    @cli.switch("--networks-path", str)
+    def set_networks_path(self, networks_path):
+        """Set path where to save network-related virtual node files"""
+        self._networks_path = networks_path
 
     @cli.switch("--attach-usb")
     def set_attach_usb(self):
@@ -334,16 +381,18 @@ class WalTVirtualNode(LoggedApplication):
     @cli.switch("--disks", str)
     def set_disks(self, disks):
         """specify node's disks (e.g. none, 8G or "1T,32G")"""
-        if disks != "none" and re.match(r'^\d+[GT](,\d+[GT])*$', disks) is None:
+        parsing = parse_vnode_disks_value(disks)
+        if parsing[0] is False:
             raise ValueError('Invalid value for --disks (should be for instance none, 8G or "1T,32G").')
-        # convert to gigabytes
-        self._disks = []
-        if disks != 'none':
-            for capacity in disks.split(','):
-                cap_gigabytes = int(capacity[:-1])
-                if capacity[-1] == 'T':
-                    cap_gigabytes *= 1000
-                self._disks.append(cap_gigabytes)
+        self._disks = parsing[1]
+
+    @cli.switch("--networks", str)
+    def set_networks(self, networks):
+        """specify node's networks (e.g. "walt-net,home-net[lat=8ms,bw=100Mbps]")"""
+        parsing = parse_vnode_networks_value(networks)
+        if parsing[0] is False:
+            raise ValueError(f'Invalid value for --networks: {parsing[1]}')
+        self._networks = parsing[1]
 
     @cli.switch("--net-conf-udhcpc")
     def set_net_conf_udhcpc(self):

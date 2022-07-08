@@ -1,0 +1,88 @@
+#!/bin/sh
+
+# we should send '\r\n' stdout lines for appropriate rendering on a tty in raw mode
+if [ "$2" != "term_patching" ]
+then
+    { "$0" "$1" "term_patching" 2>&1; } | awk 1 ORS='\r\n'
+    exit $?
+fi
+
+echo "Starting $0 $1"
+set -x
+
+EXISTING_LATENCY_US=300    # with no traffic limit set, walt node ping <vnode> gives approx this number
+
+bridge="%(network_name)s"
+intf_alias="%(intf_alias)s"
+lat_us="%(lat_us)s"
+bw_Mbps="%(bw_Mbps)s"
+intf="$1"
+
+create_bridge_if_not_exists() {
+    ip link add "$bridge" type bridge 2>/dev/null
+}
+
+has_iptables() {
+    which iptables >/dev/null
+}
+
+shape_traffic_latency() {
+    opts="$@"
+    delay_added_us=$((lat_us-EXISTING_LATENCY_US))
+    if [ $delay_added_us -lt 1 ]
+    then
+        delay_added_us=1
+    fi
+    tc qdisc add dev "$intf" $opts netem delay ${delay_added_us}us
+}
+
+shape_traffic_bandwidth() {
+    opts="$@"
+    if [ -z "$lat_us" ]
+    then
+        lat_us=$EXISTING_LATENCY_US
+    fi
+    bdp_kbytes=$((lat_us * bw_Mbps / 8 / 1000))
+    min_buffer_kbytes=256
+    buf_kbytes=$((bdp_kbytes + min_buffer_kbytes))
+    tc qdisc add dev "$intf" $opts tbf rate ${bw_Mbps}mbit burst ${buf_kbytes}k latency ${lat_us}us
+}
+
+# ensure vhost-net kernel module is loaded
+modprobe vhost_net
+
+# apply network restrictions if any
+if [ ! -z "$lat_us" ]
+then
+    shape_traffic_latency root handle 1:0
+    if [ ! -z "$bw_Mbps" ]
+    then
+        shape_traffic_bandwidth parent 1:0
+    fi
+elif [ ! -z "$bw_Mbps" ]
+then
+    shape_traffic_bandwidth root
+fi
+
+# create bridge
+if [ "$bridge" != "walt-net" ]
+then
+    if create_bridge_if_not_exists
+    then
+        if has_iptables
+        then
+            iptables --append FORWARD \
+                --in-interface "$bridge" --out-interface "$bridge" \
+                --jump ACCEPT
+        fi
+    fi
+fi
+
+# set tap device up, add alias for easier debugging, and add it to bridge
+ip link set up alias "$intf_alias" master "$bridge" dev "$intf"
+
+# ensure the bridge is up
+if [ "$bridge" != "walt-net" ]
+then
+    ip link set up dev "$bridge"
+fi

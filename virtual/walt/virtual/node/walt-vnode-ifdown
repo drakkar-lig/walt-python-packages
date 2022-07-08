@@ -1,0 +1,42 @@
+#!/bin/sh
+
+# we should send '\r\n' stdout lines for appropriate rendering on a tty in raw mode
+if [ "$2" != "term_patching" ]
+then
+    { "$0" "$1" "term_patching" 2>&1; } | awk 1 ORS='\r\n'
+    exit $?
+fi
+
+echo "Starting $0 $1"
+set -x
+
+bridge="%(network_name)s"
+intf_alias="%(intf_alias)s"
+lat_us="%(lat_us)s"
+bw_Mbps="%(bw_Mbps)s"
+intf="$1"
+
+has_iptables() {
+    which iptables >/dev/null
+}
+
+# set tap device down
+ip link set down dev "$intf"
+
+# remove it from bridge
+ip link set nomaster dev "$intf"
+
+# if the bridge has no more interfaces, remove it
+if [ "$bridge" != "walt-net" ]
+then
+    if [ "$(ip link show master "$bridge" | wc -l)" -eq 0 ]
+    then
+        ip link del dev "$bridge"
+        if has_iptables
+        then
+            iptables --delete FORWARD \
+                --in-interface "$bridge" --out-interface "$bridge" \
+                --jump ACCEPT
+        fi
+    fi
+fi
