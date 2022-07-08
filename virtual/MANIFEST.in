@@ -1,1 +1,2 @@
 include walt/virtual/setup/S52waltvirtualnode
+include walt/virtual/node/walt-vnode-if*

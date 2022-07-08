@@ -2,7 +2,8 @@ import json, re
 from collections import defaultdict
 from walt.server.processes.main.network.netsetup import NetSetup
 from walt.server.processes.main.nodes.manager import VNODE_DEFAULT_RAM, VNODE_DEFAULT_CPU_CORES, \
-                                                   VNODE_DEFAULT_DISKS
+                                                   VNODE_DEFAULT_DISKS, VNODE_DEFAULT_NETWORKS
+from walt.common.settings import parse_vnode_disks_value, parse_vnode_networks_value
 from walt.common.tools import do
 from walt.common.formatting import format_sentence
 
@@ -15,6 +16,7 @@ class SettingsManager:
             'ram':              { 'category': 'virtual-nodes', 'value-check': self.correct_ram_value, 'default': VNODE_DEFAULT_RAM },
             'cpu.cores':        { 'category': 'virtual-nodes', 'value-check': self.correct_cpu_value, 'default': VNODE_DEFAULT_CPU_CORES },
             'disks':            { 'category': 'virtual-nodes', 'value-check': self.correct_disks_value, 'default': VNODE_DEFAULT_DISKS },
+            'networks':         { 'category': 'virtual-nodes', 'value-check': self.correct_networks_value, 'default': VNODE_DEFAULT_NETWORKS },
             'type':             { 'category': 'unknown-devices', 'value-check': self.value_is_switch, 'default': 'unknown' },
             'lldp.explore':     { 'category': 'switches', 'value-check': self.correct_lldp_explore_value, 'default': False,
                                     'pretty_print': lambda bool_val: str(bool_val).lower() },
@@ -124,10 +126,21 @@ class SettingsManager:
         return True
 
     def correct_disks_value(self, requester, device_infos, setting_name, setting_value, all_settings):
-        if setting_value != "none" and re.match(r'^\d+[GT](,\d+[GT])*$', setting_value) is None:
+        parsing = parse_vnode_disks_value(setting_value)
+        if parsing[0] is False:
             requester.stderr.write(
                 f"Failed: '{setting_value}' is not a valid value for option 'disks'.\n" + \
                  "        Use for example 'none', or '8G' (1 disk), '32G,1T' (2 disks), etc.\n")
+            return False
+        return True
+
+    def correct_networks_value(self, requester, device_infos, setting_name, setting_value, all_settings):
+        parsing = parse_vnode_networks_value(setting_value)
+        if parsing[0] is False:
+            error = parsing[1]
+            requester.stderr.write(
+                    f"Failed: {error}\n" + \
+                     "        Check 'walt help show device-config' for more info.\n")
             return False
         return True
 
@@ -190,7 +203,7 @@ class SettingsManager:
         # parse settings
         all_settings = {}
         for arg in settings_args:
-            parts = arg.split('=')
+            parts = arg.split('=', maxsplit=1)
             if len(parts) != 2:
                 requester.stderr.write(
                 "Provide settings as `<setting name>=<setting value>` arguments.\n")
@@ -242,6 +255,8 @@ class SettingsManager:
             elif setting_name == 'ram':
                 should_reboot_nodes = True  # update in DB (below) is enough
             elif setting_name == 'disks':
+                should_reboot_nodes = True  # update in DB (below) is enough
+            elif setting_name == 'networks':
                 should_reboot_nodes = True  # update in DB (below) is enough
             elif setting_name in ('lldp.explore', 'poe.reboots', 'kexec.allow'):
                 setting_value = (setting_value.lower() == 'true')   # convert value to boolean
