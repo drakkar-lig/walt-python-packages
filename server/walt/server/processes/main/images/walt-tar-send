@@ -3,7 +3,7 @@ set -e
 src_path="$1"
 dst_name="$2"
 
-src_path="$(realpath "$src_path")"
+src_path="$(busybox realpath "$src_path")"
 src_name="$(basename "$src_path")"
 src_parent="$(dirname "$src_path")"
 
