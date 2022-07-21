@@ -76,25 +76,28 @@ def run_transfer(req_id, dst_dir, dst_name, src_path,
     # write the parameters
     write_pickle(params, f)
     # handle client-side archiving / unarchiving
-    with ProgressMessageThread('Transfering...') as message_thread:
-        if client_operand_index == 0:
-            # client is sending
-            writer = SmartWriter(f)
-            with tarfile.open(mode='w|', fileobj=writer) as archive:
-                archive.add(src_path, arcname=dst_name, filter=set_root)
-            # let the other end know we are done writing
-            writer.shutdown_write()
-            # wait the other end to close
-            writer.wait_remote_close()
-            # ok done
-            writer.close()
-            # did we detect a message sent to us during the transfer?
-            msg = writer.get_msg()
-            if len(msg) > 0:
-                # yes, interrupt the progress meter and print it
-                message_thread.interrupt(msg)
-        else:
-            # client is receiving
-            with tarfile.open(mode='r|', fileobj=f) as archive:
-                archive.extractall(path=dst_dir)
+    try:
+        with ProgressMessageThread('Transfering...') as message_thread:
+            if client_operand_index == 0:
+                # client is sending
+                writer = SmartWriter(f)
+                with tarfile.open(mode='w|', fileobj=writer) as archive:
+                    archive.add(src_path, arcname=dst_name, filter=set_root)
+                # let the other end know we are done writing
+                writer.shutdown_write()
+                # wait the other end to close
+                writer.wait_remote_close()
+                # ok done
+                writer.close()
+                # did we detect a message sent to us during the transfer?
+                msg = writer.get_msg()
+                if len(msg) > 0:
+                    # yes, interrupt the progress meter and print it
+                    message_thread.interrupt(msg)
+            else:
+                # client is receiving
+                with tarfile.open(mode='r|', fileobj=f) as archive:
+                    archive.extractall(path=dst_dir)
+    except OSError as e:
+        print(e)
     f.close()
