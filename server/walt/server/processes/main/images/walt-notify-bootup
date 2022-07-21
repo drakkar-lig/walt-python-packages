@@ -48,6 +48,10 @@ call_image_bootup_script() {
     fi
 }
 
+remove_nologin() {
+    rm -f mnt/fs_union/run/nologin
+}
+
 run_permanent_connection() {
 	{
 		echo REQ_NOTIFY_BOOTUP_STATUS
@@ -70,6 +74,11 @@ wait_for_ssh
 
 # call script /bin/on-bootup if image provides it
 call_image_bootup_script
+
+# remove /run/nologin if present
+# (if present a warning message may be printed when connecting
+# very early and the OS considers bootup procedure is not complete)
+remove_nologin
 
 # we maintain a permanent connection to walt server.
 # opening it will set our status to "booted".
