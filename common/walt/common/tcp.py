@@ -90,7 +90,11 @@ def client_sock_file(host, port):
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     # set close-on-exec flag (subprocesses should not inherit it)
     set_close_on_exec(s, True)
-    s.connect((host, port))
+    try:
+        s.connect((host, port))
+    except:
+        s.close()
+        raise
     return RWSocketFile(s)
 
 class ServerSocketWrapper:

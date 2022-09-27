@@ -96,6 +96,10 @@ DEFAULT_BUSY_INDICATOR = BusyIndicator('Server is working')
 @reusable
 class ServerAPIConnection(object):
     def __init__(self, server_ip, local_service, target_api, busy_indicator):
+        if local_service == None:
+            local_service = BaseAPIService()
+        if busy_indicator == None:
+            busy_indicator = DEFAULT_BUSY_INDICATOR
         self.target_api = target_api
         self.server_ip = server_ip
         self.sock = None
@@ -205,10 +209,6 @@ class BaseAPIService(object):
 class ServerAPILink(object):
     def __init__(self, server_ip, target_api, local_service = None,
                        busy_indicator = None):
-        if local_service == None:
-            local_service = BaseAPIService()
-        if busy_indicator == None:
-            busy_indicator = DEFAULT_BUSY_INDICATOR
         self.conn = ServerAPIConnection(
             server_ip,
             local_service,
