@@ -29,30 +29,33 @@ SHELL_BANNER = """\
 def fake_tftp_read(env, abs_path):
     # connect to server
     f = client_sock_file(env['next-server'], WALT_SERVER_TCP_PORT)
-    # send the request id
-    Requests.send_id(f, Requests.REQ_FAKE_TFTP_GET)
-    # wait for the READY message from the server
-    f.readline()
-    # write the parameters
-    write_pickle(dict(
-            node_mac=env['mac'],
-            path=abs_path), f)
-    # receive status
-    status = f.readline().decode('UTF-8').strip()
-    if status == 'OK':
-        # read size
-        size = int(f.readline().strip())
-        print(abs_path, size)
-        # receive content
-        content = b''
-        while len(content) < size:
-            content += f.read(size - len(content))
-    else:
-        content = None
-    # close file and return
-    f.close()
-    print(abs_path + " " + status)
-    return content
+    try:
+        # send the request id
+        Requests.send_id(f, Requests.REQ_FAKE_TFTP_GET)
+        # wait for the READY message from the server
+        f.readline()
+        # write the parameters
+        write_pickle(dict(
+                node_mac=env['mac'],
+                path=abs_path), f)
+        # receive status
+        status = f.readline().decode('UTF-8').strip()
+        if status == 'OK':
+            # read size
+            size = int(f.readline().strip())
+            print(abs_path, size)
+            # receive content
+            content = b''
+            while len(content) < size:
+                content += f.read(size - len(content))
+        else:
+            content = None
+        # return
+        print(abs_path + " " + status)
+        return content
+    finally:
+        # close file
+        f.close()
 
 def http_read(url):
     try:
