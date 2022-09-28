@@ -87,6 +87,10 @@ define_test "walt node shell" as {
     test_walt_shell node $(test_suite_node)
 }
 
+define_test "walt node console" as {
+    test_walt_console $(test_suite_node)
+}
+
 define_test "walt node reboot" as {
     walt node reboot $(test_suite_node)
     walt node reboot --hard $(test_suite_node)
