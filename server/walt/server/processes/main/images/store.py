@@ -77,6 +77,7 @@ class NodeImageStore(object):
         db_images = { db_img.fullname: db_img.ready \
                         for db_img in self.db.select('images') }
         # gather local images
+        self.repository.rescan()
         podman_images = set(self.repository.get_images())
         docker_images = None  # Loaded on-demand thereafter
         # import new images from podman into the database
@@ -129,20 +130,23 @@ class NodeImageStore(object):
     def register_image(self, image_fullname, is_ready):
         self.db.insert('images', fullname=image_fullname, ready=is_ready)
         self.db.commit()
-        self.refresh()
+        self.images[image_fullname] = NodeImage(self, image_fullname)
 
     # Make sure to rename the image in docker *before* calling this.
     def rename(self, old_fullname, new_fullname):
         self.db.execute('update images set fullname = %(new_fullname)s where fullname = %(old_fullname)s',
                             dict(old_fullname = old_fullname, new_fullname = new_fullname))
         self.db.commit()
-        self.refresh()
+        img = self.images[old_fullname]
+        img.rename(new_fullname)
+        self.images[new_fullname] = img
+        del self.images[old_fullname]
 
     # Make sure to remove the image from docker *before* calling this.
     def remove(self, image_fullname):
         self.db.delete('images', fullname=image_fullname)
         self.db.commit()
-        self.refresh()
+        del self.images[image_fullname]
 
     def __getitem__(self, image_fullname):
         if image_fullname not in self.images:

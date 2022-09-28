@@ -1,0 +1,16 @@
+# walt-server-podman - WalT service for Podman containers
+#
+# The WalT platform provides a lightweight distributed testbed for
+# sensor networks, distributed protocols, distributed data
+# management.
+
+[Unit]
+Description=WalT service for Podman containers
+
+[Service]
+RuntimeDirectory=walt/podman
+ExecStart=podman system service -t 0 unix:///var/run/walt/podman/podman.socket
+Restart=on-failure
+
+[Install]
+WantedBy=walt-server.service
