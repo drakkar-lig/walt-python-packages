@@ -82,3 +82,33 @@ EOF
     rm -f $checkfile
     [ "$out" = "ok" ]
 }
+
+test_walt_console() {
+    node="$1"
+    which expect || {
+        echo 'This test requires the "expect" command.' >&2
+        return 1
+    }
+
+    expect << EOF
+set timeout 5
+spawn walt node console $node
+# define error management
+expect_before {
+    timeout { puts "timeout: 'walt node console' did not respond properly!"; exit 1 }
+    eof     { puts "eof": 'walt node console' ended unexpectedly!"; exit 1 }
+}
+# wait for welcome message
+expect "abort: "
+# pass welcome message
+send "\r"
+sleep 1
+# send <enter> to trigger the credential prompt
+send "\r"
+# wait for credential prompt
+expect "$node login: "
+# send ctrl-a d
+send "\x01"; sleep 1; send "d"
+expect "Disconnected from console."
+EOF
+}

@@ -12,18 +12,19 @@ Help about WalT in general:
     walt help show
 
 Sub-commands:
-    show    show WalT nodes
-    boot    let a (set of) node(s) boot an operating system image
-    shell   run an interactive shell connected to the node
-    run     run a command on a (set of) node(s)
-    cp      transfer files/dirs to or from a node
-    reboot  reboot a (set of) node(s)
-    config  get or set nodes configuration
-    create  create a virtual WalT node
-    remove  remove a virtual WalT node
-    rename  rename a WalT node
-    ping    check that a node is reachable on WalT network
-    blink   make a node blink for a given number of seconds
-    wait    wait for bootup notification of a node (or set of nodes)
-    expose  expose a network port of a node on the local machine
-    deploy  alias to 'boot' subcommand
+    show     show WalT nodes
+    boot     let a (set of) node(s) boot an operating system image
+    shell    run an interactive shell connected to the node
+    run      run a command on a (set of) node(s)
+    cp       transfer files/dirs to or from a node
+    reboot   reboot a (set of) node(s)
+    config   get or set nodes configuration
+    create   create a virtual WalT node
+    remove   remove a virtual WalT node
+    rename   rename a WalT node
+    ping     check that a node is reachable on WalT network
+    console  connect to the console of a WalT node
+    blink    make a node blink for a given number of seconds
+    wait     wait for bootup notification of a node (or set of nodes)
+    expose   expose a network port of a node on the local machine
+    deploy   alias to 'boot' subcommand
