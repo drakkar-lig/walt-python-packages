@@ -89,13 +89,14 @@ class DockerHubClient:
             url = page_info['next']
         return repos
     async def async_list_image_tags(self, image_name):
-        url = 'https://registry.hub.docker.com/v1/repositories/%(image_name)s/tags' % \
+        url = 'https://hub.docker.com/v2/repositories/%(image_name)s/tags?page_size=100' % \
                     dict(image_name = image_name)
         tags = []
-        data = await async_json_http_get(url)
-        for elem in data:
-            tag = requests.utils.unquote(elem['name'])
-            tags += [ tag ]
+        while url is not None:
+            page_info = await async_json_http_get(url)
+            for res in page_info['results']:
+                tags.append(res['name'])
+            url = page_info['next']
         return tags
     async def async_get_config(self, fullname):
         print('retrieving config from hub: ' + fullname)
