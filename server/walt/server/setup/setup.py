@@ -15,7 +15,8 @@ WALT_SERVICES = [
     "walt-server-snmpd.service",
     "walt-server-lldpd.service",
     "walt-server-ptpd.service",
-    "walt-server-httpd.service"
+    "walt-server-httpd.service",
+    "walt-server-podman.service",
 ]
 
 # WALT has its own version of the following services.

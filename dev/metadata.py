@@ -73,6 +73,7 @@ PACKAGE_SPECIFIC_INFO = {
                         'aiohttp>=3.8.1',
                         'aiostream>=0.4.4',
                         'netifaces>=0.11.0',
+                        'podman>=4.2.0',
                         'walt-common==%(upload)s',
                         'walt-virtual==%(upload)s',
                         'walt-vpn==%(upload)s'],

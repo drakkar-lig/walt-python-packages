@@ -3,6 +3,8 @@ import os
 import shutil
 import time
 from pathlib import Path
+from podman import PodmanClient
+from podman.errors.exceptions import ImageNotFound
 from subprocess import CalledProcessError
 
 from walt.server.exttools import buildah, podman, mount, umount, findmnt
@@ -11,6 +13,7 @@ from walt.server.tools import add_image_repo
 MAX_IMAGE_LAYERS = 128
 METADATA_CACHE_FILE = Path('/var/cache/walt/images.metadata')
 IMAGE_LAYERS_DIR = '/var/lib/containers/storage/overlay'
+PODMAN_API_SOCKET = 'unix:///var/run/walt/podman/podman.socket'
 
 # 'buildah mount' does not mount the overlay filesystem with appropriate options to allow nfs export.
 # let's fix this.
@@ -55,6 +58,7 @@ class WalTLocalRepository:
     def __init__(self):
         self.names_cache = {}
         self.metadata_cache = self.load_metadata_cache_file()
+        self.p = PodmanClient(base_url = PODMAN_API_SOCKET)
     def load_metadata_cache_file(self):
         if METADATA_CACHE_FILE.exists():
             return json.loads(METADATA_CACHE_FILE.read_text())
@@ -73,59 +77,59 @@ class WalTLocalRepository:
             return 'localhost/' + fullname
         else:
             return 'docker.io/' + fullname
+    def ll_podman_tag(self, old_fullname_or_id, repo_fullname):
+        new_args = repo_fullname.split(':')  # split image_repo_name and image_tag
+        self.p.images.get(old_fullname_or_id).tag(*new_args)
     def tag(self, old_fullname, new_fullname):
         if self.image_exists(new_fullname):
             # take care not making previous version of image a dangling image
-            podman.rmi(add_image_repo(new_fullname))
+            self.p.images.remove(add_image_repo(new_fullname))
         if old_fullname in self.names_cache:
             self.names_cache[new_fullname] = self.names_cache[old_fullname]
         else:
             self.names_cache.pop(new_fullname, None)
-        podman.tag(old_fullname, add_image_repo(new_fullname))
+        self.ll_podman_tag(old_fullname, add_image_repo(new_fullname))
     def rmi(self, fullname, ignore_missing = False):
         self.untag(fullname, ignore_missing = ignore_missing)
     def untag(self, fullname, ignore_missing = False):
         if ignore_missing and not self.image_exists(fullname):
             return  # nothing to do
-        # caution: we are not using "podman untag" because its behaviour is
-        # unexpected (at least in version 1.9.3: when an image has several docker tags,
-        # it removes all docker tags irrespectively of the one specified).
-        podman.rmi(add_image_repo(fullname))
+        self.p.images.remove(add_image_repo(fullname))
         self.names_cache.pop(fullname, None)
-    def deep_inspect(self, image_ids):
-        print('deep_inspect', image_ids)
-        images_info = podman.inspect('--format', 'json', *image_ids)
-        images_info = json.loads(images_info)
-        results = {}
-        for image_id, image_info in zip(image_ids, images_info):
-            labels = image_info['Labels']
-            if labels is None:
-                labels = {}
-            results[image_id] = dict(
-                labels = labels,
-                editable = (len(image_info['RootFS']['Layers']) < MAX_IMAGE_LAYERS),
-                created_at = image_info['Created'].replace('T', ' ').replace('Z', ' +0000 UTC'),
-                image_id = image_id
-            )
-        return results
+    def deep_inspect(self, image_id):
+        print('deep_inspect', image_id)
+        data = self.p.images.get_registry_data(image_id)
+        labels = data.attrs['Labels']
+        if labels is None:
+            labels = {}
+        return dict(
+            labels = labels,
+            editable = (len(data.attrs['RootFS']['Layers']) < MAX_IMAGE_LAYERS),
+            created_at = data.attrs['Created'].replace('T', ' ').replace('Z', ' +0000 UTC'),
+            image_id = image_id
+        )
     def image_exists(self, fullname):
+        return self.get_podman_image(fullname) is not None
+    def get_podman_image(self, fullname):
         try:
-            podman.image.exists(add_image_repo(fullname))
-            return True
-        except CalledProcessError:
-            return False
-    def refresh_cache(self):
-        self.names_cache = {}
-        for line in podman.images('--format', 'table {{.ID}}|{{.Repository}}:{{.Tag}}',
-                                    '--filter', 'dangling=false',
-                                    '--no-trunc', '--noheading').splitlines():
-            sha_id, podman_image_name = line.split('|')
-            image_id = sha_id[7:]   # because it starts with "sha256:"
-            # buildah may manage several repos, we do not need it here, discard this repo prefix
+            return self.p.images.get(add_image_repo(fullname))
+        except ImageNotFound:
+            return None
+    def rescan(self):
+        self.refresh_cache()
+    def refresh_names_cache_for_image(self, im):
+        for podman_image_name in im.tags:
+            # podman may manage several repos, we do not need it here, discard this repo prefix
             fullname = podman_image_name.split('/', 1)[1]
             if not '/' in fullname:
                 continue
-            self.names_cache[fullname] = image_id
+            self.names_cache[fullname] = im.id
+            print(f'found {fullname} -- {im.id}')
+    def refresh_cache(self):
+        print('refreshing cache...')
+        self.names_cache = {}
+        for im in self.p.images.list(filters={'dangling': False}):
+            self.refresh_names_cache_for_image(im)
         old_metadata_cache = self.metadata_cache
         self.metadata_cache = {}
         missing_ids = set()
@@ -136,13 +140,11 @@ class WalTLocalRepository:
                 self.metadata_cache[image_id] = old_metadata_cache[image_id]
                 continue
             missing_ids.add(image_id)
-        if len(missing_ids) > 0:
-            missing_ids = tuple(missing_ids)
-            images_info = self.deep_inspect(missing_ids)
-            self.metadata_cache.update(images_info)
+        for image_id in missing_ids:
+            self.metadata_cache[image_id] = self.deep_inspect(image_id)
         self.save_metadata_cache_file()
+        print('done refreshing cache.')
     def get_images(self):
-        self.refresh_cache()
         for fullname, image_id in self.names_cache.items():
             if fullname.startswith('walt/'):
                 continue
@@ -152,15 +154,16 @@ class WalTLocalRepository:
     def get_metadata(self, fullname):
         image_id = self.names_cache.get(fullname)
         if image_id is None:
-            self.refresh_cache()
+            im = self.get_podman_image(fullname)
+            if im is not None:
+                self.refresh_names_cache_for_image(im)
         image_id = self.names_cache.get(fullname)
         if image_id is None:
+            print(f'get_metadata() failed for {fullname}: image not found')
             return None
-        metadata = self.metadata_cache.get(image_id)
-        if metadata is None:
-            self.refresh_cache()
-        metadata = self.metadata_cache.get(image_id)
-        return metadata
+        if image_id not in self.metadata_cache:
+            self.metadata_cache[image_id] = self.deep_inspect(image_id)
+        return self.metadata_cache[image_id]
     def stop_container(self, cont_name):
         podman.rm("-f", "-i", cont_name)
     def events(self):
@@ -173,14 +176,16 @@ class WalTLocalRepository:
         # if server daemon was killed and restarted, the mount may still be there
         if mount_exists(mount_path):
             return False    # nothing to do
+        # in some cases the code may remove the last tag of an image whilst it is
+        # still mounted, waiting for grace time expiry. this fails.
+        # in order to avoid this we attach a new tag to all images we mount.
+        image_name = self.get_mount_image_name(image_id)
+        if not self.image_exists(image_name):
+            self.ll_podman_tag(str(image_id), image_name)
+        # create a buildah container and use the buildah mount command
         cont_name = self.get_mount_container_name(image_id)
         try:
             buildah('from', '--pull-never', '--name', cont_name, image_id)
-            # in some cases the code may remove the last tag of an image whilst it is
-            # still mounted, waiting for grace time expiry. this fails.
-            # in order to avoid this we attach a new tag to all images we mount.
-            image_name = self.get_mount_image_name(image_id)
-            podman.tag(str(image_id), image_name)
         except CalledProcessError:
             print('Note: walt server was probably not stopped properly and container still exists. Going on.')
         dir_name = buildah.mount(cont_name)
@@ -200,4 +205,4 @@ class WalTLocalRepository:
         buildah.umount(cont_name)
         buildah.rm(cont_name)
         image_name = self.get_mount_image_name(image_id)
-        podman.rmi(image_name)
+        self.p.images.remove(image_name)
