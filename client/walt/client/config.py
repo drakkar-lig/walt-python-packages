@@ -57,10 +57,12 @@ def get_config_from_file():
     modified = False
     try:
         conf = load_conf(config_file, optional=True)
+        if conf is None:
+            return {}
     except:
         print("Warning: %s file exists, but it could not be parsed properly." \
                             % config_file)
-        conf = {}
+        return {}
     for key in conf:
         if key in CONFIG_CODED_ITEMS:
             conf[key] = decode(conf[key])
