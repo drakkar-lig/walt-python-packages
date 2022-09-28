@@ -12,26 +12,47 @@ expect "# $"
 send ". /tmp/auto.sh\r"
 expect "# $"
 
-proc test_complete {cmd expected tabs tabs_text} {
-    set timeout 10
-    send "$cmd$tabs"
-    expect {
-        "$expected"  { }
-        timeout { puts "\ntimeout: '$cmd$tabs_text' not completed properly!"; exit 1 }
+proc test_complete {cmd expected num_tabs} {
+    if { $num_tabs == 1 } {
+        set tabs "\t"
+        set tabs_text "<tab>"
     }
+    if { $num_tabs == 2 } {
+        set tabs "\t\t"
+        set tabs_text "<tab><tab>"
+    }
+    sleep 1
+    # send command and tab or tab-tab
+    send "$cmd$tabs"
+    # typed command is echo-ed
+    expect "$cmd"
+    # if tab-tab, then completions are output on a new line
+    if { $num_tabs == 2 } {
+        expect "\r"
+    }
+    # check if we get the expected completion within 10s
+    # (or an unexpected one, or a timeout)
+    set timeout 10
+    expect {
+        "$expected"  { puts "\ncompleted OK." }
+        -re "..*" { puts "\nunexpected: '$cmd$tabs_text' got unexpected completion '$expect_out(buffer)'!"; exit 1 }
+        timeout { puts "\ntimeout: '$cmd$tabs_text' not completed in time!"; exit 1 }
+    }
+    # restore timeout value
     set timeout 1
+    # cancel the completion using ctrl-C
+    puts "\n"
     send $::ctrl_c
-    expect "# $"
-    send "\r"
-    expect "# $"
+    sleep 1
+    expect *    # flush input buffer
 }
 
 proc test_tab_complete {cmd expected} {
-    test_complete "$cmd" "$expected" "\t" "<tab>"
+    test_complete "$cmd" "$expected" 1
 }
 
 proc test_tabtab_complete {cmd expected} {
-    test_complete "$cmd" "$expected" "\t\t" "<tab><tab>"
+    test_complete "$cmd" "$expected" 2
 }
 
 set file_data [read stdin]
