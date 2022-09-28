@@ -47,22 +47,15 @@ root@walt-server:~$ journalctl -au <failing-service>
 ```
 
 
-## Issues with virtual nodes
+## Issues with nodes
 
-For easier troobleshooting, virtual nodes are run using a `screen` command.
-You can list screen session identifiers using:
-```
-root@walt-server:~$ screen -ls
-```
+Issues with virtual nodes are easier to troubleshoot (compared to physical nodes),
+because you can use `walt node console` to get early boot messages.
+See [`walt help show node-console`](node-console.md).
 
-And then connect to the session of the failing node using:
-```
-root@walt-server:~$ screen -r <session-id>
-```
-
-You may find the reason for the issue there.
-If you need to scroll backward, type `ctrl-a` and then the `<esc>` key. This lets you enter the `Copy mode`: you can scroll using `<up>`, `<down>`, `<page-up`, and `<page-down>` keys. To leave the `Copy mode`, type `<esc>`.
-To leave the screen session and return to the shell, type `ctrl-a` and then `<d>`.
+For this reason, when developing a new walt image or making low level OS changes,
+it is recommended to test on a virtual node first, if possible (virtual nodes have a
+pc-x86-64 architecture, thus the image must be compatible with this architecture).
 
 
 ## Reporting and asking for help
