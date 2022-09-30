@@ -3,7 +3,7 @@ from walt.common.apilink import AttrCallRunner, AttrCallAggregator
 
 class BlockingTasksManager(RPCProcessConnector):
     def __init__(self, server):
-        super().__init__(local_context = False)
+        super().__init__(local_context = False, label = 'main-to-blocking')
         self.server = server
 
     def session(self, requester):

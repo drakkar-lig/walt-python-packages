@@ -21,7 +21,7 @@ class ServiceToHubProcess(object):
 class HubRPCProcessConnector(RPCProcessConnector):
     def __init__(self, server):
         service = ServiceToHubProcess(self, server)
-        RPCProcessConnector.__init__(self, service)
+        RPCProcessConnector.__init__(self, service, label = 'main-to-hub')
 
 APISession.register_target_api('NSAPI', NSAPI)
 APISession.register_target_api('VSAPI', VSAPI)

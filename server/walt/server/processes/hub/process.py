@@ -9,7 +9,7 @@ TCP_LISTENER_CLASSES = ( APISessionManager, )
 class ServerHubProcess(EvProcess):
     def __init__(self, tman, level):
         EvProcess.__init__(self, tman, 'server-hub', level)
-        self.main = RPCProcessConnector(self)
+        self.main = RPCProcessConnector(self, label = 'hub-to-main')
         self.tcp_server = TCPServer(WALT_SERVER_DAEMON_PORT)
         for cls in TCP_LISTENER_CLASSES:
             self.tcp_server.register_listener_class(

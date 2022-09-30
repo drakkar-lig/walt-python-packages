@@ -163,7 +163,7 @@ class RPCContext(object):
         self.task = RPCTask(connector, remote_req_id)
 
 class RPCProcessConnector(ProcessConnector):
-    def __init__(self, default_service = None, local_context = True):
+    def __init__(self, default_service = None, local_context = True, label = None):
         self.submitted_tasks = {}
         self.ids_generator = itertools.count()
         self.results = {}
@@ -172,6 +172,12 @@ class RPCProcessConnector(ProcessConnector):
         self.do_async = self.default_session.do_async
         self.do_sync = self.default_session.do_sync
         self.local_context = local_context
+        self.label = label
+    def __repr__(self):
+        if self.label is not None:
+            return f'<connector: {self.label}>'
+        else:
+            return '<connector>'
     def create_session(self, remote_req_id = -1, local_service = None):
         return RPCSession(self, remote_req_id, local_service)
     def handle_event(self, ts):
@@ -181,6 +187,7 @@ class RPCProcessConnector(ProcessConnector):
         while self.poll():
             events.append(self.read())
         events.sort(key=lambda x: PRIORITIES[x[0]])
+        #print(current_process().name, 'new events', events)
         for event in events:
             if event[0] == 'API_CALL':
                 self.handle_api_call(*event[1:])
@@ -225,10 +232,12 @@ class RPCProcessConnector(ProcessConnector):
         # (otherwise with imbricated sync_runner() calls on different objects
         # avoiding infinite loops would get very complex)
         loop_condition = lambda : (local_req_id not in self.results)
+        #print('mini evloop')
         mini_ev_loop = EventLoop()
         mini_ev_loop.register_listener(self)
         mini_ev_loop.register_listener(current_process())   # also listen for process manager requests
         mini_ev_loop.loop(loop_condition)
+        #print('mini evloop done')
         return self.results.pop(local_req_id)
     def send_task(self, remote_req_id, local_service, path, args, kwargs, sync):
         local_req_id = next(self.ids_generator)
@@ -240,7 +249,7 @@ class RPCProcessConnector(ProcessConnector):
                     kwargs = kwargs,
                     sync = sync,
                     result_cb = None)
-        #print current_process().name, 'API_CALL', remote_req_id, local_req_id, path, args, kwargs, sync
+        #print(current_process().name, 'API_CALL', remote_req_id, local_req_id, path, args, kwargs, sync)
         self.write(('API_CALL', remote_req_id, local_req_id, path, args, kwargs, sync))
         return local_req_id
 
