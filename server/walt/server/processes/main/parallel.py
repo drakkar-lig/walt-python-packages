@@ -1,6 +1,5 @@
 #!/usr/bin/env python
-import os, pty, shlex, fcntl, termios, sys, socket, signal, pickle
-from subprocess import Popen, STDOUT
+import os, pty, shlex, sys, signal, pickle
 from walt.common.io import read_and_copy
 from walt.common.tcp import read_pickle
 from walt.common.tty import set_tty_size_raw, set_tty_size
@@ -28,14 +27,35 @@ class ForkPtyProcessListener(object):
         self.end_child()
         self.env.close()
 
+def daemonize():
+    pid = os.fork()
+    if pid > 0:
+        # exit first parent
+        os._exit(0)
+    os.setsid()
+    pid = os.fork()
+    if pid > 0:
+        # exit second parent
+        os._exit(0)
+
+def fork_daemon_child():
+    child_pid = os.fork()
+    if child_pid == 0:  # child
+        daemonize()
+    else:               # parent
+        os.waitpid(child_pid, 0)
+    # note: since the child calls daemonize(),
+    # child_pid is not its final pid.
+    # here we just return a status indicating
+    # if we are the child or not.
+    return (child_pid == 0)
+
 class ParallelProcessSocketListener(object):
     def __init__(self, ev_loop, sock_file, **kwargs):
         self.ev_loop = ev_loop
         self.params = None
         self.client_sock_file = sock_file
         self.slave_r, self.slave_w = None, None
-        self.monitor_r = None
-        self.popen = None
         self.send_client('READY\n')
     def send_client(self, s):
         self.client_sock_file.write(s.encode('UTF-8'))
@@ -56,6 +76,7 @@ class ParallelProcessSocketListener(object):
         else:
             self.start_popen(cmd_args, env)
     def start_pty(self, cmd_args, env):
+        #print(f'{self.client_sock_file.fileno()}: start_pty {cmd_args}')
         # fork a child process in its own virtual terminal
         slave_pid, fd_slave = pty.fork()
         # the child (slave process) should execute the command
@@ -73,28 +94,27 @@ class ParallelProcessSocketListener(object):
         process_listener = ForkPtyProcessListener(slave_pid, self)
         self.ev_loop.register_listener(process_listener)
     def start_popen(self, cmd_args, env):
-        # For efficiency, we let the popen object read & write directly on the socket.
-        # Thus the ev_loop should just detect when the popen process ends.
-        # In order to achieve this we create a pipe and let the child inherit only
-        # one of the ends. By letting the event loop monitor the other end, we can
-        # detect when the popen process ends.
-        self.monitor_r, monitor_w = os.pipe()
-        os.set_inheritable(self.monitor_r, False)
-        os.set_inheritable(monitor_w, True)
-        self.popen = Popen(cmd_args, env=env, bufsize=1024*1024,
-                        stdin=self.client_sock_file, stdout=self.client_sock_file, stderr=STDOUT,
-                        pass_fds=(self.client_sock_file.fileno(), monitor_w))
-        os.close(monitor_w)   # this should only be kept open in the popen child, not here
-        # we should now listen on self.monitor_r
-        self.ev_loop.update_listener(self)
+        # For efficiency, we fork a child process which will read & write directly
+        # on the socket.
+        # Since we do not want to bother detecting the end of the child to run
+        # waitpid(), this child process will be a daemon: we delegate the proper
+        # termination to PID 1.
+        #print(f'{self.client_sock_file.fileno()}: start_popen {cmd_args}')
+        if fork_daemon_child():
+            # - child -
+            sock_fd = self.client_sock_file.fileno()
+            for std_fd in (0, 1, 2):
+                os.dup2(sock_fd, std_fd)
+            os.close(sock_fd)
+            os.execvpe(cmd_args[0], cmd_args, env)
+        # - parent -
+        # the child will do the work, we are no longer needed
+        self.ev_loop.remove_listener(self)
     # let the event loop know what we are reading on
     def fileno(self):
-        if self.monitor_r is None:
-            if self.client_sock_file.closed:
-                return None
-            return self.client_sock_file.fileno()
-        else:
-            return self.monitor_r
+        if self.client_sock_file.closed:
+            return None
+        return self.client_sock_file.fileno()
     # handle_event() will be called when the event loop detects
     # new input data for us.
     def handle_event(self, ts):
@@ -102,9 +122,11 @@ class ParallelProcessSocketListener(object):
             # we did not get the parameters yet, let's do it
             self.params = read_pickle(self.client_sock_file)
             if self.params == None:
+                print(f'{self.client_sock_file.fileno()}: malformed params')
                 return False    # issue, this will call self.close()
             self.update_params()
             if self.prepare(**self.params) == False:
+                #print(f'{self.client_sock_file.fileno()}: closing immediately given value of params')
                 return False    # issue, this will call self.close()
             self.params['cmd'] = self.get_command(**self.params)
             # we now have all info to start the child process
@@ -112,28 +134,21 @@ class ParallelProcessSocketListener(object):
         else:
             # otherwise we are all set. Getting here means
             # we got input data or the child process ended.
-            if self.monitor_r is None:
-                # tty mode --
-                # in this mode input data and window resize events are
-                # multiplexed on the socket.
-                try:
-                    evt_info = pickle.load(self.client_sock_file)
-                    if evt_info['evt'] == 'input_data':
-                        self.slave_w.write(evt_info['data'])
-                        self.slave_w.flush()
-                    elif evt_info['evt'] == 'window_resize':
-                        win_size = (evt_info['lines'], evt_info['columns'])
-                        set_tty_size(self.slave_w.fileno(), win_size)
-                except Exception as e:
-                    print(self, e)
-                    return False    # issue, this will call self.close()
-            else:
-                # popen mode --
-                # in this mode the child process reads raw data directly on
-                # the socket, and we are just monitoring self.monitor_r, thus
-                # getting here means our child popen process closed its end
-                # of the pipe (monitor_w) which probably means it ended.
-                return False # this will call self.close()
+            # the fact we are still alive and listening implies
+            # we are in the tty mode.
+            # in this mode input data and window resize events are
+            # multiplexed on the socket.
+            try:
+                evt_info = pickle.load(self.client_sock_file)
+                if evt_info['evt'] == 'input_data':
+                    self.slave_w.write(evt_info['data'])
+                    self.slave_w.flush()
+                elif evt_info['evt'] == 'window_resize':
+                    win_size = (evt_info['lines'], evt_info['columns'])
+                    set_tty_size(self.slave_w.fileno(), win_size)
+            except Exception as e:
+                print(self, e)
+                return False    # issue, this will call self.close()
     def close(self):
         if self.client_sock_file:
             self.client_sock_file.close()
@@ -144,9 +159,3 @@ class ParallelProcessSocketListener(object):
         if self.slave_w:
             self.slave_w.close()
             self.slave_w = None
-        if self.popen:
-            self.popen.wait()
-            self.popen = None
-        if self.monitor_r:
-            os.close(self.monitor_r)
-            self.monitor_r = None
