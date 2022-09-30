@@ -6,6 +6,7 @@ from walt.client.tools import confirm
 from walt.client.interactive import run_image_shell_prompt
 from walt.client.transfer import run_transfer_with_image
 from walt.client.auth import get_auth_conf
+from walt.client.config import conf
 from walt.client.application import WalTCategoryApplication, WalTApplication
 from walt.client.types import IMAGE, IMAGE_CLONE_URL, \
                               IMAGE_CP_SRC, IMAGE_CP_DST
@@ -57,7 +58,7 @@ class WalTImageShow(WalTApplication):
     _names_only = False # default
     def main(self):
         with ClientToServerLink() as server:
-            print(server.show_images(self._refresh, self._names_only))
+            print(server.show_images(conf['username'], self._refresh, self._names_only))
     @cli.autoswitch(help='resync image list from Docker daemon.')
     def refresh(self):
         self._refresh = True

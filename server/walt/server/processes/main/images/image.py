@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import re
 import typing
-from datetime import datetime
 
 if typing.TYPE_CHECKING:
     from walt.server.processes.main.images.store import NodeImageStore
@@ -88,16 +87,6 @@ def validate_image_name(requester, image_name):
     requester.stderr.write(ERROR_BAD_IMAGE_NAME)
     return False
 
-def parse_date(created_at):
-    # strptime does not support parsing nanosecond precision
-    # remove last 3 decimals of this number
-    created_at = re.sub(r'([0-9]{6})[0-9]*', r'\1', created_at)
-    dt = datetime.strptime(created_at, "%Y-%m-%d %H:%M:%S.%f %z %Z")
-    # remove subsecond precision (not needed)
-    dt = dt.replace(microsecond=0)
-    # convert to local time
-    return dt.astimezone().replace(tzinfo=None)
-
 class NodeImage(object):
     def __init__(self, store: NodeImageStore, fullname):
         self.store = store
@@ -123,6 +112,12 @@ class NodeImage(object):
     def labels(self):
         return self.metadata['labels']
     @property
+    def node_models(self):
+        return self.metadata['node_models']
+    @property
+    def node_models_desc(self):
+        return self.metadata['node_models_desc']
+    @property
     def editable(self):
         return self.metadata['editable']
     @property
@@ -133,11 +128,7 @@ class NodeImage(object):
         self.db.update('images', 'fullname', fullname=self.fullname, ready=is_ready)
         self.db.commit()
     def get_node_models(self):
-        if self.labels is None:
-            return None
-        if 'walt.node.models' not in self.labels:
-            return None
-        return self.labels['walt.node.models'].split(',')
+        return self.node_models
     def get_labels(self):
         return self.labels
     @property

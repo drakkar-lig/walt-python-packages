@@ -183,8 +183,8 @@ class CSAPI(APISession):
                                           dh_peer, auth_conf)
 
     @api_expose_method
-    def show_images(self, context, refresh, names_only=False):
-        return context.images.show(context.requester, refresh, names_only)
+    def show_images(self, context, username, refresh, names_only=False):
+        return context.images.show(context.requester, username, refresh, names_only)
 
     @api_expose_method
     def create_image_shell_session(self, context, image_name, task_label):
