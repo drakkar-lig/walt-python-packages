@@ -171,12 +171,12 @@ def tag_server_image_to_requester(walt_local_repo, ws_image_fullname,
                                   remote_image_fullname, **args):
     walt_local_repo.tag(remote_image_fullname, ws_image_fullname)
 
-def pull_image(walt_local_repo, docker_daemon, hub, requester, remote_location,
+def pull_image(server, docker_daemon, hub, remote_location,
                remote_image_fullname, **args):
     if remote_location == LOCATION_DOCKER_HUB:
-        hub.pull(remote_image_fullname)
+        hub.pull(server, remote_image_fullname)
     elif remote_location == LOCATION_DOCKER_DAEMON:
-        docker_daemon.pull(remote_image_fullname)
+        docker_daemon.pull(server, remote_image_fullname)
 
 class WorkflowCleaner:
     def __init__(self, context):
@@ -197,15 +197,14 @@ class WorkflowCleaner:
             # restore the backups
             for image_fullname, backup_fullname in saved_images.items():
                 walt_local_repo.tag(backup_fullname, image_fullname)
-        # if ok, update the image store
-        # (otherwise we just restored things from backup, so there was no change)
-        if ok:
-            walt_local_repo.clear_name_cache()
-            image_store.refresh()
-            image_store.update_image_mounts()
         # in any case cleanup the backup tags
         for backup_fullname in saved_images.values():
             walt_local_repo.untag(backup_fullname)
+        # if ok, update the image store
+        # (otherwise we just restored things from backup, so there was no change)
+        if ok:
+            image_store.resync_from_repository()
+            image_store.update_image_mounts()
 
 # workflow management functions
 # -----------------------------
@@ -229,7 +228,7 @@ def workflow_run(workflow, **context):
 
 # walt image clone implementation
 # -------------------------------
-def perform_clone(requester, docker_daemon, hub, nodes_manager,
+def perform_clone(requester, docker_daemon, hub,
                   clonable_link, image_store, force, image_name, **kwargs):
     username = requester.get_username()
     if not username:
@@ -325,7 +324,6 @@ def perform_clone(requester, docker_daemon, hub, nodes_manager,
         saved_images = {},
         clonable_link = clonable_link,
         target_node_models = target_node_models,
-        nodes_manager = nodes_manager,
         docker_daemon = docker_daemon,
         hub = hub,
         **kwargs
@@ -351,6 +349,7 @@ def perform_clone(requester, docker_daemon, hub, nodes_manager,
 def clone(requester, server: Server, hub, docker_daemon, **kwargs):
     try:
         return perform_clone(requester=requester,
+                             server=server,
                              walt_local_repo=server.repository,
                              docker_daemon=docker_daemon,
                              hub=hub,

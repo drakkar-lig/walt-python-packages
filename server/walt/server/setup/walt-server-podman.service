@@ -8,9 +8,6 @@
 Description=WalT service for Podman containers
 
 [Service]
-RuntimeDirectory=walt/podman
-ExecStart=podman system service -t 0 unix:///var/run/walt/podman/podman.socket
+# note: socket fd is given by systemd socket activation feature
+ExecStart=podman system service
 Restart=on-failure
-
-[Install]
-WantedBy=walt-server.service

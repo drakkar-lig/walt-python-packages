@@ -14,7 +14,7 @@ def show(db, images, requester, refresh, names_only):
     if not username:
         return None     # client already disconnected, give up
     if refresh:
-        images.refresh()
+        images.resync_from_repository(rescan=True)
     tabular_data = []
     for image in images.values():
         if image.user != username:

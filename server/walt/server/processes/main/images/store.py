@@ -73,11 +73,11 @@ class NodeImageStore(object):
         self.deadlines = {}
         self.filesystems = FilesystemsCache(server.ev_loop, FS_CMD_PATTERN)
 
-    def refresh(self, startup = False):
+    def resync_from_db(self):
+        "Synchronization function called on daemon startup."
         db_images = { db_img.fullname: db_img.ready \
                         for db_img in self.db.select('images') }
         # gather local images
-        self.repository.rescan()
         podman_images = set(self.repository.get_images())
         docker_images = None  # Loaded on-demand thereafter
         # import new images from podman into the database
@@ -92,18 +92,12 @@ class NodeImageStore(object):
                     # add missing image in this store
                     self.images[db_fullname] = NodeImage(self, db_fullname)
                     continue
-                if (startup, db_ready) == (False, True):
-                    raise RuntimeError(MSG_IMAGE_READY_BUT_MISSING % db_fullname)
-                if (startup, db_ready) == (False, False):
-                    # image is probably being pulled
-                    self.images[db_fullname] = NodeImage(self, db_fullname)
-                    continue
-                if (startup, db_ready) == (True, False):
+                if not db_ready:
                     print(MSG_RESTORING_PULL % db_fullname)
                     self.images[db_fullname] = NodeImage(self, db_fullname)
                     self.server.nodes.restore_interrupted_registration(db_fullname)
                     continue
-                if (startup, db_ready) == (True, True):
+                if db_ready:
                     # image is known and ready in db, but missing in walt (podman) images
                     # check if we should pull images from docker daemon to
                     # podman storage (migration v4->v5)
@@ -119,10 +113,32 @@ class NodeImageStore(object):
                           db_fullname, file=sys.stderr)
                     self.db.delete('images', fullname=db_fullname)
                     self.db.commit()
-        # remove from this store deleted images
-        for fullname in list(self.images.keys()):
+
+    def resync_from_repository(self, rescan = False):
+        "Resync function podman repo -> this image store"
+        db_images = { db_img.fullname: db_img.ready \
+                        for db_img in self.db.select('images') }
+        # gather local images
+        if rescan:
+            self.repository.scan()
+        podman_images = set(self.repository.get_images())
+        # import new images from podman into this store (and into the database)
+        for fullname in podman_images:
             if fullname not in db_images:
-                del self.images[fullname]
+                self.db.insert('images', fullname=fullname, ready=True)
+                self.db.commit()
+                db_images[fullname] = True  # for the next loop below
+            if fullname not in self.images:
+                self.images[fullname] = NodeImage(self, fullname)
+        # all images marked ready should be available in this store
+        # if not, this means they were deleted from repository,
+        # so remove them here too (and in db)
+        for fullname in tuple(self.images):
+            ready = db_images[fullname]
+            if not ready:
+                continue
+            if fullname not in podman_images:
+                self.remove(fullname)
 
     def get_labels(self):
         return { fullname: image.labels for fullname, image in self.images.items() }
@@ -150,9 +166,10 @@ class NodeImageStore(object):
 
     def __getitem__(self, image_fullname):
         if image_fullname not in self.images:
-            # image was probably downloaded using docker commands,
-            # walt does not know it yet
-            self.refresh()
+            # image was probably downloaded using podman commands
+            # (e.g. by the blocking process), main process does not know it yet
+            self.repository.refresh_cache_for_image(image_fullname)
+            self.resync_from_repository()
         return self.images[image_fullname]
 
     def __iter__(self):

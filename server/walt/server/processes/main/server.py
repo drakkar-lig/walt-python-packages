@@ -67,7 +67,6 @@ class Server(object):
 
     def update(self):
         # mount images needed
-        print('Scanning walt images...')
         self.images.update(startup = True)
         # restores nodes setup
         self.nodes.restore()
@@ -175,7 +174,6 @@ class Server(object):
             requester.set_busy_label(f'Downloading default image for "{model}"')
             task.set_async()
             def callback(pull_result):
-                self.images.store.refresh()
                 on_default_image_ready()
                 task.return_result(True)
             self.blocking.pull_image(default_image_fullname, callback)

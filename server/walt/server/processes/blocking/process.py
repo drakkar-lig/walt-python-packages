@@ -48,7 +48,7 @@ class BlockingTasksContextService:
         return stream_db_logs(self.db, self.requester, **params)
 
     def pull_image(self, image_fullname):
-        return self.hub.pull(image_fullname)
+        return self.hub.pull(self.server, image_fullname)
 
     def hub_login(self, dh_peer, auth_conf):
         return self.hub.login(dh_peer, auth_conf, self.requester)
@@ -63,7 +63,7 @@ class BlockingTasksContextService:
         if self.docker_daemon is None:
             return
         else:
-            return self.docker_daemon.pull(fullname)
+            return self.docker_daemon.pull(self.server, fullname)
 
     def rescan_topology(self, *args, **kwargs):
         return self.topology.rescan(self.requester, self.server, self.db, *args, **kwargs)

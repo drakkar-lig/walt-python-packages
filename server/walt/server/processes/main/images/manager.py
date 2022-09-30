@@ -37,7 +37,7 @@ class NodeImageManager:
     def prepare(self):
         pass
     def update(self, startup = False):
-        self.store.refresh(startup)
+        self.store.resync_from_db()
         self.store.update_image_mounts()
         tftp.update(self.db, self.store)
     def search(self, requester, task, keyword, tty_mode):

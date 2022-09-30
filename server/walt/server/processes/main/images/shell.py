@@ -82,9 +82,6 @@ class ImageShellSession(object):
         blocking.commit_image(requester, on_commit, self.container_name, image_fullname)
 
     def on_commit(self, requester, cb_return_status, new_image_name, image_fullname):
-        # if not overriding, register new image
-        if self.image.fullname != image_fullname:
-            self.images.register_image(image_fullname, True)
         # mount new image, and plan unmount of previous one if overriden
         self.images.update_image_mounts()
         # inform user and return
