@@ -1,19 +1,31 @@
 import json
 import os
+import re
 import shutil
 import time
+from datetime import datetime
 from pathlib import Path
 from podman import PodmanClient
 from podman.errors.exceptions import ImageNotFound
 from subprocess import CalledProcessError
 
 from walt.server.exttools import buildah, podman, mount, umount, findmnt
-from walt.server.tools import add_image_repo
+from walt.server.tools import add_image_repo, format_node_models_list
 
 MAX_IMAGE_LAYERS = 128
 METADATA_CACHE_FILE = Path('/var/cache/walt/images.metadata')
 IMAGE_LAYERS_DIR = '/var/lib/containers/storage/overlay'
 PODMAN_API_SOCKET = 'unix:///run/walt/podman/podman.socket'
+
+def parse_date(created_at):
+    # strptime does not support parsing nanosecond precision
+    # remove last 3 decimals of this number
+    created_at = re.sub(r'([0-9]{6})[0-9]*', r'\1', created_at)
+    dt = datetime.strptime(created_at, "%Y-%m-%d %H:%M:%S.%f %z %Z")
+    # remove subsecond precision (not needed)
+    dt = dt.replace(microsecond=0)
+    # convert to local time
+    return str(dt.astimezone().replace(tzinfo=None))
 
 # 'buildah mount' does not mount the overlay filesystem with appropriate options to allow nfs export.
 # let's fix this.
@@ -62,9 +74,14 @@ class WalTLocalRepository:
         self.scan()
     def load_metadata_cache_file(self):
         if METADATA_CACHE_FILE.exists():
-            return json.loads(METADATA_CACHE_FILE.read_text())
-        else:
-            return {}
+            metadata = json.loads(METADATA_CACHE_FILE.read_text())
+            if len(metadata) > 0:
+                # check compatibility with the format expected with current code
+                first_entry = tuple(metadata.values())[0]
+                if 'node_models_desc' in first_entry:
+                    # all is fine
+                    return metadata
+        return {}
     def save_metadata_cache_file(self):
         if not METADATA_CACHE_FILE.exists():
             METADATA_CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -99,11 +116,20 @@ class WalTLocalRepository:
         labels = data.attrs['Labels']
         if labels is None:
             labels = {}
+        created_at_ts = data.attrs['Created'].replace('T', ' ').replace('Z', ' +0000 UTC')
+        if 'walt.node.models' in labels:
+            node_models = labels['walt.node.models'].split(',')
+            node_models_desc = format_node_models_list(node_models)
+        else:
+            node_models = None
+            node_models_desc = 'N/A'
         return dict(
             labels = labels,
             editable = (len(data.attrs['RootFS']['Layers']) < MAX_IMAGE_LAYERS),
-            created_at = data.attrs['Created'].replace('T', ' ').replace('Z', ' +0000 UTC'),
-            image_id = image_id
+            image_id = image_id,
+            created_at = parse_date(created_at_ts),
+            node_models = node_models,
+            node_models_desc = node_models_desc
         )
     def image_exists(self, fullname):
         return self.get_podman_image(fullname) is not None
@@ -143,7 +169,7 @@ class WalTLocalRepository:
         for fullname, image_id in self.names_cache.items():
             if fullname.startswith('walt/'):
                 continue
-            if 'walt.node.models' not in self.metadata_cache[image_id]['labels']:
+            if self.metadata_cache[image_id]['node_models'] is None:
                 continue
             yield fullname
     def refresh_cache_for_image(self, fullname):

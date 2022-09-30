@@ -279,3 +279,11 @@ class ServerDB(PostgresDB):
                     self.timestamp_last_logs,
                     kwargs['timestamp'])
         return super().insert(table, returning=returning, **kwargs)
+
+    def get_user_images(self, username):
+        sql = f"""  SELECT i.fullname, i.ready, count(n.mac)>0 as in_use
+                    FROM images i
+                    LEFT JOIN nodes n ON i.fullname = n.image
+                    WHERE fullname like '{username}/%'
+                    GROUP BY i.fullname;"""
+        return self.execute(sql)

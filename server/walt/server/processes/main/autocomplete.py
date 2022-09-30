@@ -42,8 +42,8 @@ def complete_rescan_set_of_devices(server, partial_token):
     keywords = [ 'explorable-switches', 'server' ]
     return complete_set(all_switches + keywords, partial_token)
 
-def complete_image(server, requester):
-    names = server.images.show(requester, refresh=False, names_only=True).split()
+def complete_image(server, requester, username):
+    names = server.images.show(requester, username, refresh=False, names_only=True).split()
     implicit_names = tuple(f'{name}:latest' for name in names if ':' not in name)
     return tuple(names) + implicit_names
 
@@ -71,7 +71,7 @@ def get_cp_entities(server, requester, username, entity_type):
     if entity_type == 'node':
         return complete_node(server, username)
     elif entity_type == 'image':
-        return complete_image(server, requester)
+        return complete_image(server, requester, username)
 
 def complete_cp_src(server, requester, username, entity_type, partial_token):
     possible = ()
@@ -182,9 +182,9 @@ def shell_autocomplete_switch(server, requester, username, argv):
     elif arg_type == 'SET_OF_NODES':
         return complete_set_of_nodes(server, username, partial_token)
     elif arg_type == 'IMAGE':
-        return complete_image(server, requester)
+        return complete_image(server, requester, username)
     elif arg_type == 'IMAGE_OR_DEFAULT':
-        return ('default',) + complete_image(server, requester)
+        return ('default',) + complete_image(server, requester, username)
     elif arg_type == 'NODE_CP_SRC':
         return complete_cp_src(server, requester, username, 'node', partial_token)
     elif arg_type == 'NODE_CP_DST':
