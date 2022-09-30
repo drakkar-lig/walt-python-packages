@@ -13,7 +13,7 @@ from walt.server.tools import add_image_repo
 MAX_IMAGE_LAYERS = 128
 METADATA_CACHE_FILE = Path('/var/cache/walt/images.metadata')
 IMAGE_LAYERS_DIR = '/var/lib/containers/storage/overlay'
-PODMAN_API_SOCKET = 'unix:///var/run/walt/podman/podman.socket'
+PODMAN_API_SOCKET = 'unix:///run/walt/podman/podman.socket'
 
 # 'buildah mount' does not mount the overlay filesystem with appropriate options to allow nfs export.
 # let's fix this.
@@ -59,6 +59,7 @@ class WalTLocalRepository:
         self.names_cache = {}
         self.metadata_cache = self.load_metadata_cache_file()
         self.p = PodmanClient(base_url = PODMAN_API_SOCKET)
+        self.scan()
     def load_metadata_cache_file(self):
         if METADATA_CACHE_FILE.exists():
             return json.loads(METADATA_CACHE_FILE.read_text())
@@ -68,10 +69,6 @@ class WalTLocalRepository:
         if not METADATA_CACHE_FILE.exists():
             METADATA_CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
         METADATA_CACHE_FILE.write_text(json.dumps(self.metadata_cache))
-    def clear_name_cache(self):
-        self.names_cache = {}
-    def associate_name_to_id(self, fullname, image_id):
-        self.names_cache[fullname] = image_id
     def add_repo(self, fullname):
         if fullname.startswith('walt/'):
             return 'localhost/' + fullname
@@ -115,8 +112,6 @@ class WalTLocalRepository:
             return self.p.images.get(add_image_repo(fullname))
         except ImageNotFound:
             return None
-    def rescan(self):
-        self.refresh_cache()
     def refresh_names_cache_for_image(self, im):
         for podman_image_name in im.tags:
             # podman may manage several repos, we do not need it here, discard this repo prefix
@@ -125,8 +120,8 @@ class WalTLocalRepository:
                 continue
             self.names_cache[fullname] = im.id
             print(f'found {fullname} -- {im.id}')
-    def refresh_cache(self):
-        print('refreshing cache...')
+    def scan(self):
+        print('scanning images...')
         self.names_cache = {}
         for im in self.p.images.list(filters={'dangling': False}):
             self.refresh_names_cache_for_image(im)
@@ -143,7 +138,7 @@ class WalTLocalRepository:
         for image_id in missing_ids:
             self.metadata_cache[image_id] = self.deep_inspect(image_id)
         self.save_metadata_cache_file()
-        print('done refreshing cache.')
+        print('done scanning images.')
     def get_images(self):
         for fullname, image_id in self.names_cache.items():
             if fullname.startswith('walt/'):
@@ -151,6 +146,9 @@ class WalTLocalRepository:
             if 'walt.node.models' not in self.metadata_cache[image_id]['labels']:
                 continue
             yield fullname
+    def refresh_cache_for_image(self, fullname):
+        self.names_cache.pop(fullname, None)
+        self.get_metadata(fullname)
     def get_metadata(self, fullname):
         image_id = self.names_cache.get(fullname)
         if image_id is None:

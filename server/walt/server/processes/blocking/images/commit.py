@@ -1,3 +1,4 @@
+from walt.server.processes.blocking.images.tools import update_main_process_about_image
 from walt.server.exttools import podman
 from walt.server.tools import add_image_repo
 import uuid
@@ -5,11 +6,11 @@ import uuid
 def get_commit_temp_image():
     return 'localhost/walt/commit-temp:' + str(uuid.uuid4()).split('-')[0]
 
-def commit_image(repo, cid_or_cname, dest_fullname, tool=podman, opts=()):
+def commit(server, cid_or_cname, dest_fullname, tool=podman, opts=()):
     # we commit with 'docker' format to make these images compatible with
     # older walt server versions
     opts += ('-f', 'docker')
-    if repo.image_exists(dest_fullname):
+    if server.repository.image_exists(dest_fullname):
         # take care not making previous version of image a dangling image
         image_tempname = get_commit_temp_image()
         args = opts + (cid_or_cname, image_tempname)
@@ -22,8 +23,4 @@ def commit_image(repo, cid_or_cname, dest_fullname, tool=podman, opts=()):
         args = opts + (cid_or_cname, add_image_repo(dest_fullname))
         image_id = tool.commit(*args).strip()
         tool.rm(cid_or_cname)
-    repo.associate_name_to_id(dest_fullname, image_id)
-
-def commit(server, cid_or_cname, image_fullname, **kwargs):
-    walt_local_repo = server.repository
-    commit_image(walt_local_repo, cid_or_cname, image_fullname, **kwargs)
+    update_main_process_about_image(server, dest_fullname)

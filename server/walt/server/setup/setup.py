@@ -17,6 +17,7 @@ WALT_SERVICES = [
     "walt-server-ptpd.service",
     "walt-server-httpd.service",
     "walt-server-podman.service",
+    "walt-server-podman.socket",
 ]
 
 # WALT has its own version of the following services.
@@ -26,6 +27,7 @@ UNCOMPATIBLE_OS_SERVICES = [
     'tftpd-hpa.service', 'isc-dhcp-server.service', 'snmpd.service', 'lldpd.service', 'ptpd.service'
 ]
 
+WALT_SOCKET_SERVICES = [ 'walt-server-podman.socket' ]
 WALT_MAIN_SERVICE = 'walt-server.service'
 
 OS_ACTIONS = {
@@ -109,8 +111,8 @@ class WalTServerSetup(WaltGenericSetup):
 
     def start_walt_services(self):
         print('Restarting WalT services... ', end=''); sys.stdout.flush()
-        # starting main service is enough to start all, thanks to dependencies
-        self.start_systemd_services([WALT_MAIN_SERVICE])
+        # starting socket services and main service is enough to start all, thanks to dependencies
+        self.start_systemd_services(WALT_SOCKET_SERVICES + [WALT_MAIN_SERVICE])
         print('done')
 
     def disable_os_services(self):

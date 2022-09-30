@@ -8,6 +8,7 @@ from walt.common.crypto.blowfish import BlowFish
 from walt.common.formatting import indicate_progress
 from walt.server.exttools import buildah, podman, skopeo, docker
 from walt.server.tools import async_json_http_get
+from walt.server.processes.blocking.images.tools import update_main_process_about_image
 
 SKOPEO_RETRIES=10
 REGISTRY='docker.io'
@@ -33,19 +34,21 @@ class DockerDaemonClient:
     def checker(self, line):
         if 'error' in line.lower():
             raise Exception(line.strip())
-    def pull(self, image_fullname):
+    def pull(self, server, image_fullname):
         label = 'Downloading %s' % image_fullname
         stream = podman.pull.stream('docker-daemon:' + image_fullname, out_stream='stderr')
         indicate_progress(sys.stdout, label, stream, self.checker)
+        update_main_process_about_image(server, image_fullname)
 
 class DockerHubClient:
     def checker(self, line):
         if 'error' in line.lower():
             raise Exception(line.strip())
-    def pull(self, image_fullname):
+    def pull(self, server, image_fullname):
         label = 'Downloading %s' % image_fullname
         stream = podman.pull.stream(REGISTRY + '/' + image_fullname, out_stream='stderr')
         indicate_progress(sys.stdout, label, stream, self.checker)
+        update_main_process_about_image(server, image_fullname)
     def login(self, dh_peer, auth_conf, requester):
         try:
             symmetric_key = dh_peer.symmetric_key
