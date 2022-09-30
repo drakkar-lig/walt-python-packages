@@ -101,8 +101,8 @@ class ServerBlockingProcess(EvProcess):
     def __init__(self, tman, level : int):
         EvProcess.__init__(self, tman, 'server-blocking', level)
         service = BlockingTasksService()
-        self.main = RPCProcessConnector(service)
-        self.db = SyncRPCProcessConnector()
+        self.main = RPCProcessConnector(service, label = 'blocking-to-main')
+        self.db = SyncRPCProcessConnector(label = 'blocking-to-db')
         service.db = self.db
 
     def prepare(self):

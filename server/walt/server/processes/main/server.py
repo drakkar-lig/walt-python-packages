@@ -28,7 +28,7 @@ class Server(object):
 
     def __init__(self, ev_loop):
         self.ev_loop = ev_loop
-        self.db = SyncRPCProcessConnector()
+        self.db = SyncRPCProcessConnector(label = 'main-to-db')
         self.repository = WalTLocalRepository()
         self.blocking = BlockingTasksManager(self)
         self.tcp_server = TCPServer(WALT_SERVER_TCP_PORT)
