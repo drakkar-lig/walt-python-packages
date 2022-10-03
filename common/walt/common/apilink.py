@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import sys
+import sys, pickle
 from time import time
 from select import select
 from socket import create_connection
@@ -13,18 +13,34 @@ SERVER_SOCKET_TIMEOUT = 10.0
 SERVER_SOCKET_REUSE_TIMEOUT = 5.0
 
 class APIChannel(object):
+    MODE_LINE_REPR_EVAL = 0
+    MODE_PICKLE4 = 1
     def __init__(self, sock_file):
         self.sock_file = sock_file
+        self.mode = APIChannel.MODE_LINE_REPR_EVAL     # default mode
     def write(self, *args):
         if self.sock_file.closed:
             return
-        self.sock_file.write(repr(args).encode('UTF-8') + b'\n')
+        if self.mode == APIChannel.MODE_LINE_REPR_EVAL:
+            self.sock_file.write(repr(args).encode('UTF-8') + b'\n')
+        elif self.mode == APIChannel.MODE_PICKLE4:
+            pickle.dump(args, self.sock_file, protocol=4)
     def read(self):
         if self.sock_file.closed:
             return None
-        return eval(self.sock_file.readline().decode('UTF-8'))
+        if self.mode == APIChannel.MODE_LINE_REPR_EVAL:
+            return eval(self.sock_file.readline().decode('UTF-8'))
+        elif self.mode == APIChannel.MODE_PICKLE4:
+            return pickle.load(self.sock_file)
     def fileno(self):
         return self.sock_file.fileno()
+    def set_mode(self, mode):
+        if mode == 'pickle4':
+            self.mode = APIChannel.MODE_PICKLE4
+        elif mode == 'line-repr-eval':
+            self.mode = APIChannel.MODE_LINE_REPR_EVAL
+        else:
+            raise Exception(f'Unknown APIChannel mode: {mode}')
 
 # The following pair of classes allows to pass API calls efficiently
 # over a network socket.
@@ -137,6 +153,9 @@ class ServerAPIConnection(object):
             self.remote_version = sock_file.readline().strip().decode('UTF-8')
             self.api_channel = APIChannel(sock_file)
             self.connected = True
+    def set_mode(self, mode):
+        self.api_channel.write('SET_MODE', mode)    # set mode remotely
+        self.api_channel.set_mode(mode)             # set mode locally
     def disconnect(self):
         self.usage_refcount -= 1
         if self.usage_refcount == 0:
@@ -223,4 +242,6 @@ class ServerAPILink(object):
         self.conn.set_busy_label(label)
     def set_default_busy_label(self):
         self.conn.set_default_busy_label()
+    def set_mode(self, mode):
+        self.conn.set_mode(mode)
 

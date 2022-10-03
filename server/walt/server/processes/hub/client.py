@@ -37,17 +37,26 @@ class APISessionManager(object):
         except (EOFError, SyntaxError, OSError, SocketError):
             return None
     def handle_api_call(self):
-        event = self.read_api_channel()
-        if event == None:
+        try:
+            event = self.read_api_channel()
+            if event == None:
+                return False
+            # e.g. if you send ('CLOSE',) instead of ('API_CALL','<func>',<args>,<kwargs>)
+            # the connection will be closed from server side.
+            cmd = event[0]
+            if cmd == 'SET_MODE':
+                self.api_channel.set_mode(event[1])
+                return True
+            elif cmd == 'API_CALL':
+                if len(event) != 4:
+                    return False
+                attr, args, kwargs = event[1:]
+                print('hub api_call:', self.target_api, attr, args, kwargs)
+                self.record_task(attr, args, kwargs)
+                return True
             return False
-        # e.g. if you send ('CLOSE',) instead of ('API_CALL','<func>',<args>,<kwargs>)
-        # the connection will be closed from server side.
-        if len(event) != 4:
+        except:
             return False
-        attr, args, kwargs = event[1:]
-        print('hub api_call:', self.target_api, attr, args, kwargs)
-        self.record_task(attr, args, kwargs)
-        return True
     def return_result(self, res):
         # client might already be disconnected (ctrl-C),
         # thus we ignore errors.

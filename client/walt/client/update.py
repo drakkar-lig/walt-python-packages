@@ -1,4 +1,4 @@
-import os, subprocess
+import os, subprocess, sys
 from walt.common.version import __version__
 from walt.common.formatting import framed, highlight
 from walt.client.plugins import get_plugins
@@ -25,3 +25,4 @@ def check_update(server):
         print()
         print(framed('Important notice', msg))
         print()
+        sys.exit(1)

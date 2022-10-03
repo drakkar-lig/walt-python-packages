@@ -104,6 +104,7 @@ class ClientToServerLink:
         # 1) check config, and once the config is OK
         # 2) check if server version matches
         # 3) execute connection hook if any
+        # 4) set faster pickle4 mode
         if ClientToServerLink.num_calls == 0:
             init_config(get_link)
         link = get_link()
@@ -113,6 +114,7 @@ class ClientToServerLink:
                 connection_hook = get_hook('connection_hook')
                 if connection_hook is not None:
                     connection_hook(link, server)
+                link.set_mode('pickle4')
         ClientToServerLink.num_calls += 1
         return link
 
