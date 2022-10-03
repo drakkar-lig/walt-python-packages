@@ -1,4 +1,5 @@
 from collections import defaultdict
+from functools import cache
 
 # Sample use:
 #
@@ -125,8 +126,14 @@ class HyperGraph:
     def autoglob(self):
         return self.start_state.autoglob()
 
-def autoglob(words):
+@cache
+def autoglob_with_cache(words):
     graph = HyperGraph()
     graph.construct(words)
     graph.simplify()
     return graph.autoglob()
+
+def autoglob(words):
+    if len(words) == 1:
+        return words[0]
+    return autoglob_with_cache(tuple(words))
