@@ -110,9 +110,9 @@ class Pager:
                 num_lines = len(lines)
                 # adapt footer help
                 page_height, footer = self.adapt_footer_height(num_lines, topic_links, depth)
-                # if the text is not long enough to fill the pager screen, we add empty lines
+                # if the text is not long enough to fill the pager screen, we add blank lines
                 if num_lines < page_height:
-                    lines += [ '' ] * (page_height-num_lines)
+                    lines += [ ' ' * self.tty.cols ] * (page_height-num_lines)
                     num_lines = page_height
                 # to avoid the terminal scrolls, we restart the drawing at
                 # the top-left corner.
