@@ -2,13 +2,8 @@
 """
 WalT (wireless testbed) control tool.
 """
-import sys, locale
-# workaround plumbum i18n module loading pkg_resources, which is slow,
-# unless locale starts with 'en'. we cannot blindly call setlocale()
-# because we do not know which locales are available on the OS where
-# walt client is installed.
-locale.getlocale = lambda *args: ('en_US', 'UTF-8')
-
+import walt.client.speedup
+import sys
 from walt.client.plugins import add_category, add_all_categories
 from walt.client.logo import try_add_logo
 from walt.client.application import WalTToolboxApplication
