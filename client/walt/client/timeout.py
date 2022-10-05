@@ -1,5 +1,4 @@
 import signal
-from plumbum import cli
 from time import time
 
 MARGIN = 0.001  # margin when testing if timeout is reached
@@ -26,6 +25,7 @@ def timeout_reached():
     return time() >= timeout
 
 def cli_timeout_switch():
+    from plumbum import cli
     return cli.SwitchAttr(
                 "--timeout",
                 int,
