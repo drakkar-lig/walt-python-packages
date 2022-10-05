@@ -1,7 +1,7 @@
 import os, subprocess, sys
 from walt.common.version import __version__
 from walt.common.formatting import framed, highlight
-from walt.client.plugins import get_plugins
+from walt.client.plugins import get_plugin_feature_names
 
 MSG_UPDATE = """
 walt-client software does not match server API!
@@ -13,7 +13,7 @@ def check_update(server):
     updated = False
     remote_version = str(server.get_remote_version())
     if remote_version != str(__version__):
-        features = [ p.client_feature_name for p in get_plugins() ]
+        features = get_plugin_feature_names()
         if len(features) > 0:
             package = 'walt-client[' + ','.join(features) + ']'
         else:

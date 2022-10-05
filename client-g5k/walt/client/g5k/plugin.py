@@ -1,8 +1,6 @@
 import sys
 from walt.client.g5k.deploy.status import get_deployment_status, get_expiry_message, \
                                           save_deployment_status
-from walt.client.g5k.reboot import G5KClientHardRebootHook
-from walt.client.g5k.autocomplete import shell_completion_hook
 
 DEFAULT_IMAGE_NAME = 'pc-x86-64-default'
 
@@ -35,15 +33,3 @@ def connection_hook(link, server):
         link.set_silent(True)
         server.set_image('all-nodes', DEFAULT_IMAGE_NAME)
         link.set_silent(False)
-
-class G5KPlugin:
-    # name to use when running pip install walt-client[<name>]
-    client_feature_name = "g5k"
-    # hook methods
-    hooks = {
-        'config_missing_server': config_missing_server_hook,
-        'failing_server_socket': failing_server_socket_hook,
-        'client_hard_reboot': G5KClientHardRebootHook,
-        'connection_hook': connection_hook,
-        'shell_completion_hook': shell_completion_hook
-    }

@@ -57,5 +57,3 @@ class WalTDumpBashAutocomplete(WalTApplication):
     def main(self):
         import walt.client.autocomplete.dump as dumper
         dumper.dump_bash_autocomplete(self)
-
-WALT_CLIENT_CATEGORY = "advanced", WalTAdvanced
