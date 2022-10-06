@@ -5,7 +5,7 @@ def publish(store, blocking, requester, task, image_name, **kwargs):
         return False
     else:
         task.set_async()    # result will be available later
-        blocking.publish_image(
+        return blocking.publish_image(
                     requester,
                     task.return_result,
                     image_fullname = image.fullname,

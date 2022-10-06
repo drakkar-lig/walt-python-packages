@@ -169,7 +169,7 @@ class CSAPI(APISession):
     @api_expose_method
     def publish_image(self, context, auth_conf, image_name):
         dh_peer = self.get_session_object(auth_conf['dh_peer_id'])
-        context.images.publish(requester = context.requester,
+        return context.images.publish(requester = context.requester,
                           task = context.task,
                           dh_peer = dh_peer,
                           auth_conf = auth_conf,
@@ -251,7 +251,7 @@ class CSAPI(APISession):
     @api_expose_method
     def update_hub_metadata(self, context, auth_conf, waltplatform_user):
         dh_peer = self.get_session_object(auth_conf['dh_peer_id'])
-        context.images.update_hub_metadata(context, auth_conf, dh_peer, waltplatform_user)
+        return context.images.update_hub_metadata(context, auth_conf, dh_peer, waltplatform_user)
 
     @api_expose_method
     def set_device_config(self, context, device_set, conf_args):

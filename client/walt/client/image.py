@@ -48,7 +48,7 @@ class WalTImagePublish(WalTApplication):
         with ClientToServerLink() as server_link:
             server_link.set_busy_label('Validating / Publishing')
             auth_conf = get_auth_conf(server_link)
-            server_link.publish_image(auth_conf, image_name)
+            return server_link.publish_image(auth_conf, image_name)
 
 @WalTImage.subcommand("show")
 class WalTImageShow(WalTApplication):

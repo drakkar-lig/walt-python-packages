@@ -41,7 +41,7 @@ class WalTUpdateHubMeta(WalTApplication):
     def main(self):
         with ClientToServerLink() as server:
             auth_conf = get_auth_conf(server)
-            server.update_hub_metadata(auth_conf, self._waltplatform_user)
+            return server.update_hub_metadata(auth_conf, self._waltplatform_user)
     @cli.autoswitch(help='update waltplatform user (walt devs only)')
     def waltplatform_user(self):
         self._waltplatform_user = True
