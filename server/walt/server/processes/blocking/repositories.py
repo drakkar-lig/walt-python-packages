@@ -61,7 +61,7 @@ class DockerHubClient:
                             input=password)
         except Exception as e:
             print(e)
-            requester.stdout.write('FAILED.\n')
+            requester.stdout.write('Sorry, docker hub login FAILED.\n')
             return False
         return True
     def push(self, image_fullname, dh_peer, auth_conf, requester):

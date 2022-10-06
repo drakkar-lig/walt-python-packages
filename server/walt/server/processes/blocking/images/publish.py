@@ -14,7 +14,10 @@ def publish(requester, server: Server, hub, dh_peer, auth_conf, image_fullname):
     # prepare
     labels = server.images.store[image_fullname].get_labels()
     # push image
-    hub.push(image_fullname, dh_peer, auth_conf, requester)
+    success = hub.push(image_fullname, dh_peer, auth_conf, requester)
+    if not success:
+        return False
     # update user metadata ('walt_metadata' image on user's hub account)
     update_user_metadata_for_image(hub, dh_peer, auth_conf,
                                    requester, image_fullname, labels)
+    return True

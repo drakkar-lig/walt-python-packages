@@ -51,8 +51,9 @@ def push_user_metadata(hub, dh_peer, auth_conf, requester, user, metadata):
     # for now, save metadata images with docker manifest format
     buildah.commit('--format', 'docker', cont_name, fullname)
     buildah.rm(cont_name)
-    hub.push(fullname, dh_peer, auth_conf, requester)
+    success = hub.push(fullname, dh_peer, auth_conf, requester)
     buildah.rmi(fullname)
+    return success
 
 def pull_user_metadata(hub, user):
     return asyncio.run(async_pull_user_metadata(hub, user))
@@ -76,10 +77,10 @@ def update_user_metadata_for_image(hub, dh_peer, auth_conf, \
         labels = labels
     )
     # push back on docker hub
-    push_user_metadata(hub, dh_peer, auth_conf, requester, user, metadata)
+    return push_user_metadata(hub, dh_peer, auth_conf, requester, user, metadata)
 
 def update_hub_metadata(requester, hub, dh_peer, auth_conf, user):
     # collect
     metadata = collect_user_metadata(hub, user)
     # push back on docker hub
-    push_user_metadata(hub, dh_peer, auth_conf, requester, user, metadata)
+    return push_user_metadata(hub, dh_peer, auth_conf, requester, user, metadata)
