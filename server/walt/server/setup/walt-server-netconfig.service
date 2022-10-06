@@ -8,6 +8,8 @@
 Description=WalT platform network management
 # Minimal requirements on the network
 After=network.target
+# Configuration file is needed, service should not start if missing.
+ConditionPathExists=/etc/walt/server.conf
 
 [Service]
 Type=oneshot
