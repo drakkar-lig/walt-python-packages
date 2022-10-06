@@ -84,10 +84,14 @@ def unit_exists(unit_name: str,
     if install_prefix is None:
         install_prefix = '/'
     try:
-        subprocess.run(shlex.split(
+        p = subprocess.run(shlex.split(
             f'systemctl --root={install_prefix} list-unit-files {unit_name}'),
             check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        return True
+        # unfortunately older versions of systemctl (on buster) return a status
+        # of zero (i.e. success) even if no unit files are found.
+        # so we have to parse the ending line indicating how many unit files
+        # were found.
+        return int(p.stdout.splitlines()[-1].split()[0]) > 0
     except:
         return False
 
