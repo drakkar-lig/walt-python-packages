@@ -45,4 +45,5 @@ def run():
     WalT.run()
 
 if __name__ == '__main__':
+    # about management of return code: see wrap.py
     run()
