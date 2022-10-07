@@ -1,10 +1,8 @@
 
-# Server upgrade procedures
+# Server upgrade procedure
 
 This section explains how to upgrade a WalT server.
-
-We consider that the server was first installed with our provided installation image (see [`walt help show server-install`](server-install.md)).
-When a new version of WalT server software is available, you can follow these steps to update it.
+When a new version of WalT is available, you can follow these steps to update it.
 
 
 # Upgrading from version 4 (may 2019)

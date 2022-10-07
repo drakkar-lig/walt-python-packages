@@ -102,13 +102,11 @@ Important notes:
 
 ## How to identify and use the new node
 
-When WALT server detects a node for the first time, it names it 'node-<6-hex-chars>' (for instance node-f26782),
-and a log line is emitted. The hex chars are taken from the right side of the node's mac address.
+When WALT server detects a node for the first time, a log line is emitted.
 
 Thus, you should be able to identify the new node by checking the logs as follows:
-
 ```
-$ walt log show --platform --history -5m: "new node"
+$ walt log show --platform --history -5m: "new"
 10:45:49.188989 walt-server.platform.devices -> new node name=node-f26782 model=rpi-3-b-plus mac=b8:27:eb:f2:67:82 ip=192.168.152.14
 $
 ```
@@ -120,6 +118,8 @@ Notes about the command options:
 * `"new node"` is a substring allowing to further filter the matching log lines (`walt log show` would accept
   any regular expression here).
 
+In this example the log line indicates that the new node has been named `node-f26782`.
+The hex chars are taken from the right side of the node's mac address.
 As soon as the node is identified, it is strongly advised to rename it. A naming scheme
 such as `<type>-<location>-<id>` is handy. For instance, considering the node is in room 412:
 ```
@@ -130,10 +130,9 @@ Troubleshooting notes:
 * If ever the node failed to boot over the network (this probably means the network or the node
   bootloader is misconfigured), the server might still detect it but it may not know that this device
   is a node. In this case `walt log show` will print a line if you indicate the filter `"new device"`
-  instead of `"new node"`. The server will name this device 'unknown-<6-hex-chars>' instead of
-  'node-<6-hex-chars>'. This node will obviously not appear when typing `walt node show --all`, but
+  instead of `"new node"`. This node will obviously not appear when typing `walt node show --all`, but
   it will be listed when you use `walt device show`.
-  The first time the node boots correctly, it will be automatically renamed to 'node-<6-hex-chars>',
-  and appear in the output of `walt node show --all`.
+  The first time the node boots correctly, its type will be automatically updated and it will appear
+  in the output of `walt node show --all`.
 * In case of trouble, you can monitor walt service logs on the server, while connecting the new node,
-  by typing `journalctl -f -u walt-server`. Or use a network sniffer (such as wireshark).
+  by typing `journalctl -b -afu walt-server`. Or use a network sniffer (such as wireshark).
