@@ -30,7 +30,10 @@ ALL_PACKAGES=common virtual vpn server node client client-g5k
 # common must be installed 1st (needed by others), then virtual
 INSTALLABLE_PACKAGES_ON_SERVER=common virtual vpn server client
 GNUMAKEFLAGS=--no-print-directory
-SUDO=$(shell test `whoami` = root && echo -n || echo "sudo -H")
+
+# sudo should only be used when not root and not in a virtual env
+# (sys.base_prefix == sys.prefix test returns False in a virtual env).
+SUDO=$(shell python3 -c 'import os, sys; print("sudo -H" if sys.base_prefix == sys.prefix and os.getuid() != 0 else "")')
 PIP=$(shell echo `which pip3`)
 PIP_INSTALL=$(PIP) install --ignore-installed greenlet
 
