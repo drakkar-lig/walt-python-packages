@@ -29,6 +29,8 @@
 ALL_PACKAGES=common virtual vpn server node client client-g5k
 # common must be installed 1st (needed by others), then virtual
 INSTALLABLE_PACKAGES_ON_SERVER=common virtual vpn server client
+INSTALLABLE_PACKAGES_ON_CLIENT=common client
+INSTALLABLE_PACKAGES_ON_CLIENT_G5K=common client client-g5k
 GNUMAKEFLAGS=--no-print-directory
 
 # sudo should only be used when not root and not in a virtual env
@@ -38,10 +40,19 @@ PIP=$(shell echo `which pip3`)
 PIP_INSTALL=$(PIP) install --ignore-installed greenlet
 
 # ------
-install: $(patsubst %,%.wheel,$(INSTALLABLE_PACKAGES_ON_SERVER))
+
+install: server.install
+
+server.install: $(patsubst %,%.wheel,$(INSTALLABLE_PACKAGES_ON_SERVER))
 	$(SUDO) $(PIP_INSTALL) $(patsubst %,./%,$(INSTALLABLE_PACKAGES_ON_SERVER))
 
-uninstall: $(patsubst %,%.uninstall,$(INSTALLABLE_PACKAGES_ON_SERVER))
+client.install: $(patsubst %,%.wheel,$(INSTALLABLE_PACKAGES_ON_CLIENT))
+	$(SUDO) $(PIP_INSTALL) $(patsubst %,./%,$(INSTALLABLE_PACKAGES_ON_CLIENT))
+
+client-g5k.install: $(patsubst %,%.wheel,$(INSTALLABLE_PACKAGES_ON_CLIENT_G5K))
+	$(SUDO) $(PIP_INSTALL) $(patsubst %,./%,$(INSTALLABLE_PACKAGES_ON_CLIENT_G5K))
+
+uninstall: $(patsubst %,%.uninstall,$(ALL_PACKAGES))
 
 pull: $(patsubst %,%.pull,$(INSTALLABLE_PACKAGES_ON_SERVER))
 
