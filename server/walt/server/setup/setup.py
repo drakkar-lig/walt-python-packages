@@ -1,4 +1,4 @@
-import sys, subprocess
+import os, sys, subprocess
 from plumbum import cli
 from pathlib import Path
 from walt.common import systemd
@@ -37,14 +37,14 @@ OS_ACTIONS = {
     },
     'install': {
         'bullseye': ('install_os', 'fix_conmon', 'disable_os_services', 'setup_walt_services',
-                     'fix_other_conf_files', 'ask_server_conf', 'systemd_reload',
+                     'fix_other_conf_files', 'set_or_ask_server_conf', 'systemd_reload',
                      'start_walt_services', 'update_completion', 'msg_ready'),
     },
     'upgrade': {
         'buster': ('stop_services', 'upgrade_os', 'fix_conmon', 'disable_os_services', 'setup_walt_services',
                    'fix_other_conf_files', 'update_completion', 'msg_reboot'),
         'bullseye': ('stop_services', 'fix_os', 'fix_conmon', 'disable_os_services', 'setup_walt_services',
-                     'fix_other_conf_files', 'may_ask_server_conf', 'systemd_reload', 'start_walt_services',
+                     'fix_other_conf_files', 'if_option_ask_server_conf', 'systemd_reload', 'start_walt_services',
                      'update_completion', 'msg_ready'),
     }
 }
@@ -157,10 +157,13 @@ class WalTServerSetup(WaltGenericSetup):
     def fix_other_conf_files(self):
         fix_other_conf_files()
 
-    def ask_server_conf(self):
-        ask_server_conf()
+    def set_or_ask_server_conf(self):
+        if os.isatty(1):
+            ask_server_conf()
+        else:
+            setup_default_server_conf()
 
-    def may_ask_server_conf(self):
+    def if_option_ask_server_conf(self):
         if self.opt_edit_conf:
             ask_server_conf()
 
