@@ -24,6 +24,11 @@ On the technical side, support for a new kind of node in WalT requires:
 * A network bootloader with appropriate configuration
 * A default walt image that will be assigned to newly detected nodes of this kind
 
+In the meantime, or if this process proves impossible to achieve (e.g., there is no
+way to flash a network bootloader on this device), the WalT platform can still provide
+a limited set of useful features to interact with unmanaged devices
+(cf. [`walt help show unmanaged-devices`](unmanaged-devices.md)).
+
 
 ## Network bootloader
 

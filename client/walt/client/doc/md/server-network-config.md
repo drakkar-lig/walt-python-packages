@@ -3,20 +3,67 @@
 
 ## Overview
 
-These instructions assume you are familiar with WALT network structure (see [`walt help show networking`](networking.md))
+These instructions assume you are familiar with WALT network structure (cf. networks `walt-net`,
+`walt-out`, and optionally `walt-adm`, see [`walt help show networking`](networking.md))
 and with Debian operating systems.
 
-In order to adapt to various network environments, the network configuration has to be edited.
-Two files are concerned:
-* `/etc/network/interfaces`, the classical network configuration file of Debian
-* `/etc/walt/server.conf`, walt server configuration file
+In order to adapt to various network environments, the network configuration of WalT has to
+be edited. It is most easily modified by running `walt-server-setup --edit-conf`.
+However, expert users can still edit the file `/etc/walt/server.conf` manually and then
+restart the server machine.
 
-Content of file `/etc/walt/server.conf` should be JSON-compliant, except that we allow
-single line comments (started by char `#`).
+Content of file `/etc/walt/server.conf` should be YAML-compliant or, for backward compatibility,
+JSON-compliant. Note: even in the case of JSON, our parser accepts single line comments started
+by char `#`.
 
-The following examples will clarify how these files should be configured.
+The following examples will clarify how this file should be configured.
 It is advised to read these examples in the order they are presented below. At the end,
 you should be able to combine them to match your own network setup.
+
+
+## Scenario 0: virtual-only platform
+
+In this scenario we have:
+* Your usual LAN network (with DHCP service and internet connectivity) connected on eth0
+* A secondary interface eth1 currently disconnected.
+
+The plan is to later connect WALT equipment (network switches and nodes) to eth1, but due
+to supply chain issues, they were not received yet.
+In the meantime, we will configure a virtual-only platform, in order to start experimenting
+with WALT and its virtual nodes.
+
+First, we keep the default OS-configured connectivity about the `eth0` interface:
+```
+$ cat /etc/network/interfaces
+auto eth0
+iface eth0 inet dhcp
+$
+```
+
+And we configure walt network using:
+```
+$ cat /etc/walt/server.conf
+network:
+    # platform network
+    walt-net:
+        raw-device: null
+        ip: 192.168.183.1/24
+$
+```
+
+This means that:
+* our WALT network is virtual: it is *not* connected to a physical interface (`raw-device` is null).
+* the DHCP service of our WALT server will deliver IP addresses in the range `192.168.183.1/24`
+  (to virtual nodes).
+* the WALT server will use IP address `192.168.183.1` in this virtual network.
+
+Notes:
+* It is mandatory to declare `walt-net` in `/etc/walt/server.conf` as we did, because this
+configuration file is read by several walt software services, and they will need to find
+the configuration of this network.
+* Once the WALT equipment is received and connected, the platform can obviously be
+reconfigured to communicate with it (see next scenario).
+
 
 ## Scenario 1: very simple setup
 
@@ -24,58 +71,32 @@ In this scenario we have:
 * Your usual LAN network (with DHCP service and internet connectivity) connected on eth0
 * A dedicated WALT network (with dedicated network switches) connected on eth1
 
-This can be configured as follows:
+This can be configured as follows.
+We let Debian manage our `eth0` interface the usual way again:
 ```
 $ cat /etc/network/interfaces
 auto eth0
 iface eth0 inet dhcp
-
-auto walt-net
-iface walt-net inet manual
-    up walt-net-config up
-    down walt-net-config down
-
 $
 ```
 
-This means:
-* we will let Debian manage our `eth0` interface the usual way
-* we declare another interface called `walt-net`, and specify that this interface
-  can be set `up` (resp. `down`) by running `walt-net-config up` (resp. `walt-net-config down`)
-
-As you might guess, command `walt-net-config` will configure interface `walt-net` according
-to the content of file `/etc/walt/server.conf`.
-
-The content of this file could be:
+And we configure walt network using:
 ```
 $ cat /etc/walt/server.conf
-{
-    # network configuration
-    # ---------------------
-    "network": {
-        # platform network
-        "walt-net": {
-            "raw-device": "eth1",
-            "ip": "192.168.183.1/24"
-        }
-    }
-}
-
+network:
+    # platform network
+    walt-net:
+        raw-device: eth1
+        ip: 192.168.183.1/24
 $
 ```
 
-This means that:
-* our WALT network will be connected to physical interface `eth1`
-* the WALT server will have its eth1 interface configured with IP address `192.168.183.1`
-* the DHCP service of our WALT server will deliver IP addresses in the range `192.168.183.1/24`
-  (to nodes and switches).
+This time, our WALT network is connected to physical interface `eth1`.
+Compared to the previous scenario, the DHCP service of our WALT server will now deliver IP
+addresses not only to virtual nodes but also to physical devices (nodes and switches).
 
-Notes:
-* It is mandatory to declare `walt-net` in `/etc/walt/server.conf` as we did, because this
-configuration file is read by other walt software services too, and they will need to find
-the configuration of this network.
-* Since this plaform network is dedicated to WALT, the range of IP addresses you select is
-not really important. Just set it large enough to support platform growth. Each device connected
+Note: since this plaform network is dedicated to WALT, the range of private IP addresses you select
+is not really important. Just set it large enough to support platform growth. Each device connected
 to this network will get a permanent IP address lease, thus a "/24" network is perfectly fine
 for a reduced setup (for instance a demo), not for a platform in a large building.
 
@@ -101,41 +122,21 @@ Notes:
 * Of course, if you are not in charge of the building network, you will have to ask relevant people
   if they allow this configuration, and get relevant configuration parameters from them.
 
-This scenario can be configured as follows:
+This scenario can be configured as follows.
+Again, we rely on the default Debian setup to manage interface `eth0` (cf. scenario 1).
+And we configure walt networks using the following file:
+
 ```
-$ cat /etc/network/interfaces
-auto eth0
-iface eth0 inet dhcp
-
-auto walt-net
-iface walt-net inet manual
-    up walt-net-config up
-    down walt-net-config down
-
-auto walt-adm
-iface walt-adm inet manual
-    up walt-net-config up
-    down walt-net-config down
-
-$
 $ cat /etc/walt/server.conf
-{
-    # network configuration
-    # ---------------------
-    "network": {
-        # platform network
-        "walt-net": {
-            "raw-device": "eth1",
-            "ip": "192.168.180.1/22"
-        },
-        # building network admin
-        "walt-adm": {
-            "raw-device": "eth2",
-            "ip": "10.10.52.23/27"
-        }
-    }
-}
-
+network:
+    # platform network
+    walt-net:
+        raw-device: eth1
+        ip: 192.168.180.1/22
+    # building network admin
+    walt-adm:
+        raw-device: eth2
+        ip: 10.10.52.23/27
 $
 ```
 
@@ -143,7 +144,7 @@ Comparing to previous scenario, we just added the configuration for network `wal
 (and selected a larger IP address range for `walt-net`). The IP address and range of network
 `walt-adm` should be given by buiding network admins. This kind of administration LAN usually
 uses a static IP configuration. If this is not the case, and DHCP is available instead, you
-can also write `"ip": "dhcp"` in `walt-adm` section.
+can also write `ip: dhcp` in `walt-adm` section.
 
 
 ## Scenario 3: server with single wired LAN interface
@@ -167,26 +168,16 @@ auto wlan0
 iface wlan0 inet dhcp
     wpa-ssid "<your-ssid>"
     wpa-psk  "<psk-key>"    # tip: $ wpa_passphrase <your-ssid> <your-password>
-
-auto walt-net
-iface walt-net inet manual
-    up walt-net-config up
-    down walt-net-config down
-
 $
-$ cat /etc/walt/server.conf
-{
-    # network configuration
-    # ---------------------
-    "network": {
-        # platform network
-        "walt-net": {
-            "raw-device": "eth0",
-            "ip": "192.168.183.1/24"
-        }
-    }
-}
+```
 
+```
+$ cat /etc/walt/server.conf
+network:
+    # platform network
+    walt-net:
+        raw-device: eth0
+        ip: 192.168.183.1/24
 $
 ```
 
@@ -233,37 +224,23 @@ We describe below the appropriate configuration to set up those virtual interfac
 
 ```
 $ cat /etc/network/interfaces
-auto walt-net
-iface walt-net inet manual
-    up walt-net-config up
-    down walt-net-config down
-
-auto walt-out
-iface walt-out inet manual
-    up walt-net-config up
-    down walt-net-config down
-
+# This file is empty this time!
 $
-$ cat /etc/walt/server.conf
-{
-    # network configuration
-    # ---------------------
-    "network": {
-        # platform network
-        "walt-net": {
-            "raw-device": "eth0",
-            "vlan": 33,
-            "ip": "192.168.183.1/24"
-        },
-        # internet connectivity
-        "walt-out": {
-            "raw-device": "eth0",
-            "vlan": 34,
-            "ip": "dhcp"
-        }
-    }
-}
+```
 
+```
+$ cat /etc/walt/server.conf
+network:
+    # platform network
+    walt-net:
+        raw-device: eth0
+        vlan: 33
+        ip: 192.168.180.1/22
+    # internet connectivity
+    walt-out:
+        raw-device: eth0
+        vlan: 34
+        ip: dhcp
 $
 ```
 
@@ -273,6 +250,7 @@ should be obvious given previous scenarios.
 Of course, this setup also requires appropriate VLAN configuration on the switch side, but this is outside the
 scope of this documentation.
 
+
 ## Concluding remarks
 
 You will probably have to adapt these scenarios to your own case, but this should be pretty obvious.
@@ -280,9 +258,10 @@ For instance, you may install WALT in a building with a server equipped with onl
 In this case you could connect `walt-net` and `walt-adm` on a single physical interface (using VLANs) and
 `walt-out` on the other. This should be easily done by combining scenario 2 and 3b.
 
-We currently do not support other OS network management systems (such as systemd-networkd).
-However, our sole requirement is that interface `walt-net` (and `walt-adm` if relevant) has its
-configuration described in file `/etc/walt/server.conf`.
-There is no such requirement on other unrelated interfaces (such as the one providing internet
-connectivity), and the admin may configure them with any system he likes.
+Only `walt-net` and `walt-adm` have a special meaning for walt software.
+Thus, naming the interface `walt-out` of scenario 3b differently in file `/etc/walt/server.conf`
+is not a problem. This section of file `/etc/walt/server.conf` could even be removed and replaced by
+an equivalent configuration in `/etc/network/interfaces`.
 
+One can also use other OS network management systems (such as systemd-networkd), instead of using
+`/etc/network/interfaces` as we propose here.

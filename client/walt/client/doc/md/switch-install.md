@@ -45,15 +45,11 @@ Note: if you test another switch model, we would be happy to get the results of 
 
 ## How to identify the new switch in WALT
 
-When WALT server detects a switch for the first time, it names it 'switch-<6-hex-chars>' (for instance switch-18d55d),
-or 'unknown-<6-hex-chars>' (if WALT is unable to detect this device is a switch).
-The hex chars are taken from the right side of the switch mac address.
-In any case, a log line is emitted.
-
+When WALT server detects a switch for the first time, a log line is emitted.
 Thus, you should be able to identify the new switch by checking the logs as follows:
 
 ```
-$ walt log show --platform --history -5m: "new [(switch)|(device)]"
+$ walt log show --platform --history -5m: "new"
 10:50:15.498660 walt-server.platform.devices -> new switch name=switch-18d55d mac=6c:b0:ce:18:d5:5d ip=192.168.152.11
 $
 ```
@@ -63,6 +59,7 @@ If WALT is unable to detect this device is a switch, the log line will look like
 10:50:15.498660 walt-server.platform.devices -> new device name=unknown-18d55d type=unknown mac=6c:b0:ce:18:d5:5d ip=192.168.152.11
 ```
 In this example we see that WALT registered this unknown device with name `unknown-18d55d`.
+The hex chars are taken from the right side of the switch mac address.
 
 In such a case, run the following to let WALT know this new device is actually a switch:
 ```

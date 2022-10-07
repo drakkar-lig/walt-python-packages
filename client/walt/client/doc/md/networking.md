@@ -47,6 +47,32 @@ and allow a specific set of nodes to access internet. Check-out [`walt help show
 for more info.
 
 
+## walt-adm: optional network admin network
+
+If WALT is installed in a building and reuses an existing network infrastructure, there is usually
+a dedicated VLAN already in place for remote administration of switches.
+
+Instead of allowing remote administration (i.e. SNMP requests, see below) from network `walt-net`,
+admins usually prefer to give the WALT server access to this dedicated admin network.
+
+We call this optional network `walt-adm` in these documentation pages and in configuration files.
+
+
+## Configuring WalT
+
+WalT networking configuration is responsible for defining `walt-net` and optionally `walt-adm`.
+`walt-out` is out of scope because the default OS configuration providing internet connectivity
+is fine.
+
+This configuration is most easily modified by running `walt-server-setup --edit-conf`.
+Check-out [`walt help show server-network-config`](server-network-config.md) for more info.
+
+It is possible to configure a virtual-only platform where `walt-net` is not linked to a physical
+network interface. In this case, it will not be possible to detect physical nodes, but users can
+still work with virtual nodes. Such a virtual-only platform can be reconfigured later to accept
+physical nodes by running `walt-server-setup --edit-conf` again.
+
+
 ## Network switch remote administration features
 
 The WALT server, if allowed, may send SNMP queries to a given switch, for one of these two purposes:
@@ -59,21 +85,12 @@ using `walt device config <switch> <parameter>...` (see [`walt help show device-
 Of course this is only possible if the switch provides related features.
 Check-out [`walt help show switch-install`](switch-install.md) for more info.
 
-
-## walt-adm: optional network admin network
-
-If WALT is installed in a building and reuses an existing network infrastructure, there is usually
-a dedicated VLAN already in place for remote administration of switches.
-
-Instead of allowing remote administration (i.e. SNMP requests) from network `walt-net`, admins usually
-prefer to give the WALT server access to this dedicated admin network.
-
-We call this optional network `walt-adm` in these documentation pages and in configuration files.
-
 Note that if `walt-adm` is configured, WALT may send SNMP requests on both `walt-net` and `walt-adm`
 networks. To clarify, let's consider WALT has been installed in a large building, and some wall plugs
-have been dedicated to the experimentation network (thus there are associated to `walt-net`).
-In order to perform an small experiment with a few nodes on your desk, you could connect a small
+have been dedicated to the experimentation network (thus they are associated to `walt-net`).
+In order to perform a small experiment with a few nodes on your desk, you could connect a small
 switch to one of these wall plugs, and connect your nodes on it. In this case, WALT will have to use
 `walt-net` to reach this small switch, and `walt-adm` to reach the switch managing the wall plug.
+
+
 
