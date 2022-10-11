@@ -63,46 +63,42 @@ def columnate_sanitize_header(header):
     # replace underscores with spaces
     return [ i.replace('_', ' ') for i in header ]
 
-def get_columnate_format(*rows):
-    # filter out separation lines
-    rows = tuple(row for row in rows if row is not None)
-    # compute the max length of elements in each column
-    colwidths = [ max([ len(s) for s in i ]) for i in zip(*rows) ]
-    # compute a format that should be applied to each record
-    str_format = "".join([ '%-' + str(w + COLUMNATE_SPACING) + 's' \
-                            for w in colwidths ]) + '\n'
-    # compute sep line
-    sep_line = str_format % tuple('-' * w for w in colwidths)
-    return str_format, sep_line
+def char_len(line):
+    unescaped = re.sub('\x1b' + r'[^m]*m', '', line)
+    return len(unescaped)
 
-def columnate_iterate_rows(tabular_data, header = None):
-    # yield data
-    first = True
-    for row in tabular_data:
-        if first:
-            # if header, yield it
-            if header is not None:
-                yield tuple(header)
-                yield None  # will be understood as a separation line
-            first = False
-        yield tuple(row)
+def pad_right(text, text_length, width):
+    return text + (width - text_length) * ' '
 
-def columnate_format_row(str_format, sep_line, row):
-    if row is None:
-        return sep_line
-    else:
-        return str_format % row
+def columnate_format_row(row, row_lengths, colwidths):
+    col_spacing = ' ' * COLUMNATE_SPACING
+    return col_spacing.join(pad_right(text, text_length, width) \
+        for text, text_length, width \
+            in zip(row, row_lengths, colwidths))
 
 def columnate(tabular_data, header = None):
     tabular_data = tuple(columnate_sanitize_data(tabular_data))
     if len(tabular_data) == 0:
         return ''
+    all_cells = list(tabular_data)
     if header is not None:
         header = columnate_sanitize_header(header)
-    str_format, sep_line = get_columnate_format(header, *tabular_data)
-    formatted = ''.join(columnate_format_row(str_format, sep_line, row) \
-        for row in columnate_iterate_rows(tabular_data, header))
-    return formatted[:-1]    # remove ending eol
+        all_cells = [ header ] + all_cells
+    all_cell_lengths = [
+        [ char_len(cell) for cell in row ]
+        for row in all_cells
+    ]
+    # compute the max length of elements in each column
+    colwidths = [ max(column) for column in zip(*all_cell_lengths) ]
+    # add separator line
+    if header is not None:
+        sep_line_lengths = colwidths
+        sep_line_row = [ '-' * w for w in colwidths ]
+        # insert as second line
+        all_cell_lengths[1:1] = [ sep_line_lengths ]
+        all_cells[1:1] = [ sep_line_row ]
+    return '\n'.join(columnate_format_row(row, row_lengths, colwidths) \
+        for row, row_lengths in zip(all_cells, all_cell_lengths))
 
 def display_transient_label(stdout, label):
     stdout.write('\r' + label + ' ')
@@ -158,10 +154,6 @@ BOX_CHARS = {
     False: { 'top-left': ' ', 'horizontal': '-', 'top-right': ' ',
             'vertical': '|', 'bottom-left': ' ', 'bottom-right': ' ' }
 }
-
-def char_len(line):
-    unescaped = re.sub('\x1b' + r'[^m]*m', '', line)
-    return len(unescaped)
 
 def framed(title, section):
     box_c = BOX_CHARS[os.isatty(1)]
