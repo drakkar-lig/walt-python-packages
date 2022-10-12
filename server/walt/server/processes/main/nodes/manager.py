@@ -197,14 +197,15 @@ class NodesManager(object):
                 break   # ok, mac is free
         # find a free ip
         subnet = get_walt_subnet()
-        free_ips = list(subnet.hosts())
-        free_ips.pop(0)     # first IP is for WalT server
+        server_ip = get_server_ip()
+        free_ips = set(subnet.hosts())
+        free_ips.discard(ip(server_ip))
         for item in self.db.execute(\
                 'SELECT ip FROM devices WHERE ip IS NOT NULL'):
             device_ip = ip(item.ip)
             if device_ip in subnet and device_ip in free_ips:
-                free_ips.remove(device_ip)
-        free_ip = str(free_ips[0])
+                free_ips.discard(device_ip)
+        free_ip = str(min(free_ips))
         return free_mac, free_ip, 'pc-x86-64'
 
     def start_vnode(self, node):

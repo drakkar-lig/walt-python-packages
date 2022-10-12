@@ -74,8 +74,6 @@ Notes:
 * It is mandatory to declare `walt-net` in `/etc/walt/server.conf` as we did, because this
 configuration file is read by other walt software services too, and they will need to find
 the configuration of this network.
-* The server address must be the first address of the range (setting `"ip": "192.168.183.2/24"`
-for instance will cause problems).
 * Since this plaform network is dedicated to WALT, the range of IP addresses you select is
 not really important. Just set it large enough to support platform growth. Each device connected
 to this network will get a permanent IP address lease, thus a "/24" network is perfectly fine
