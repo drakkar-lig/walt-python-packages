@@ -4,7 +4,7 @@ from operator import itemgetter
 from pathlib import Path
 
 from walt.server.processes.main.network.netsetup import NetSetup
-from walt.server.tools import ip, get_walt_subnet, get_dns_servers
+from walt.server.tools import ip, get_walt_subnet, get_server_ip, get_dns_servers
 
 # STATE_DIRECTORY is set by systemd to the daemon's state directory.  By
 # default, it is /var/lib/walt
@@ -149,6 +149,7 @@ UNKNOWNS_CONF_PATTERN = """\
 
 # see http://stackoverflow.com/questions/2154249/identify-groups-of-continuous-numbers-in-a-list
 def get_contiguous_ranges(ips):
+    ips = sorted(ips)
     ranges=[]
     for k, g in groupby(enumerate(ips), lambda i_x:i_x[0]-int(i_x[1])):
         group = list(map(itemgetter(1), g))
@@ -160,8 +161,9 @@ def generate_dhcpd_conf(subnet, devices):
     lan_nodes_confs = []
     nat_nodes_confs = []
     unknowns_confs = []
-    free_ips = list(subnet.hosts())
-    server_ip = free_ips.pop(0)
+    free_ips = set(subnet.hosts())
+    server_ip = get_server_ip()
+    free_ips.discard(ip(server_ip))
     for device_info in devices:
         if device_info['type'] == 'switch':
             switches_confs.append(SWITCH_CONF_PATTERN % device_info)
@@ -176,7 +178,7 @@ def generate_dhcpd_conf(subnet, devices):
         else:
             raise NotImplementedError("Unexpected type '%s' in dhcpd.conf" % device_info['type'])
         if device_info['ip'] in free_ips:
-            free_ips.remove(device_info['ip'])
+            free_ips.discard(device_info['ip'])
     range_confs = []
     for r in get_contiguous_ranges(free_ips):
         first, last = r
