@@ -76,10 +76,20 @@ def columnate_format_row(row, row_lengths, colwidths):
         for text, text_length, width \
             in zip(row, row_lengths, colwidths))
 
-def columnate(tabular_data, header = None):
+def columnate(tabular_data, header = None, shrink_empty_cols=False):
     tabular_data = tuple(columnate_sanitize_data(tabular_data))
     if len(tabular_data) == 0:
         return ''
+    if shrink_empty_cols:
+        dropped_cols = [
+            max(len(cell) for cell in column) == 0 for column in zip(*tabular_data)
+        ]
+        tabular_data = [
+            [ cell for i, cell in enumerate(row) if not dropped_cols[i] ]
+            for row in tabular_data
+        ]
+        if header is not None:
+            header = [ t for i, t in enumerate(header) if not dropped_cols[i] ]
     all_cells = list(tabular_data)
     if header is not None:
         header = columnate_sanitize_header(header)
