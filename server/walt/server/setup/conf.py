@@ -1,71 +1,21 @@
-import netifaces, time, sys
+import os, sys
 from pathlib import Path
 from string import Template
-from plumbum.cli.terminal import prompt
-from walt.common.term import choose
+from walt.server.setup.netconf import get_default_netconf, edit_netconf_interactive, \
+                                      dump_commented_netconf, same_netconfs
 
-WALT_DEFAULT_IP_CONF = "192.168.192.1/22"
+YAML_INDENT = 4
+
 WALT_SERVER_CONF_PATH = Path("/etc/walt/server.conf")
-WALT_SERVER_VIRTUAL_CONF_CONTENT = Template("""\
+WALT_SERVER_CONF_CONTENT = Template("""\
 # WalT server configuration file.
 # Run 'walt-server-setup --edit-conf' to update.
 
 # network configuration
 # ---------------------
 network:
-    # platform network
-    walt-net:
-        raw-device: null
-        ip: $ip_conf
+$indented_netconf
 """)
-WALT_SERVER_SIMPLE_CONF_CONTENT = Template("""\
-# WalT server configuration file.
-# Run 'walt-server-setup --edit-conf' to update.
-
-# network configuration
-# ---------------------
-network:
-    # platform network
-    walt-net:
-        raw-device: $raw_intf
-        ip: $ip_conf
-""")
-WALT_SERVER_VLAN_CONF_CONTENT = Template("""\
-# WalT server configuration file.
-# Run 'walt-server-setup --edit-conf' to update.
-
-# network configuration
-# ---------------------
-network:
-    # platform network
-    walt-net:
-        raw-device: $raw_intf
-        vlan: $vlan_number
-        ip: $ip_conf
-""")
-
-WALT_NETWORKING_EXPLAIN = """\
-The WalT server network configuration involves:
-- a regular network connection (needed when interacting with the docker hub)
-- a dedicated WalT platform network (walt-net) managed by the server
-
-Configuring the regular network connexion is out-of-scope of this automated \
-WalT software configuration tool.
-
-The WalT server can configure its WalT platform network (walt-net) in several ways:
-- with a plain connection to a network interface
-- with a VLAN connection to a network interface (send & receive 802.1Q-tagged packets)
-- as a virtual-only platform (in this case, only virtual nodes can be registered on \
-this WALT platform)
-"""
-
-MSG_NOTE_UNSURE = '''Note: if unsure, you can configure a virtual-only platform for now \
-and change it later by running `walt-server-setup --edit-conf`.
-'''
-
-MSG_NOTE_RESTART = '''Note: if needed you can update this configuration later by running \
-`walt-server-setup --edit-conf` \
-(e.g. after a missing driver is added, or a new network adapter is plugged in).'''
 
 WALT_SERVER_SPEC_PATH = Path("/etc/walt/server.spec")
 WALT_SERVER_SPEC_CONTENT = """\
@@ -87,104 +37,80 @@ LOCAL_WALTRC_CONTENT = """\
 server: localhost
 """
 
-def current_server_ip_conf():
+def get_current_conf():
     try:
         from walt.server import conf
-        return conf['network']['walt-net']['ip']
+        return conf
     except:
         return None
 
-def select_server_ip_conf():
-    # if server conf was already specified previously, we have to keep the same
-    # IP network has before since devices are registered with their IP in db
-    curr = current_server_ip_conf()
-    if curr is not None:
-        return curr
+def edit_conf_tty_error():
+    print('Sorry, cannot run server configuration editor because STDOUT is not a terminal.')
+    print('Exiting.')
+    sys.exit(1)
+
+def edit_conf_keep():
+    conf = get_current_conf()
+    if conf is None:
+        print('WARNING: Failed to load current configuration at /etc/walt/server.conf!')
+        print('WARNING: Falling back to a default configuration.')
+        conf = edit_conf_set_default()
+    return conf
+
+def edit_conf_set_default():
+    # verify we will not overwrite an existing conf
+    conf = get_current_conf()
+    if conf is None:
+        # this was actually expected
+        return { 'network': get_default_netconf() }
     else:
-        return WALT_DEFAULT_IP_CONF
+        print('Note: found valid yaml file at /etc/walt/server.conf, keeping it.')
+        return conf
 
-def get_default_gateway_interfaces():
-    return set(gw_info[1] for gw_info in netifaces.gateways()['default'].values())
+def edit_conf_interactive():
+    conf = get_current_conf()
+    if conf is None:
+        netconf = None
+    else:
+        netconf = conf['network']
+    netconf = edit_netconf_interactive(netconf)
+    return { 'network': netconf }
 
-def iter_wired_physical_interfaces():
-    for intf_dev_dir in Path('/sys/class/net').glob('*/device'):
-        intf_dir = intf_dev_dir.parent
-        if (intf_dir / 'wireless').exists():
-            continue
-        yield intf_dir.name
+def define_server_conf(mode, opt_edit_conf):
+    selector = (os.isatty(1), mode, opt_edit_conf)
+    edit_conf_mode = {
+        (True, 'image-install', True): 'interactive',
+        (True, 'install', True): 'interactive',
+        (True, 'upgrade', True): 'interactive',
+        (True, 'image-install', False): 'set_default',
+        (True, 'install', False): 'interactive',
+        (True, 'upgrade', False): 'keep',
+        (False, 'image-install', True): 'tty_error',
+        (False, 'install', True): 'tty_error',
+        (False, 'upgrade', True): 'tty_error',
+        (False, 'image-install', False): 'set_default',
+        (False, 'install', False): 'set_default',
+        (False, 'upgrade', False): 'keep',
+    }[selector]
+    func = globals().get(f'edit_conf_{edit_conf_mode}')
+    return func()
 
-def configure_server_conf(setup_type, raw_intf = None, vlan_number = None):
-    ip_conf = select_server_ip_conf()
-    if setup_type == 'virtual':
-        content = WALT_SERVER_VIRTUAL_CONF_CONTENT.substitute(ip_conf=ip_conf)
-    elif setup_type == 'plain':
-        content = WALT_SERVER_SIMPLE_CONF_CONTENT.substitute(raw_intf=raw_intf, ip_conf=ip_conf)
-    elif setup_type == 'vlan':
-        content = WALT_SERVER_VLAN_CONF_CONTENT.substitute(
-                    raw_intf=raw_intf, vlan_number=vlan_number, ip_conf=ip_conf)
+def same_confs(c1, c2):
+    if c1 is None or c2 is None or 'network' not in c1 or 'network' not in c2:
+        return False
+    return same_netconfs(c1['network'], c2['network'])
+
+def update_server_conf(conf):
+    if same_confs(get_current_conf(), conf):
+        return
+    print(f'Saving configuration at {WALT_SERVER_CONF_PATH}... ', end='')
+    commented_netconf = dump_commented_netconf(conf['network'], YAML_INDENT)
+    indent = YAML_INDENT * ' '
+    indented_netconf = '\n'.join((indent + l) for l in commented_netconf.splitlines())
+    content = WALT_SERVER_CONF_CONTENT.substitute(indented_netconf=indented_netconf)
     WALT_SERVER_CONF_PATH.parent.mkdir(parents=True, exist_ok=True)
     WALT_SERVER_CONF_PATH.write_text(content)
-
-def ask_server_conf():
-    print()
-    print(WALT_NETWORKING_EXPLAIN)
-    print('Detecting wired network interfaces...')
-    wired_interfaces = []
-    gw_interfaces = get_default_gateway_interfaces()
-    for intf in iter_wired_physical_interfaces():
-        if intf in gw_interfaces:
-            print(f'Ignoring {intf}, already in use as a default gateway.')
-        else:
-            wired_interfaces.append(intf)
-    if len(wired_interfaces) == 0:
-        configure_server_conf('virtual')
-        print('No usable wired interface was detected on this machine.')
-        print(f'Consequently walt-net has been configured for virtual-only mode in {WALT_SERVER_CONF_PATH}.')
-        print('This means only virtual nodes can be registered on this WALT server.')
-        print(MSG_NOTE_RESTART)
-        return
-    print('Found the following wired interface(s) on this machine: ' + ','.join(wired_interfaces))
-    print()
-    choices = {}
-    for intf in wired_interfaces:
-        choices[ f'Plain connection to {intf}' ] = ('plain', intf)
-        choices[ f'VLAN connection to {intf} (VLAN number will be specified next)' ] = ('vlan', intf)
-    choices[ 'Virtual-only platform (select this if unsure)' ] = ('virtual',)
-    while True:
-        raw_intf = None
-        vlan_number = None
-        try:
-            print(MSG_NOTE_UNSURE)
-            choice = choose('Please select how walt-net should be configured:', choices)
-            setup_type = choice[0]
-            if setup_type == 'virtual':
-                break
-            setup_type, raw_intf = choice
-            if setup_type == 'vlan':
-                try:
-                    vlan_number = prompt('Please enter the VLAN number (or ^C to abort)', type=int,
-                                        validator = lambda x: x >= 0)
-                except KeyboardInterrupt:
-                    print(); print()
-                    continue
-                print()
-                intf = f'{raw_intf}.{vlan_number}'
-                # check selected interface is not a gateway
-                # (previous check was on the raw interface)
-                if intf in gw_interfaces:
-                    print(f'Invalid response: interface {intf} seems to be your OS default gateway.')
-                    print()
-                    time.sleep(1)
-                    continue
-            else: # plain
-                break
-        except KeyboardInterrupt:
-            print(); print()
-            continue
-        break
-    configure_server_conf(setup_type, raw_intf, vlan_number)
-    print(f'Configuration was saved in {WALT_SERVER_CONF_PATH}.')
-    print(MSG_NOTE_RESTART)
+    print('done')
 
 def fix_other_conf_files():
     for path, content in ((WALT_SERVER_SPEC_PATH, WALT_SERVER_SPEC_CONTENT),

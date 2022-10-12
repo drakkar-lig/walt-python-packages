@@ -1,11 +1,11 @@
-import os, sys, subprocess
+import sys, subprocess
 from plumbum import cli
 from pathlib import Path
 from walt.common import systemd
 from walt.common.setup import WaltGenericSetup
 from walt.common.tools import verify_root_login_shell
 from walt.server.setup.ossetup import get_os_codename, upgrade_os, install_os, fix_os, fix_conmon, install_os_on_image
-from walt.server.setup.conf import fix_other_conf_files, setup_default_server_conf, ask_server_conf
+from walt.server.setup.conf import fix_other_conf_files, define_server_conf, update_server_conf
 
 WALT_SERVICES = [
     "walt-server.service",
@@ -32,20 +32,22 @@ WALT_MAIN_SERVICE = 'walt-server.service'
 
 OS_ACTIONS = {
     'image-install': {
-        'bullseye': ('install_os_on_image', 'fix_conmon', 'disable_os_services', 'setup_walt_services',
-                     'fix_other_conf_files', 'setup_default_server_conf', 'update_completion'),
+        'bullseye': ('define_server_conf', 'install_os_on_image', 'fix_conmon', 'disable_os_services',
+                     'setup_walt_services', 'fix_other_conf_files', 'update_server_conf',
+                     'update_completion'),
     },
     'install': {
-        'bullseye': ('install_os', 'fix_conmon', 'disable_os_services', 'setup_walt_services',
-                     'fix_other_conf_files', 'set_or_ask_server_conf', 'systemd_reload',
+        'bullseye': ('define_server_conf', 'install_os', 'fix_conmon', 'disable_os_services',
+                     'setup_walt_services', 'fix_other_conf_files', 'update_server_conf', 'systemd_reload',
                      'start_walt_services', 'update_completion', 'msg_ready'),
     },
     'upgrade': {
-        'buster': ('stop_services', 'upgrade_os', 'fix_conmon', 'disable_os_services', 'setup_walt_services',
-                   'fix_other_conf_files', 'update_completion', 'msg_reboot'),
-        'bullseye': ('stop_services', 'fix_os', 'fix_conmon', 'disable_os_services', 'setup_walt_services',
-                     'fix_other_conf_files', 'if_option_ask_server_conf', 'systemd_reload', 'start_walt_services',
-                     'update_completion', 'msg_ready'),
+        'buster': ('define_server_conf', 'stop_services', 'upgrade_os', 'fix_conmon', 'disable_os_services',
+                   'setup_walt_services', 'fix_other_conf_files', 'update_server_conf', 'update_completion',
+                   'msg_reboot'),
+        'bullseye': ('define_server_conf', 'stop_services', 'fix_os', 'fix_conmon', 'disable_os_services',
+                     'setup_walt_services', 'fix_other_conf_files', 'update_server_conf', 'systemd_reload',
+                     'start_walt_services', 'update_completion', 'msg_ready'),
     }
 }
 
@@ -84,6 +86,7 @@ class WalTServerSetup(WaltGenericSetup):
             print(f'Sorry, {mode} mode of this script only works on the following debian version(s): {allowed}.')
             print('Exiting.')
             sys.exit(1)
+        self.resolved_mode = mode
         for action in OS_ACTIONS[mode][os_codename]:
             method = getattr(self, action)
             method()
@@ -157,15 +160,15 @@ class WalTServerSetup(WaltGenericSetup):
     def fix_other_conf_files(self):
         fix_other_conf_files()
 
-    def set_or_ask_server_conf(self):
-        if os.isatty(1):
-            ask_server_conf()
-        else:
-            setup_default_server_conf()
+    # note: when the interactive conf editor must be started, it is more user-friendly
+    # to start it first than in the middle of possibly long install/upgrade steps.
+    # so define_server_conf() is called as a first step, but the resulting configuration
+    # will be applied later, when appropriate, by the call to update_server_conf().
+    def define_server_conf(self):
+        self.server_conf = define_server_conf(self.resolved_mode, self.opt_edit_conf)
 
-    def if_option_ask_server_conf(self):
-        if self.opt_edit_conf:
-            ask_server_conf()
+    def update_server_conf(self):
+        update_server_conf(self.server_conf)
 
     def update_completion(self):
         print('Updating bash completion for walt tool... ', end=''); sys.stdout.flush()
