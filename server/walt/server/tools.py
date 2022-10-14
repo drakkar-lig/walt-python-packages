@@ -60,7 +60,7 @@ nt_index = 0
 nt_classes = {}
 def build_named_tuple_cls(d):
     global nt_index
-    code = pickle.dumps(sorted(d.keys()))
+    code = pickle.dumps(tuple(d.keys()))
     if code not in nt_classes:
         base = namedtuple('NamedTuple_%d' % nt_index, list(d.keys()))
         class NT(base):
