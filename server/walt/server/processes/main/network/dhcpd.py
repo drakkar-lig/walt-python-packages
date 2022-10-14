@@ -2,6 +2,7 @@ import os
 from itertools import groupby
 from operator import itemgetter
 from pathlib import Path
+from collections import defaultdict
 
 from walt.server.processes.main.network.netsetup import NetSetup
 from walt.server.tools import ip, get_walt_subnet, get_server_ip, get_dns_servers
@@ -98,52 +99,51 @@ subnet %(subnet_ip)s netmask %(subnet_netmask)s {
 }
 
 # walt registered devices
+# -----------------------
 
-# switches
-group {
-%(walt_registered_switches_conf)s
-}
+# devices with netsetup = "NAT"
 
-# nodes with netsetup = "LAN"
-group {
-%(walt_registered_lan_nodes_conf)s
-}
-
-# nodes with netsetup = "NAT"
 group {
     option routers %(walt_server_ip)s;
     option domain-name-servers %(dns_servers)s;
 
-%(walt_registered_nat_nodes_conf)s
+    # switches
+
+%(walt_registered_nat_switch_conf)s
+
+    # nodes
+
+%(walt_registered_nat_node_conf)s
+
+    # unknown devices
+
+%(walt_registered_nat_unknown_conf)s
 }
 
-# unknown devices
+# devices with netsetup = "LAN"
+
 group {
-%(walt_registered_unknowns_conf)s
+    # switches
+
+%(walt_registered_lan_switch_conf)s
+
+    # nodes
+
+%(walt_registered_lan_node_conf)s
+
+    # unknown devices
+
+%(walt_registered_lan_unknown_conf)s
 }
 """
 
 RANGE_CONF_PATTERN = "    range %(first)s %(last)s;"
 
-NODE_CONF_PATTERN = """\
+HOST_CONF_PATTERN = """\
     host %(hostname)s {
         hardware ethernet %(mac)s;
         fixed-address %(ip)s;
         option host-name "%(hostname)s";
-    }
-"""
-
-SWITCH_CONF_PATTERN = """\
-    host %(hostname)s {
-        hardware ethernet %(mac)s;
-        fixed-address %(ip)s;
-    }
-"""
-
-UNKNOWNS_CONF_PATTERN = """\
-    host %(hostname)s {
-        hardware ethernet %(mac)s;
-        fixed-address %(ip)s;
     }
 """
 
@@ -157,26 +157,14 @@ def get_contiguous_ranges(ips):
     return ranges
 
 def generate_dhcpd_conf(subnet, devices):
-    switches_confs = []
-    lan_nodes_confs = []
-    nat_nodes_confs = []
-    unknowns_confs = []
+    confs_per_category = defaultdict(list)
     free_ips = set(subnet.hosts())
     server_ip = get_server_ip()
     free_ips.discard(ip(server_ip))
     for device_info in devices:
-        if device_info['type'] == 'switch':
-            switches_confs.append(SWITCH_CONF_PATTERN % device_info)
-        elif device_info['type'] == 'node':
-            conf = NODE_CONF_PATTERN % device_info
-            if device_info['netsetup'] == NetSetup.LAN:
-                lan_nodes_confs.append(conf)
-            else:
-                nat_nodes_confs.append(conf)
-        elif device_info['type'] == 'unknown':
-            unknowns_confs.append(UNKNOWNS_CONF_PATTERN % device_info)
-        else:
-            raise NotImplementedError("Unexpected type '%s' in dhcpd.conf" % device_info['type'])
+        conf = HOST_CONF_PATTERN % device_info
+        conf_category_list = confs_per_category[(device_info['netsetup'], device_info['type'])]
+        conf_category_list.append(conf)
         if device_info['ip'] in free_ips:
             free_ips.discard(device_info['ip'])
     range_confs = []
@@ -193,12 +181,14 @@ def generate_dhcpd_conf(subnet, devices):
         subnet_broadcast=subnet.broadcast_address,
         subnet_netmask=subnet.netmask,
         dns_servers=", ".join(map(str, get_dns_servers())),
-        walt_registered_switches_conf='\n'.join(switches_confs),
-        walt_registered_lan_nodes_conf='\n'.join(lan_nodes_confs),
-        walt_registered_nat_nodes_conf='\n'.join(nat_nodes_confs),
-        walt_registered_unknowns_conf='\n'.join(unknowns_confs),
         walt_unallocated_ranges_conf='\n'.join(range_confs)
     )
+    for netsetup, netsetup_label in ((NetSetup.LAN, 'lan'), (NetSetup.NAT, 'nat')):
+        for dev_type in ('node', 'switch', 'unknown'):
+            confs = confs_per_category[(netsetup, dev_type)]
+            infos.update({
+                f'walt_registered_{netsetup_label}_{dev_type}_conf': '\n'.join(confs)
+            })
     return CONF_PATTERN % infos
 
 QUERY_DEVICES_WITH_IP="""

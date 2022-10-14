@@ -1,5 +1,6 @@
 import json, re
 from collections import defaultdict
+from walt.server.tools import ip_in_walt_network
 from walt.server.processes.main.network.netsetup import NetSetup
 from walt.server.processes.main.nodes.manager import VNODE_DEFAULT_RAM, VNODE_DEFAULT_CPU_CORES, \
                                                    VNODE_DEFAULT_DISKS, VNODE_DEFAULT_NETWORKS
@@ -7,11 +8,14 @@ from walt.common.settings import parse_vnode_disks_value, parse_vnode_networks_v
 from walt.common.tools import do
 from walt.common.formatting import format_sentence
 
+def uncapitalize(s):
+    return s[0].lower() + s[1:]
+
 class SettingsManager:
     def __init__(self, server):
         self.server = server
         self.settings_table = {
-            'netsetup':         { 'category': 'nodes', 'value-check': self.correct_netsetup_value, 'default': int(NetSetup.LAN),
+            'netsetup':         { 'category': 'walt-net-devices', 'value-check': self.correct_netsetup_value, 'default': int(NetSetup.LAN),
                                     'pretty_print': lambda int_val: NetSetup(int_val).readable_string() },
             'ram':              { 'category': 'virtual-nodes', 'value-check': self.correct_ram_value, 'default': VNODE_DEFAULT_RAM },
             'cpu.cores':        { 'category': 'virtual-nodes', 'value-check': self.correct_cpu_value, 'default': VNODE_DEFAULT_CPU_CORES },
@@ -27,11 +31,23 @@ class SettingsManager:
             'kexec.allow':      { 'category': 'nodes', 'value-check': self.correct_kexec_allow_value, 'default': True,
                                     'pretty_print': lambda bool_val: str(bool_val).lower() }
         }
-        self.category_checks = {
-            'nodes':            self.applies_to_nodes,
-            'virtual-nodes':    self.applies_to_virtual_nodes,
-            'unknown-devices':  self.applies_to_unknown_devices,
-            'switches':         self.applies_to_switches
+        self.category_filters = {
+            'devices':          self.filter_devices,
+            'server':           self.filter_server,
+            'walt-net-devices': self.filter_walt_net_devices,
+            'nodes':            self.filter_nodes,
+            'virtual-nodes':    self.filter_virtual_nodes,
+            'unknown-devices':  self.filter_unknown_devices,
+            'switches':         self.filter_switches,
+        }
+        self.category_labels = {
+            'devices':          dict(priority = 1, labels = ('Device', 'Devices')),
+            'server':           dict(priority = 3, labels = ('Server', None)),
+            'walt-net-devices': dict(priority = 2, labels = ('Device', 'Devices')),
+            'nodes':            dict(priority = 3, labels = ('Node', 'Nodes')),
+            'virtual-nodes':    dict(priority = 4, labels = ('Virtual node', 'Virtual nodes')),
+            'unknown-devices':  dict(priority = 3, labels = ('Unknown device', 'Unknown devices')),
+            'switches':         dict(priority = 3, labels = ('Switch', 'Switches')),
         }
 
     def correct_kexec_allow_value(self, requester, device_infos, setting_name, setting_value, all_settings):
@@ -153,51 +169,89 @@ class SettingsManager:
                 "Failed: netsetup value should be 'NAT' or 'LAN'.\n")
             return False
 
-    def applies_to_unknown_devices(self, requester, device_infos, setting_name, setting_value, all_settings):
-        not_unknown = [di for di in device_infos if di.type != "unknown"]
-        if len(not_unknown) > 0:
-            requester.stderr.write("Failed: setting '" + setting_name + "' can only be applied to unknown devices.\n")
-            return False
-        return True
+    def simple_filter(self, device_infos, func, ok_as_names = True, not_ok_as_names = True):
+        ok, not_ok = [], []
+        for di in device_infos:
+            if func(di):
+                ok.append(di.name if ok_as_names else di)
+            else:
+                not_ok.append(di.name if not_ok_as_names else di)
+        return ok, not_ok
 
-    def applies_to_switches(self, requester, device_infos, setting_name, setting_value, all_settings):
-        # if we have another setting 'type=switch', then we are expecting unknown devices, and this
-        # will be verified by the appropriate check for this other setting.
-        if all_settings.get('type') == 'switch':
-            return True     # ok for us
-        not_switches = [di for di in device_infos if di.type != "switch"]
-        if len(not_switches) > 0:
+    def all_ok_filter(self, device_infos, **kwargs):
+        return self.simple_filter(device_infos, lambda di: True, **kwargs)
+
+    def filter_devices(self, requester, device_infos, setting_name):
+        return self.all_ok_filter(device_infos)
+
+    def filter_server(self, requester, device_infos, setting_name):
+        dev_server, dev_other = self.simple_filter(device_infos, lambda di: di.type == "server")
+        if len(dev_other) > 0 and requester is not None:
+            msg = format_sentence("Failed: %s is(are) not a() WALT server(servers), "
+                                  "so '" + setting_name + "' setting cannot be applied.\n",
+                                  dev_other, None, 'Device', 'Devices')
+            requester.stderr.write(msg)
+        return dev_server, dev_other
+
+    def filter_unknown_devices(self, requester, device_infos, setting_name):
+        unknown, not_unknown = self.simple_filter(device_infos, lambda di: di.type == "unknown")
+        if len(not_unknown) > 0 and requester is not None:
+            requester.stderr.write("Failed: setting '" + setting_name + "' can only be applied to unknown devices.\n")
+        return unknown, not_unknown
+
+    def filter_walt_net_devices(self, requester, device_infos, setting_name):
+        dev_server, dev_other = self.simple_filter(device_infos, lambda di: di.type == "server",
+                                                   ok_as_names = True, not_ok_as_names = False)
+        dev_ok, not_in_walt_net = self.simple_filter(dev_other, lambda di: ip_in_walt_network(di.ip))
+        if requester is not None:
+            reasons = []
+            if len(not_in_walt_net) > 0:
+                reasons.append(format_sentence("%s is(are) not a() device(devices) managed inside walt-net", not_in_walt_net,
+                               None, 'device', 'devices'))
+            if len(dev_server) > 0:
+                reasons.append("%s is the WALT server" % dev_server[0])
+            if len(reasons) > 0:
+                msg = "Failed: " + ', and '.join(reasons) + '.\n'
+                requester.stderr.write(msg)
+        return dev_ok, dev_server + not_in_walt_net
+
+    def filter_switches(self, requester, device_infos, setting_name):
+        switches, not_switches = self.simple_filter(device_infos, lambda di: di.type == 'switch')
+        if len(not_switches) > 0 and requester is not None:
             msg = format_sentence("Failed: %s is(are) not a() switch(switches), "
                                   "so '" + setting_name + "' setting cannot be applied.\n",
-                                  [d.name for d in not_switches],
-                                  None, 'Device', 'Devices')
+                                  not_switches, None, 'Device', 'Devices')
             requester.stderr.write(msg)
-            return False
-        return True
+        return switches, not_switches
 
-    def applies_to_nodes(self, requester, device_infos, setting_name, setting_value, all_settings):
-        not_nodes = [di for di in device_infos if di.type != "node"]
-        if len(not_nodes) > 0:
+    def filter_nodes(self, requester, device_infos, setting_name):
+        nodes, not_nodes = self.simple_filter(device_infos, lambda di: di.type == 'node')
+        if len(not_nodes) > 0 and requester is not None:
             msg = format_sentence("Failed: %s is(are) not a() node(nodes), "
                                   "so it(they) does(do) not support the '" + setting_name + "' setting.\n",
-                                  [d.name for d in not_nodes],
-                                  None, 'Device', 'Devices')
+                                  not_nodes, None, 'Device', 'Devices')
             requester.stderr.write(msg)
-            return False
-        return True
+        return nodes, not_nodes
 
-    def applies_to_virtual_nodes(self, requester, device_infos, setting_name, setting_value, all_settings):
-        if not self.applies_to_nodes(requester, device_infos, setting_name, setting_value, all_settings):
-            return False
-        not_virtual_node = [di for di in device_infos if not di.virtual]
-        if len(not_virtual_node) > 0:
-            msg = format_sentence("Failed: %s is(are) not virtual, "
-                                  "so it(they) does(do) not support the '" + setting_name + "' setting.\n",
-                                  [d.name for d in not_virtual_node],
-                                  None, 'Node', 'Nodes')
-            requester.stderr.write(msg)
-            return False
-        return True
+    def filter_virtual_nodes(self, requester, device_infos, setting_name):
+        nodes, not_nodes = self.simple_filter(device_infos, lambda di: di.type == 'node',
+                                              ok_as_names = False, not_ok_as_names = True)
+        nodes_ok, not_virtual_nodes = self.simple_filter(nodes, lambda di: di.virtual)
+        if requester is not None:
+            reasons = []
+            if len(not_nodes) > 0:
+                reasons.append(format_sentence("%s is(are) not a() node(nodes)", not_nodes,
+                               None, 'device', 'devices'))
+            if len(not_virtual_nodes) > 0:
+                reasons.append(format_sentence("%s is(are) not virtual", not_virtual_nodes,
+                               None, 'node', 'nodes'))
+            if len(reasons) > 0:
+                for i in tuple(range(1, len(reasons))):
+                    reasons[i] = uncapitalize(reasons[i])
+                msg = "Failed: " + ', and '.join(reasons) + \
+                     f", so '{setting_name}' setting is not supported.\n"
+                requester.stderr.write(msg)
+        return nodes_ok, not_nodes + not_virtual_nodes
 
     def set_device_config(self, requester, device_set, settings_args):
         # parse settings
@@ -216,6 +270,7 @@ class SettingsManager:
             return  # issue already reported
 
         # ensure all settings are known and pass related checks
+        converting_to_switches = (all_settings.get('type') == 'switch')
         for setting_name, setting_value in all_settings.items():
 
             # check the setting is known
@@ -226,38 +281,46 @@ class SettingsManager:
                 return
 
             # verify this setting pass all checks
-            category_check = self.category_checks[setting_info['category']]
-            if not category_check(requester, device_infos, setting_name, setting_value, all_settings):
-                return
+            category = setting_info['category']
+            if category == 'switches' and converting_to_switches:
+                # converting_to_switches means we also have a type=switch setting in the command line.
+                # thus we are actually expecting unknown devices, but this will be verified by the
+                # category check of the "type[=switch]" setting.
+                dev_ok, dev_not_ok = self.all_ok_filter(device_infos)   # ok for us
+            else:
+                category_filter = self.category_filters[category]
+                dev_ok, dev_not_ok = category_filter(requester, device_infos, setting_name)
+            if len(dev_not_ok) > 0:
+                 return
             value_check = setting_info['value-check']
             if not value_check(requester, device_infos, setting_name, setting_value, all_settings):
                 return
 
         # effectively configure the devices
-        should_reboot_nodes = False
+        should_reboot_devices = False
         db_settings = all_settings.copy()
         for setting_name, setting_value in all_settings.items():
             if setting_name == 'netsetup':
                 new_netsetup_state = NetSetup(setting_value)
-                for node_info in device_infos:
-                    if node_info.conf.get('netsetup', 0) == new_netsetup_state:
+                for device_info in device_infos:
+                    if device_info.conf.get('netsetup', 0) == new_netsetup_state:
                         # skip this node: already configured
                         continue
                     # update iptables
                     do("iptables %(action)s WALT --source '%(ip)s' --jump ACCEPT" %
-                       dict(ip=node_info.ip,
+                       dict(ip=device_info.ip,
                             action="--insert" if new_netsetup_state == NetSetup.NAT else "--delete"))
                 db_settings['netsetup'] = int(new_netsetup_state)
-                should_reboot_nodes = True
+                should_reboot_devices = True
             elif setting_name == 'cpu.cores':
                 db_settings['cpu.cores'] = int(setting_value)
-                should_reboot_nodes = True  # update in DB (below) is enough
+                should_reboot_devices = True  # update in DB (below) is enough
             elif setting_name == 'ram':
-                should_reboot_nodes = True  # update in DB (below) is enough
+                should_reboot_devices = True  # update in DB (below) is enough
             elif setting_name == 'disks':
-                should_reboot_nodes = True  # update in DB (below) is enough
+                should_reboot_devices = True  # update in DB (below) is enough
             elif setting_name == 'networks':
-                should_reboot_nodes = True  # update in DB (below) is enough
+                should_reboot_devices = True  # update in DB (below) is enough
             elif setting_name in ('lldp.explore', 'poe.reboots', 'kexec.allow'):
                 setting_value = (setting_value.lower() == 'true')   # convert value to boolean
                 db_settings[setting_name] = setting_value
@@ -284,28 +347,15 @@ class SettingsManager:
         self.server.db.commit()
 
         # notify user
-        if should_reboot_nodes:
-            requester.stdout.write('Done. Reboot node(s) to see new settings in effect.\n')
+        if should_reboot_devices:
+            label = 'node(s)'
+            for device_info in device_infos:
+                if device_info.type != 'node':
+                    label = 'device(s)'
+                    break
+            requester.stdout.write(f'Done. Reboot {label} to see new settings in effect.\n')
         else:
             requester.stdout.write('Done.\n')
-
-    def get_device_categories(self, device_info):
-        secondary_category = None
-        if device_info.type == 'unknown':
-            category = 'unknown-devices'
-        elif device_info.type == 'switch':
-            category = 'switches'
-        elif device_info.type == 'node':
-            if device_info.virtual:
-                category = 'virtual-nodes'
-                secondary_category = 'nodes'
-            else:
-                category = 'nodes'
-        elif device_info.type == 'server':
-            category = 'server'
-        else:
-            raise NotImplementedError('Unexpected device type in get_device_config_as_dict().')
-        return category, secondary_category
 
     def get_device_config_data(self, requester, device_set):
         result = {}
@@ -313,18 +363,31 @@ class SettingsManager:
         device_infos = self.server.devices.parse_device_set(requester, device_set)
         if device_infos is None:
             return  # issue already reported
+        # we will compute 'names_per_category' and 'main_category_per_name' variables
+        # to ease the latter, we loop over categories in increasing order of priority.
+        names_per_category = {}
+        main_category_per_name = {}
+        ordered_categories = sorted(self.category_labels,
+                                    key=lambda k: self.category_labels[k]['priority'])
+        for category in ordered_categories:
+            category_filter = self.category_filters[category]
+            names, _ = category_filter(None, device_infos, None)
+            names_per_category[category] = set(names)
+            for name in names:
+                main_category_per_name[name] = category
+        # retrieve device settings and default values for missing ones
         for device_info in device_infos:
-            # check device category
-            category, secondary_category = self.get_device_categories(device_info)
+            dev_name = device_info.name
             # retrieve device settings
             settings = dict(device_info.conf)
             # add default value of unspecified settings
             for setting_name, setting_info in self.settings_table.items():
-                if setting_info['category'] in (category, secondary_category) \
+                category = setting_info['category']
+                if dev_name in names_per_category[category] \
                         and setting_name not in settings:
                     settings[setting_name] = setting_info['default']
-            result[device_info.name] = {
-                'category': category,
+            result[dev_name] = {
+                'category': main_category_per_name[dev_name],
                 'settings': settings
             }
         return result
@@ -342,12 +405,8 @@ class SettingsManager:
             configs[category][sorted_config].append(device_name)
         # print groups of devices having the same config
         parts = []
-        for category, category_labels in (
-                ('nodes', ('Node', 'Nodes')),
-                ('virtual-nodes', ('Virtual node', 'Virtual nodes')),
-                ('switches', ('Switch', 'Switches')),
-                ('server', None),
-                ('unknown-devices', ('Unknown device', 'Unknown devices'))):
+        for category, category_label_info in self.category_labels.items():
+            category_labels = category_label_info['labels']
             if len(configs[category]) == 0:
                 continue
             for sorted_config, device_names in configs[category].items():

@@ -11,7 +11,6 @@ from walt.common.tools import do
 from walt.common.popen import BetterPopen
 from walt.server.const import SSH_COMMAND
 from walt.server.processes.main.filesystem import FilesystemsCache
-from walt.server.processes.main.network.netsetup import NetSetup
 from walt.server.processes.main.nodes.clock import NodesClockSyncInfo
 from walt.server.processes.main.nodes.expose import ExposeManager
 from walt.server.processes.main.nodes.status import NodeBootupStatusManager
@@ -56,43 +55,12 @@ class NodesManager(object):
     def prepare(self):
         # set booted flag of all nodes to False for now
         self.db.execute('UPDATE nodes SET booted = false;')
-        # prepare the network setup for NAT support
-        self.prepare_netsetup()
 
     def restore(self):
         # start virtual nodes
         for vnode in self.db.select('devices', type = 'node', virtual = True):
             node = self.devices.get_complete_device_info(vnode.mac)
             self.start_vnode(node)
-
-    def prepare_netsetup(self):
-        # force-create the chain WALT and assert it is empty
-        do("iptables --new-chain WALT")
-        do("iptables --flush WALT")
-        do("iptables --append WALT --jump DROP")
-        # allow traffic on the bridge (virtual <-> physical nodes)
-        do("iptables --append FORWARD "
-           "--in-interface walt-net --out-interface walt-net "
-           "--jump ACCEPT")
-        # allow connections back to WalT
-        do("iptables --append FORWARD "
-           "--out-interface walt-net --match state --state RELATED,ESTABLISHED "
-           "--jump ACCEPT")
-        # jump to WALT chain for other traffic
-        do("iptables --append FORWARD "
-           "--in-interface walt-net "
-           "--jump WALT")
-        # NAT nodes traffic that is allowed to go outside
-        do("iptables --table nat --append POSTROUTING "
-           "! --out-interface walt-net --source %s "
-           "--jump MASQUERADE" % str(get_walt_subnet()))
-        # Set the configuration of all NAT-ed nodes
-        for node_info in self.db.execute("""\
-                SELECT ip FROM nodes
-                INNER JOIN devices ON devices.mac = nodes.mac
-                WHERE COALESCE((conf->'netsetup')::int, 0) = %d;
-                """ % NetSetup.NAT):
-            do("iptables --insert WALT --source '%s' --jump ACCEPT" % node_info.ip)
 
     def try_kill_vnode(self, node_mac):
         if node_mac in self.vnodes:
@@ -106,26 +74,8 @@ class NodesManager(object):
         for vnode in self.db.select('devices', type = 'node', virtual = True):
             print(f'stop vnode {vnode.name}')
             self.try_kill_vnode(vnode.mac)
-        self.cleanup_netsetup()
         # cleanup filesystem interpreters
         self.filesystems.cleanup()
-
-    def cleanup_netsetup(self):
-        # drop rules set by prepare_netsetup
-        do("iptables --table nat --delete POSTROUTING "
-           "! --out-interface walt-net --source %s "
-           "--jump MASQUERADE" % str(get_walt_subnet()))
-        do("iptables --delete FORWARD "
-           "--in-interface walt-net "
-           "--jump WALT")
-        do("iptables --delete FORWARD "
-           "--out-interface walt-net --match state --state RELATED,ESTABLISHED "
-           "--jump ACCEPT")
-        do("iptables --delete FORWARD "
-           "--in-interface walt-net --out-interface walt-net "
-           "--jump ACCEPT")
-        do("iptables --flush WALT")
-        do("iptables --delete-chain WALT")
 
     def forget_vnode(self, node_mac):
         self.try_kill_vnode(node_mac)

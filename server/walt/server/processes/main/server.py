@@ -63,6 +63,7 @@ class Server(object):
         # the topology.
         self.dhcpd.update(force=True)
         self.images.prepare()
+        self.devices.prepare()
         self.nodes.prepare()
 
     def update(self):
@@ -75,6 +76,7 @@ class Server(object):
         APISession.cleanup_all()
         self.images.cleanup()
         self.nodes.cleanup()
+        self.devices.cleanup()
 
     def set_image(self, requester, node_set, image_tag):
         nodes = self.nodes.parse_node_set(requester, node_set)

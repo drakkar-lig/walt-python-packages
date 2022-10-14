@@ -209,6 +209,11 @@ class PostgresDB:
         col_names = [col_desc[0] for col_desc in self.c.description]
         return columnate(self.c.fetchall(), header=col_names)
 
+    def pretty_print_select_info(self, *args):
+        self.c.execute(*args)
+        col_names = [col_desc[0] for col_desc in self.c.description]
+        return DBRecordSet(self.c.fetchall()), col_names
+
     def pretty_printed_resultset(self, res):
         if len(res) == 0:
             raise Exception('pretty_printed_resultset() does not work if resultset is empty!')

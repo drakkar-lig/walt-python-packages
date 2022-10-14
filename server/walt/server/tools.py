@@ -148,6 +148,8 @@ def get_walt_adm_subnet():
         return net(walt_adm_conf['ip'])
 
 def ip_in_walt_network(input_ip):
+    if input_ip is None:
+        return False
     subnet = get_walt_subnet()
     return ip(input_ip) in subnet
 
