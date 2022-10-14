@@ -1,7 +1,7 @@
 import re
 
-from walt.common.formatting import format_paragraph, format_sentence
-from walt.common.tools import get_mac_address
+from walt.common.formatting import format_paragraph, format_sentence, columnate
+from walt.common.tools import do, get_mac_address
 from walt.server import const
 from walt.server.processes.main.network.netsetup import NetSetup
 from walt.server.tools import ip_in_walt_network, get_walt_subnet, \
@@ -19,13 +19,19 @@ The name must be at least 2-chars long.
 """
 
 DEVICES_QUERY = """\
-SELECT name, ip, mac,
+WITH infodev AS (SELECT name, ip, mac,
        CASE WHEN type = 'node' AND virtual THEN 'node (virtual)'
             WHEN type = 'node' AND mac like '52:54:00:%%' THEN 'node (vpn)'
             WHEN type = 'node' THEN 'node (physical)'
             ELSE type
-       END as type
-FROM devices
+       END as type,
+COALESCE((conf->'netsetup')::int, 0) as int_netsetup
+FROM devices)
+SELECT name, ip, mac, type,
+CASE WHEN int_netsetup = 0 THEN 'LAN'
+     WHEN int_netsetup = 1 THEN 'NAT'
+END as netsetup
+FROM infodev
 WHERE type %(unknown_op)s 'unknown'
 ORDER BY type, name;"""
 
@@ -86,6 +92,13 @@ class DevicesManager(object):
         self.server_ip = get_server_ip()
         self.netmask = str(get_walt_subnet().netmask)
 
+    def prepare(self):
+        # prepare the network setup for NAT support
+        self.prepare_netsetup()
+
+    def cleanup(self):
+        self.cleanup_netsetup()
+
     def get_server_mac(self):
         return self.server_mac
 
@@ -130,6 +143,10 @@ class DevicesManager(object):
         device_type = device_info.type
         if device_type == 'node':
             node_info = self.db.select_unique("nodes", mac=mac)
+            # netsetup=NAT can actually be applied to all devices, not only
+            # nodes. However, considering only nodes ensures these devices
+            # will really boot in walt-net and the netmask + gateway pair
+            # will be correct. So we only expose this information to nodes.
             if device_info.conf.get('netsetup', 0) == NetSetup.NAT:
                 gateway = self.server_ip
             else:
@@ -261,18 +278,35 @@ class DevicesManager(object):
             self.db.commit()
         return new_equipment
 
+    def show_device_table(self, unknown_or_not):
+        unknown_op = '=' if unknown_or_not else '!='
+        q = DEVICES_QUERY % dict(unknown_op = unknown_op)
+        rows, header = self.db.pretty_print_select_info(q)
+        # Do no print the netsetup status for the server
+        # or devices outside walt-net
+        idx_type = header.index('type')
+        idx_ip = header.index('ip')
+        idx_netsetup = header.index('netsetup')
+        fixed_rows = []
+        for row in rows:
+            if row[idx_type] == 'server' or \
+               row[idx_ip] is None or \
+               not ip_in_walt_network(row[idx_ip]):
+                row = list(row)  # for assignment, it was a tuple
+                row[idx_netsetup] = ''
+            fixed_rows.append(row)
+        return columnate(fixed_rows, header)
+
     def show(self):
-        q = DEVICES_QUERY % dict(unknown_op = '!=')
         msg = format_paragraph(
                 TITLE_DEVICE_SHOW_MAIN,
-                self.db.pretty_printed_select(q),
+                self.show_device_table(False),
                 FOOTNOTE_DEVICE_SHOW_MAIN)
         unknown_devices = self.db.select('devices', type='unknown')
         if len(unknown_devices) > 0:
-            q = DEVICES_QUERY % dict(unknown_op = '=')
             msg += format_paragraph(
                         TITLE_SOME_UNKNOWN_DEVICES,
-                        self.db.pretty_printed_select(q),
+                        self.show_device_table(True),
                         FOOTNOTE_SOME_UNKNOWN_DEVICES)
         return msg
 
@@ -362,3 +396,49 @@ class DevicesManager(object):
              switch_mac, switch_port = record.mac1, record.port1
         switch_info = self.get_complete_device_info(switch_mac)
         return switch_info, switch_port
+
+    def prepare_netsetup(self):
+        # force-create the chain WALT and assert it is empty
+        do("iptables --new-chain WALT")
+        do("iptables --flush WALT")
+        do("iptables --append WALT --jump DROP")
+        # allow traffic on the bridge (virtual <-> physical nodes)
+        do("iptables --append FORWARD "
+           "--in-interface walt-net --out-interface walt-net "
+           "--jump ACCEPT")
+        # allow connections back to WalT
+        do("iptables --append FORWARD "
+           "--out-interface walt-net --match state --state RELATED,ESTABLISHED "
+           "--jump ACCEPT")
+        # jump to WALT chain for other traffic
+        do("iptables --append FORWARD "
+           "--in-interface walt-net "
+           "--jump WALT")
+        # NAT nodes traffic that is allowed to go outside
+        do("iptables --table nat --append POSTROUTING "
+           "! --out-interface walt-net --source %s "
+           "--jump MASQUERADE" % str(get_walt_subnet()))
+        # Set the configuration of all NAT-ed devices
+        for device_info in self.db.execute("""\
+                SELECT ip FROM devices
+                WHERE COALESCE((conf->'netsetup')::int, 0) = %d;
+                """ % NetSetup.NAT):
+            do("iptables --insert WALT --source '%s' --jump ACCEPT" % device_info.ip)
+
+    def cleanup_netsetup(self):
+        # drop rules set by prepare_netsetup
+        do("iptables --table nat --delete POSTROUTING "
+           "! --out-interface walt-net --source %s "
+           "--jump MASQUERADE" % str(get_walt_subnet()))
+        do("iptables --delete FORWARD "
+           "--in-interface walt-net "
+           "--jump WALT")
+        do("iptables --delete FORWARD "
+           "--out-interface walt-net --match state --state RELATED,ESTABLISHED "
+           "--jump ACCEPT")
+        do("iptables --delete FORWARD "
+           "--in-interface walt-net --out-interface walt-net "
+           "--jump ACCEPT")
+        do("iptables --flush WALT")
+        do("iptables --delete-chain WALT")
+
