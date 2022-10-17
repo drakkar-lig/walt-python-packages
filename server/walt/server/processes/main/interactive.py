@@ -49,12 +49,20 @@ class DevicePingSocketListener(PromptSocketListener):
     def get_command(self, **params):
         return 'ping %s' % params['device_ip']
 
+class DeviceShellSocketListener(PromptSocketListener):
+    REQ_ID = Requests.REQ_DEVICE_SHELL
+    def get_command(self, **params):
+        user = params['user']
+        ip = params['device_ip']
+        return f'ssh -o PreferredAuthentications=password {user}@{ip}'
+
 class InteractionManager(object):
     def __init__(self, tcp_server, ev_loop):
         for cls in [    SQLPromptSocketListener,
                         DockerPromptSocketListener,
                         NodeCmdSocketListener,
-                        DevicePingSocketListener ]:
+                        DevicePingSocketListener,
+                        DeviceShellSocketListener ]:
             tcp_server.register_listener_class(
                     req_id = cls.REQ_ID,
                     cls = cls,
