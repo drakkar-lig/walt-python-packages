@@ -19,6 +19,7 @@ class Requests(object):
     REQ_FAKE_TFTP_GET = 12
     REQ_VPN_NODE_IMAGE = 13
     REQ_NOTIFY_BOOTUP_STATUS = 14
+    REQ_DEVICE_SHELL = 15
 
     # the request id message may be specified directly as
     # as a decimal string (e.g. '4') or by the corresponding

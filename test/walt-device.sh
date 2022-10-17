@@ -91,3 +91,26 @@ define_test "walt device rename" as {
 define_test "walt device forget (on non existing device)" as {
     walt device forget eazgzaezgeriogahregu
 }
+
+define_test "walt device shell (on non existing device)" as {
+    { walt device shell eazgzaezgeriogahregu 2>&1 || true; } | grep "No device with name"
+}
+
+define_test "walt device expose" as {
+
+    which wget || {
+        echo 'This test requires the "wget" command.' >&2
+        return 1
+    }
+
+    # use walt device expose to redirect port localhost:8083 to <server-ip>:80
+    {
+        timeout -s INT 5 walt device expose "walt-server" 80 8083
+    } &
+
+    # check that running wget we get the html page returned by walt-server-httpd
+    sleep 2
+    echo "NOTE: this test also checks walt-server-httpd is responding."
+    wget -q -O - http://localhost:8083/ | grep "WalT server HTTP service"
+}
+

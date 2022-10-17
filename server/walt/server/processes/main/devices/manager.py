@@ -83,6 +83,9 @@ WalT also detected the following devices but could not detect their type:"""
 FOOTNOTE_SOME_UNKNOWN_DEVICES = """\
 If one of them is actually a switch, use 'walt device config <name> type=switch' to fix this."""
 
+CMD_ADD_SSH_KNOWN_HOST = "  mkdir -p /root/.ssh && ssh-keygen -F %(ip)s || \
+                            ssh-keyscan -t ecdsa %(ip)s >> /root/.ssh/known_hosts"
+
 class DevicesManager(object):
 
     def __init__(self, server):
@@ -441,4 +444,15 @@ class DevicesManager(object):
            "--jump ACCEPT")
         do("iptables --flush WALT")
         do("iptables --delete-chain WALT")
+
+    def prepare_ssh_access_for_ip(self, ip):
+        cmd = CMD_ADD_SSH_KNOWN_HOST % dict(ip = ip)
+        do(cmd, shell=True)
+
+    def prepare_ssh_access(self, requester, device_set):
+        devices = self.parse_device_set(requester, device_set)
+        if devices == None:
+            return
+        for device in devices:
+            self.prepare_ssh_access_for_ip(device.ip)
 

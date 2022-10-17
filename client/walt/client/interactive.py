@@ -149,3 +149,5 @@ def run_node_cmd(node_ip, cmdargs, ssh_tty, capture_output):
 def run_device_ping(device_ip):
     PromptClient(Requests.REQ_DEVICE_PING, device_ip=device_ip).run()
 
+def run_device_shell(device_ip, user):
+    PromptClient(Requests.REQ_DEVICE_SHELL, device_ip=device_ip, user=user).run()

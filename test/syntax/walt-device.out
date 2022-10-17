@@ -13,9 +13,11 @@ Help about WalT in general:
 
 Sub-commands:
     show    print details about devices involved in the platform
+    shell   run an interactive ssh session to a device
     tree    print the network structure of the platform
     rescan  rescan the network devices involved in the platform
     rename  rename a device
     config  get or set devices configuration
     ping    check that a device is reachable on WalT network
     forget  let the WalT system forget about an obsolete device
+    expose  expose a network port of a device on the local machine

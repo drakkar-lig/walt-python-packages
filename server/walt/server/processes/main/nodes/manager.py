@@ -34,8 +34,6 @@ FS_CMD_PATTERN = SSH_COMMAND + ' root@%(fs_id)s "sh"'   # use node_ip as our fs 
 CMD_START_VNODE = "walt-virtual-node --mac %(mac)s --ip %(ip)s --model %(model)s --hostname %(name)s \
                                --server-ip %(server_ip)s --cpu-cores %(cpu_cores)d --ram %(ram)s \
                                --disks %(disks)s --networks %(networks)s"
-CMD_ADD_SSH_KNOWN_HOST = "  mkdir -p /root/.ssh && ssh-keygen -F %(ip)s || \
-                            ssh-keyscan -t ecdsa %(ip)s >> /root/.ssh/known_hosts"
 
 class NodesManager(object):
     def __init__(self, tcp_server, ev_loop, db, blocking, devices, logs, **kwargs):
@@ -242,17 +240,6 @@ class NodesManager(object):
         return set(node.model for node in \
                    self.db.select('nodes', image = image_fullname))
 
-    def prepare_ssh_access_for_ip(self, ip):
-        cmd = CMD_ADD_SSH_KNOWN_HOST % dict(ip = ip)
-        do(cmd, shell=True)
-
-    def prepare_ssh_access(self, requester, node_set):
-        nodes = self.parse_node_set(requester, node_set)
-        if nodes == None:
-            return
-        for node in nodes:
-            self.prepare_ssh_access_for_ip(node.ip)
-
     def reboot_node_set(self, requester, task, node_set, hard_only):
         nodes = self.parse_node_set(requester, node_set)
         if nodes == None:
@@ -339,7 +326,7 @@ class NodesManager(object):
         node_ip = self.get_node_ip(requester, node_name)
         if node_ip is None:
             return None
-        self.prepare_ssh_access_for_ip(node_ip)
+        self.devices.prepare_ssh_access_for_ip(node_ip)
         return self.filesystems[node_ip]
 
     def get_cp_entity_filesystem(self, requester, node_name, **info):
