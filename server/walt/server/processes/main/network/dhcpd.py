@@ -93,8 +93,9 @@ subnet %(subnet_ip)s netmask %(subnet_netmask)s {
             suffix (concat ("0", binary-to-ascii (16, 8, "", substring(hardware,5,1))),2), ":",
             suffix (concat ("0", binary-to-ascii (16, 8, "", substring(hardware,6,1))),2)
         );
+        set client_name = pick-first-value(option host-name, config-option host-name, client-name, "");
         execute("walt-dhcp-event", "commit", vci, uci,
-                        ip_string, mac_address_string);
+                        ip_string, mac_address_string, client_name);
     }
 }
 
