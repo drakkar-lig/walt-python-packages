@@ -4,14 +4,16 @@ WalT (wireless testbed) control tool.
 """
 import walt.client.speedup
 import sys
+from walt.common.version import __version__
 from walt.client.plugins import add_category, add_all_categories
 from walt.client.logo import try_add_logo
 from walt.client.application import WalTToolboxApplication
 from walt.client.wrap import wrap_client_command
 
-WALT_COMMAND_HELP_PREFIX = '''\
+WALT_COMMAND_HELP_PREFIX = f'''\
 
 WalT platform control tool.
+Version: {__version__}
 
 Usage:
     walt CATEGORY SUBCOMMAND [args...]

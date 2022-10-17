@@ -1,5 +1,6 @@
 
 WalT platform control tool.
+Version: 0.25
 
 Usage:
     walt CATEGORY SUBCOMMAND [args...]
