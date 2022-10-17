@@ -46,7 +46,7 @@ class TCPExposer:
             return sock_file
         else:
             sock_file.close()
-            print(status)
+            print(status.decode('utf-8'))
             return None
     def event_on_server_s(self):
         conn_s, addr = self.local_server_s.accept()
