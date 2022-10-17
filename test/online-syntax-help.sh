@@ -9,11 +9,11 @@ check_expected_syntax() {
     # cmd is deduced from file name, by removing ".out" prefix,
     # and replacing at most 2 dashes per a space (walt <category> <command>)
     cmd=$(echo "$out_filename" | sed -e "s/\.out$//" | sed -e 's/-/ /' | sed -e 's/-/ /')
-    expected="$(cat $TESTS_DIR/syntax/$out_filename | tr -d '[:space:]')"
+    expected="$(cat $TESTS_DIR/syntax/$out_filename | grep -v "Version:" | tr -d '[:space:]')"
     # the sed expression is used to discard the list of values of a cli.Set,
     # because the order is not constant
     # tr allows to ignore differences in spacing (may occur with a different terminal size)
-    result="$(LC_ALL=C $cmd --help | sed -e "s/:{.*}//" | tr -d '[:space:]' || true)"
+    result="$(LC_ALL=C $cmd --help | grep -v "Version:" | sed -e "s/:{.*}//" | tr -d '[:space:]' || true)"
     if [ "$result" != "$expected" ]
     then
         echo "$out_filename: '$cmd' online syntax help differs from expected!"
