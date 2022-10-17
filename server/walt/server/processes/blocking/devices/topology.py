@@ -1,4 +1,4 @@
-import re, time
+import time
 from snimpy.snmp import SNMPException
 
 from walt.common.formatting import format_sentence, human_readable_delay
@@ -325,9 +325,6 @@ class TopologyManager(object):
     def __init__(self):
         self.last_scan = None
 
-    def cleanup_sysname(self, sysname):
-        return re.sub("[^a-z0-9-]+", "-", sysname.split('.')[0])
-
     def print_message(self, requester, message):
         if requester is not None:
             requester.stdout.write(message + '\n')
@@ -388,13 +385,10 @@ class TopologyManager(object):
             if ip == server_ip:
                 mac = server_mac
             topology.register_neighbor(host_mac, port, mac)
-            info = dict(mac = mac, ip = ip)
+            info = dict(mac = mac, ip = ip, name = sysname.lower())
             db_info = server.devices.get_complete_device_info(mac)
             if db_info == None:
                 # new device, call add_or_update_device to add it
-                name = self.cleanup_sysname(sysname)
-                if server.devices.validate_device_name(None, name):   # name seems meaningful...
-                    info.update(name = name)
                 server.add_or_update_device(**info)
             elif ip != db_info.ip:
                 # call add_or_update_device to update ip

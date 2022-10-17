@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 from walt.common.constants import WALT_SERVER_TCP_PORT
 from walt.common.devices.registry import get_device_info_from_mac
@@ -84,6 +85,9 @@ class Server(object):
             return False   # error already reported
         return self.images.set_image(requester, nodes, image_tag)
 
+    def cleanup_device_name(self, name):
+        return re.sub("[^a-zA-Z0-9-]+", "-", name.split('.')[0])
+
     def add_or_update_device(self, vci='', uci='', ip=None, mac=None, name=None, **kwargs):
         # let's try to identify this device given its mac address
         # and/or the vci field of the DHCP request.
@@ -103,7 +107,9 @@ class Server(object):
             }
         kwargs.update(**info)
         if name is not None:
-            kwargs.update(name = name)
+            name = self.cleanup_device_name(name)
+            if self.devices.validate_device_name(None, name):   # name seems meaningful...
+                kwargs.update(name = name)
         new_equipment = self.devices.add_or_update(
                     ip = ip, mac = mac, **kwargs)
         if new_equipment and info.get('type') == 'node':
