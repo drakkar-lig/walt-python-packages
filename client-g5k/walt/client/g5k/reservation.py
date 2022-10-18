@@ -1,13 +1,13 @@
 import shutil, sys, time
 from datetime import datetime
+from pathlib import Path
 from walt.client.g5k.myexeco import load_execo_g5k
 from walt.client.g5k.tools import get_local_g5k_site
 from walt.client import __version__
 
 POSSIBLE_CLUSTERS_FOR_SERVER = None
 WALT_SERVER_ENV_FILE = \
-    f'http://public.grenoble.grid5000.fr/~eduble/walt-server-{__version__}.env'
-JOB_LOGS_DIR = ".walt-g5k/logs"
+    f'http://public.grenoble.grid5000.fr/~eduble/walt-server-{__version__}-new.yaml'
 DEBUG_MODE = False
 # default planning start time is 1 minute from now
 # in some cases this is not enough time for submitting the jobs.
@@ -20,14 +20,17 @@ def compute_possible_clusters_for_server():
     for cluster in execo_g5k.get_g5k_clusters('default'):
         first_cluster_host = execo_g5k.get_cluster_hosts(cluster)[0]
         cluster_attr = execo_g5k.get_host_attributes(first_cluster_host)
-        if len(cluster_attr['kavlan']) >= 2:
-            # ok hosts on this cluster have 2 or more network adapters
-            # which we can connect to different VLANs
-            site = execo_g5k.get_cluster_site(cluster)
-            if site not in POSSIBLE_CLUSTERS_FOR_SERVER:
-                POSSIBLE_CLUSTERS_FOR_SERVER[site] = [ cluster ]
-            else:
-                POSSIBLE_CLUSTERS_FOR_SERVER[site].append(cluster)
+        if cluster_attr['exotic']:
+            continue
+        if len(cluster_attr['kavlan']) < 2:
+            continue
+        # ok hosts on this cluster have 2 or more network adapters
+        # which we can connect to different VLANs
+        site = execo_g5k.get_cluster_site(cluster)
+        if site not in POSSIBLE_CLUSTERS_FOR_SERVER:
+            POSSIBLE_CLUSTERS_FOR_SERVER[site] = [ cluster ]
+        else:
+            POSSIBLE_CLUSTERS_FOR_SERVER[site].append(cluster)
 
 def get_possible_clusters_for_server():
     if POSSIBLE_CLUSTERS_FOR_SERVER is None:
@@ -172,7 +175,7 @@ SERVER_NODE_RESOURCE = """{eth_count>1}/nodes=1"""
 VLAN_RESOURCE = """{type='%s'}/vlan=1"""
 JOB_NAME = "WALT"
 
-def get_helper_command():
+def get_helper_command(deployment_id):
     # notes:
     # * the program specified with '-p' option will be called on one of the sites
     #   where jobs are run, which may not be this current site where walt command
@@ -184,7 +187,10 @@ def get_helper_command():
     current_site = get_local_g5k_site()
     helper_path = shutil.which('walt-g5k-deploy-helper')
     helper_python_exe = sys.executable
-    return f"ssh {current_site} {helper_python_exe} {helper_path}"
+    return f"ssh {current_site} {helper_python_exe} {helper_path} {deployment_id}"
+
+def get_job_logs_dir(deployment_id):
+    return f"{str(Path.home())}/.walt-g5k/deployments/{deployment_id}/logs"
 
 def walltime_as_seconds(wt):
     elems = tuple(int(e) for e in wt.split(':'))
@@ -204,7 +210,7 @@ def select_vlan_site(recipe_info, sites):
     # (otherwise we will have to manage one more job just for this vlan)
     return sorted_sites[-1]
 
-def get_submission_info(recipe_info, start_time_margin):
+def get_submission_info(recipe_info, deployment_id, start_time_margin):
     result, info = analyse_reservation(recipe_info, start_time_margin)
     if result is False:
         return False, info
@@ -218,6 +224,7 @@ def get_submission_info(recipe_info, start_time_margin):
         vlan_site = select_vlan_site(recipe_info,
                         info['selected_slot']['resources']['kavlan'])
     reservation_date = info['selected_slot']['start']
+    logs_dir = get_job_logs_dir(deployment_id)
     deployment_info = {
         'vlan': {
             'type': vlan_type,
@@ -226,6 +233,7 @@ def get_submission_info(recipe_info, start_time_margin):
         'start_date': reservation_date,
         'end_date': reservation_date + walltime_as_seconds(walltime),
         'sites': {},
+        'logs_dir': logs_dir,
         **recipe_info
     }
     deployment_info['server']['g5k_env_file'] = WALT_SERVER_ENV_FILE
@@ -245,14 +253,25 @@ def get_submission_info(recipe_info, start_time_margin):
                      '-t', 'deploy'
                    ]
         if site == server_site:
-            helper_cmd = get_helper_command()
+            helper_cmd = get_helper_command(deployment_id)
             if DEBUG_MODE:
                 print('DEBUG_MODE: the following command should be run manually.')
                 print(helper_cmd)
             else:
+                # Job logs should be redirected to the front-end running the walt client
+                # by a proper redirection of standard streams as part of helper startup
+                # code.
+                # For debugging purpose (if this helper code is broken), we also save
+                # stdout & stderr of the job by using proper oarsub options.
+                # Note that these logs will be found on the site frontend running the
+                # main job (i.e., the site running the walt server) which may not be
+                # the one running the walt client.
+                # Since these are saved mostly for debugging, we hide them ('.' prefix).
+                local_stdout = f"{logs_dir}/.local.deploy.stdout"
+                local_stderr = f"{logs_dir}/.local.deploy.stderr"
                 cmd_args += [
-                         '-O', JOB_LOGS_DIR + '/deploy.out',
-                         '-E', JOB_LOGS_DIR + '/deploy.err',
+                         '-O', local_stdout,
+                         '-E', local_stderr,
                          helper_cmd ]
         deployment_info['sites'][site] = {
             'submit_args': cmd_args

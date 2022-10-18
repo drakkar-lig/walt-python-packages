@@ -9,8 +9,7 @@ from walt.client.g5k.recipes import new_recipe, \
         save_recipe, edit_recipe, list_recipes, \
         print_recipe, remove_recipe
 from walt.client.g5k.printer import print_info
-from walt.client.g5k.deploy.status import get_deployment_status, \
-                                          exit_if_walt_platform_deployed
+from walt.client.g5k.deploy.status import exit_if_walt_platform_deployed
 from walt.client.g5k.types import G5K_RECIPE
 
 # when working with grid'5000, the first thing we
