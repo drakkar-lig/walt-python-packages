@@ -4,6 +4,7 @@ import requests, subprocess, sys, time, json, traceback
 from getpass import getuser
 from walt.common.formatting import human_readable_delay
 from walt.client.g5k.tools import Cmd, run_cmd_on_site, oarstat, set_vlan, printed_date_from_ts
+from walt.client.g5k.reboot import reboot_nodes
 from walt.client.g5k.deploy.status import get_deployment_status, log_status_change, \
                                   record_main_job_startup, record_main_job_ending, \
                                   save_deployment_status
@@ -155,8 +156,7 @@ class LoggerBusyIndicator:
     def __getattr__(self, attr):
         return lambda *args: None
 
-def run_deployment_tasks():
-    info = get_deployment_status()
+def run_deployment_tasks(info):
     # since helper was called, we know the job is ready at the site where walt server must be deployed.
     # start deploying server asap because it will take time.
     server_site = info['server']['site']
@@ -196,9 +196,12 @@ def run_deployment_tasks():
     # reboot nodes
     log_status_change(info, 'nodes.reboot', f'Rebooting walt nodes', verbose = True)
     all_nodes = sum((list(site_info['nodes']) for site_info in info['sites'].values()), [])
-    nodes_spec = ' '.join(('-m ' + node) for node in all_nodes)
-    print(f'kareboot3 -M --no-wait -l hard {nodes_spec}')
-    run_cmd_on_site(info, server_site, f'kareboot3 -M --no-wait -l hard {nodes_spec}'.split())
+    rebooted_node_names, reboot_errors = reboot_nodes(info, all_nodes)
+    if len(reboot_errors) > 0:
+        print('Reboot failed!')
+        for node_name, err in reboot_errors.items():
+            print('{node_name}: {err}')
+        raise Exception('Reboot failed!')
     # update server in .waltrc
     log_status_change(info, 'client.conf', 'Updating $HOME/.waltrc', verbose = True)
     conf = get_config_from_file()
@@ -216,47 +219,39 @@ def run_deployment_tasks():
     print('Ready!')
     sys.stdout.flush()
 
-def handle_failure(e):
+def handle_failure(info, e):
     # kill secondary jobs
-    info = get_deployment_status()
-    if info is not None:
-        for site in info['sites']:
-            if site == info['server']['site']:  # current site
-                continue
-            job_id = info['sites'][site]['job_id']
-            args = [ 'oardel', job_id ]
-            run_cmd_on_site(info, site, args, err_out=False)
+    for site in info['sites']:
+        if site == info['server']['site']:  # current site
+            continue
+        job_id = info['sites'][site]['job_id']
+        args = [ 'oardel', job_id ]
+        run_cmd_on_site(info, site, args, err_out=False)
     # print exception to log
     traceback.print_exc()
     # record ending
     sys.stdout.flush()
     sys.stderr.flush()
     time.sleep(0.2)
-    record_main_job_ending(e)
+    record_main_job_ending(info, e)
 
 def print_banner(f, msg):
-    print(file=f)
     print(file=f)
     print('-'*len(msg), file=f)
     print(msg, file=f)
     f.flush()
 
 class StreamSaver:
-    def __init__(self, stream_name):
-        self._stream_name = stream_name
+    def __init__(self, info, stream_name):
+        logs_dir = info['logs_dir']
+        self._stream = open(f'{logs_dir}/deploy.{stream_name}', 'w')
         self._orig_stream = getattr(sys, '__' + stream_name + '__')
-        self._saved = ''
     def write(self, s):
-        self._saved += s
+        self._stream.write(s)
         return self._orig_stream.write(s)
     def flush(self):
-        if len(self._saved) > 0:
-            info = get_deployment_status(allow_expired=True)
-            if info is not None:
-                server_site = info['server']['site']
-                info['sites'][server_site]['job_' + self._stream_name] = self._saved
-                save_deployment_status(info)
-            self._orig_stream.flush()
+        self._stream.flush()
+        self._orig_stream.flush()
     @property
     def encoding(self):
         return self._orig_stream.encoding
@@ -268,20 +263,22 @@ class StreamSaver:
 # This script should then remain alive to maintain the main job alive.
 def run():
     now = time.time()
-    first_msg = "%s: WalT platform deployment helper started." % printed_date_from_ts(now)
+    deployment_id = sys.argv[1]
+    info = get_deployment_status(deployment_id)
+    sys.stdout = StreamSaver(info, 'stdout')
+    sys.stderr = StreamSaver(info, 'stderr')
+    printed_now = printed_date_from_ts(now)
+    first_msg = f"{printed_now}: WalT platform deployment helper started"
     print_banner(sys.stdout, first_msg)
     print_banner(sys.stderr, first_msg)
-    sys.stdout = StreamSaver('stdout')
-    sys.stderr = StreamSaver('stderr')
-    record_main_job_startup()
+    record_main_job_startup(info)
     try:
-        run_deployment_tasks()
+        run_deployment_tasks(info)
     except Exception as e:
-        handle_failure(e)
+        handle_failure(info, e)
         return
     finally:
         sys.stdout.flush()
         sys.stderr.flush()
     # remain alive
-    info = get_deployment_status()
     time.sleep(info['end_date'] +1 - time.time())

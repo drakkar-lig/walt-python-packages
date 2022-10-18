@@ -92,17 +92,17 @@ def hard_reboot_nodes(requester, remaining_nodes, **env):
     run_next_step(**env)
 
 def client_hard_reboot(requester, remaining_nodes, **env):
-    mac_to_nodes = { node.mac: node for node in remaining_nodes }
-    node_macs = tuple(mac_to_nodes.keys())
+    mac_to_name = { node.mac: node.name for node in remaining_nodes }
+    node_macs = tuple(mac_to_name.keys())
     mac_hardrebooted, mac_hardreboot_errors = \
             requester.hard_reboot_nodes(node_macs)
     env.update(
         requester = requester,
         hardrebooted = [
-            mac_to_nodes[mac] for mac in mac_hardrebooted
+            mac_to_name[mac] for mac in mac_hardrebooted
         ],
         hardreboot_errors = {
-            mac_to_nodes[mac].name: error \
+            mac_to_name[mac]: error \
             for mac, error in mac_hardreboot_errors.items()
         }
     )

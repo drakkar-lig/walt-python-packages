@@ -115,7 +115,9 @@ def oarstat(info, site):
 
 def set_vlan(info, site, vlan_id, *nodes):
     remaining_nodes = nodes
-    for i in range(3):
+    retries = 3
+    while True:
+        num_nodes = len(remaining_nodes)
         nodes_spec = ' '.join(('-m ' + node) for node in remaining_nodes)
         run_cmd_on_site(info, site, f'kavlan -s -i {vlan_id} {nodes_spec}'.split(), True)
         remaining_nodes = []
@@ -127,9 +129,20 @@ def set_vlan(info, site, vlan_id, *nodes):
                 remaining_nodes.append(node)
         if len(remaining_nodes) == 0:
             return   # ok done
-        time.sleep(KAVLAN_FAILURE_DELAY)
-        # failed on some nodes, retry
-    # still failing after 3 tries
+        # failed on some nodes
+        if len(remaining_nodes) < num_nodes:
+            # we are progressing, continue
+            retries = 3
+            time.sleep(KAVLAN_FAILURE_DELAY)
+            continue
+        retries -= 1
+        if retries == 0:
+            # stop retrying!
+            break
+        else:
+            time.sleep(KAVLAN_FAILURE_DELAY)
+            continue
+    # still not progressing after 3 tries
     raise Exception(f'kavlan failed to attach vlan {vlan_id} on ' + \
                     ', '.join(remaining_nodes))
 

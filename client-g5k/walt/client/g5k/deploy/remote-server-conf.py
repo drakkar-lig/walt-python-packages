@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from pathlib import Path
-from ipaddress import ip_network
+from ipaddress import ip_network, ip_address
 import sys, json, subprocess, time
 from walt.common.apilink import ServerAPILink
 
@@ -8,7 +8,8 @@ sys.stdout = open('/tmp/server-conf.stdout', 'w')
 sys.stderr = open('/tmp/server-conf.stderr', 'w')
 
 t0 = time.time()
-WALT_IP_CIDR = "192.168.204.1/22"
+WALT_SERVER_IP = "192.168.204.1"
+WALT_IP_CIDR = f"{WALT_SERVER_IP}/22"
 
 def log_event(evt):
     print(f'{time.time()-t0} {evt}')
@@ -20,23 +21,6 @@ with open(sys.argv[1], 'r') as f:
     job_conf = json.load(f)
 
 log_event('updating conf')
-
-# update /etc/network/interfaces
-network_interfaces_file = Path("/etc/network/interfaces")
-network_interfaces = network_interfaces_file.read_text()
-network_interfaces += """
-
-# walt network interface configuration
-# => this will just apply config given in file
-#    /etc/walt/server.conf
-
-auto walt-net
-
-iface walt-net inet manual
-    up walt-net-config up
-    down walt-net-config down
-"""
-network_interfaces_file.write_text(network_interfaces)
 
 # write /etc/walt/server.conf
 server_conf_file = Path("/etc/walt/server.conf")
@@ -59,20 +43,16 @@ server_conf = server_conf.replace(
             '__WALT_IP_CIDR__', WALT_IP_CIDR)
 server_conf_file.write_text(server_conf)
 
-# configure walt-net interface
-log_event('ifup walt-net')
-run_cmd('ifup walt-net')
-
-# enable and start walt server daemon
-log_event('enable & start walt-server')
-run_cmd('systemctl enable walt-server')
-run_cmd('systemctl start walt-server')
+# run walt-server-setup to have all walt services ready
+log_event('run walt-server-setup')
+run_cmd('walt-server-setup')
 
 # populate the database with node information
 # (useful to have the same node names in walt and g5k)
 walt_subnet = ip_network(WALT_IP_CIDR, strict=False)
-free_ips = list(walt_subnet.hosts())
-free_ips.pop(0) # first address is for the server
+free_ips = set(walt_subnet.hosts())
+free_ips.discard(ip_address(WALT_SERVER_IP))
+free_ips = sorted(free_ips)
 with ServerAPILink('localhost', 'SSAPI') as server:
     for name, mac in job_conf['nodes']:
         # simulate a DHCP request from the node (=> create it in db)

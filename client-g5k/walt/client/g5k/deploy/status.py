@@ -3,22 +3,32 @@ from pathlib import Path
 from walt.client.g5k.myexeco import load_execo_g5k
 from walt.client.g5k.tools import run_cmd_on_site
 
-DEPLOYMENT_STATUS_FILE = Path.home() / '.walt-g5k' / 'deployment.json'
+DEPLOYMENT_STATUS_DIRECTORY = Path.home() / '.walt-g5k' / 'deployments'
+LAST_DEPLOYMENT_STATUS_FILE = DEPLOYMENT_STATUS_DIRECTORY / 'last-deployment.json'
 
-def save_deployment_status(info):
-    if not DEPLOYMENT_STATUS_FILE.parent.exists():
-        DEPLOYMENT_STATUS_FILE.parent.mkdir(parents=True)
+def get_status_file(deployment_id):
+    return DEPLOYMENT_STATUS_DIRECTORY / deployment_id / 'deployment.json'
+
+def save_deployment_status(info, update_link=False):
+    status_file = get_status_file(info['deployment_id'])
+    if not status_file.parent.exists():
+        status_file.parent.mkdir(parents=True)
     # status will be recomputed on reload from history
     clean_info = {k:v for (k,v) in info.items() if k !='status'}
-    DEPLOYMENT_STATUS_FILE.write_text(json.dumps(clean_info) + '\n')
+    status_file.write_text(json.dumps(clean_info) + '\n')
+    if update_link:
+        LAST_DEPLOYMENT_STATUS_FILE.unlink(missing_ok=True)
+        LAST_DEPLOYMENT_STATUS_FILE.symlink_to(str(status_file))
 
-def init_status_info(info):
+def init_status_info(info, deployment_id):
     info.update(
+        deployment_id = deployment_id,
         log = [],
         history = {},
         status = 'init',
         main_job_status = 'init'
     )
+    save_deployment_status(info, update_link=True)
 
 def log_status_change(info, status, comment, verbose=False):
     prev_status = info.get('status')
@@ -34,13 +44,11 @@ def log_status_change(info, status, comment, verbose=False):
         print(comment + '...')
         sys.stdout.flush()
 
-def record_main_job_startup():
-    info = get_raw_deployment_status()
+def record_main_job_startup(info):
     info['main_job_status'] = 'running'
     log_status_change(info, 'jobs.main.startup', 'Starting main job at ' + info['server']['site'])
 
-def record_main_job_ending(e = None):
-    info = get_raw_deployment_status()
+def record_main_job_ending(info, e = None):
     info['main_job_status'] = 'ended'
     if e is not None:
         info['exception'] = str(e)
@@ -58,23 +66,10 @@ def get_expiry_message(info, now=None):
     if is_walltime_expired(info, now=now):
         return 'G5K deployment ended its walltime.'
     if info['main_job_status'] == 'ended':
-        return 'Main G5K deployment job ended (see ~/.walt-g5k/logs/deploy.* at %s).' \
-                    % info['server']['site']
+        logs_dir = info['logs_dir']
+        return f'Main G5K deployment job ended (see {logs_dir}).'
 
-def get_raw_deployment_status():
-    if not DEPLOYMENT_STATUS_FILE.exists():
-        return None
-    for i in range(5):
-        try:
-            return json.loads(DEPLOYMENT_STATUS_FILE.read_text())
-        except:
-            time.sleep(1)  # then retry
-    return None
-
-def get_deployment_status(allow_expired=False):
-    info = get_raw_deployment_status()
-    if info is None:
-        return None
+def fix_info(info, allow_expired):
     now = time.time()
     if is_expired(info, now=now):
         if not allow_expired:
@@ -94,14 +89,33 @@ def get_deployment_status(allow_expired=False):
             info['status'] = last_label
         return info
 
-def record_end_of_deployment():
-    info = get_raw_deployment_status()
-    if info is not None:
-        info['end_date'] = time.time()
-        save_deployment_status(info)
+def load_status_file(status_file, allow_expired):
+    if not status_file.exists():
+        return None
+    info = None
+    for i in range(5):
+        try:
+            info = json.loads(LAST_DEPLOYMENT_STATUS_FILE.read_text())
+            break
+        except:
+            time.sleep(1)  # then retry
+    if info is None:
+        return None
+    return fix_info(info, allow_expired)
+
+def get_last_deployment_status(allow_expired=False):
+    return load_status_file(LAST_DEPLOYMENT_STATUS_FILE, allow_expired)
+
+def get_deployment_status(deployment_id):
+    status_file = get_status_file(deployment_id)
+    return load_status_file(status_file, True)
+
+def record_end_of_deployment(info):
+    info['end_date'] = time.time()
+    save_deployment_status(info)
 
 def exit_if_walt_platform_deployed():
-    info = get_deployment_status()
+    info = get_last_deployment_status()
     if info is not None:
         print("A walt platform is already deployed.")
         print("Use 'walt g5k release' to release this existing deployment.")

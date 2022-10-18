@@ -1,8 +1,10 @@
 # this is the code called by
 # $ walt g5k deploy
 import subprocess, sys, time
+from datetime import datetime
+from pathlib import Path
 from walt.client.g5k.tools import run_cmd_on_site, printed_date_from_ts
-from walt.client.g5k.reservation import get_submission_info, JOB_LOGS_DIR, \
+from walt.client.g5k.reservation import get_submission_info, \
                                         DEFAULT_START_TIME_MARGIN_SECS
 from walt.client.g5k.deploy.status import init_status_info, log_status_change, \
                                           save_deployment_status, \
@@ -20,7 +22,7 @@ def cancel_jobs(info):
     successful_sites = [ site for (site, site_info) in info['sites'].items() \
                          if 'job_id' in site_info ]
     if len(successful_sites) > 0:
-        print("Cancelling previous submissions on other sites... ", end='')
+        print("Cancelling previous submissions... ", end='')
         sys.stdout.flush()
         for site in successful_sites:
             job_id = info['sites'][site]['job_id']
@@ -32,9 +34,10 @@ def deploy(recipe_info):
     exit_if_walt_platform_deployed()
     start_time_margin = DEFAULT_START_TIME_MARGIN_SECS
     while True:
+        deployment_id = datetime.now().strftime('%Y-%m-%d--%H-%M-%S')
         print('Analysing recipe and available resources... ', end='')
         sys.stdout.flush()
-        result, info = get_submission_info(recipe_info, start_time_margin)
+        result, info = get_submission_info(recipe_info, deployment_id, start_time_margin)
         if result == False:
             tip = info['tip']
             print('FAILED')
@@ -42,7 +45,9 @@ def deploy(recipe_info):
             print(f'Retry later or edit it (tip: {tip}).')
             return
         print('OK')
-        init_status_info(info)
+        init_status_info(info, deployment_id)
+        logs_dir = info['logs_dir']
+        Path(logs_dir).mkdir(parents=True)
         print('Waiting for job submissions... ', end='')
         sys.stdout.flush()
         failure = None
@@ -55,7 +60,7 @@ def deploy(recipe_info):
             # create main job log dirs
             if main_job:
                 output = run_cmd_on_site(info, site,
-                        [ "mkdir", "-p", JOB_LOGS_DIR ], err_out=False)
+                        [ "mkdir", "-p", logs_dir ], err_out=False)
             # if ok, submit the job
             if not isinstance(output, subprocess.CalledProcessError):
                 args = site_info['submit_args']

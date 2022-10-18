@@ -1,12 +1,7 @@
 import sys, time
-from walt.client.g5k.deploy.status import get_deployment_status, get_expiry_message
+from walt.client.g5k.deploy.status import get_last_deployment_status, get_expiry_message
 from walt.client.g5k.tools import printed_date_from_ts
 from walt.common.formatting import columnate, framed
-
-def printed_section(s):
-    if s == '':
-        return '<none>'
-    return '\n[-- FILE START --]\n' + s.strip() + '\n[-- FILE END --]'
 
 GENERAL_INFO_PATHS = {
     ('status',): str,
@@ -20,9 +15,7 @@ GENERAL_INFO_PATHS = {
     ('server', 'g5k_env_file'): str,
     ('server', 'host'): str,
     ('sites', '*', 'job_id'): str,
-    ('sites', '*', 'nodes'): lambda d: str(list(d)),
-    ('sites', '*', 'job_stdout'): printed_section,
-    ('sites', '*', 'job_stderr'): printed_section,
+    ('sites', '*', 'nodes'): lambda d: str(list(d))
 }
 
 def print_path_value(info, path, print_func, passed=()):
@@ -41,7 +34,7 @@ def print_path_value(info, path, print_func, passed=()):
         print_path_value(info, next_elems, print_func, passed)
 
 def print_info():
-    info = get_deployment_status(allow_expired = True)
+    info = get_last_deployment_status(allow_expired = True)
     if info is None:
         print("No WalT platform has been deployed.", file=sys.stderr)
         sys.exit(1)

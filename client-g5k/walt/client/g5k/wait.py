@@ -2,7 +2,7 @@
 # $ walt g5k wait
 import time, sys
 from walt.common.tools import BusyIndicator
-from walt.client.g5k.deploy.status import get_deployment_status, \
+from walt.client.g5k.deploy.status import get_last_deployment_status, \
             is_walltime_expired, get_expiry_message
 
 def wait():
@@ -11,7 +11,7 @@ def wait():
     prev_log_line, issue = None, None
     while True:
         first_time = (prev_log_line is None)
-        info = get_deployment_status(allow_expired = True)
+        info = get_last_deployment_status(allow_expired = True)
         if first_time and ((info is None) or is_walltime_expired(info)):
             issue = 'No WalT platform is currently being deployed.'
             break
