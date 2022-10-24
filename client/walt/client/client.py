@@ -8,7 +8,6 @@ import walt.client.speedup
 import sys
 from walt.common.version import __version__
 from walt.client.plugins import add_category, add_all_categories
-from walt.client.logo import try_add_logo
 from walt.client.application import WalTToolboxApplication
 from walt.client.wrap import wrap_client_command
 
@@ -33,6 +32,7 @@ Categories:
 class WalT(WalTToolboxApplication):
     """WalT platform control tool."""
     def get_help_prefix(self):
+        from walt.client.logo import try_add_logo
         return try_add_logo(WALT_COMMAND_HELP_PREFIX)
 
 @wrap_client_command
