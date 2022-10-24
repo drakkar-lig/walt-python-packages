@@ -2,6 +2,8 @@
 """
 WalT (wireless testbed) control tool.
 """
+from walt.client.plugins import run_hook_if_any
+run_hook_if_any('early_startup')
 import walt.client.speedup
 import sys
 from walt.common.version import __version__
