@@ -48,6 +48,11 @@ def get_hook(hook_name):
     mod = load_module(hook_modpath)
     return getattr(mod, hook_varname)
 
+def run_hook_if_any(hook_name, *args, **kwargs):
+    hook = get_hook(hook_name)
+    if hook is not None:
+        return hook(*args, **kwargs)
+
 def add_category(app_cls, name):
     load_plugins_metadata()
     if name not in METADATA['categories']:
