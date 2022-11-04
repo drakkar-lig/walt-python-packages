@@ -129,9 +129,15 @@ class ServerDB(PostgresDB):
                             name = 'walt-server' );
                 """, (server_mac, server_ip))
         for entry in wrong_entries:
-            self.delete('topology', mac1=entry.mac)
-            self.delete('topology', mac2=entry.mac)
-            self.delete('devices', mac=entry.mac)
+            self.execute("""
+                DELETE FROM logs l USING logstreams s
+                    WHERE s.sender_mac = %s AND l.stream_id = s.id;
+                DELETE FROM logstreams s WHERE s.sender_mac = %s;
+                DELETE FROM topology t WHERE t.mac1 = %s;
+                DELETE FROM topology t WHERE t.mac2 = %s;
+                DELETE FROM devices d WHERE d.mac = %s;
+            """,  (entry.mac,)*5)
+            self.commit()
 
     def column_exists(self, table_name, column_name):
         col_info = self.select_unique(
