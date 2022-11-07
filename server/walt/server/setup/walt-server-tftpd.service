@@ -9,6 +9,8 @@ Documentation=man:in.tftpd
 Description=WalT TFTP server (based on tftpd-hpa)
 Requires=walt-server-netconfig.service
 After=walt-server-netconfig.service
+# we also need the configuration file to know the server IP
+ConditionPathExists=/etc/walt/server.conf
 
 [Service]
 Type=forking

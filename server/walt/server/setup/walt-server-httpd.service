@@ -10,6 +10,8 @@ Description=WalT server HTTP service
 Requires=walt-server.service
 Requires=walt-server-netconfig.service
 After=walt-server-netconfig.service
+# we also need the configuration file to know the server IP
+ConditionPathExists=/etc/walt/server.conf
 
 [Service]
 Environment=PYTHONUNBUFFERED=1

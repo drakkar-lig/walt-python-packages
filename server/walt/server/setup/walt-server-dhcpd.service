@@ -3,9 +3,11 @@ Description=WalT network DHCP daemon
 # WalT network has to be up for this service to run
 Requires=walt-server-netconfig.service
 After=walt-server-netconfig.service
-# Configuration file is created by walt-server-daemon.  Does not start if
-# it has not yet been created.
+# Configuration file is created by walt-server-daemon.
+# Do not start if it has not been created yet.
 ConditionPathExists=/var/lib/walt/services/dhcpd/dhcpd.conf
+# walt-net interface must be present too
+ConditionPathExists=/sys/class/net/walt-net
 
 [Service]
 RuntimeDirectory=walt/dhcpd

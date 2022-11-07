@@ -9,6 +9,8 @@ Documentation=man:snmpd
 Description=WalT SNMP server (based on snmpd)
 Requires=walt-server-netconfig.service
 After=walt-server-netconfig.service
+# we also need the configuration file to know the server IP
+ConditionPathExists=/etc/walt/server.conf
 
 [Service]
 Type=simple

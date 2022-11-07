@@ -10,6 +10,8 @@ Requires=walt-server-netconfig.service
 After=walt-server-netconfig.service
 # needs lldp
 Wants=walt-server-lldpd.service
+# we need a configuration file
+ConditionPathExists=/etc/walt/server.conf
 
 [Service]
 Environment=PYTHONUNBUFFERED=1
