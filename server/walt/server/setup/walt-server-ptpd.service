@@ -9,6 +9,13 @@ Documentation=man:in.ptpd
 Description=WalT PTP server (based on ptpd2)
 Requires=walt-server-netconfig.service
 After=walt-server-netconfig.service
+# if walt-server-netconfig.service startup is disabled because
+# of a condition, the "Requires" dependency will not prevent
+# this service to start (see man systemd.unit, only "BindsTo"
+# dependencies would prevent this).
+# So we also add the following condition to ensure that
+# walt-net interface is present.
+ConditionPathExists=/sys/class/net/walt-net
 
 [Service]
 Type=simple

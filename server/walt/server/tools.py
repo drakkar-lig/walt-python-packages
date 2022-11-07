@@ -1,6 +1,5 @@
 from collections import namedtuple
 from aiostream import stream
-from walt.server import conf
 from walt.server.autoglob import autoglob
 from ipaddress import ip_address, ip_network, IPv4Address
 from typing import Union
@@ -109,6 +108,7 @@ def set_rlimits():
 
 def get_server_ip() -> str:
     """Load the server IP address on walt-net from the configuration file."""
+    from walt.server import conf
     return conf['network']['walt-net']['ip'].split('/')[0]
 
 async def async_json_http_get(url, timeout=DEFAULT_JSON_HTTP_TIMEOUT):
@@ -138,9 +138,11 @@ def net(net_as_str):
     return ip_network(str(net_as_str), strict=False)
 
 def get_walt_subnet():
+    from walt.server import conf
     return net(conf['network']['walt-net']['ip'])
 
 def get_walt_adm_subnet():
+    from walt.server import conf
     walt_adm_conf = conf['network'].get('walt-adm', None)
     if walt_adm_conf is None:
         return None
