@@ -7,7 +7,7 @@ import sys
 from time import time
 
 from walt.common.tools import failsafe_makedirs
-from walt.server.processes.main import exports
+from walt.server.processes.main.exports import FilesystemsExporter
 from walt.server.processes.main.images.image import NodeImage, format_image_fullname
 from walt.server.processes.main.images.setup import setup
 from walt.server.processes.main.network import tftp
@@ -72,6 +72,7 @@ class NodeImageStore(object):
         self.mounts = set()
         self.deadlines = {}
         self.filesystems = FilesystemsCache(server.ev_loop, FS_CMD_PATTERN)
+        self.exports = FilesystemsExporter(server.ev_loop)
 
     def resync_from_db(self):
         "Synchronization function called on daemon startup."
@@ -279,25 +280,29 @@ class NodeImageStore(object):
         images_info = set((image_id, self.get_mount_path(image_id)) \
                          for image_id in all_mounts)
         nodes_found = self.db.select("nodes")
-        exports.update_exported_filesystems(images_info, nodes_found)
-        tftp.update(self.db, self)
-        # release filesystem interpreters
+        # release filesystem interpreters before unmounting images
         for image_id in to_be_unmounted:
             if image_id in self.filesystems:
                 del self.filesystems[image_id]
         # unmount images found above
         # note: this must be done after nfs unmount (otherwise directories would
         # be locked by the NFS export)
-        for image_id in to_be_unmounted:
-            self.unmount(image_id)
+        def cb():
+            for image_id in to_be_unmounted:
+                self.unmount(image_id)
+        self.exports.update_exported_filesystems(images_info, nodes_found, cb)
+        tftp.update(self.db, self)
 
     def cleanup(self):
         # release filesystem interpreters
         self.filesystems.cleanup()
         if len(self.mounts) > 0:
-            # release nfs mounts
-            exports.update_exported_filesystems([], [])
-            # unmount images
+            # release nfs mounts and unmount images
+            self.exports.update_exported_filesystems([], [])
+            # Since we are cleaning up, we cannot use a callback
+            # because the event loop will be stopped.
+            # So we just let the unmount procedure actively wait
+            # for the nfsd service to release the mounted images.
             for image_id in self.mounts.copy():
                 self.unmount(image_id)
 

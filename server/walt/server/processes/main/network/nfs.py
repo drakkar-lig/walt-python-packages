@@ -2,6 +2,7 @@ from pathlib import Path
 
 from walt.common.tools import do, succeeds
 from walt.server import conf
+from walt.server.processes.main.network.service import ServiceRestarter
 
 NODE_SYMLINKS_EXPORT_PATTERN = """\
 # Access to node symlinks (necessary for NFSv4).
@@ -34,24 +35,19 @@ def generate_exports_file_content(root_paths, persist_paths, subnet):
                     walt_subnet=subnet)
     return content
 
-def update_exports(root_paths, persist_paths, subnet):
-    if not WALT_EXPORTS_PATH.parent.exists():
-        WALT_EXPORTS_PATH.parent.mkdir()
-    if WALT_EXPORTS_PATH.exists():
-        prev_content = WALT_EXPORTS_PATH.read_text()
-    else:
-        prev_content = ""
-    content = generate_exports_file_content(root_paths, persist_paths, subnet)
-    if content == prev_content:     # no changes
-        return
-    WALT_EXPORTS_PATH.write_text(content)
-    # note: use restart and not reload because otherwise with NFSv4
-    # it takes times before NFS clients no longer allowed are disconnected,
-    # and this delays unmounting of images.
-    service_name = conf['services']['nfsd']['service-name']
-    do('systemctl restart "%s"' % service_name)
-
-def ensure_nfsd_is_running():
-    if not succeeds('pidof nfsd'):
+class NFSExporter(object):
+    def __init__(self, ev_loop):
         service_name = conf['services']['nfsd']['service-name']
-        do('systemctl restart "%s"' % service_name)
+        self.restarter = ServiceRestarter(ev_loop, 'nfsd', service_name)
+    def update_exports(self, root_paths, persist_paths, subnet, cb=None):
+        if not WALT_EXPORTS_PATH.parent.exists():
+            WALT_EXPORTS_PATH.parent.mkdir()
+        if WALT_EXPORTS_PATH.exists():
+            prev_content = WALT_EXPORTS_PATH.read_text()
+        else:
+            prev_content = ""
+        content = generate_exports_file_content(root_paths, persist_paths, subnet)
+        if content == prev_content:     # no changes
+            return
+        WALT_EXPORTS_PATH.write_text(content)
+        self.restarter.restart(cb)
