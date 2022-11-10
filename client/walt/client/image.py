@@ -35,7 +35,9 @@ class WalTImageClone(WalTApplication):
             res = server_link.clone_image(clonable_image_link,
                                     force=self._force, image_name=image_name)
             if res == 'OK':
-                print('Done.')
+                return True     # success
+            else:
+                return False    # issue
     @cli.autoswitch(help='do it, even if it overwrites an existing image.')
     def force(self):
         self._force = True

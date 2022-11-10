@@ -338,6 +338,7 @@ def perform_clone(requester, docker_daemon, hub,
         res = workflow_run(workflow, **context)
 
     if res:
+        requester.stdout.write('Image was cloned successfully.\n')
         if existing_ws_image:
             return ('OK_BUT_REBOOT_NODES', ws_image_fullname)
         else:

@@ -216,7 +216,8 @@ class Server(object):
     def reboot_nodes_after_image_change(self, requester, task_callback, image_fullname):
         nodes = self.nodes.get_nodes_using_image(image_fullname)
         if len(nodes) == 0:
-            task_callback(None) # nothing to do
+            # nothing to do
+            task_callback('OK')
             return
         requester.stdout.write(format_sentence(
                 'Trying to reboot %s using this image...\n', [n.name for n in nodes],

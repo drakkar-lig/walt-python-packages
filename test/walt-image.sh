@@ -9,7 +9,7 @@ define_test "walt image search" as {
 }
 
 define_test "walt image clone" as {
-    walt image clone --force "$TEST_IMAGE_URL" | grep Done
+    walt image clone --force "$TEST_IMAGE_URL" && \
     image_exists pc-x86-64-test-suite
 }
 

@@ -105,6 +105,7 @@ class WalTNode(WalTCategoryApplication):
                     return
                 if not server.set_image(node_set, image_name_or_default):
                     return
+                server.set_busy_label('Rebooting')
                 server.reboot_nodes(node_set)
 
 @WalTNode.subcommand("show")
