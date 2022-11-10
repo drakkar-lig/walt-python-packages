@@ -9,7 +9,7 @@ test_suite_checkpoint() {
 }
 
 checkpoint_exists() {
-    walt log list-checkpoints | grep "$1 "
+    walt log list-checkpoints | grep -w "$1"
 }
 
 background_emit_log() {
