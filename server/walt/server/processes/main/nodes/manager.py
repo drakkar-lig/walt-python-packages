@@ -173,7 +173,8 @@ class NodesManager(object):
             networks = node.conf.get('networks', VNODE_DEFAULT_NETWORKS)
         )
         print(cmd)
-        popen = BetterPopen(cmd, lambda popen: popen.send_signal(signal.SIGTERM), shell=False)
+        popen = BetterPopen(self.ev_loop, cmd,
+            lambda popen: popen.send_signal(signal.SIGTERM), shell=False)
         listener = self.logs.monitor_file(popen.stdout, node.ip, 'virtualconsole')
         self.vnodes[node.mac] = popen, listener
 

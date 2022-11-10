@@ -22,7 +22,9 @@ class ForkPtyProcessListener(object):
             os.kill(self.slave_pid, signal.SIGKILL)
         except OSError:
             pass
+        print('ForkPty waitpid')
         os.waitpid(self.slave_pid, 0)   # wait for child's end
+        print('ForkPty waitpid ended')
     def close(self):
         self.end_child()
         self.env.close()
