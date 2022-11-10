@@ -6,8 +6,6 @@
 
 [Unit]
 Description=WalT server HTTP service
-# needs main daemon to be running
-Requires=walt-server.service
 Requires=walt-server-netconfig.service
 After=walt-server-netconfig.service
 # we also need the configuration file to know the server IP
