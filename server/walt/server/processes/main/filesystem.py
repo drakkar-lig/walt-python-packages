@@ -2,7 +2,8 @@ from time import time
 from walt.common.popen import BetterPopen
 
 class Filesystem:
-    def __init__(self, cmd_interpreter):
+    def __init__(self, ev_loop, cmd_interpreter):
+        self.ev_loop = ev_loop
         self.cmd_interpreter = f'{cmd_interpreter} || echo FAILED'
         self.kill_function = lambda popen: popen.stdin.write(b'exit\n')
         self.popen = None
@@ -25,7 +26,8 @@ class Filesystem:
         self.check_bg_process_ok()
         # open or reopen background process if needed
         if self.popen is None:
-            self.popen = BetterPopen(self.cmd_interpreter, self.kill_function)
+            self.popen = BetterPopen(self.ev_loop, self.cmd_interpreter,
+                                     self.kill_function, synchronous_close=True)
             self.popen.stdin.write(self.wrap_cmd('echo STARTED').encode('ascii'))
         self.popen.stdin.write(self.wrap_cmd(cmd).encode('ascii'))
     def read_reply_line(self):
@@ -79,9 +81,9 @@ class Filesystem:
                 break
             possible.append(path)
         return tuple(possible)
-    def close(self):
+    def close(self, cb=None):
         if self.popen is not None:
-            self.popen.close()
+            self.popen.close(cb=cb)
             self.popen = None
             self.popen_started = False
 
@@ -99,7 +101,7 @@ class FilesystemsCache:
                 fs_id = fs_id
             )
             self.fs_info[fs_id] = {
-                'fs': Filesystem(cmd_interpreter)
+                'fs': Filesystem(self.ev_loop, cmd_interpreter)
             }
         self.fs_info[fs_id]['last_use'] = time()
         return self.fs_info[fs_id]['fs']
