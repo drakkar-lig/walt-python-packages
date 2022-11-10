@@ -120,27 +120,27 @@ class ParallelProcessSocketListener(object):
     # handle_event() will be called when the event loop detects
     # new input data for us.
     def handle_event(self, ts):
-        if self.params == None:
-            # we did not get the parameters yet, let's do it
-            self.params = read_pickle(self.client_sock_file)
+        try:
             if self.params == None:
-                print(f'{self.client_sock_file.fileno()}: malformed params')
-                return False    # issue, this will call self.close()
-            self.update_params()
-            if self.prepare(**self.params) == False:
-                #print(f'{self.client_sock_file.fileno()}: closing immediately given value of params')
-                return False    # issue, this will call self.close()
-            self.params['cmd'] = self.get_command(**self.params)
-            # we now have all info to start the child process
-            self.start()
-        else:
-            # otherwise we are all set. Getting here means
-            # we got input data or the child process ended.
-            # the fact we are still alive and listening implies
-            # we are in the tty mode.
-            # in this mode input data and window resize events are
-            # multiplexed on the socket.
-            try:
+                # we did not get the parameters yet, let's do it
+                self.params = read_pickle(self.client_sock_file)
+                if self.params == None:
+                    print(f'{self.client_sock_file.fileno()}: malformed params')
+                    return False    # issue, this will call self.close()
+                self.update_params()
+                if self.prepare(**self.params) == False:
+                    #print(f'{self.client_sock_file.fileno()}: closing immediately given value of params')
+                    return False    # issue, this will call self.close()
+                self.params['cmd'] = self.get_command(**self.params)
+                # we now have all info to start the child process
+                self.start()
+            else:
+                # otherwise we are all set. Getting here means
+                # we got input data or the child process ended.
+                # the fact we are still alive and listening implies
+                # we are in the tty mode.
+                # in this mode input data and window resize events are
+                # multiplexed on the socket.
                 evt_info = pickle.load(self.client_sock_file)
                 if evt_info['evt'] == 'input_data':
                     self.slave_w.write(evt_info['data'])
@@ -148,9 +148,9 @@ class ParallelProcessSocketListener(object):
                 elif evt_info['evt'] == 'window_resize':
                     win_size = (evt_info['lines'], evt_info['columns'])
                     set_tty_size(self.slave_w.fileno(), win_size)
-            except Exception as e:
-                print(self, e)
-                return False    # issue, this will call self.close()
+        except Exception as e:
+            print(self, e)
+            return False    # issue, this will call self.close()
     def close(self):
         if self.client_sock_file:
             self.client_sock_file.close()
