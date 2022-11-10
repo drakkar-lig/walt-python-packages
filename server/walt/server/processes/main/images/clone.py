@@ -3,7 +3,7 @@ from walt.server.processes.main.images.image import validate_image_name
 def clone(blocking, server, requester, task, image_name, **kwargs):
     if image_name is not None:
         if not validate_image_name(requester, image_name):
-            return  # issue already reported
+            return 'FAILED' # issue already reported
     # the result of the task the hub process submitted to us
     # will not be available right now
     task.set_async()

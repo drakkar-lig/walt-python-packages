@@ -163,15 +163,16 @@ def reply_requester(requester, task_callback, hard_only,
             vmrebooted, softrebooted, hardrebooted,
             softreboot_errors, hardreboot_errors,
             hard_reboot_method_name, **env):
+    rebooted = tuple(vmrebooted) + tuple(softrebooted) + tuple(hardrebooted)
+    if len(rebooted) > 0:
+        requester.stdout.write(format_sentence_about_nodes(
+                '%s: rebooted OK.\n', rebooted))
     if len(hardreboot_errors) == 0:
-        # we managed to reboot all nodes, so we can be brief.
-        requester.stdout.write('Done.\n')
+        # we managed to reboot all nodes, so we can be brief and not detail
+        # how each node was rebooted.
+        task_callback('OK')
     else:
         # not all went well
-        rebooted = tuple(vmrebooted) + tuple(softrebooted) + tuple(hardrebooted)
-        if len(rebooted) > 0:
-            requester.stdout.write(format_sentence_about_nodes(
-                '%s: OK.\n', rebooted))
         per_errors = defaultdict(list)
         for node_name in hardreboot_errors:
             errors = (hardreboot_errors[node_name],)
@@ -190,5 +191,5 @@ def reply_requester(requester, task_callback, hard_only,
                     '%s: ' + explain + '\n', node_names))
         if not hard_only:   # then we had soft reboot errors
             requester.stdout.write('note: soft-reboot only works when node is fully booted.\n')
-    # unblock client
-    task_callback(None)
+        # unblock client
+        task_callback('FAILED')
