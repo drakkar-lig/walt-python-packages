@@ -1,7 +1,7 @@
 from walt.common.version import __version__
 from walt.common.tcp import Requests
 from walt.common.apilink import APIChannel, AttrCallAggregator
-from walt.common.process import RPCService
+from walt.server.process import RPCService
 from socket import error as SocketError
 
 class APISessionManager(object):

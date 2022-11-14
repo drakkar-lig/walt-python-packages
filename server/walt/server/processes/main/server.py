@@ -4,7 +4,7 @@ from walt.common.constants import WALT_SERVER_TCP_PORT
 from walt.common.devices.registry import get_device_info_from_mac
 from walt.common.tcp import TCPServer
 from walt.common.formatting import format_sentence
-from walt.common.process import SyncRPCProcessConnector
+from walt.server.process import SyncRPCProcessConnector
 from walt.server.processes.main.blocking import BlockingTasksManager
 from walt.server.processes.main.images.image import format_image_fullname, parse_image_fullname
 from walt.server.processes.main.images.manager import NodeImageManager

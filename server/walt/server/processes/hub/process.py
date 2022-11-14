@@ -1,6 +1,6 @@
-from walt.common.process import EvProcess
+from walt.server.process import EvProcess
 from walt.common.tcp import TCPServer
-from walt.common.process import RPCProcessConnector
+from walt.server.process import RPCProcessConnector
 from walt.server.processes.hub.client import APISessionManager
 from walt.common.constants import WALT_SERVER_DAEMON_PORT
 

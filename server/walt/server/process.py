@@ -1,4 +1,4 @@
-import os, sys, signal, itertools, traceback
+import os, sys, signal, itertools, traceback, setproctitle
 from collections import defaultdict
 from multiprocessing import Pipe, Process, current_process
 from select import select
@@ -19,7 +19,8 @@ class EvProcess(Process):
         return getattr(self.ev_loop, attr)
 
     def run(self):
-        # SIGINT and SIGTERM signals should be sent to the dameon only, not to its subprocesses
+        setproctitle.setproctitle(f'walt-server-daemon:{self.name}')
+        # SIGINT and SIGTERM signals should be sent to the daemon only, not to its subprocesses
         signal.signal(signal.SIGINT, signal.SIG_IGN)
         signal.signal(signal.SIGTERM, signal.SIG_IGN)
         # run
