@@ -54,9 +54,11 @@ class Server(object):
         self.vpn = VPNManager()
 
     def prepare(self):
+        self.logs.prepare()
         self.logs.catch_std_streams()
+        self.repository.prepare()
         tftp.prepare()
-        self.tcp_server.join_event_loop(self.ev_loop)
+        self.tcp_server.prepare(self.ev_loop)
         # ensure the dhcp server is running,
         # otherwise the switches may have ip addresses
         # outside the WalT network, and we will not be able

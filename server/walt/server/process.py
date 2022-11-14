@@ -11,8 +11,13 @@ class EvProcess(Process):
     def __init__(self, manager, name, level):
         Process.__init__(self, name = name)
         self.pipe_process, self.pipe_manager = Pipe()
+        manager.attach_file(self, self.pipe_process)
+        manager.attach_file(manager, self.pipe_manager)
         manager.register_process(self, level)
         self.ev_loop = EventLoop()
+
+    def set_auto_close(self, files):
+        self._auto_close_files = files
 
     # mimic an event loop
     def __getattr__(self, attr):
@@ -23,6 +28,10 @@ class EvProcess(Process):
         # SIGINT and SIGTERM signals should be sent to the daemon only, not to its subprocesses
         signal.signal(signal.SIGINT, signal.SIG_IGN)
         signal.signal(signal.SIGTERM, signal.SIG_IGN)
+        # close file descriptors that were opened for other Process objects
+        for f in self._auto_close_files:
+            #print(self.name, 'closing fd not for us:', f)
+            f.close()
         # run
         self.ev_loop.register_listener(self)
         try:
@@ -67,16 +76,35 @@ class EvProcessesManager(object):
     def __init__(self):
         self.process_levels = defaultdict(list)
         self.initial_failing_process = None
+        self.files = defaultdict(list)
+        self.name = '__manager__'
     def register_process(self, t, level):
         self.process_levels[level].append(t)
+    def attach_file(self, process, f):
+        self.files[process.name].append(f)
     @property
     def processes(self):
         for l_processes in self.process_levels.values():
             yield from l_processes
     def start(self):
+        for t in self.processes:
+            files_to_close = []
+            for proc_name, files in self.files.items():
+                if proc_name != t.name:
+                    files_to_close += files
+            t.set_auto_close(files_to_close)
         with AutoCleaner(self):
+            # start sub processes
             for t in self.processes:
                 t.start()
+            # close file descriptors of sub processes
+            # (no longer needed by this Process manager)
+            for proc_name, files in self.files.items():
+                if proc_name != self.name:
+                    for f in files:
+                        #print(self.name, 'closing fd not for us:', f)
+                        f.close()
+            # wait for ending condition
             read_set = tuple(t.pipe_manager for t in self.processes)
             on_sigterm_throw_exception()
             r, w, e = select(read_set, (), read_set)
@@ -184,9 +212,13 @@ class RPCProcessConnector(ProcessConnector):
     def handle_event(self, ts):
         return self.handle_next_event()
     def handle_next_event(self):
-        events = [ self.read() ]
-        while self.poll():
-            events.append(self.read())
+        try:
+            events = [ self.read() ]
+            while self.poll():
+                events.append(self.read())
+        except EOFError:
+            print(f'{repr(self)}: closed on remote end, self-removing from loop.')
+            return False
         events.sort(key=lambda x: PRIORITIES[x[0]])
         #print(current_process().name, 'new events', events)
         for event in events:

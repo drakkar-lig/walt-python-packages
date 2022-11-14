@@ -120,8 +120,13 @@ def server_socket(port):
 
 class TCPServer(object):
     def __init__(self, port):
-        self.s = server_socket(port)
+        self._port = port
+        self.s = None
         self.listener_classes = {}
+
+    def prepare(self, ev_loop):
+        self.s = server_socket(self._port)
+        self.join_event_loop(ev_loop)
 
     def join_event_loop(self, ev_loop):
         self.ev_loop = ev_loop

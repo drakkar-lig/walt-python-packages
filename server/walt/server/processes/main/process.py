@@ -8,14 +8,17 @@ class ServerMainProcess(EvProcess):
         EvProcess.__init__(self, tman, 'server-main', level)
         self.server = Server(self.ev_loop)
         self.db = self.server.db
+        tman.attach_file(self, self.db)
         self.blocking = self.server.blocking
+        tman.attach_file(self, self.blocking)
         self.hub = HubRPCProcessConnector(self.server)
+        tman.attach_file(self, self.hub)
 
     def prepare(self):
-        self.server.prepare()
         self.register_listener(self.hub)
         self.register_listener(self.blocking)
         self.register_listener(self.db)
+        self.server.prepare()
         self.notify_systemd()
         self.server.update()
         print('Ready.')

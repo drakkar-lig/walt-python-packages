@@ -69,6 +69,7 @@ def mount_exists(mountpoint):
 class WalTLocalRepository:
     def __init__(self):
         self.names_cache = {}
+    def prepare(self):
         self.metadata_cache = self.load_metadata_cache_file()
         self.p = PodmanClient(base_url = PODMAN_API_SOCKET)
         self.scan()
