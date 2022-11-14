@@ -17,6 +17,9 @@ class ServerDB(PostgresDB):
         PostgresDB.__init__(self)
         # timestamp for logs deframentation
         self.timestamp_last_logs = None
+
+    def prepare(self):
+        PostgresDB.prepare(self)    # parent method
         # create the db schema
         # tables
         self.execute("""CREATE TABLE IF NOT EXISTS devices (

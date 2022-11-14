@@ -30,6 +30,11 @@ class DBRecordSet:
 
 class PostgresDB:
     def __init__(self):
+        self.conn, self.c = None, None
+        self.server_cursors = {}
+        self.schema_cache = {}
+
+    def prepare(self):
         try:
             # Do catch exception here to create DB and users if there does not exist
             self.conn = psycopg2.connect(database=WALT_DBNAME, user=WALT_DBUSER)
@@ -39,13 +44,13 @@ class PostgresDB:
             self.conn = psycopg2.connect(database=WALT_DBNAME, user=WALT_DBUSER)
         # allow name-based access to columns
         self.c = self.conn.cursor(cursor_factory = NamedTupleCursor)
-        self.server_cursors = {}
-        self.schema_cache = {}
 
     def __del__(self):
-        self.conn.commit()
-        self.c.close()
-        self.conn.close()
+        if self.conn is not None:
+            self.conn.commit()
+            self.c.close()
+            self.conn.close()
+            self.conn, self.c = None, None
 
     def create_db_and_user(self):
         # we must use the postgres admin user for this

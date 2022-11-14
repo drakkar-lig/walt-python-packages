@@ -10,6 +10,7 @@ class ServerHubProcess(EvProcess):
     def __init__(self, tman, level):
         EvProcess.__init__(self, tman, 'server-hub', level)
         self.main = RPCProcessConnector(self, label = 'hub-to-main')
+        tman.attach_file(self, self.main)
         self.tcp_server = TCPServer(WALT_SERVER_DAEMON_PORT)
         for cls in TCP_LISTENER_CLASSES:
             self.tcp_server.register_listener_class(
@@ -18,5 +19,5 @@ class ServerHubProcess(EvProcess):
                     process = self)
 
     def prepare(self):
-        self.tcp_server.join_event_loop(self.ev_loop)
         self.register_listener(self.main)
+        self.tcp_server.prepare(self.ev_loop)

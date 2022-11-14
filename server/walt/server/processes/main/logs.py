@@ -337,8 +337,10 @@ class LogsManager(object):
                     req_id = Requests.REQ_NEW_INCOMING_LOGS,
                     cls = LogsStreamListener,
                     manager = self)
+
+    def prepare(self):
         self.netconsole = NetconsoleListener(self, WALT_SERVER_NETCONSOLE_PORT)
-        self.netconsole.join_event_loop(ev_loop)
+        self.netconsole.join_event_loop(self.ev_loop)
 
     def monitor_file(self, fileobj, sender_ip, stream_name):
         stream_id = self.get_stream_id(sender_ip, stream_name, 'chunk')
