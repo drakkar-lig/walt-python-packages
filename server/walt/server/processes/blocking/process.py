@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import typing
 
-from walt.common.process import EvProcess, RPCProcessConnector, SyncRPCProcessConnector
+from walt.server.process import EvProcess, RPCProcessConnector, SyncRPCProcessConnector
 from walt.server.processes.blocking.images.clone import clone
 from walt.server.processes.blocking.images.publish import publish
 from walt.server.processes.blocking.images.squash import squash

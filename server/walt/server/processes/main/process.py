@@ -1,5 +1,5 @@
 import os
-from walt.common.process import EvProcess
+from walt.server.process import EvProcess
 from walt.server.processes.main.server import Server
 from walt.server.processes.main.hub import HubRPCProcessConnector
 

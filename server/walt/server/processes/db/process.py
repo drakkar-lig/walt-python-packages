@@ -1,4 +1,4 @@
-from walt.common.process import EvProcess, RPCProcessConnector
+from walt.server.process import EvProcess, RPCProcessConnector
 from walt.server.processes.db.db import ServerDB
 
 class ServerDBProcess(EvProcess):

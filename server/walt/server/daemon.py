@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import signal
 from walt.server.tools import set_rlimits, fix_pdb
-from walt.common.process import EvProcessesManager
+from walt.server.process import EvProcessesManager
 from walt.server.processes.main.process import ServerMainProcess
 from walt.server.processes.blocking.process import ServerBlockingProcess
 from walt.server.processes.hub.process import ServerHubProcess
