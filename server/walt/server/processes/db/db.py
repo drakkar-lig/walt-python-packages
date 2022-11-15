@@ -279,15 +279,16 @@ class ServerDB(PostgresDB):
         """,  (dev_name,)*7)
         self.commit()
 
-    def insert(self, table, returning=None, **kwargs):
-        if table == "logs":
+    def insert_multiple(self, table, rows_kwargs, returning=None):
+        if table == "logs" and len(rows_kwargs) > 0:
+            kwargs = rows_kwargs[0]
             if self.timestamp_last_logs is None:
                 self.timestamp_last_logs = kwargs['timestamp']
             else:
                 self.timestamp_last_logs = min(
                     self.timestamp_last_logs,
                     kwargs['timestamp'])
-        return super().insert(table, returning=returning, **kwargs)
+        return super().insert_multiple(table, rows_kwargs, returning=returning)
 
     def get_user_images(self, username):
         sql = f"""  SELECT i.fullname, i.ready, count(n.mac)>0 as in_use

@@ -1,4 +1,5 @@
 import re, pickle, sys
+from time import time
 from datetime import datetime
 from walt.common.constants import WALT_SERVER_NETCONSOLE_PORT
 from walt.common.tcp import read_pickle, write_pickle, \
@@ -7,11 +8,29 @@ from walt.common.udp import udp_server_socket
 from walt.server.tools import get_server_ip
 
 class LogsToDBHandler(object):
-    def __init__(self, db):
+    # Logs cause many inserts in db, so we buffer
+    # them during a limited time and then possibly
+    # insert many of them at once.
+    BUFFERING_DELAY_SECS = 0.3
+
+    def __init__(self, ev_loop, db):
+        self.ev_loop = ev_loop
         self.db = db
+        self.pending = []
 
     def log(self, **record):
-        self.db.insert('logs', **record)
+        self.pending.append(record)
+        if len(self.pending) == 1:
+            self.ev_loop.plan_event(
+                time() + LogsToDBHandler.BUFFERING_DELAY_SECS,
+                callback = self.flush)
+
+    def flush(self):
+        pending = self.pending
+        self.pending = []
+        if len(pending) > 0:
+            #print(f'__DEBUG__ self.db.insert_multiple {repr(pending)}')
+            self.db.insert_multiple('logs', pending)
 
 class LogsHub(object):
     def __init__(self):
@@ -95,27 +114,70 @@ class LogsStreamListener(object):
 
 class FileListener:
     """Listens for chunks output by given file and save them as logs."""
-    def __init__(self, hub, fileobj, stream_id):
+    # We often receive fast-paced sequences of small chunks.
+    # If the interval between two chunks is lower than MIN_BUFFER_INTVL seconds,
+    # we concatenate them.
+    # In order not to keep the event loop too busy, we use a second constant
+    # FLUSH_DELAY with a larger value for planning flush() events.
+    MIN_BUFFER_INTVL = 0.002
+    FLUSH_DELAY = 0.02
+
+    def __init__(self, ev_loop, hub, fileobj, stream_id):
+        self.ev_loop = ev_loop
         self.hub = hub
         self.file = fileobj
         self.stream_id = stream_id
+        self.chunk = b''
+        self.ts = None
+        self.flushing_planned_time = None
 
     def fileno(self):
         return self.file.fileno()
 
     def handle_event(self, ts):
+        if self.ts is not None and \
+                (ts - self.ts) > FileListener.MIN_BUFFER_INTVL:
+            self.flush()
         try:
             chunk = self.file.read(4096)
             if len(chunk) == 0:
+                self.flush()
                 return False
         except:
+            self.flush()
             return False
-        timestamp = ts
-        if not isinstance(timestamp, datetime):
-            timestamp = datetime.fromtimestamp(timestamp)
-        record = dict(timestamp=timestamp, line=repr(chunk), stream_id=self.stream_id)
-        self.hub.log(**record)
+        self.chunk += chunk
+        if self.ts is None:
+            self.ts = ts
+        if self.flushing_planned_time is None:
+            self.flushing_planned_time = ts + FileListener.FLUSH_DELAY
+            self.plan_flush()
+        else:
+            self.flushing_planned_time = ts + FileListener.FLUSH_DELAY
         return True
+
+    def plan_flush(self):
+        self.ev_loop.plan_event(
+                self.flushing_planned_time,
+                callback = self.periodic_flush)
+
+    def periodic_flush(self):
+        if self.flushing_planned_time is None:
+            return  # a flush() already occured
+        if time() >= self.flushing_planned_time:
+            self.flush()
+        else:
+            self.plan_flush()
+
+    def flush(self):
+        if self.ts is None:
+            return  # nothing to flush
+        timestamp = datetime.fromtimestamp(self.ts)
+        record = dict(timestamp=timestamp, line=repr(self.chunk), stream_id=self.stream_id)
+        self.ts = None
+        self.chunk = b''
+        self.flushing_planned_time = None
+        self.hub.log(**record)
 
     def close(self):
         self.file.close()
@@ -206,6 +268,7 @@ class LogsToSocketHandler(object):
             return self.write_to_client(**record)
     def notify_history_processing_startup(self):
         self.phase = PHASE_RETRIEVING_FROM_DB
+        self.manager.logs_to_db.flush()
     def notify_history_processed(self):
         if self.params['realtime']:
             # done with the history part.
@@ -328,7 +391,8 @@ class LogsManager(object):
         self.blocking = blocking
         self.server_log_cache = {}
         self.hub = LogsHub()
-        self.hub.addHandler(LogsToDBHandler(db))
+        self.logs_to_db = LogsToDBHandler(ev_loop, db)
+        self.hub.addHandler(self.logs_to_db)
         tcp_server.register_listener_class(
                     req_id = Requests.REQ_DUMP_LOGS,
                     cls = LogsToSocketHandler,
@@ -344,7 +408,7 @@ class LogsManager(object):
 
     def monitor_file(self, fileobj, sender_ip, stream_name):
         stream_id = self.get_stream_id(sender_ip, stream_name, 'chunk')
-        listener = FileListener(self.hub, fileobj, stream_id)
+        listener = FileListener(self.ev_loop, self.hub, fileobj, stream_id)
         self.ev_loop.register_listener(listener)
         return listener
 

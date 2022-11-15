@@ -142,16 +142,25 @@ class PostgresDB:
     # allow statements like:
     # db.insert("network", ip=ip, switch_ip=swip)
     def insert(self, table, returning=None, **kwargs):
-        # insert and return True or return False
-        cols, values = self.get_cols_and_values(table, kwargs)
+        return self.insert_multiple(table, [kwargs], returning=returning)
+
+    # insert multiple rows at once
+    def insert_multiple(self, table, rows_kwargs, returning=None):
+        values_formats = []
+        all_values = []
+        for kwargs in rows_kwargs:
+            cols, values = self.get_cols_and_values(table, kwargs)
+            values_format = '(' + ','.join(['%s'] * len(values)) + ')'
+            values_formats.append(values_format)
+            all_values.extend(values)
         sql = """INSERT INTO %s(%s)
-                VALUES (%s)""" % (
+                VALUES %s""" % (
                     table,
                     ','.join(cols),
-                    ','.join(['%s'] * len(values)))
+                    ','.join(values_formats))
         if returning:
             sql += " RETURNING %s" % returning
-        self.c.execute(sql + ';', tuple(values))
+        self.c.execute(sql + ';', tuple(all_values))
         if returning:
             return self.c.fetchone()[0]
 

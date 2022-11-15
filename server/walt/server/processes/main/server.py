@@ -80,6 +80,7 @@ class Server(object):
         self.images.cleanup()
         self.nodes.cleanup()
         self.devices.cleanup()
+        self.logs.logs_to_db.flush()
 
     def set_image(self, requester, node_set, image_tag):
         nodes = self.nodes.parse_node_set(requester, node_set)
