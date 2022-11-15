@@ -7,6 +7,7 @@ from socket import error as SocketError
 class APISessionManager(object):
     REQ_ID = Requests.REQ_API_SESSION
     REQUESTER_API_IGNORED = (EOFError,)
+    next_session_id = 0
     def __init__(self, process, sock_file, **kwargs):
         self.process = process
         self.main = process.main
@@ -15,11 +16,14 @@ class APISessionManager(object):
         self.api_channel = APIChannel(sock_file)
         self.remote_ip, remote_port = sock_file.getpeername()
         self.session_id = None
+        self.sent_tasks = False
         self.requester = AttrCallAggregator(self.forward_requester_request)
         local_service = RPCService(requester = self.requester)
         self.rpc_session = self.main.create_session(local_service = local_service)
     def record_task(self, attr, args, kwargs):
-        self.rpc_session.do_async.run_task(self.session_id, attr, args, kwargs).then(
+        self.sent_tasks = True
+        self.rpc_session.do_async.run_task(self.session_id, self.target_api, self.remote_ip,
+                                           attr, args, kwargs).then(
             self.return_result
         )
     def fileno(self):
@@ -70,14 +74,14 @@ class APISessionManager(object):
     def init_session(self):
         try:
             self.target_api = self.sock_file.readline().decode('UTF-8').strip()
-            self.session_id = self.rpc_session.do_sync.create_session(
-                                self.target_api, self.remote_ip)
+            self.session_id = APISessionManager.next_session_id
+            APISessionManager.next_session_id += 1
             self.sock_file.write(b"%s\n" % str(__version__).encode('UTF-8'))
             return True
         except:
             return False
     def close(self):
-        if self.session_id != None:
+        if self.sent_tasks:
             self.rpc_session.do_sync.destroy_session(self.session_id)
         self.sock_file.close()
     def forward_requester_request(self, path, args, kwargs):

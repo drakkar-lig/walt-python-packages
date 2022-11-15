@@ -9,13 +9,10 @@ class ServiceToHubProcess(object):
     def __init__(self, hub_rpc, server):
         self.hub_rpc = hub_rpc
         self.server = server
-    def create_session(self, rpc_context, target_api, remote_ip):
-        return APISession.create(
-            self.server, target_api, remote_ip)
     def destroy_session(self, rpc_context, session_id):
         APISession.destroy(session_id)
-    def run_task(self, rpc_context, session_id, attr, args, kwargs):
-        session = APISession.get(session_id)
+    def run_task(self, rpc_context, session_id, target_api, remote_ip, attr, args, kwargs):
+        session = APISession.get(self.server, session_id, target_api, remote_ip)
         session.run_task(rpc_context, attr, args, kwargs)
 
 class HubRPCProcessConnector(RPCProcessConnector):
