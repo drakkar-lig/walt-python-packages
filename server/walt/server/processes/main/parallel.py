@@ -74,9 +74,9 @@ class ParallelProcessSocketListener(object):
         if 'env' in self.params:
             env.update(self.params['env'])
         if 'tty_mode' in self.params and self.params['tty_mode'] is True:
-            self.start_pty(cmd_args, env)
+            return self.start_pty(cmd_args, env)
         else:
-            self.start_popen(cmd_args, env)
+            return self.start_popen(cmd_args, env)
     def start_pty(self, cmd_args, env):
         #print(f'{self.client_sock_file.fileno()}: start_pty {cmd_args}')
         # fork a child process in its own virtual terminal
@@ -110,8 +110,9 @@ class ParallelProcessSocketListener(object):
             os.close(sock_fd)
             os.execvpe(cmd_args[0], cmd_args, env)
         # - parent -
-        # the child will do the work, we are no longer needed
-        self.ev_loop.remove_listener(self)
+        # the child will do the work, we are no longer needed,
+        # so let the event loop remove us.
+        return False
     # let the event loop know what we are reading on
     def fileno(self):
         if self.client_sock_file.closed:
@@ -133,7 +134,7 @@ class ParallelProcessSocketListener(object):
                     return False    # issue, this will call self.close()
                 self.params['cmd'] = self.get_command(**self.params)
                 # we now have all info to start the child process
-                self.start()
+                return self.start()
             else:
                 # otherwise we are all set. Getting here means
                 # we got input data or the child process ended.
@@ -149,7 +150,7 @@ class ParallelProcessSocketListener(object):
                     win_size = (evt_info['lines'], evt_info['columns'])
                     set_tty_size(self.slave_w.fileno(), win_size)
         except Exception as e:
-            print(self, e)
+            print(self, 'exception:', repr(e))
             return False    # issue, this will call self.close()
     def close(self):
         if self.client_sock_file:
