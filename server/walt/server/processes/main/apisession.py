@@ -3,7 +3,6 @@ from walt.server.processes.main.task import APISessionTask
 
 class APISession(object):
 
-    NEXT_ID = 0
     SESSIONS = {}
     TARGET_APIS = {}
     SERVER_CONTEXT = None
@@ -13,13 +12,10 @@ class APISession(object):
         APISession.TARGET_APIS[name] = cls
 
     @staticmethod
-    def create(server, target_api, remote_ip):
-        session_id = APISession.NEXT_ID
-        APISession.NEXT_ID += 1
+    def create(server, session_id, target_api, remote_ip):
         cls = APISession.TARGET_APIS[target_api]
         APISession.SESSIONS[session_id] = cls(server, remote_ip)
         print('session %d: connected' % session_id)
-        return session_id
 
     @staticmethod
     def destroy(session_id):
@@ -33,7 +29,9 @@ class APISession(object):
             session.cleanup()
 
     @staticmethod
-    def get(session_id):
+    def get(server, session_id, target_api, remote_ip):
+        if session_id not in APISession.SESSIONS:
+            APISession.create(server, session_id, target_api, remote_ip)
         return APISession.SESSIONS[session_id]
 
     def __init__(self, server, remote_ip):
