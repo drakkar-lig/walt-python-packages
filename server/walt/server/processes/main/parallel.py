@@ -22,35 +22,9 @@ class ForkPtyProcessListener(object):
             os.kill(self.slave_pid, signal.SIGKILL)
         except OSError:
             pass
-        print('ForkPty waitpid')
-        os.waitpid(self.slave_pid, 0)   # wait for child's end
-        print('ForkPty waitpid ended')
     def close(self):
         self.end_child()
         self.env.close()
-
-def daemonize():
-    pid = os.fork()
-    if pid > 0:
-        # exit first parent
-        os._exit(0)
-    os.setsid()
-    pid = os.fork()
-    if pid > 0:
-        # exit second parent
-        os._exit(0)
-
-def fork_daemon_child():
-    child_pid = os.fork()
-    if child_pid == 0:  # child
-        daemonize()
-    else:               # parent
-        os.waitpid(child_pid, 0)
-    # note: since the child calls daemonize(),
-    # child_pid is not its final pid.
-    # here we just return a status indicating
-    # if we are the child or not.
-    return (child_pid == 0)
 
 class ParallelProcessSocketListener(object):
     def __init__(self, ev_loop, sock_file, **kwargs):
@@ -98,11 +72,8 @@ class ParallelProcessSocketListener(object):
     def start_popen(self, cmd_args, env):
         # For efficiency, we fork a child process which will read & write directly
         # on the socket.
-        # Since we do not want to bother detecting the end of the child to run
-        # waitpid(), this child process will be a daemon: we delegate the proper
-        # termination to PID 1.
         #print(f'{self.client_sock_file.fileno()}: start_popen {cmd_args}')
-        if fork_daemon_child():
+        if os.fork() == 0:
             # - child -
             sock_fd = self.client_sock_file.fileno()
             for std_fd in (0, 1, 2):

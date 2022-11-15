@@ -1,5 +1,5 @@
 from time import time
-from walt.common.popen import BetterPopen
+from walt.server.popen import BetterPopen
 
 class Filesystem:
     def __init__(self, ev_loop, cmd_interpreter):
@@ -14,9 +14,8 @@ class Filesystem:
         # check if the running background process is still alive
         if self.popen is not None:
             try:
-                return_code = self.popen.poll()
-                if return_code is None:
-                    return True     # bg process still alive => no return code yet
+                if self.popen.poll():
+                    return True     # bg process still alive
             except:
                 pass
             # background process stopped

@@ -8,7 +8,7 @@ from pathlib import Path
 from time import time
 
 from walt.common.tools import do
-from walt.common.popen import BetterPopen
+from walt.server.popen import BetterPopen
 from walt.server.const import SSH_COMMAND
 from walt.server.processes.main.filesystem import FilesystemsCache
 from walt.server.processes.main.nodes.clock import NodesClockSyncInfo

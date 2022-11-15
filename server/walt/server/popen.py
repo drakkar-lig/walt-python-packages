@@ -38,19 +38,17 @@ class BetterPopen:
             self.child_pid = pid
             self.stdin = os.fdopen(stdin_w, mode='wb', buffering=0)
             self.stdout = os.fdopen(stdout_r, mode='rb', buffering=0)
-            self.return_code = None
     def send_signal(self, sig):
-        os.kill(self.child_pid, sig)
+        try:
+            os.kill(self.child_pid, sig)
+        except OSError:
+            print(f'Sending signal {sig} to pid {self.child_pid} failed. Process is probably gone already.')
     def poll(self):
-        if self.return_code is None:
-            pid, exit_status = os.waitpid(self.child_pid, os.WNOHANG)
-            if pid != 0:    # if 0, child is still running
-                self.return_code = exit_status >> 8
-        return self.return_code
-    def wait(self):
-        if self.return_code is None:
-            pid, exit_status = os.waitpid(self.child_pid, 0)
-            self.return_code = exit_status >> 8
+        try:
+            os.kill(self.child_pid, 0)
+            return True
+        except OSError:
+            return False
     def __del__(self):
         #print(f'__del__ {os.getpid()}')
         self.close()
@@ -58,7 +56,7 @@ class BetterPopen:
         if cb is None:
             cb = lambda: None
         # call kill function
-        if self.return_code is None:
+        if self.poll():
             try:
                 self.kill_function(self)
             except Exception as e:
@@ -72,11 +70,12 @@ class BetterPopen:
                     print('popen.close() -- ignored exception:', e)
         self.stdin, self.stdout = None, None
         # if child is still alive, fallback to terminate()
-        if self.return_code is None:
+        if self.poll():
             if self._synchronous_close:
-                print('popen wait -- synchronous close')
-                self.wait()
-                print('popen wait completed')
+                print('popen synchronous close')
+                # run event loop until self.poll() returns False
+                self.ev_loop.loop(self.poll)
+                print('popen synchronous close completed')
                 cb()
             else:
                 self.plan_terminate(TERMINATE_EVENTS, cb)
@@ -92,18 +91,18 @@ class BetterPopen:
             cb = cb)
     def terminate(self, terminate_events, cb):
         try:
-            self.poll()
-            if self.return_code is not None:
+            if not self.poll(): # ok child has terminated
                 cb()
-                return  # ok child has terminated
+                return
             evt, next_evts = terminate_events[0], terminate_events[1:]
             delay, sig = evt
             if sig is not None:
                 self.send_signal(sig)
             if len(next_evts) == 0:
-                print('popen wait -- end of termination events')
-                self.wait()
-                print('popen wait completed')
+                print('popen end of termination events')
+                # run event loop until self.poll() returns False
+                self.ev_loop.loop(self.poll)
+                print('popen end completed')
                 cb()
                 return
             # recall self.terminate() with next events after a delay
