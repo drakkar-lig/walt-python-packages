@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import os, sys
+import os, sys, signal
 from multiprocessing import current_process
 from subprocess import Popen, PIPE
 from select import poll, select, POLLIN, POLLPRI, POLLOUT
@@ -173,8 +173,16 @@ class EventLoop(object):
             # stop the loop if no more listeners
             if len(self.listeners_per_fd) == 0:
                 break
+            # let selected signals possibly interrupt the wait
+            signal.pthread_sigmask(signal.SIG_UNBLOCK, [signal.SIGHUP, signal.SIGCHLD])
+            # if signals were pending, signal handlers were called immediately by
+            # pthread_sigmask(), and loop_condition status may have changed.
+            if not self.should_continue(loop_condition):
+                break
             # wait for an event
             res = self.poller.poll(self.get_timeout())
+            # re-block signals while we are processing
+            signal.pthread_sigmask(signal.SIG_BLOCK, [signal.SIGHUP, signal.SIGCHLD])
             # save the time of the event as soon as possible
             ts = time()
             if len(res) == 0:
