@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import os, sys
+from multiprocessing import current_process
 from subprocess import Popen, PIPE
 from select import poll, select, POLLIN, POLLPRI, POLLOUT
 from time import time
@@ -14,6 +15,9 @@ POLL_OPS_WRITE = POLLOUT
 def is_event_ok(ev):
     # check that there is something to read or write
     return (ev & (POLL_OPS_READ | POLL_OPS_WRITE) > 0)
+
+def is_read_event(ev):
+    return (ev & POLL_OPS_READ > 0)
 
 # This object allows to implement ev_loop.do(<cmd>, <callback>)
 class ProcessListener:
@@ -54,10 +58,12 @@ class ProcessListener:
 class EventLoop(object):
     def __init__(self):
         self.listeners_per_fd = {}
+        self.events_per_fd = {}
         self.fd_per_listener_id = {}
         self.fd_of_listeners_with_is_valid_method = set()
         self.planned_events = []
         self.poller = poll()
+        self.recursion_depth = 0
 
     def plan_event(self, ts, target = None, callback = None, repeat_delay = None, **kwargs):
         # Note: We have the risk of planning several events at the same time.
@@ -79,12 +85,13 @@ class EventLoop(object):
             return (self.planned_events[0][0] - time())*1000
 
     def update_listener(self, listener, events=POLL_OPS_READ):
-        self.remove_listener(listener, should_close=False)
-        self.register_listener(listener, events)
+        if self.remove_listener(listener, should_close=False):
+            self.register_listener(listener, events)
 
     def register_listener(self, listener, events=POLL_OPS_READ):
         fd = listener.fileno()
         self.listeners_per_fd[fd] = listener
+        self.events_per_fd[fd] = events
         self.fd_per_listener_id[id(listener)] = fd
         if hasattr(listener, 'is_valid'):
             self.fd_of_listeners_with_is_valid_method.add(fd)
@@ -93,13 +100,16 @@ class EventLoop(object):
 
     def remove_listener(self, listener, should_close=True):
         listener_id = id(listener)
-        fd = self.fd_per_listener_id[listener_id]
+        fd = self.fd_per_listener_id.get(listener_id, None)
+        if fd is None:
+            return False # listener was already removed previously
         del self.listeners_per_fd[fd]
+        del self.events_per_fd[fd]
         del self.fd_per_listener_id[listener_id]
         self.fd_of_listeners_with_is_valid_method.discard(fd)
         self.poller.unregister(fd)
         if not should_close:
-            return  # done
+            return True # done
         # do no fail in case of issue in listener.close()
         # because anyway we do not need this listener anymore
         try:
@@ -108,25 +118,47 @@ class EventLoop(object):
             raise
         except Exception as e:
             print('warning: got exception in listener.close():', repr(e))
+        return True # done
+
+    def should_continue(self, loop_condition):
+        if loop_condition is None:
+            return True
+        return loop_condition()
+
+    def reordering_allowed(self, fd):
+        events = self.events_per_fd[fd]
+        if not is_read_event(events):
+            return True
+        listener = self.listeners_per_fd[fd]
+        return getattr(listener, 'allow_reordering', False)
 
     def loop(self, loop_condition = None):
+        self.recursion_depth += 1
+        #print(f'__DEBUG__ {current_process().name} loop() recursion_depth={self.recursion_depth}')
         while True:
-            if loop_condition is not None:
-                if not loop_condition():
-                    break
+            # if previous listener callback fulfilled the condition, quit
+            if not self.should_continue(loop_condition):
+                break
             # handle any expired planned event
-            now = time()
-            while len(self.planned_events) > 0 and \
-                        self.planned_events[0][0] <= now:
-                ts, kwargs_id, callback, repeat_delay, kwargs = \
-                                    heappop(self.planned_events)
-                callback(**kwargs)
-                if repeat_delay:
-                    next_ts = ts + repeat_delay
-                    if next_ts < now:                   # we are very late
-                        next_ts = now + repeat_delay    # reschedule
-                    self.plan_event(
-                        next_ts, callback = callback, repeat_delay = repeat_delay, **kwargs)
+            # (these are usually not urgent, so restrict to top level recursion)
+            if self.recursion_depth == 1:
+                now = time()
+                while len(self.planned_events) > 0 and \
+                            self.planned_events[0][0] <= now:
+                    ts, kwargs_id, callback, repeat_delay, kwargs = \
+                                        heappop(self.planned_events)
+                    callback(**kwargs)
+                    if repeat_delay:
+                        next_ts = ts + repeat_delay
+                        if next_ts < now:                   # we are very late
+                            next_ts = now + repeat_delay    # reschedule
+                        self.plan_event(
+                            next_ts, callback = callback, repeat_delay = repeat_delay, **kwargs)
+                    # if this planned event fulfilled the condition, quit
+                    if not self.should_continue(loop_condition):
+                        break   # this will just break the inner while loop
+                if not self.should_continue(loop_condition):
+                    break   # break the outer while loop
             # if a listener provides a method is_valid(),
             # check it and remove it if result is False
             for fd in tuple(self.fd_of_listeners_with_is_valid_method):
@@ -147,20 +179,36 @@ class EventLoop(object):
             ts = time()
             if len(res) == 0:
                 continue    # poll() was stopped because of the timeout
-            # process the events
-            for fd, ev in res:
-                listener = self.listeners_per_fd[fd]
-                # if error, we will remove the listener below
-                should_close = not is_event_ok(ev)
-                if not should_close:
-                    # no error, let the listener
-                    # handle the event
-                    res = listener.handle_event(ts)
-                    # if False was returned, we will
-                    # close this listener.
-                    should_close = (res == False)
-                if should_close:
-                    self.remove_listener(listener)
+            # Process an event.
+            # We only process one event since we now allow resursive calls to the event loop,
+            # so some of the other events might already be processed when we return here.
+            # After first event is processed, we let poll() recall us for the next one if needed.
+            fd, ev = res[0]
+            listener = self.listeners_per_fd[fd]
+            # if error, we will remove the listener below
+            should_close = not is_event_ok(ev)
+            if not should_close: # no error
+                # unless the listener allows event reordering, we prevent the event loop to process
+                # a future event recursively (while processing listener.handle_event(ts)) on the same
+                # listener by temporarily removing it from the event loop.
+                allow_reordering = self.reordering_allowed(fd)
+                if not allow_reordering:
+                    events = self.events_per_fd[fd]     # save for reuse below
+                    #print(f'__DEBUG__ temp remove {listener}')
+                    self.remove_listener(listener, should_close=False)
+                # let the listener handle the event
+                res = listener.handle_event(ts)
+                # restore listener is it was temporarily removed
+                if not allow_reordering:
+                    #print(f'__DEBUG__ temp restore {listener}')
+                    self.register_listener(listener, events)
+                # if False was returned, we will
+                # close this listener.
+                should_close = (res == False)
+            if should_close:
+                self.remove_listener(listener)
+        #print(f'__DEBUG__ {current_process().name} loop() ending recursion_depth={self.recursion_depth}')
+        self.recursion_depth -= 1
 
     def do(self, cmd, callback = None):
         p = ProcessListener(cmd, callback)

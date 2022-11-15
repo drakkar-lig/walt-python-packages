@@ -132,6 +132,10 @@ class EvProcessesManager(object):
                     t.join()
 
 class ProcessConnector:
+    def __init__(self):
+        # the event loop can process events coming from a process
+        # connector in random order.
+        self.allow_reordering = True
     def connect(self, remote):
         self.pipe, remote.pipe = Pipe()
     def close(self):
@@ -193,6 +197,7 @@ class RPCContext(object):
 
 class RPCProcessConnector(ProcessConnector):
     def __init__(self, default_service = None, local_context = True, label = None):
+        ProcessConnector.__init__(self)
         self.submitted_tasks = {}
         self.ids_generator = itertools.count()
         self.results = {}
@@ -260,17 +265,9 @@ class RPCProcessConnector(ProcessConnector):
         return self
     def sync_runner(self, remote_req_id, local_service, path, args, kwargs):
         local_req_id = self.send_task(remote_req_id, local_service, path, args, kwargs, True)
-        # resume an event loop process until we get the expected result
-        # however, we restrict the event loop to listen only on this channel
-        # (otherwise with imbricated sync_runner() calls on different objects
-        # avoiding infinite loops would get very complex)
+        # resume the event loop until we get the expected result
         loop_condition = lambda : (local_req_id not in self.results)
-        #print('mini evloop')
-        mini_ev_loop = EventLoop()
-        mini_ev_loop.register_listener(self)
-        mini_ev_loop.register_listener(current_process())   # also listen for process manager requests
-        mini_ev_loop.loop(loop_condition)
-        #print('mini evloop done')
+        current_process().ev_loop.loop(loop_condition)
         return self.results.pop(local_req_id)
     def send_task(self, remote_req_id, local_service, path, args, kwargs, sync):
         local_req_id = next(self.ids_generator)
