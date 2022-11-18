@@ -56,6 +56,7 @@ class ProcessListener:
 # When the set is empty, the loop stops.
 
 class EventLoop(object):
+    MAX_TIMEOUT_MS = 500
     def __init__(self):
         self.listeners_per_fd = {}
         self.events_per_fd = {}
@@ -80,9 +81,13 @@ class EventLoop(object):
 
     def get_timeout(self):
         if len(self.planned_events) == 0:
-            return None
+            return EventLoop.MAX_TIMEOUT_MS
         else:
-            return (self.planned_events[0][0] - time())*1000
+            delay_ms = (self.planned_events[0][0] - time())*1000
+            if delay_ms < 0:
+                return 0
+            else:
+                return min(EventLoop.MAX_TIMEOUT_MS, delay_ms)
 
     def update_listener(self, listener, events=POLL_OPS_READ):
         if self.remove_listener(listener, should_close=False):
