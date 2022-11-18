@@ -46,13 +46,13 @@ class ServerToNodeRequest:
         )
     def on_timeout(self):
         if self.status != REQUEST_STATUS.DONE:
+            self.ev_loop.remove_listener(self)
             self.close()
             if self.status == REQUEST_STATUS.CONNECTING:
                 result_msg = 'Connection timed out'
             else:
                 result_msg = 'Timed out waiting for reply'
             self.cb(self.env, self.node, result_msg)
-            self.ev_loop.remove_listener(self)
             self.status = REQUEST_STATUS.DONE
     def handle_event(self, ts):
         # the event loop detected an event for us
@@ -61,7 +61,6 @@ class ServerToNodeRequest:
             try:
                 self.sock.send(self.req.encode('ascii') + b'\n')
             except (ConnectionRefusedError, OSError) as e:
-                self.close()
                 if isinstance(e, ConnectionRefusedError):
                     result_msg = 'Connection refused'
                 else:
@@ -80,7 +79,6 @@ class ServerToNodeRequest:
                 self.cb(self.env, self.node, 'OK')
             elif len(resp) == 2:
                 self.cb(self.env, self.node, resp[1])
-            self.close()
             return False    # ev_loop should remove this listener
     # let the event loop know what we are reading on
     def fileno(self):
