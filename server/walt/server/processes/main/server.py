@@ -9,6 +9,7 @@ from walt.server.processes.main.blocking import BlockingTasksManager
 from walt.server.processes.main.images.image import format_image_fullname, parse_image_fullname
 from walt.server.processes.main.images.manager import NodeImageManager
 from walt.server.processes.main.interactive import InteractionManager
+from walt.server.processes.main.unix import UnixSocketServer
 from walt.server.processes.main.logs import LogsManager
 from walt.server.processes.main.repository import WalTLocalRepository
 from walt.server.processes.main.network.dhcpd import DHCPServer
@@ -39,6 +40,7 @@ class Server(object):
         self.images = NodeImageManager(self)
         self.interaction = InteractionManager(\
                         self.tcp_server, self.ev_loop)
+        self.unix_server = UnixSocketServer()
         self.transfer = TransferManager(\
                         self.tcp_server, self.ev_loop)
         self.nodes = NodesManager(tcp_server=self.tcp_server,
@@ -59,6 +61,7 @@ class Server(object):
         self.repository.prepare()
         tftp.prepare()
         self.tcp_server.prepare(self.ev_loop)
+        self.unix_server.prepare(self.ev_loop)
         # ensure the dhcp server is running,
         # otherwise the switches may have ip addresses
         # outside the WalT network, and we will not be able

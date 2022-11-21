@@ -1,9 +1,10 @@
 import socket, pickle
 from walt.common.tools import set_close_on_exec
+from walt.common.service import ServiceRequests, GenericServer
 
 PICKLE_VERSION = 4  # from python 3.4
 
-class Requests(object):
+class Requests(ServiceRequests):
     REQ_NEW_INCOMING_LOGS = 0
     REQ_DUMP_LOGS = 1
     REQ_SQL_PROMPT = 2
@@ -21,18 +22,6 @@ class Requests(object):
     REQ_NOTIFY_BOOTUP_STATUS = 14
     REQ_DEVICE_SHELL = 15
 
-    # the request id message may be specified directly as
-    # as a decimal string (e.g. '4') or by the corresponding
-    # name (e.g. 'REQ_NODE_CMD')
-    @staticmethod
-    def get_id(s):
-        try:
-            return int(s)
-        except:
-            try:
-                return getattr(Requests, s)
-            except:
-                return None
     @staticmethod
     def read_id(stream):
         try:
@@ -112,57 +101,34 @@ class ServerSocketWrapper:
 def server_socket(port):
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    # set close-on-exec flag (subprocesses should not inherit it)
-    set_close_on_exec(s, True)
     s.bind(('', port))
     s.listen(1)
+    # set close-on-exec flag (subprocesses should not inherit it)
+    set_close_on_exec(s, True)
     return ServerSocketWrapper(s)
 
-class TCPServer(object):
+class TCPServer(GenericServer):
     def __init__(self, port):
+        GenericServer.__init__(self)
         self._port = port
-        self.s = None
-        self.listener_classes = {}
 
     def prepare(self, ev_loop):
         self.s = server_socket(self._port)
         self.join_event_loop(ev_loop)
 
-    def join_event_loop(self, ev_loop):
-        self.ev_loop = ev_loop
-        ev_loop.register_listener(self)
-
-    # let the event loop know what we are reading on
-    def fileno(self):
-        return self.s.fileno()
-
-    def register_listener_class(self, req_id, cls, **ctor_args):
-        self.listener_classes[req_id] = dict(
-            cls = cls,
-            ctor_args = ctor_args
-        )
-
-    # when the event loop detects an event for us, this is 
+    # when the event loop detects an event for us, this is
     # what we will do: accept the tcp connection, read
-    # the request and create the appropriate listener, 
+    # the request and create the appropriate listener,
     # and register this listener in the event loop.
     def handle_event(self, ts):
         conn_s, addr = self.s.accept()
         sock_file = RWSocketFile(conn_s)
         req_id = Requests.read_id(sock_file)
-        if req_id is None or req_id not in self.listener_classes:
-            print('Invalid request.')
-            sock_file.close()
-            return
-        # create the appropriate listener given the req_id
-        listener_info = self.listener_classes[req_id]
-        cls = listener_info['cls']
-        ctor_args = listener_info['ctor_args'].copy()
-        ctor_args.update(dict(
-                    sock_file = sock_file))
-        listener = cls(**ctor_args)
-        self.ev_loop.register_listener(listener)
-
-    def close(self):
-        self.s.close()
-
+        listener = self.get_listener(req_id, sock_file = sock_file)
+        if listener is None:
+            sock_file.close()   # failed
+        else:
+            self.ev_loop.register_listener(listener)
+        # even if there was an issue when starting this listener,
+        # the server itself should continue running
+        return True

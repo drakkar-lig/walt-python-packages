@@ -1,13 +1,11 @@
-import os, socket, subprocess, traceback, array
+import os, socket, subprocess, traceback
 from shutil import chown
 from pathlib import Path
+from walt.common.unix import send_msg_fds
 from walt.vpn.tools import createtap
 from walt.vpn.const import VPN_SOCK_PATH
 
 BRIDGE_INTF = "walt-net"
-
-def send_fds(sock, msg, fds, peer_addr):
-    return sock.sendmsg([msg], [(socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array("i", fds))], 0, peer_addr)
 
 # prepare the VPN server socket
 def listen_socket():
@@ -45,7 +43,7 @@ def on_message(s_serv, msg, ancdata, flags, peer_addr):
         subprocess.check_call('ip link set master ' + BRIDGE_INTF + ' dev ' + tap_name, shell=True)
         print('added ' + tap_name + ' to bridge ' + BRIDGE_INTF)
         # send tap filedescriptor to the new client
-        send_fds(s_serv, b'HELLO', (tap_fd,), peer_addr)
+        send_msg_fds(s_serv, b'HELLO', (tap_fd,), peer_addr)
     except:
         traceback.print_exc()
         print('continuing...')
