@@ -39,8 +39,16 @@ class PortsBitField(SNMPBitField):
 def decode_ipv4_address(octet_string):
     return '.'.join(str(i) for i in octet_string)
 
-def decode_mac_address(octet_string):
-    return ':'.join(re.findall('..', octet_string.hex()))
+def decode_mac_address(value):
+    if value.__class__.__name__ == 'OctetString':
+        return ':'.join(re.findall('..', value.hex()))
+    elif value.__class__.__name__ == 'String':
+        # input value may have high order zero chars ommitted,
+        # e.g. 0:d:b9:45:f8:90, let's restore them
+        return ':'.join('%02x' % int(byte, base=16) \
+                        for byte in value.split(':'))
+    else:
+        raise Exception(f'Could not decode {value} as a mac address')
 
 def enum_label(enum):
     return enum.entity.enum[enum.real]
