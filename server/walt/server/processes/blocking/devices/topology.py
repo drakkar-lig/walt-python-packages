@@ -79,6 +79,13 @@ class Topology(object):
                                     confirmed = link_info[2])
         db.commit()
 
+    def set_confirm_all(self, value):
+        new_links = {}
+        for k, v in self.links.items():
+            port1, port2, confirmed = v
+            new_links[k] = port1, port2, value
+        self.links = new_links
+
     def unconfirm(self, devices):
         new_links = {}
         # any device connected to one of the specified
@@ -331,13 +338,14 @@ class TopologyManager(object):
             requester.stdout.flush()
         print(message)
 
-    def collect_devices(self, requester, server, topology, devices):
+    def collect_devices(self, requester, server, devices):
+        lldp_topology, bridge_topology = Topology(), Topology()
         server_mac = server.devices.get_server_mac()
         server_ip = get_server_ip()
         for device in devices:
             if device.type == 'server':
-                self.collect_connected_devices(requester, server, server_mac, server_ip, topology,
-                    "walt server", server_ip, device.mac, const.SERVER_SNMP_CONF)
+                self.collect_connected_devices(requester, server, server_mac, server_ip, lldp_topology,
+                    None, "walt server", server_ip, device.mac, const.SERVER_SNMP_CONF)
             elif device.type == 'switch':
                 if not device.conf.get('lldp.explore', False):
                     self.print_message(requester,
@@ -345,36 +353,59 @@ class TopologyManager(object):
                     continue
                 snmp_conf = { 'version': device.conf.get('snmp.version'),
                               'community': device.conf.get('snmp.community') }
-                self.collect_connected_devices(requester, server, server_mac, server_ip, topology,
-                    device.name, device.ip, device.mac, snmp_conf)
+                self.collect_connected_devices(requester, server, server_mac, server_ip, lldp_topology,
+                    bridge_topology, device.name, device.ip, device.mac, snmp_conf)
             else:
                 self.print_message(requester,
                     'Querying %-25s INVALID (can only scan switches or the server)' % device.name)
+        return lldp_topology, bridge_topology
 
-    def collect_connected_devices(self, requester, server, server_mac, server_ip, topology, host_name,
-                                    host_ip, host_mac, host_snmp_conf):
+    def collect_connected_devices(self, requester, server, server_mac, server_ip, lldp_topology,
+                                  bridge_topology, host_name, host_ip, host_mac, host_snmp_conf):
         print("Querying %s..." % host_name)
         if host_ip is None:
             self.print_message(requester, "Querying %-25s FAILED (unknown management IP!)" % host_name)
             return
-        # get a SNMP proxy object
+        lldp_error = self.get_and_process_lldp_neighbors(
+                                server, server_mac, server_ip, lldp_topology, host_name,
+                                host_ip, host_mac, host_snmp_conf)
+        if bridge_topology is None:
+            message = {
+                None:           'OK',
+                'snmp-variant': 'FAILED (LLDP SNMP variant detection failed)',
+                'snmp-issue':   'FAILED (issue with LLDP SNMP request)'
+            }[lldp_error]
+        else:
+            bridge_error = self.get_and_process_bridge_neighbors(
+                                server, server_mac, server_ip, bridge_topology, host_name,
+                                host_ip, host_mac, host_snmp_conf)
+            message = {
+                (None,           None):           'OK',
+                (None,           'snmp-variant'): 'PASSED (LLDP-only data; BRIDGE SNMP variant detection failed)',
+                (None,           'snmp-issue'):   'PASSED (LLDP-only data; issue with BRIDGE SNMP request)',
+                ('snmp-variant', None):           'PASSED (BRIDGE-only data; LLDP SNMP variant detection failed)',
+                ('snmp-variant', 'snmp-variant'): 'FAILED (LLDP and BRIDGE SNMP variant detection)',
+                ('snmp-variant', 'snmp-issue'):   'FAILED (LLDP and BRIDGE SNMP issues)',
+                ('snmp-issue',   None):           'PASSED (BRIDGE-only data; issue with LLDP SNMP request)',
+                ('snmp-issue',   'snmp-variant'): 'FAILED (LLDP and BRIDGE SNMP issues)',
+                ('snmp-issue',   'snmp-issue'):   'FAILED (LLDP and BRIDGE SNMP issues)',
+            }[(lldp_error, bridge_error)]
+        self.print_message(requester, ("Querying %-25s " % host_name) + message)
+
+    def get_and_process_lldp_neighbors(self, server, server_mac, server_ip, topology, host_name,
+                                    host_ip, host_mac, host_snmp_conf):
         try:
             snmp_proxy = snmp.Proxy(host_ip, host_snmp_conf, lldp=True)
         except NoSNMPVariantFound:
-            self.print_message(requester, "Querying %-25s FAILED (while trying to probe SNMP variant)" % host_name)
-            return
-        # get neighbors
+            return 'snmp-variant'
         try:
             neighbors = snmp_proxy.lldp.get_neighbors().items()
-            self.print_message(requester, "Querying %-25s OK" % host_name)
         except SNMPException:
-            self.print_message(requester, "Querying %-25s FAILED (SNMP issue)" % host_name)
-            return
-        # analyse
+            return 'snmp-issue'
         for port, neighbor_info in neighbors:
             ip, mac, sysname =  neighbor_info['ip'], neighbor_info['mac'], \
                                 neighbor_info['sysname']
-            print('---- found on %s %s -- port %d: %s %s %s' % \
+            print('---- lldp: found on %s %s -- port %d: %s %s %s' % \
                         (host_name, host_mac, port, ip, mac, sysname))
             # The switch connected to the server detects the mac address of the physical
             # network interface, which is different from the mac address of walt-net (the one
@@ -394,6 +425,37 @@ class TopologyManager(object):
                 # call add_or_update_device to update ip
                 info.update(type = db_info.type, name = db_info.name)
                 server.add_or_update_device(**info)
+        return None  # no error
+
+    def get_and_process_bridge_neighbors(self, server, server_mac, server_ip, topology, host_name,
+                                    host_ip, host_mac, host_snmp_conf):
+        try:
+            snmp_proxy = snmp.Proxy(host_ip, host_snmp_conf, bridge=True)
+        except NoSNMPVariantFound:
+            return 'snmp-variant'
+        try:
+            macs_per_port = snmp_proxy.bridge.get_macs_per_port()
+        except SNMPException:
+            return 'snmp-issue'
+        # This is the switch forwarding table, so mac addresses may not be immediate neighbors.
+        # However, if we have multiple mac addresses on a given port, we know this port is
+        # connected to another switch. Thus a probably good estimate can be obtained by:
+        # - ignoring results about ports associated to multiple mac addresses
+        # - ignoring mac addresses for which we already have an LLDP result (this means
+        #   we will give precedence to the LLDP-based topology when merging with this one)
+        for port, macs in macs_per_port.items():
+            msg_prefix = f'---- bridge: found on {host_name} {host_mac} -- port {port}'
+            if len(macs) > 1:
+                print(f'{msg_prefix}: {len(macs)} hosts, ignoring')
+                continue
+            mac = list(macs)[0]
+            db_info = server.devices.get_complete_device_info(mac)
+            if db_info is None:
+                print(f'{msg_prefix}: {mac} unknown in db, ignoring')
+                continue
+            print(f'{msg_prefix}: {mac}')
+            topology.register_neighbor(host_mac, port, mac)
+        return None  # no error
 
     def rescan(self, requester, server, db, remote_ip, devices):
         # note: the last parameter of this method is called "devices" and
@@ -404,15 +466,20 @@ class TopologyManager(object):
         self.last_scan = time.time()
 
         # explore the network equipments
-        new_topology = Topology()
-        self.collect_devices(requester, server, new_topology, devices)
+        lldp_topology, bridge_topology = self.collect_devices(requester, server, devices)
+
+        # merge with priority to LLDP data
+        bridge_topology.set_confirm_all(False)
+        new_topology = lldp_topology
+        new_topology.merge_other(bridge_topology)
+        new_topology.set_confirm_all(True)
 
         # retrieve past topology data from db
         db_topology = Topology()
         db_topology.load_from_db(db)
         db_topology.unconfirm(devices)
 
-        # merge (with priority to new data)
+        # merge with db data (with priority to new data)
         new_topology.merge_other(db_topology)
 
         # cleanup conflicting data (obsolete vs confirmed)
