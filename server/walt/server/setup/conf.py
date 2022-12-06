@@ -1,4 +1,4 @@
-import os, sys
+import os, sys, copy
 from pathlib import Path
 from string import Template
 from walt.server.setup.netconf import get_default_netconf, edit_netconf_interactive, \
@@ -74,7 +74,9 @@ def edit_conf_interactive():
     else:
         netconf = conf['network']
     netconf = edit_netconf_interactive(netconf)
-    return { 'network': netconf }
+    conf = copy.deepcopy(conf) # copy
+    conf['network'] = netconf # update network conf
+    return conf
 
 def define_server_conf(mode, opt_edit_conf):
     selector = (os.isatty(1), mode, opt_edit_conf)
