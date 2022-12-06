@@ -1,7 +1,7 @@
 from plumbum import cli
 from walt.client.link import ClientToServerLink
 from walt.client.interactive import run_sql_prompt
-from walt.client.auth import get_auth_conf
+from walt.client.config import conf
 from walt.client.application import WalTCategoryApplication, WalTApplication
 
 class WalTAdvanced(WalTCategoryApplication):
@@ -40,8 +40,11 @@ class WalTUpdateHubMeta(WalTApplication):
     _waltplatform_user = False # default
     def main(self):
         with ClientToServerLink() as server:
-            auth_conf = get_auth_conf(server)
-            return server.update_hub_metadata(auth_conf, self._waltplatform_user)
+            registries = server.get_registries()
+            if 'hub' not in tuple(reg_info[0] for reg_info in registries):
+                print("Sorry, cannot run this command because the docker hub registry was disabled on this platform.")
+                return False
+            return server.update_hub_metadata(self._waltplatform_user)
     @cli.autoswitch(help='update waltplatform user (walt devs only)')
     def waltplatform_user(self):
         self._waltplatform_user = True

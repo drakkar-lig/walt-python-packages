@@ -1,4 +1,4 @@
-import netifaces, sys, yaml, re, random, time
+import netifaces, sys, random, time
 from pathlib import Path
 from plumbum.cli.terminal import prompt
 from ipaddress import IPv4Network
@@ -369,16 +369,8 @@ def edit_netconf_interactive(netconf):
         wait_message_read()
     return netconf
 
-def dump_commented_netconf(netconf, indent):
-    netconf_dump = yaml.dump(netconf, indent=indent, sort_keys=False)
-    # add descriptive comments above each network
-    def add_desc_comment(match):
-        match = match.group()
-        netname = match.strip()
-        desc = get_net_desc(netname)
-        return f'# {desc}\n{match}'
-    netconf_dump = re.sub(r'^[\w-]+', add_desc_comment, netconf_dump, flags=re.MULTILINE)
-    return netconf_dump
+def get_netconf_entry_comments(netconf):
+    return { f'{netname}:': get_net_desc(netname) for netname in netconf }
 
 def same_netconfs(nc1, nc2):
     sanitize_netconf(nc1)

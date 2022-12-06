@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import sys, os
-from walt.client.config import conf
+from walt.client.config import conf, init_config
 from walt.client.filesystem import Filesystem
 from walt.common.api import api, api_expose_method, api_expose_attrs
 from walt.common.apilink import ServerAPILink, BaseAPIService
@@ -8,8 +8,8 @@ from walt.common.tcp import client_sock_file
 from walt.common.constants import WALT_SERVER_TCP_PORT
 from walt.common.term import TTYSettings
 from walt.client.update import check_update
-from walt.client.startup import init_config
 from walt.client.plugins import get_hook
+from walt.client.auth import get_encrypted_credentials
 
 @api
 class ExposedStream(object):
@@ -57,7 +57,7 @@ class WaltClientService(BaseAPIService):
         self.link = None
     @api_expose_method
     def get_username(self):
-        return conf['username']
+        return conf.walt.username
     @api_expose_method
     def get_win_size(self):
         tty = TTYSettings()
@@ -77,6 +77,13 @@ class WaltClientService(BaseAPIService):
     @api_expose_method
     def hard_reboot_nodes(self, node_macs):
         return get_hook('client_hard_reboot').reboot(node_macs)
+    @api_expose_method
+    def get_hub_encrypted_credentials(self, server_pub_key):
+        return get_encrypted_credentials(server_pub_key,
+                    conf.hub.username, conf.hub.password)
+    @api_expose_method
+    def get_hub_username(self):
+        return conf.hub.username
     def set_silent(self, silent):
         self.stdout.set_silent(silent)
 
@@ -89,7 +96,7 @@ class InternalClientToServerLink(ServerAPILink):
     def __init__(self, busy_indicator):
         InternalClientToServerLink.service.link = self
         ServerAPILink.__init__(self,
-                conf['server'], 'CSAPI',
+                conf.walt.server, 'CSAPI',
                 InternalClientToServerLink.service, busy_indicator)
     def set_silent(self, silent):
         InternalClientToServerLink.service.set_silent(silent)
@@ -98,8 +105,6 @@ class ClientToServerLink:
     num_calls = 0
     def __new__(cls, do_checks=True, busy_indicator=None):
         get_link = lambda : InternalClientToServerLink(busy_indicator)
-        if not do_checks:
-            return get_link()
         # on 1st call:
         # 1) check config, and once the config is OK
         # 2) check if server version matches
@@ -107,7 +112,10 @@ class ClientToServerLink:
         # 4) set faster pickle4 mode
         if ClientToServerLink.num_calls == 0:
             init_config(get_link)
+            return get_link()
         link = get_link()
+        if not do_checks:
+            return link
         if ClientToServerLink.num_calls == 0:
             with link as server:
                 check_update(server)
@@ -124,4 +132,4 @@ def connect_to_tcp_server():
     with ClientToServerLink():
         pass
     # connect to TCP server endpoint
-    return client_sock_file(conf['server'], WALT_SERVER_TCP_PORT)
+    return client_sock_file(conf.walt.server, WALT_SERVER_TCP_PORT)

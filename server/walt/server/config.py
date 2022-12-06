@@ -11,7 +11,14 @@ DEFAULT_CONF = {
         "nfsd": {
             "service-name": "nfs-kernel-server.service",
         },
-    }
+    },
+    "registries": [
+        {
+            'label': 'hub',
+            'api': 'docker-hub',
+            'description': 'Public registry at hub.docker.com'
+        }
+    ]
 }
 
 def check_ip_network(ip_net):
@@ -36,3 +43,10 @@ def get_conf():
     conf = copy.copy(DEFAULT_CONF)
     conf.update(load_conf(SERVER_CONF))
     return conf
+
+def cleanup_defaults(conf):
+    """Discard items rarely configured and having default values"""
+    clean_conf = { k: v for (k, v) in conf.items() }
+    if 'services' in conf and conf['services'] == DEFAULT_CONF['services']:
+        del clean_conf['services']
+    return clean_conf

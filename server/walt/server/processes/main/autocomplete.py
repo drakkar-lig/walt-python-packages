@@ -140,17 +140,12 @@ def complete_image_clone_url(server, username, partial_token):
     # this main process by refactoring this completion code:
     # - setting the current main task to 'async'
     # - delegate the gathering of this list to the blocking process.
-    repos = {
-        'walt:': get_walt_clone_urls,
-        'hub:': None,    # probably too long for autocompletion, user has to use "walt image search"
-        'docker:': None  # see note above
-    }
-    for repo_name, method in repos.items():
-        if method is None:
-            continue
-        if partial_token.startswith(repo_name):
-            return method(server, username)
-    return tuple(repos.keys())
+    if partial_token.startswith('walt:'):
+        return get_walt_clone_urls(server, username)
+    # fetching from other locations would be probably too long for autocompletion,
+    # user has to use "walt image search" instead
+    from walt.server.tools import get_clone_url_locations
+    return get_clone_url_locations()
 
 def complete_log_checkpoint(server, username):
     return tuple(cp.name for cp in server.db.select('checkpoints', username=username))
@@ -172,6 +167,10 @@ def complete_history_range(server, username, partial_token):
             possible_start_bound = ('full', 'none', '-<relative-time>:', ':') + \
                             tuple(f'{cp}:' for cp in checkpoints)
             return possible_start_bound
+
+def complete_image_registry(partial_token):
+    from walt.server.tools import get_registry_labels
+    return get_registry_labels() + ('auto',)
 
 def shell_autocomplete_switch(server, requester, username, argv):
     arg_type = argv[0]
@@ -211,6 +210,8 @@ def shell_autocomplete_switch(server, requester, username, argv):
         return complete_history_range(server, username, partial_token)
     elif arg_type == 'SET_OF_EMITTERS':
         return complete_set_of_emitters(server, partial_token)
+    elif arg_type == 'REGISTRY':
+        return complete_image_registry(partial_token)
     else:
         return ()
 

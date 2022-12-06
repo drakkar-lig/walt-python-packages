@@ -49,6 +49,7 @@ $ walt-server-setup --edit-conf
 ```
 
 For more information about WalT network concepts and configuration, see [`walt help show networking`](networking.md).
+For more information about WalT image registries, see [`walt help show registries`](registries.md).
 
 
 ## 4- Configure docker hub credentials

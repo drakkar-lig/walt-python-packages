@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 import os, sys
 from plumbum import cli
+from walt.common.formatting import columnate
 from walt.client.link import ClientToServerLink
 from walt.client.tools import confirm
 from walt.client.interactive import run_image_shell_prompt
 from walt.client.transfer import run_transfer_with_image
-from walt.client.auth import get_auth_conf
 from walt.client.config import conf
 from walt.client.application import WalTCategoryApplication, WalTApplication
 from walt.client.types import IMAGE, IMAGE_CLONE_URL, \
@@ -44,13 +44,38 @@ class WalTImageClone(WalTApplication):
 
 @WalTImage.subcommand("publish")
 class WalTImagePublish(WalTApplication):
-    """publish a WalT image on the docker hub"""
+    """publish a WalT image on the hub (or other registry)"""
     ORDERING = 9
+    registry = cli.SwitchAttr(
+                [ "--registry" ],
+                str,
+                argname = 'REGISTRY',
+                default = 'auto',
+                help= """select which image registry to publish to""")
     def main(self, image_name : IMAGE):
         with ClientToServerLink() as server_link:
+            registries = server_link.get_registries()
+            if len(registries) == 0:
+                print('Sorry, no image registry is configured on this platform.')
+                return False
+            if self.registry == 'auto':
+                if len(registries) > 1:
+                    print('Several image registries are configured on this platform:')
+                    print()
+                    print(columnate(registries, ('Registry', 'Description')))
+                    print()
+                    print("Please specify the target registry by using option '--registry'.")
+                    return False
+                self.registry = registries[0][0] # there is a single registry => 'auto' is OK.
+            else:
+                if not self.registry in tuple(reg_info[0] for reg_info in registries):
+                    print(f"Invalid registry '{self.registry}'.")
+                    print('The following registries are available:')
+                    print()
+                    print(columnate(registries, ('Registry', 'Description')))
+                    return False
             server_link.set_busy_label('Validating / Publishing')
-            auth_conf = get_auth_conf(server_link)
-            res = server_link.publish_image(auth_conf, image_name)
+            res = server_link.publish_image(self.registry, image_name)
             if res is False:
                 return False
             print('OK, image was published.')
@@ -64,7 +89,7 @@ class WalTImageShow(WalTApplication):
     _names_only = False # default
     def main(self):
         with ClientToServerLink() as server:
-            print(server.show_images(conf['username'], self._refresh, self._names_only))
+            print(server.show_images(conf.walt.username, self._refresh, self._names_only))
     @cli.autoswitch(help='resync image list from Docker daemon.')
     def refresh(self):
         self._refresh = True
@@ -92,13 +117,13 @@ class WalTImageShell(WalTApplication):
                     if new_name == '':
                         new_name = default_new_name
                         print('Selected: %s' % new_name)
-                    res = server.image_shell_session_save(conf['username'],
+                    res = server.image_shell_session_save(conf.walt.username,
                                     session_id, new_name, name_confirmed = False)
                     if res == 'NAME_NOT_OK':
                         continue
                     if res == 'NAME_NEEDS_CONFIRM':
                         if confirm(komsg = None):
-                            server.image_shell_session_save(conf['username'],
+                            server.image_shell_session_save(conf.walt.username,
                                     session_id, new_name, name_confirmed = True)
                         else:
                             continue
@@ -165,7 +190,7 @@ class WalTImageCp(WalTApplication):
                 if info['client_operand_index'] == 0:
                     # client was sending -> image has been modified
                     # save the image under the same name
-                    server.image_shell_session_save(conf['username'],
+                    server.image_shell_session_save(conf.walt.username,
                             session_id, default_new_name, True)
             except (KeyboardInterrupt, EOFError):
                 print()
