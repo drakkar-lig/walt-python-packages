@@ -8,9 +8,11 @@ import uuid
 from walt.common.formatting import format_sentence
 from walt.server.processes.blocking.images.metadata import \
     pull_user_metadata
-from walt.server.processes.blocking.images.search import \
-    LOCATION_WALT_SERVER, LOCATION_DOCKER_HUB, LOCATION_DOCKER_DAEMON, \
-    LOCATION_LABEL, LOCATION_PER_LABEL
+from walt.server.processes.blocking.repositories import \
+     DockerDaemonClient, DockerHubClient, get_custom_registry_client
+from walt.server.exttools import docker
+from walt.server import conf
+from walt.server.tools import get_clone_url_locations
 
 if typing.TYPE_CHECKING:
     from walt.server.processes.main.server import Server
@@ -43,7 +45,7 @@ $ %s
 """
 MSG_INVALID_CLONABLE_LINK = """\
 Invalid clonable image link. Format must be:
-[walt|docker|hub]:<user>/<image_name>[:<tag>]
+{link_format}
 (tip: walt image search [<keyword>])
 """
 MSG_INCOMPATIBLE_MODELS = """\
@@ -68,7 +70,7 @@ def parse_clonable_link(requester, clonable_link):
         bad = True
     if not bad:
         location = parts[0]
-        if location not in LOCATION_LABEL.values():
+        if location not in get_clone_url_locations():
             bad = True
     if not bad:
         parts = parts[1].split('/')
@@ -82,9 +84,12 @@ def parse_clonable_link(requester, clonable_link):
         elif len(parts) != 2:
             bad = True
     if not bad:
-        return (LOCATION_PER_LABEL[location], user, image_name)
+        return (location, user, image_name)
     if bad:
-        requester.stderr.write(MSG_INVALID_CLONABLE_LINK)
+        locations_or = '|'.join(get_clone_url_locations())
+        link_format = f'[{locations_or}]:<user>/<image_name>[:<tag>]'
+        requester.stderr.write(MSG_INVALID_CLONABLE_LINK.format(
+                                    link_format = link_format))
         return None, None, None
 
 def get_temp_image_fullname():
@@ -93,6 +98,11 @@ def get_temp_image_fullname():
 def exit_no_such_image(requester):
     requester.stderr.write(
             'No such remote image. Use walt image search <keyword>.\n')
+    return ('FAILED',)
+
+def exit_image_without_models(requester):
+    requester.stderr.write(
+            'Failed. This remote image does not indicate compatible node models.\n')
     return ('FAILED',)
 
 # workflow functions
@@ -171,12 +181,17 @@ def tag_server_image_to_requester(walt_local_repo, ws_image_fullname,
                                   remote_image_fullname, **args):
     walt_local_repo.tag(remote_image_fullname, ws_image_fullname)
 
-def pull_image(server, docker_daemon, hub, remote_location,
+def pull_image(server, remote_location,
                remote_image_fullname, **args):
-    if remote_location == LOCATION_DOCKER_HUB:
+    if remote_location == 'hub':
+        hub = DockerHubClient()
         hub.pull(server, remote_image_fullname)
-    elif remote_location == LOCATION_DOCKER_DAEMON:
+    elif remote_location == 'docker':
+        docker_daemon = DockerDaemonClient()
         docker_daemon.pull(server, remote_image_fullname)
+    else:
+        registry = get_registry_client(remote_location)
+        registry.pull(server, remote_image_fullname)
 
 class WorkflowCleaner:
     def __init__(self, context):
@@ -228,7 +243,7 @@ def workflow_run(workflow, **context):
 
 # walt image clone implementation
 # -------------------------------
-def perform_clone(requester, docker_daemon, hub,
+def perform_clone(requester,
                   clonable_link, image_store, force, image_name, **kwargs):
     username = requester.get_username()
     if not username:
@@ -251,30 +266,40 @@ def perform_clone(requester, docker_daemon, hub,
     existing_server_image = image_store.__contains__(remote_image_fullname)
     existing_ws_image = image_store.__contains__(ws_image_fullname)
     same_image = (remote_image_fullname == ws_image_fullname)
-    image_is_local = (remote_location == LOCATION_WALT_SERVER)
+    image_is_local = (remote_location == 'walt')
 
     # check that the requested image really exists,
     # and fetch compatibility info
-    if remote_location == LOCATION_WALT_SERVER:
+    if remote_location == 'walt':
         if not image_store.__contains__(remote_image_fullname):
             return exit_no_such_image(requester)
-        target_node_models = image_store[remote_image_fullname].get_node_models()
-    if remote_location == LOCATION_DOCKER_HUB:
+        labels = image_store[remote_image_fullname].get_labels()
+    elif remote_location == 'hub':
+        hub = DockerHubClient()
         remote_user_metadata = pull_user_metadata(hub, remote_user)
         if remote_image_fullname not in remote_user_metadata['walt.user.images']:
             return exit_no_such_image(requester)
         image_info = remote_user_metadata['walt.user.images'][remote_image_fullname]
-        target_node_models = image_info['labels']['walt.node.models'].split(',')
-    if remote_location == LOCATION_DOCKER_DAEMON:
-        if docker_daemon is None:
+        labels = image_info['labels']
+    elif remote_location == 'docker':
+        if docker is None:
             requester.stderr.write("Docker is not available on the server.\n")
             return 'FAILED',
         try:
+            docker_daemon = DockerDaemonClient()
             labels = docker_daemon.get_labels(remote_image_fullname)
         except subprocess.CalledProcessError:
             requester.stderr.write("Error while loading images from Docker.\n")
             return 'FAILED',
-        target_node_models = labels['walt.node.models'].split(',')
+    else:
+        registry = get_custom_registry_client(remote_location)
+        try:
+            labels = registry.get_labels(remote_image_fullname)
+        except:
+            return exit_no_such_image(requester)
+    if 'walt.node.models' not in labels:
+        return exit_image_without_models(requester)
+    target_node_models = labels['walt.node.models'].split(',')
 
     # compute the workflow
     # --------------------
@@ -324,8 +349,6 @@ def perform_clone(requester, docker_daemon, hub,
         saved_images = {},
         clonable_link = clonable_link,
         target_node_models = target_node_models,
-        docker_daemon = docker_daemon,
-        hub = hub,
         **kwargs
     )
 
@@ -347,13 +370,11 @@ def perform_clone(requester, docker_daemon, hub,
         return ('FAILED',)
 
 # this implements walt image clone
-def clone(requester, server: Server, hub, docker_daemon, **kwargs):
+def clone(requester, server: Server, **kwargs):
     try:
         return perform_clone(requester=requester,
                              server=server,
                              walt_local_repo=server.repository,
-                             docker_daemon=docker_daemon,
-                             hub=hub,
                              image_store=server.images.store,
                              nodes_manager=server.nodes,
                              **kwargs)

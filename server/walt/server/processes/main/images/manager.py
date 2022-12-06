@@ -150,11 +150,9 @@ class NodeImageManager:
             return None
         session = ImageShellSession(self.store, image, task_label)
         return session
-    def update_hub_metadata(self, context, auth_conf, dh_peer, waltplatform_user):
+    def update_hub_metadata(self, context, waltplatform_user):
         return update_hub_metadata(blocking = self.blocking,
                            requester = context.requester,
                                 task = context.task,
-                             dh_peer = dh_peer,
-                           auth_conf = auth_conf,
                    waltplatform_user = waltplatform_user)
 

@@ -20,5 +20,5 @@ Sub-commands:
     duplicate  duplicate an image of your working set
     remove     remove an image from your working set
     rename     rename an image of your working set
-    publish    publish a WalT image on the docker hub
+    publish    publish a WalT image on the hub (or other registry)
     squash     squash all layers of an image into one

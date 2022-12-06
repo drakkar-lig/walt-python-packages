@@ -1,8 +1,11 @@
-publish a WalT image on the docker hub
+publish a WalT image on the hub (or other registry)
 
 Usage:
     walt image publish [SWITCHES] image_name
 
 Meta-switches:
-    -h, --help      Prints this help message and quits
+    -h, --help                   Prints this help message and quits
+
+Switches:
+    --registry REGISTRY:str      select which image registry to publish to; the default is auto
 

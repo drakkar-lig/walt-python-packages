@@ -115,6 +115,8 @@ class RealBusyIndicator:
         self.label = label
     def set_default_label(self):
         self.set_label(self.default_label)
+    def get_label(self):
+        return self.label
 
 class SilentBusyIndicator:
     def __getattr__(self, attr):
