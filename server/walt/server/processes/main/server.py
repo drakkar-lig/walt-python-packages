@@ -1,5 +1,6 @@
 import re
 from pathlib import Path
+from walt.server import conf
 from walt.common.constants import WALT_SERVER_TCP_PORT
 from walt.common.devices.registry import get_device_info_from_mac
 from walt.common.tcp import TCPServer
@@ -84,6 +85,10 @@ class Server(object):
         self.nodes.cleanup()
         self.devices.cleanup()
         self.logs.logs_to_db.flush()
+
+    def get_registries(self):
+        return tuple((reg_info['label'], reg_info['description']) \
+                     for reg_info in conf['registries'])
 
     def set_image(self, requester, node_set, image_tag):
         nodes = self.nodes.parse_node_set(requester, node_set)

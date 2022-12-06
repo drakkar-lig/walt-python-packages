@@ -42,6 +42,8 @@ class ExtTool:
         stream = getattr(popen, out_stream)
         output = await stream.read()
         await popen.wait()
+        if popen.returncode != 0:
+            raise Exception(f'{self.path} returned exit code {popen.returncode}')
         return output.decode(sys.stdout.encoding)
 
     def __getattr__(self, attr):

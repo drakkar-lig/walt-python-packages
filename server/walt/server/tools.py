@@ -111,11 +111,16 @@ def get_server_ip() -> str:
     from walt.server import conf
     return conf['network']['walt-net']['ip'].split('/')[0]
 
-async def async_json_http_get(url, timeout=DEFAULT_JSON_HTTP_TIMEOUT):
+async def async_json_http_get(url, timeout=DEFAULT_JSON_HTTP_TIMEOUT, return_links=False):
     timeout = aiohttp.ClientTimeout(total=timeout)
     async with aiohttp.ClientSession(timeout=timeout) as session:
         async with session.get(url) as response:
-            return await response.json()
+            links = response.links
+            json_body = await response.json()
+            if return_links:
+                return json_body, links
+            else:
+                return json_body
 
 async def async_gather_tasks(tasks):
     # make sure all asyncio tasks are run up to their result or exception
@@ -205,3 +210,16 @@ def add_image_repo(fullname):
         return 'localhost/' + fullname
     else:
         return 'docker.io/' + fullname
+
+def get_registry_info(label):
+    from walt.server import conf
+    for reg_info in conf['registries']:
+        if reg_info['label'] == label:
+            return reg_info
+
+def get_registry_labels():
+    from walt.server import conf
+    return tuple(reg_info['label'] for reg_info in conf['registries'])
+
+def get_clone_url_locations():
+    return ('docker', 'walt') + get_registry_labels()

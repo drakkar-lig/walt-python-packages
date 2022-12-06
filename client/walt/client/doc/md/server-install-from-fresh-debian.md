@@ -51,8 +51,9 @@ $ make install
 $ walt-server-setup
 ```
 
-Note: an interactive configuration interface will be displayed first.
+Note: interactive configuration interfaces for network and image registries will be displayed first.
 For more information about WalT network concepts and configuration, see [`walt help show networking`](networking.md).
+For more information about WalT image registries, see [`walt help show registries`](registries.md).
 
 
 ## 5- Configuring docker hub credentials

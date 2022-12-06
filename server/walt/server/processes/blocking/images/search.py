@@ -11,6 +11,9 @@ from walt.server.processes.blocking.images.metadata import \
     async_pull_user_metadata
 from walt.server.tools import format_node_models_list, async_merge_generators
 from walt.server.exttools import docker
+from walt.server.processes.blocking.repositories import \
+     DockerDaemonClient, DockerHubClient, DockerRegistryV2Client
+from walt.server import conf
 
 if typing.TYPE_CHECKING:
     from walt.server.processes.main.server import Server
@@ -19,21 +22,13 @@ if typing.TYPE_CHECKING:
 
 SEARCH_HEADER = ['User', 'Image name', 'Location', 'Compatibility', 'Clonable link']
 MSG_SEARCH_NO_MATCH = "Sorry, no image could match your request.\n"
-LOCATION_WALT_SERVER = 0
-LOCATION_DOCKER_HUB = 1
-LOCATION_DOCKER_DAEMON = 2
-LOCATION_LABEL = {
-    LOCATION_WALT_SERVER: 'walt',
-    LOCATION_DOCKER_HUB: 'hub',
-    LOCATION_DOCKER_DAEMON: 'docker',
-}
-LOCATION_LONG_LABEL = {
-    LOCATION_WALT_SERVER: 'walt (other user)',
-    LOCATION_DOCKER_HUB: 'docker hub',
-    LOCATION_DOCKER_DAEMON: 'docker daemon'
-}
 
-LOCATION_PER_LABEL = {v: k for k, v in LOCATION_LABEL.items()}
+def location_long_label(location):
+    return {
+        'walt': 'walt (other user)',
+        'hub': 'docker hub',
+        'docker': 'docker daemon'
+    }.get(location, 'custom registry')
 
 # in order to efficiently search for walt images on the docker hub,
 # each walt user has a dummy image called 'walt_metadata' pushed on
@@ -41,9 +36,7 @@ LOCATION_PER_LABEL = {v: k for k, v in LOCATION_LABEL.items()}
 # is published with "walt image publish".
 
 class Search(object):
-    def __init__(self, hub, docker_daemon, image_store, requester, validate = None):
-        self.docker_daemon = docker_daemon
-        self.hub = hub
+    def __init__(self, image_store, requester, validate = None):
         self.image_store = image_store
         self.requester = requester
         if validate is None:
@@ -58,44 +51,74 @@ class Search(object):
         return self.validate(image_name, user, location)
     # search yields results in the form (<image_fullname>, <location>, <labels>)
     async def async_search(self):
-        async for record in async_merge_generators(
-                                self.async_search_walt(),
-                                self.async_search_daemon(),
-                                self.async_search_hub()
-                            ):
+        generators = [ self.async_search_walt() ]
+        if docker is not None:
+            generators += [ self.async_search_daemon() ]
+        for reg_info in conf['registries']:
+            api = reg_info['api']
+            if api == 'docker-hub':
+                generators += [ self.async_search_hub() ]
+            elif api == 'docker-registry-v2':
+                generators += [ self.async_search_registry_v2(**reg_info) ]
+            else:
+                self.requester.stderr.write(f"Unknown registry api '{api}' in configuration, ignoring.")
+        async for record in async_merge_generators(*generators):
             yield record
     async def async_search_walt(self):
         # search for local images
         for fullname, labels in self.image_store.get_labels().items():
-            if self.validate_fullname(fullname, LOCATION_WALT_SERVER):
-                yield (fullname, LOCATION_WALT_SERVER, labels)
+            if self.validate_fullname(fullname, 'walt'):
+                yield (fullname, 'walt', labels)
     async def async_search_daemon(self):
-        # search for docker daemon images
-        if self.docker_daemon is not None:
-            try:
-                docker_images = await self.docker_daemon.async_images()
-            except subprocess.CalledProcessError:
-                self.requester.stderr.write("Docker daemon is unreachable: it will not be queried. (but docker hub will)")
-            else:
-                for fullname in docker_images:
-                    if self.validate_fullname(fullname, LOCATION_DOCKER_DAEMON):
-                        labels = await self.docker_daemon.async_get_labels(fullname)
-                        yield (fullname, LOCATION_DOCKER_DAEMON, labels)
+        try:
+            # search for docker daemon images
+            docker_daemon = DockerDaemonClient()
+            docker_images = await docker_daemon.async_images()
+            for fullname in docker_images:
+                if self.validate_fullname(fullname, 'docker'):
+                    labels = await docker_daemon.async_get_labels(fullname)
+                    yield (fullname, 'docker', labels)
+        except:
+            self.requester.stderr.write(f"Ignoring images of docker daemon because of a communication failure.\n")
+            return
     async def async_search_hub(self):
-        # search for hub images
-        # (detect walt users by their 'walt_metadata' dummy image)
-        generators = []
-        async for waltuser_info in self.hub.async_search('walt_metadata'):
-            if '/walt_metadata' in waltuser_info['name']:
-                user = waltuser_info['name'].split('/')[0]
-                generators += [ self.async_search_hub_user_images(user) ]
-        async for record in async_merge_generators(*generators):
-            yield record
-    async def async_search_hub_user_images(self, user):
-        user_metadata = await async_pull_user_metadata(self.hub, user)
+        try:
+            # search for hub images
+            # (detect walt users by their 'walt_metadata' dummy image)
+            hub = DockerHubClient()
+            generators = []
+            async for waltuser_info in hub.async_search('walt_metadata'):
+                if '/walt_metadata' in waltuser_info['name']:
+                    user = waltuser_info['name'].split('/')[0]
+                    generators += [ self.async_search_hub_user_images(hub, user) ]
+            async for record in async_merge_generators(*generators):
+                yield record
+        except:
+            self.requester.stderr.write(f"Ignoring hub registry because of a communication failure.\n")
+            return
+    async def async_search_hub_user_images(self, hub, user):
+        user_metadata = await async_pull_user_metadata(hub, user)
         for fullname, info in user_metadata['walt.user.images'].items():
-            if self.validate_fullname(fullname, LOCATION_DOCKER_HUB):
-                yield fullname, LOCATION_DOCKER_HUB, info['labels']
+            if self.validate_fullname(fullname, 'hub'):
+                yield fullname, 'hub', info['labels']
+    async def async_search_registry_v2(self, label, host, port, **kwargs):
+        try:
+            https_only = kwargs['https-verify']
+            registry = DockerRegistryV2Client(host, port, https_only)
+            generators = []
+            async for image_name in registry.async_catalog():
+                generators += [ self.async_get_registry_v2_image_tags(label, registry, image_name) ]
+            async for record in async_merge_generators(*generators):
+                yield record
+        except:
+            self.requester.stderr.write(f"Ignoring {label} registry because of a communication failure.\n")
+            return
+    async def async_get_registry_v2_image_tags(self, registry_label, registry, image_name):
+        async for tag in registry.async_list_image_tags(image_name):
+            fullname = f'{image_name}:{tag}'
+            if self.validate_fullname(fullname, registry_label):
+                labels = await registry.async_get_labels(fullname)
+                yield fullname, registry_label, labels
 
 def short_image_name(image_name):
     if image_name.endswith(':latest'):
@@ -110,14 +133,17 @@ def clonable_link(location, user, image_name, min_version = None):
     except ValueError:  # non-integer dev version
         pass
     return "%s:%s/%s" % (
-            LOCATION_LABEL[location],
+            location,
             user,
             short_image_name(image_name)
     )
 
 async def async_parse_fullnames(it):
     async for fullname, location, labels in it:
-        image_user, image_name = fullname.split('/')
+        parts = fullname.split('/')
+        if len(parts) != 2:
+            continue
+        image_user, image_name = parts
         yield image_user, image_name, location, labels
 
 async def async_discard_images_in_ws(it, username):
@@ -125,7 +151,7 @@ async def async_discard_images_in_ws(it, username):
     # the server are not considered "remote images".
     # (they belong to the working set of the user, instead.)
     async for user, image_name, location, labels in it:
-        if user != username or location != LOCATION_WALT_SERVER:
+        if user != username or location != 'walt':
             yield user, image_name, location, labels
 
 async def async_format_result(it):
@@ -139,12 +165,12 @@ async def async_format_result(it):
         node_models = labels['walt.node.models'].split(',')
         yield ( user,
                 short_image_name(image_name),
-                LOCATION_LONG_LABEL[location],
+                location_long_label(location),
                 format_node_models_list(node_models),
                 clonable_link(location, user, image_name, min_version))
 
 # this implements walt image search
-async def async_perform_search(hub, docker_daemon, image_store, requester, keyword, tty_mode):
+async def async_perform_search(image_store, requester, keyword, tty_mode):
     username = requester.get_username()
     if not username:
         return None    # client already disconnected, give up
@@ -154,7 +180,7 @@ async def async_perform_search(hub, docker_daemon, image_store, requester, keywo
     else:
         validate = None
     # search
-    search = Search(hub, docker_daemon, image_store, requester, validate)
+    search = Search(image_store, requester, validate)
     it = search.async_search()
     it = async_parse_fullnames(it)
     it = async_discard_images_in_ws(it, username)
@@ -172,7 +198,7 @@ async def async_perform_search(hub, docker_daemon, image_store, requester, keywo
         requester.stderr.write(MSG_SEARCH_NO_MATCH)
 
 # this implements walt image search
-def search(requester, server: Server, hub, docker_daemon, keyword, tty_mode):
+def search(requester, server: Server, keyword, tty_mode):
     return asyncio.run(async_perform_search(
-            hub, docker_daemon, server.images.store, requester, keyword, tty_mode))
+            server.images.store, requester, keyword, tty_mode))
 
