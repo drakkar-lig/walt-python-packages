@@ -17,7 +17,7 @@ MAX_PRINTED_NODES = 5
 CONJUGATE_REGEXP = r'\b(\w*)\(([^)]*)\)'
 
 def format_sentence(sentence, items,
-            label_none, label_singular, label_plural):
+            label_none, label_singular, label_plural, list_type='and'):
     # conjugate if plural or singular
     if len(items) == 1:
         sentence = re.sub(CONJUGATE_REGEXP, r'\1', sentence)
@@ -30,7 +30,7 @@ def format_sentence(sentence, items,
     elif len(items) == 0:
         s_items, node_names = label_none, ()
     elif len(items) > 1:
-        s_items, node_names = label_plural + ' %s and %s', (', '.join(sorted_items[:-1]), sorted_items[-1])
+        s_items, node_names = label_plural + ' %s ' + list_type + ' %s', (', '.join(sorted_items[:-1]), sorted_items[-1])
     else:   # 1 item
         s_items, node_names = label_singular + ' %s', (sorted_items[0],)
     # almost done

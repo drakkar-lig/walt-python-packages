@@ -158,31 +158,16 @@ class CSAPI(APISession):
                           image_name = image_name)
 
     @api_expose_method
-    def create_dh_peer(self, context):
-        dh_peer = DHPeer()
-        dh_peer_id = self.register_session_object(dh_peer)
-        return dh_peer_id, dh_peer.pub_key
-
-    @api_expose_method
-    def establish_dh_session(self, context, dh_peer_id, client_pub_key):
-        dh_peer = self.get_session_object(dh_peer_id)
-        dh_peer.establish_session(client_pub_key)
-
-    @api_expose_method
-    def publish_image(self, context, auth_conf, image_name):
-        dh_peer = self.get_session_object(auth_conf['dh_peer_id'])
+    def publish_image(self, context, registry_label, image_name):
         return context.images.publish(requester = context.requester,
                           task = context.task,
-                          dh_peer = dh_peer,
-                          auth_conf = auth_conf,
+                          registry_label = registry_label,
                           image_name = image_name)
 
     @api_expose_method
-    def docker_login(self, context, auth_conf):
-        dh_peer = self.get_session_object(auth_conf['dh_peer_id'])
+    def hub_login(self, context):
         context.task.set_async()
-        return context.blocking.hub_login(context.requester, context.task.return_result,
-                                          dh_peer, auth_conf)
+        return context.blocking.hub_login(context.requester, context.task.return_result)
 
     @api_expose_method
     def show_images(self, context, username, refresh, names_only=False):
@@ -255,9 +240,8 @@ class CSAPI(APISession):
         return context.logs.get_pickled_checkpoint_time(context.requester, cp_name)
 
     @api_expose_method
-    def update_hub_metadata(self, context, auth_conf, waltplatform_user):
-        dh_peer = self.get_session_object(auth_conf['dh_peer_id'])
-        return context.images.update_hub_metadata(context, auth_conf, dh_peer, waltplatform_user)
+    def update_hub_metadata(self, context, waltplatform_user):
+        return context.images.update_hub_metadata(context, waltplatform_user)
 
     @api_expose_method
     def set_device_config(self, context, device_set, conf_args):
@@ -283,3 +267,7 @@ class CSAPI(APISession):
     @api_expose_method
     def shell_autocomplete(self, context, username, argv, debug=False):
         return context.server.shell_autocomplete(context.requester, username, argv, debug=debug)
+
+    @api_expose_method
+    def get_registries(self, context):
+        return context.server.get_registries()

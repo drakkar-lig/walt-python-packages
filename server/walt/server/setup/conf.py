@@ -1,21 +1,28 @@
-import os, sys, copy
+import os, sys, copy, yaml, re
 from pathlib import Path
 from string import Template
 from walt.server.setup.netconf import get_default_netconf, edit_netconf_interactive, \
-                                      dump_commented_netconf, same_netconfs
+                                      get_netconf_entry_comments, sanitize_netconf
+from walt.server.setup.regconf import get_default_regconf, edit_regconf_interactive
+from walt.server.config import cleanup_defaults
 
 YAML_INDENT = 4
 
-WALT_SERVER_CONF_PATH = Path("/etc/walt/server.conf")
-WALT_SERVER_CONF_CONTENT = Template("""\
+def category_comment(s):
+    return '\n' + s + '\n' + (len(s) * '-')
+
+WALT_SERVER_CONF = {
+    "PATH": Path("/etc/walt/server.conf"),
+    "HEADER_COMMENT": """
 # WalT server configuration file.
 # Run 'walt-server-setup --edit-conf' to update.
-
-# network configuration
-# ---------------------
-network:
-$indented_netconf
-""")
+""",
+    "COMMENT_INFO": {
+        (0, 'network:'): category_comment('network configuration'),
+        (0, 'registries:'): category_comment('image registries'),
+        (0, 'services:'): category_comment('service files')
+    }
+}
 
 WALT_SERVER_SPEC_PATH = Path("/etc/walt/server.spec")
 WALT_SERVER_SPEC_CONTENT = """\
@@ -62,7 +69,8 @@ def edit_conf_set_default():
     conf = get_current_conf()
     if conf is None:
         # this was actually expected
-        return { 'network': get_default_netconf() }
+        return { 'network': get_default_netconf(),
+                 'registries': get_default_regconf() }
     else:
         print('Note: found valid yaml file at /etc/walt/server.conf, keeping it.')
         return conf
@@ -70,12 +78,12 @@ def edit_conf_set_default():
 def edit_conf_interactive():
     conf = get_current_conf()
     if conf is None:
-        netconf = None
+        conf = edit_conf_set_default()
     else:
-        netconf = conf['network']
-    netconf = edit_netconf_interactive(netconf)
-    conf = copy.deepcopy(conf) # copy
-    conf['network'] = netconf # update network conf
+        conf = copy.deepcopy(conf) # copy
+    netconf, regconf = conf['network'], conf['registries']
+    conf['network'] = edit_netconf_interactive(netconf)
+    conf['registries'] = edit_regconf_interactive(regconf)
     return conf
 
 def define_server_conf(mode, opt_edit_conf):
@@ -100,18 +108,44 @@ def define_server_conf(mode, opt_edit_conf):
 def same_confs(c1, c2):
     if c1 is None or c2 is None or 'network' not in c1 or 'network' not in c2:
         return False
-    return same_netconfs(c1['network'], c2['network'])
+    sanitize_netconf(c1['network'])
+    sanitize_netconf(c2['network'])
+    return c1 == c2
+
+def dump_commented_conf(conf, comment_info):
+    reordered_conf = {}
+    for k in [ 'network', 'registries', 'services' ]:
+        if k in conf:
+            reordered_conf[k] = conf.pop(k)
+    reordered_conf.update(conf)
+    conf_dump = yaml.dump(reordered_conf, indent=YAML_INDENT, sort_keys=False)
+    # add comments
+    def add_desc_comment(match):
+        indent, pattern = match.groups()
+        depth = len(indent) / YAML_INDENT
+        comment = comment_info.get((depth, pattern), None)
+        if comment is None:
+            lines = []
+        else:
+            lines = [ (f'# {line}' if len(line) > 0 else line) \
+                      for line in comment.splitlines() ]
+        lines += [ pattern ]
+        return '\n'.join(f'{indent}{line}' for line in lines)
+    conf_dump = re.sub(r'^([ \t]*)([^\n]*)', add_desc_comment, conf_dump, flags=re.MULTILINE)
+    return WALT_SERVER_CONF["HEADER_COMMENT"] + conf_dump + '\n'
 
 def update_server_conf(conf):
     if same_confs(get_current_conf(), conf):
         return
-    print(f'Saving configuration at {WALT_SERVER_CONF_PATH}... ', end='')
-    commented_netconf = dump_commented_netconf(conf['network'], YAML_INDENT)
-    indent = YAML_INDENT * ' '
-    indented_netconf = '\n'.join((indent + l) for l in commented_netconf.splitlines())
-    content = WALT_SERVER_CONF_CONTENT.substitute(indented_netconf=indented_netconf)
-    WALT_SERVER_CONF_PATH.parent.mkdir(parents=True, exist_ok=True)
-    WALT_SERVER_CONF_PATH.write_text(content)
+    print(f'Saving configuration at {WALT_SERVER_CONF["PATH"]}... ', end='')
+    conf = cleanup_defaults(conf)
+    comment_info = dict(WALT_SERVER_CONF["COMMENT_INFO"])
+    netconf = conf['network']
+    netconf_entry_comments = get_netconf_entry_comments(netconf)
+    comment_info.update({(1, k): v for (k, v) in netconf_entry_comments.items()})
+    conf_text = dump_commented_conf(conf, comment_info)
+    WALT_SERVER_CONF["PATH"].parent.mkdir(parents=True, exist_ok=True)
+    WALT_SERVER_CONF["PATH"].write_text(conf_text)
     print('done')
 
 def fix_other_conf_files():
@@ -125,6 +159,6 @@ def fix_other_conf_files():
             print('done')
 
 def setup_default_server_conf():
-    print(f'Writing default conf at {WALT_SERVER_CONF_PATH}... ', end=''); sys.stdout.flush()
+    print(f'Writing default conf at {WALT_SERVER_CONF["PATH"]}... ', end=''); sys.stdout.flush()
     configure_server_conf('virtual')
     print('done')

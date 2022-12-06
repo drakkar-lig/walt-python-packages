@@ -3,6 +3,7 @@ import sys, pickle
 from time import time
 from select import select
 from socket import create_connection
+from contextlib import contextmanager
 from walt.common.constants import WALT_SERVER_DAEMON_PORT
 from walt.common.reusable import reusable
 from walt.common.tools import BusyIndicator
@@ -161,7 +162,18 @@ class ServerAPIConnection(object):
         if self.usage_refcount == 0:
             self.idle_start_time = time()
     def set_busy_label(self, label):
+        # save info as local variables
+        indicator = self.indicator
+        prev_label = indicator.get_label()
+        # set the label
         self.indicator.set_label(label)
+        # propose a context manager for optional use in a 'with' context
+        class BusyLabelRestorer:
+            def __enter__(self):
+                pass
+            def __exit__(self, exc_type, exc_value, traceback):
+                indicator.set_label(prev_label)
+        return BusyLabelRestorer()
     def set_default_busy_label(self):
         self.indicator.set_default_label()
     def get_remote_version(self):

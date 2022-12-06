@@ -116,7 +116,7 @@ class WalTNodeShow(WalTApplication):
     _names_only = False # default
     def main(self):
         with ClientToServerLink() as server:
-            print(server.show_nodes(conf['username'], self._all, self._names_only))
+            print(server.show_nodes(conf.walt.username, self._all, self._names_only))
     @cli.autoswitch(help='show nodes used by other users too')
     def all(self):
         self._all = True
