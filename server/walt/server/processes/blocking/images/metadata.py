@@ -4,6 +4,7 @@ import typing
 
 from walt.server.exttools import buildah
 from walt.server.tools import async_gather_tasks
+from walt.server.processes.blocking.repositories import DockerHubClient
 import json, base64
 import asyncio
 
@@ -39,7 +40,7 @@ async def async_collect_repo_metadata(hub, reponame):
             )
     return walt_images
 
-def push_user_metadata(hub, dh_peer, auth_conf, requester, user, metadata):
+def push_user_metadata(requester, hub, user, metadata):
     encoded = base64.b64encode(json.dumps(metadata).encode('UTF-8'))
     encoded = encoded.decode('UTF-8')
     fullname = '%(user)s/walt_metadata:latest' % dict(user = user)
@@ -51,7 +52,7 @@ def push_user_metadata(hub, dh_peer, auth_conf, requester, user, metadata):
     # for now, save metadata images with docker manifest format
     buildah.commit('--format', 'docker', cont_name, fullname)
     buildah.rm(cont_name)
-    success = hub.push(fullname, dh_peer, auth_conf, requester)
+    success = hub.push(requester, fullname)
     buildah.rmi(fullname)
     return success
 
@@ -67,20 +68,20 @@ async def async_pull_user_metadata(hub, user):
     except:     # user did not push metadata yet
         return { 'walt.user.images': {} }
 
-def update_user_metadata_for_image(hub, dh_peer, auth_conf, \
-                                   requester, image_fullname, labels):
-    user = image_fullname.split('/')[0]
+def update_user_metadata_for_image(requester, hub, image_fullname, labels):
+    hub_username = requester.get_hub_username()
     # retrieve existing metadata (i.e. for other images...)
-    metadata = pull_user_metadata(hub, user)
+    metadata = pull_user_metadata(hub, hub_username)
     # update metadata of this image
     metadata['walt.user.images'][image_fullname] = dict(
         labels = labels
     )
     # push back on docker hub
-    return push_user_metadata(hub, dh_peer, auth_conf, requester, user, metadata)
+    return push_user_metadata(requester, hub, hub_username, metadata)
 
-def update_hub_metadata(requester, hub, dh_peer, auth_conf, user):
+def update_hub_metadata(requester, user):
+    hub = DockerHubClient()
     # collect
     metadata = collect_user_metadata(hub, user)
     # push back on docker hub
-    return push_user_metadata(hub, dh_peer, auth_conf, requester, user, metadata)
+    return push_user_metadata(requester, hub, user, metadata)

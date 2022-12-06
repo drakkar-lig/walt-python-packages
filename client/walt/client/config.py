@@ -1,4 +1,6 @@
-import yaml, re, os
+import yaml, re, os, socket
+from walt.client.plugins import get_hook
+from walt.client.tools import yes_or_no
 from os.path import expanduser
 from collections import OrderedDict
 from walt.common.config import load_conf
@@ -16,10 +18,7 @@ again, your new entry would pass an appropriate validity check, and this file
 would be generated again accordingly.
 """
 
-CONFIG_CODED_ITEMS=['password']
-EXPLAIN_CREDEDENTIALS='''\
-These credentials must match your account at hub.docker.com.
-The username will also be used to identify your work on the WalT platform.'''
+CONFIG_CODED_ITEMS=[('hub', 'password')]
 
 # This is not secure at all, we will just make passwords unreadable for someone spying
 # your screen. The security is actually based on the access rights of the conf file
@@ -56,23 +55,42 @@ def get_config_file():
         if legacy_p.exists():
             p.parent.mkdir(exist_ok=True)
             legacy_p.rename(p)
+            p.chmod(0o600)
     return p
 
 def get_config_from_file():
     config_file = get_config_file()
-    modified = False
     try:
-        conf = load_conf(config_file, optional=True)
-        if conf is None:
-            return {}
+        conf_dict = load_conf(config_file, optional=True)
+        if conf_dict is None:
+            return {}, False
     except:
         print("Warning: %s file exists, but it could not be parsed properly." \
                             % config_file)
-        return {}
-    for key in conf:
-        if key in CONFIG_CODED_ITEMS:
-            conf[key] = decode(conf[key])
-    return conf
+        return {}, False
+    # handle legacy conf items
+    updated = False
+    if 'walt' not in conf_dict:
+        conf_dict['walt'] = {}
+    if 'hub' not in conf_dict:
+        conf_dict['hub'] = {}
+    if 'server' in conf_dict:
+        conf_dict['walt']['server'] = conf_dict.pop('server')
+        updated = True
+    if 'username' in conf_dict:
+        conf_dict['walt']['username'] = conf_dict.pop('username')
+        # walt and hub usernames were previously always the same
+        conf_dict['hub']['username'] = conf_dict['walt']['username']
+        updated = True
+    if 'password' in conf_dict:
+        conf_dict['hub']['password'] = conf_dict.pop('password')
+        updated = True
+    # decode coded items
+    for group_name, items in conf_dict.items():
+        for key in list(items):
+            if (group_name, key) in CONFIG_CODED_ITEMS:
+                conf_dict[group_name][key] = decode(conf_dict[group_name][key])
+    return conf_dict, updated
 
 class ConfigFileSaver(object):
     def __init__(self):
@@ -86,16 +104,18 @@ class ConfigFileSaver(object):
         config_file.write_text(self.printed())
         config_file.chmod(0o600)
         print('\nConfiguration was stored in %s.\n' % config_file)
-    def add_item_group(self, desc, explain=None):
+    def add_item_group(self, name, desc, explain=None):
         self.item_groups.append(dict(
+            name    = name,
             desc    = desc,
             explain = explain,
             items   = []
         ))
-    def add_item(self, key, value):
-        comment = None
-        if key in CONFIG_CODED_ITEMS:
-            comment = '(%s value is encoded.)' % key
+    def add_item(self, key, value, comment = None):
+        group_name = self.item_groups[-1]['name']
+        if (group_name, key) in CONFIG_CODED_ITEMS:
+            new_comment = '(%s value is encoded.)' % key
+            comment = new_comment if comment is None else f'{comment} {new_comment}'
             value   = encode(value)
         self.item_groups[-1]['items'].append(dict(
             key     = key,
@@ -103,13 +123,18 @@ class ConfigFileSaver(object):
             comment = comment
         ))
     def comment_section(self, lines, section, indent=0):
-        return lines.extend([ (' ' * indent) + '# ' + line \
-                            for line in section.splitlines() ])
+        return lines.extend(self.indent_lines(
+                self.comment_lines(section.splitlines()), indent))
+    def comment_lines(self, lines):
+        return [ '# ' + line for line in lines ]
+    def indent_lines(self, lines, indent):
+        return [ (' ' * indent) + line for line in lines ]
     def printed(self):
         lines = [ '' ]
         self.comment_section(lines, CONFIG_FILE_TOP_COMMENT)
         lines.append('')
         for item_group in self.item_groups:
+            name = item_group['name']
             desc = item_group['desc']
             explain = item_group['explain']
             # add group-level comments
@@ -120,40 +145,174 @@ class ConfigFileSaver(object):
             if explain:
                 self.comment_section(
                     lines, explain)
+            # add group name
+            lines.append(f'{name}:')
             # add items
             for item in item_group['items']:
                 key     = item['key']
                 value   = item['value']
                 comment = item['comment']
                 if comment:
-                    self.comment_section(lines, comment)
+                    self.comment_section(lines, comment, 4)
                 # get yaml output for this item only
                 # (by creating a temporary dictionary with just this item)
-                item_and_value = yaml.dump({key:value})
-                lines.append(item_and_value)
-        return '\n'.join(lines) + '\n'
+                item_and_value = yaml.dump({key:value}).strip()
+                lines.append(f'    {item_and_value}')
+        return '\n'.join(lines) + '\n\n'
 
-def save_config(conf):
+def save_config():
     with ConfigFileSaver() as saver:
-        if 'server' in conf:
-            saver.add_item_group('ip or hostname of walt server')
-            saver.add_item('server', conf['server'])
-        if 'username' in conf:
-            saver.add_item_group('credentials', explain=EXPLAIN_CREDEDENTIALS)
-            saver.add_item('username', conf['username'])
-            saver.add_item('password', conf['password'])
+        if 'walt' in conf_dict:
+            saver.add_item_group('walt', 'WalT platform')
+            if 'server' in conf_dict['walt']:
+                saver.add_item('server', conf_dict['walt']['server'],
+                               'IP or hostname of WalT server')
+            if 'username' in conf_dict['walt']:
+                saver.add_item('username', conf_dict['walt']['username'],
+                               'WalT user name used to identify your work')
+        if 'hub' in conf_dict:
+            saver.add_item_group('hub', 'Docker Hub credentials')
+            if 'username' in conf_dict['hub']:
+                saver.add_item('username', conf_dict['hub']['username'])
+            if 'password' in conf_dict['hub']:
+                saver.add_item('password', conf_dict['hub']['password'])
 
 def set_conf(in_conf):
     global conf_dict
     conf_dict = in_conf
 
 def reload_conf():
-    set_conf(get_config_from_file())
+    conf_dict, should_rewrite = get_config_from_file()
+    set_conf(conf_dict)
+    if should_rewrite:
+        save_config()
 
-class Conf(object):
-    def __getitem__(self, key):
-        return conf_dict[key]
+def resolve_new_user():
+    server_check = 'server' not in conf_dict['walt']
+    if server_check:
+        hook = get_hook('config_missing_server')
+        if hook is not None:
+            server_check = hook()
+    print('You are a new user of this WalT platform, and this command requires a few configuration items.')
+    while True:
+        server_update = 'server' not in conf_dict['walt']
+        username_update = 'username' not in conf_dict['walt']
+        if server_update:
+            conf_dict['walt']['server'] = ask_config_item('IP or hostname of WalT server')
+        if username_update:
+            use_hub = yes_or_no('Do you intend to push or pull images to/from the docker hub?',
+                                okmsg=None, komsg=None)
+            if use_hub:
+                if 'hub' not in conf_dict:
+                    conf_dict['hub'] = {}
+                print('Please get an account at hub.docker.com if not done yet, then specify credentials here.')
+                conf_dict['hub'].update(
+                        username = ask_config_item('username'),
+                        password = ask_config_item('password', coded=True))
+                conf_dict['walt']['username'] = conf_dict['hub']['username']
+            else:
+                conf_dict['walt']['username'] = ask_config_item('Please choose a username for this walt platform')
+        server_error, hub_error = test_config(use_hub)
+        if not server_error and not hub_error:
+            break   # OK done
+        if hub_error:
+            # walt username was copied from hub username, but hub credentials are wrong
+            # so forget it
+            del conf_dict['walt']['username']
+        continue  # prompt again to user
+    if use_hub:
+        username = conf_dict['walt']['username']
+        print(f'Note: {username} will also be your username on the WalT platform.')
 
+def resolve_hub_creds():
+    print('Docker hub credentials are missing or invalid. Please enter them below.')
+    while True:
+        conf_dict['hub'].update(
+                    username = ask_config_item('username'),
+                    password = ask_config_item('password', coded=True))
+        if test_config(True):
+            break
+
+class ConfTree:
+    class walt:
+        class server:
+            @staticmethod
+            def resolve():
+                resolve_new_user()
+        class username:
+            @staticmethod
+            def resolve():
+                resolve_new_user()
+    class hub:
+        class username:
+            @staticmethod
+            def resolve():
+                resolve_hub_creds()
+        class password:
+            @staticmethod
+            def resolve():
+                resolve_hub_creds()
+
+def init_config(link_cls):
+    global server_link_cls
+    server_link_cls = link_cls
+
+def test_config(credentials_check):
+    # we try to establish a connection to the server,
+    # and optionaly to connect to the docker hub.
+    # the return value is a tuple of 2 elements telling
+    # whether a server connection or a hub credentials error
+    # occured.
+    print()
+    print('Testing provided configuration...')
+    if server_link_cls is None:
+        raise Exception('test_config() called but server_link_cls not known yet.')
+    try:
+        with server_link_cls() as server:
+            if credentials_check:
+                with server.set_busy_label('Authenticating to the docker hub'):
+                    if not server.hub_login():
+                        print()
+                        del conf_dict['hub']['username']
+                        del conf_dict['hub']['password']
+                        return False, True
+    except socket.error:
+        print('FAILED. The value of \'walt.server\' you entered seems invalid (or the server is down?).')
+        print()
+        del conf_dict['walt']['server']
+        return True, False
+    print('OK.')
+    print()
+    return False, False
+
+server_link_cls = None
 conf_dict = None
-conf = Conf()
+
+class Conf:
+    def __init__(self, path=(), lazyload=False):
+        self._path = path
+        self._lazyload = lazyload
+    # we use point-based notation (e.g., conf.walt.server)
+    def __getattr__(self, attr):
+        if self._lazyload:
+            reload_conf()
+            self._lazyload = False
+        path = self._path + (attr,)
+        conf_tree, conf_obj = ConfTree, conf_dict
+        for attr in path:
+            conf_tree = getattr(conf_tree, attr)
+            if hasattr(conf_tree, 'resolve'):
+                # leaf value
+                if not attr in conf_obj:
+                    conf_tree.resolve()
+                    save_config()
+                return conf_obj[attr]
+            else:
+                # category node
+                if not attr in conf_obj:
+                    conf_obj[attr] = {}
+            conf_obj = conf_obj[attr]
+        return Conf(path)
+
+conf = Conf(lazyload=True)
 

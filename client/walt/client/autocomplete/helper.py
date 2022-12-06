@@ -28,7 +28,7 @@ def autocomplete_helper():
         # otherwise request the server to do it
         if result is None:
             with ClientToServerLink() as server:
-                result = server.shell_autocomplete(conf['username'], other_argv, debug=debug)
+                result = server.shell_autocomplete(conf.walt.username, other_argv, debug=debug)
         if debug:
             print(f'delay: {time()-t0:.2}s')
         # if still None, there was an issue

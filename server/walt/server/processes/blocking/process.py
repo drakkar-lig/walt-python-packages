@@ -9,6 +9,7 @@ from walt.server.processes.blocking.images.squash import squash
 from walt.server.processes.blocking.images.commit import commit
 from walt.server.processes.blocking.images.metadata import update_hub_metadata
 from walt.server.processes.blocking.images.search import search
+from walt.server.processes.blocking.images.pull import pull_image
 from walt.server.processes.blocking.devices.topology import TopologyManager
 from walt.server.processes.blocking.cmd import run_shell_cmd
 from walt.server.processes.blocking.logs import stream_db_logs
@@ -18,20 +19,19 @@ from walt.server.exttools import docker
 class BlockingTasksContextService:
     def __init__(self, service, context):
         self.db = service.db
-        self.hub = service.hub
         self.topology = service.topology
         self.docker_daemon = service.docker_daemon
         self.requester = context.remote_service.do_sync.requester
         self.server = context.remote_service.do_sync.server
 
     def clone_image(self, *args, **kwargs):
-        return clone(self.requester, self.server, self.hub, self.docker_daemon, *args, **kwargs)
+        return clone(self.requester, self.server, *args, **kwargs)
 
     def search_image(self, *args, **kwargs):
-        return search(self.requester, self.server, self.hub, self.docker_daemon, *args, **kwargs)
+        return search(self.requester, self.server, *args, **kwargs)
 
     def publish_image(self, *args, **kwargs):
-        return publish(self.requester, self.server, self.hub, *args, **kwargs)
+        return publish(self.requester, self.server, *args, **kwargs)
 
     def squash_image(self, *args, **kwargs):
         return squash(self.requester, self.server, *args, **kwargs)
@@ -40,7 +40,7 @@ class BlockingTasksContextService:
         return commit(self.server, *args, **kwargs)
 
     def update_hub_metadata(self, *args, **kwargs):
-        return update_hub_metadata(self.requester, self.hub, *args, **kwargs)
+        return update_hub_metadata(self.requester, *args, **kwargs)
 
     def stream_db_logs(self, **params):
         # note: in this case self.requester is actually a proxy to
@@ -48,10 +48,11 @@ class BlockingTasksContextService:
         return stream_db_logs(self.db, self.requester, **params)
 
     def pull_image(self, image_fullname):
-        return self.hub.pull(self.server, image_fullname)
+        return pull_image(self.server, image_fullname)
 
     def hub_login(self, dh_peer, auth_conf):
-        return self.hub.login(dh_peer, auth_conf, self.requester)
+        hub = DockerHubClient()
+        return hub.login(self.requester)
 
     def sync_list_docker_daemon_images(self):
         if self.docker_daemon is None:
@@ -79,7 +80,6 @@ class BlockingTasksContextService:
 
 class BlockingTasksService(object):
     def __init__(self):
-        self.hub = DockerHubClient()
         if docker is not None:
             self.docker_daemon = DockerDaemonClient()
         else:
