@@ -124,9 +124,14 @@ class WalTLocalRepository:
         else:
             node_models = None
             node_models_desc = 'N/A'
+        layers = data.attrs['RootFS']['Layers']
+        if layers is None:
+            num_layers = 0
+        else:
+            num_layers = len(layers)
         return dict(
             labels = labels,
-            editable = (len(data.attrs['RootFS']['Layers']) < MAX_IMAGE_LAYERS),
+            editable = (num_layers < MAX_IMAGE_LAYERS),
             image_id = image_id,
             created_at = parse_date(created_at_ts),
             node_models = node_models,
