@@ -50,7 +50,13 @@ def decode(coded_value):
     return xor(bytes.fromhex(coded_value)).decode('UTF-8')
 
 def get_config_file():
-    return Path(expanduser('~/.waltrc'))
+    p = Path(expanduser('~/.walt/config'))
+    if not p.exists():
+        legacy_p = Path(expanduser('~/.waltrc'))
+        if legacy_p.exists():
+            p.parent.mkdir(exist_ok=True)
+            legacy_p.rename(p)
+    return p
 
 def get_config_from_file():
     config_file = get_config_file()
@@ -76,6 +82,7 @@ class ConfigFileSaver(object):
     def __exit__(self, type, value, tb):
         # concatenate all and write the file
         config_file = get_config_file()
+        config_file.parent.mkdir(exist_ok=True)
         config_file.write_text(self.printed())
         config_file.chmod(0o600)
         print('\nConfiguration was stored in %s.\n' % config_file)
