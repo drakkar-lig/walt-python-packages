@@ -60,10 +60,10 @@ with ServerAPILink('localhost', 'SSAPI') as server:
         log_event(f'server.register_device() {ip} {mac} {name}')
         server.register_device('walt.node.pc-x86-64', '', ip, mac, name)
 
-# restore a .waltrc file with just the server hostname (as localhost)
+# restore a .walt/config file with just the server hostname (as localhost)
 # note: up to now it contained fake credentials to allow
 # the 'walt device rename' command above.
-log_event('restore /root/.waltrc')
-run_cmd('cp /root/.waltrc.no-user /root/.waltrc')
+log_event('restore /root/.walt/config')
+run_cmd('cp /root/.walt/config.no-user /root/.walt/config')
 
 log_event('done')

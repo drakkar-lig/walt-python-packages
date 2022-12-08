@@ -26,9 +26,9 @@ WALT_SERVER_SPEC_CONTENT = """\
 }
 """
 
-ROOT_WALTRC_PATH = Path("/root/.waltrc")
-SKEL_WALTRC_PATH = Path("/etc/skel/.waltrc")
-LOCAL_WALTRC_CONTENT = """\
+ROOT_WALT_CONFIG_PATH = Path("/root/.walt/config")
+SKEL_WALT_CONFIG_PATH = Path("/etc/skel/.walt/config")
+LOCAL_WALT_CONFIG_CONTENT = """\
 # WalT configuration file
 # ***********************
 
@@ -116,8 +116,8 @@ def update_server_conf(conf):
 
 def fix_other_conf_files():
     for path, content in ((WALT_SERVER_SPEC_PATH, WALT_SERVER_SPEC_CONTENT),
-                          (ROOT_WALTRC_PATH, LOCAL_WALTRC_CONTENT),
-                          (SKEL_WALTRC_PATH, LOCAL_WALTRC_CONTENT)):
+                          (ROOT_WALT_CONFIG_PATH, LOCAL_WALT_CONFIG_CONTENT),
+                          (SKEL_WALT_CONFIG_PATH, LOCAL_WALT_CONFIG_CONTENT)):
         if not path.exists():
             print(f'Writing {path}... ', end=''); sys.stdout.flush()
             path.parent.mkdir(parents=True, exist_ok=True)

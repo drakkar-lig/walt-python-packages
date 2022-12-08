@@ -202,15 +202,15 @@ def run_deployment_tasks(info):
         for node_name, err in reboot_errors.items():
             print('{node_name}: {err}')
         raise Exception('Reboot failed!')
-    # update server in .waltrc
-    log_status_change(info, 'client.conf', 'Updating $HOME/.waltrc', verbose = True)
+    # update server in .walt/config
+    log_status_change(info, 'client.conf', 'Updating $HOME/.walt/config', verbose = True)
     conf = get_config_from_file()
     conf['server'] = server_node
     save_config(conf)
     # note: waiting for nodes may require user credentials to be available,
-    # and they may not be present yet in .waltrc, so set temporary ones.
+    # and they may not be present yet in .walt/config, so set temporary ones.
     conf['username'], conf['password'] = 'anonymous', 'none'
-    set_conf(conf)  # temporary conf, not saved in .waltrc
+    set_conf(conf)  # temporary conf, not saved in .walt/config
     busy_indicator = LoggerBusyIndicator(info, 'nodes.waiting',
                                          'Waiting for first bootup of nodes')
     with ClientToServerLink(do_checks=False, busy_indicator=busy_indicator) as server:

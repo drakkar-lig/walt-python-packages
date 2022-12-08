@@ -65,7 +65,7 @@ Docker hub credentials are missing, incomplete or invalid.
 username: <docker-hub-user>
 password: <docker-hub-password>
 
-Configuration was stored in /root/.waltrc.
+Configuration was stored in /root/.walt/config.
 
 Resuming normal operations...
 [...]
