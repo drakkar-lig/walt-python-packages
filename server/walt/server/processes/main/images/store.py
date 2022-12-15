@@ -91,11 +91,11 @@ class NodeImageStore(object):
             if db_fullname not in self.images:
                 if db_fullname in podman_images:
                     # add missing image in this store
-                    self.images[db_fullname] = NodeImage(self, db_fullname)
+                    self.images[db_fullname] = NodeImage(self, db_fullname, db_ready)
                     continue
                 if not db_ready:
                     print(MSG_RESTORING_PULL % db_fullname)
-                    self.images[db_fullname] = NodeImage(self, db_fullname)
+                    self.images[db_fullname] = NodeImage(self, db_fullname, db_ready)
                     self.server.nodes.restore_interrupted_registration(db_fullname)
                     continue
                 if db_ready:
@@ -107,7 +107,7 @@ class NodeImageStore(object):
                     if db_fullname in docker_images:
                         print(MSG_PULLING_FROM_DOCKER % db_fullname)
                         self.blocking.sync_pull_docker_daemon_image(db_fullname)
-                        self.images[db_fullname] = NodeImage(self, db_fullname)
+                        self.images[db_fullname] = NodeImage(self, db_fullname, True)
                         continue
                     # Ready, but not found anywhere
                     print("Unable to find image %s. Hope it is not used and remove it." % \
@@ -130,7 +130,7 @@ class NodeImageStore(object):
                 self.db.commit()
                 db_images[fullname] = True  # for the next loop below
             if fullname not in self.images:
-                self.images[fullname] = NodeImage(self, fullname)
+                self.images[fullname] = NodeImage(self, fullname, True)
         # all images marked ready should be available in this store
         # if not, this means they were deleted from repository,
         # so remove them here too (and in db)
@@ -147,7 +147,7 @@ class NodeImageStore(object):
     def register_image(self, image_fullname, is_ready):
         self.db.insert('images', fullname=image_fullname, ready=is_ready)
         self.db.commit()
-        self.images[image_fullname] = NodeImage(self, image_fullname)
+        self.images[image_fullname] = NodeImage(self, image_fullname, is_ready)
 
     # Make sure to rename the image in docker *before* calling this.
     def rename(self, old_fullname, new_fullname):
