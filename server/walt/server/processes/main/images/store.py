@@ -73,6 +73,7 @@ class NodeImageStore(object):
         self.deadlines = {}
         self.filesystems = FilesystemsCache(server.ev_loop, FS_CMD_PATTERN)
         self.exports = FilesystemsExporter(server.ev_loop)
+        self.to_be_unmounted = set()
 
     def resync_from_db(self):
         "Synchronization function called on daemon startup."
@@ -235,7 +236,6 @@ class NodeImageStore(object):
         return image
 
     def update_image_mounts(self, requester = None):
-        curr_time = time()
         new_mounts = set()
         # ensure all needed images are mounted
         for fullname in self.get_images_in_use():
@@ -253,7 +253,7 @@ class NodeImageStore(object):
                 sys.stderr.write(MSG_IMAGE_IS_USED_BUT_NOT_FOUND % fullname)
         # check which images should be unmounted
         # (see notes about the grace time at the top of this file)
-        to_be_unmounted = set()
+        curr_time = time()
         all_mounts = new_mounts
         for image_id in self.mounts - new_mounts:
             deadline = self.deadlines.get(image_id)
@@ -264,8 +264,7 @@ class NodeImageStore(object):
             else:
                 # next checks: really umount after the deadline expired
                 if deadline < curr_time:
-                    to_be_unmounted.add(image_id)
-                    del self.deadlines[image_id]
+                    self.to_be_unmounted.add(image_id)
                 else:
                     all_mounts.add(image_id) # deadline not reached yet
         # recheck after the next deadline if any
@@ -279,6 +278,7 @@ class NodeImageStore(object):
         # update nfs and tftp configuration
         images_info = set((image_id, self.get_mount_path(image_id)) \
                          for image_id in all_mounts)
+        to_be_unmounted = set(self.to_be_unmounted)  # copy
         nodes_found = self.db.select("nodes")
         # release filesystem interpreters before unmounting images
         for image_id in to_be_unmounted:
@@ -290,6 +290,8 @@ class NodeImageStore(object):
         def cb():
             for image_id in to_be_unmounted:
                 self.unmount(image_id)
+                self.deadlines.pop(image_id, None)
+                self.to_be_unmounted.discard(image_id)
         self.exports.update_exported_filesystems(images_info, nodes_found, cb)
         tftp.update(self.db, self)
 
