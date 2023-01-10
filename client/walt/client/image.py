@@ -92,13 +92,13 @@ class WalTImageShell(WalTApplication):
                     if new_name == '':
                         new_name = default_new_name
                         print('Selected: %s' % new_name)
-                    res = server.image_shell_session_save(
+                    res = server.image_shell_session_save(conf['username'],
                                     session_id, new_name, name_confirmed = False)
                     if res == 'NAME_NOT_OK':
                         continue
                     if res == 'NAME_NEEDS_CONFIRM':
                         if confirm(komsg = None):
-                            server.image_shell_session_save(
+                            server.image_shell_session_save(conf['username'],
                                     session_id, new_name, name_confirmed = True)
                         else:
                             continue
@@ -165,7 +165,7 @@ class WalTImageCp(WalTApplication):
                 if info['client_operand_index'] == 0:
                     # client was sending -> image has been modified
                     # save the image under the same name
-                    server.image_shell_session_save(
+                    server.image_shell_session_save(conf['username'],
                             session_id, default_new_name, True)
             except (KeyboardInterrupt, EOFError):
                 print()

@@ -3,7 +3,7 @@ from __future__ import annotations
 import typing
 import uuid
 
-from walt.server.processes.main.images.image import validate_image_name, format_image_fullname
+from walt.server.processes.main.images.image import parse_image_fullname
 
 if typing.TYPE_CHECKING:
     from walt.server.processes.main.images.image import NodeImage
@@ -27,42 +27,27 @@ class ImageShellSession(object):
         # (and override the image if user confirms)
         return self.image.fullname, self.container_name, self.image.name
 
-    def save(self, blocking, requester, new_image_name, name_confirmed, cb_return_status):
-        username = requester.get_username()
-        if not username:
-            cb_return_status('GIVE_UP')    # client already disconnected, give up
-            self.cleanup()
-            return
+    def save(self, blocking, requester, image_fullname, name_confirmed, cb_return_status):
         # 1st step: validate new name
-        existing_image = self.images.get_user_image_from_name(
-                                        requester,
-                                        new_image_name,
-                                        expected=None)
-        if self.image.name == new_image_name:
+        if self.image.fullname == image_fullname:
             if name_confirmed:
                 pass
             else:
                 # same name for the modified image.
                 # this would overwrite the existing one.
                 # we will let the user confirm this.
-                image_fullname = format_image_fullname(username, self.image.name)
                 msg = self.images.get_image_overwrite_warning(image_fullname)
                 requester.stderr.write(msg)
                 cb_return_status('NAME_NEEDS_CONFIRM')
                 return
         else:   # save as a different name
-            if existing_image:
+            if image_fullname in self.images:
                 requester.stderr.write('Bad name: Image already exists.\n')
                 cb_return_status('NAME_NOT_OK')
                 return
-        # verify name syntax
-        if not validate_image_name(requester, new_image_name):
-            cb_return_status('NAME_NOT_OK')
-            return
         # ok, all is fine
 
         # 2nd step: save the image
-        image_fullname = format_image_fullname(username, new_image_name)
         # with the walt image cp command, the client sends a request to start a
         # container for receiving, then immediately starts to send a tar archive,
         # and then tries to commit the container through rpc commands.
@@ -76,6 +61,7 @@ class ImageShellSession(object):
         # if overriding, ensure the filesystem is not locking the image
         if self.image.fullname == image_fullname:
             self.image.filesystem.close()
+        fullname, username, new_image_name = parse_image_fullname(image_fullname)
         def on_commit(res):
             self.on_commit(requester, cb_return_status, new_image_name, image_fullname)
         print('committing %s...' % self.container_name)

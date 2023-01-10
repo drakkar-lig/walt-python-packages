@@ -6,6 +6,8 @@ from walt.common.tools import serialize_ordered_dict, deserialize_ordered_dict
 from walt.common.tcp import PICKLE_VERSION
 
 from walt.server.processes.main.apisession import APISession
+from walt.server.processes.main.images.image import format_image_fullname, \
+                                                    validate_image_name
 
 # Client -> Server API (thus the name CSAPI)
 # Provides remote calls performed from a client to the server.
@@ -197,11 +199,15 @@ class CSAPI(APISession):
         return session_id, fullname, container_name, default_new_name
 
     @api_expose_method
-    def image_shell_session_save(self, context, session_id, new_name, name_confirmed):
+    def image_shell_session_save(self, context, username, session_id, new_name, name_confirmed):
         session = self.get_session_object(session_id)
+        # verify name syntax
+        if not validate_image_name(context.requester, new_name):
+            return 'NAME_NOT_OK'
+        image_fullname = format_image_fullname(username, new_name)
         context.task.set_async()
         return context.server.image_shell_session_save(
-                    context.requester, context.task.return_result, session, new_name, name_confirmed)
+                    context.requester, context.task.return_result, session, image_fullname, name_confirmed)
 
     @api_expose_method
     def remove_image(self, context, image_name):
