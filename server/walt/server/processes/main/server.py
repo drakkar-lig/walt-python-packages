@@ -230,15 +230,14 @@ class Server(object):
                 None, 'node', 'nodes'))
         self.nodes.reboot_nodes(requester, task_callback, nodes, False)
 
-    def image_shell_session_save(self, requester, cb_return, session, new_name, name_confirmed):
-        image_fullname = format_image_fullname(requester.get_username(), new_name)
+    def image_shell_session_save(self, requester, cb_return, session, image_fullname, name_confirmed):
         def cb_handle_return_status(status):
             if status == 'OK_BUT_REBOOT_NODES':
                 cb_reboot = lambda res: cb_return('OK_SAVED')
                 self.reboot_nodes_after_image_change(requester, cb_reboot, image_fullname)
             else:
                 cb_return(status)
-        session.save(self.blocking, requester, new_name, name_confirmed, cb_handle_return_status)
+        session.save(self.blocking, requester, image_fullname, name_confirmed, cb_handle_return_status)
 
     def squash_image(self, requester, task, image_name, confirmed):
         task.set_async()
@@ -281,7 +280,7 @@ class Server(object):
         def cb(res):
             requester.set_default_busy_label()
             self.image_shell_session_save(
-                requester, cb_unblock_client, session, image_name, True)
+                requester, cb_unblock_client, session, fullname, True)
         requester.set_busy_label('Transfering')
         self.blocking.run_shell_cmd(requester, cb, cmd, shell=True)
 
