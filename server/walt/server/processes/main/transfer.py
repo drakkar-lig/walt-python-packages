@@ -191,8 +191,10 @@ TarSendCommand='''\
 
 def get_absolute_path(path):
     if not path.startswith('/'):
-        # relative path, turn to absolute
-        return '$PWD/' + path
+        # relative path, turn to absolute.
+        # all transfers use the root user,
+        # so let's prefix with the home of root.
+        return '/root/' + path
     return path
 
 TarReceiveCommand='''\
