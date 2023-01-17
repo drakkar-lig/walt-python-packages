@@ -271,7 +271,7 @@ class VPNNodeImageDump(ParallelProcessSocketListener):
         self.send_client('START\n')
         return True
     def get_command(self, **params):
-        return 'podman run -q --rm waltplatform/rpi3bp-vpn-sd-dump "%(entrypoint)s"' % params
+        return 'podman run -q --rm docker.io/waltplatform/rpi3bp-vpn-sd-dump "%(entrypoint)s"' % params
 
 class TransferManager(object):
     def __init__(self, tcp_server, ev_loop):
