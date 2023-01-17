@@ -279,16 +279,20 @@ class ServerDB(PostgresDB):
         """,  (dev_name,)*7)
         self.commit()
 
-    def insert_multiple(self, table, rows_kwargs, returning=None):
-        if table == "logs" and len(rows_kwargs) > 0:
-            kwargs = rows_kwargs[0]
+    def insert_multiple_logs(self, records):
+        if len(records) > 0:
+            record = records[0]
             if self.timestamp_last_logs is None:
-                self.timestamp_last_logs = kwargs['timestamp']
+                self.timestamp_last_logs = record['timestamp']
             else:
                 self.timestamp_last_logs = min(
                     self.timestamp_last_logs,
-                    kwargs['timestamp'])
-        return super().insert_multiple(table, rows_kwargs, returning=returning)
+                    record['timestamp'])
+        # due to buffering, we might still get stream_ids of a device
+        # recently forgotten, which could lead to a foreign constraint violation
+        # (stream_id no longer exists in the logstream table).
+        # we just ignore those log records (bypass_conflicting=True).
+        return self.insert_multiple('logs', records, bypass_conflicting=True)
 
     def get_user_images(self, username):
         sql = f"""  SELECT i.fullname, i.ready, count(n.mac)>0 as in_use

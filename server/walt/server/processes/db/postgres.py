@@ -145,7 +145,8 @@ class PostgresDB:
         return self.insert_multiple(table, [kwargs], returning=returning)
 
     # insert multiple rows at once
-    def insert_multiple(self, table, rows_kwargs, returning=None):
+    def insert_multiple(self, table, rows_kwargs, returning=None,
+                              bypass_conflicting=False):
         values_formats = []
         all_values = []
         for kwargs in rows_kwargs:
@@ -158,6 +159,8 @@ class PostgresDB:
                     table,
                     ','.join(cols),
                     ','.join(values_formats))
+        if bypass_conflicting:
+            sql += " ON CONFLICT DO NOTHING"
         if returning:
             sql += " RETURNING %s" % returning
         self.c.execute(sql + ';', tuple(all_values))

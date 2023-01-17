@@ -1,6 +1,7 @@
 import re, pickle, sys
 from time import time
 from datetime import datetime
+from collections import defaultdict
 from walt.common.constants import WALT_SERVER_NETCONSOLE_PORT
 from walt.common.tcp import read_pickle, write_pickle, \
                             Requests, PICKLE_VERSION
@@ -30,7 +31,7 @@ class LogsToDBHandler(object):
         self.pending = []
         if len(pending) > 0:
             #print(f'__DEBUG__ self.db.insert_multiple {repr(pending)}')
-            self.db.insert_multiple('logs', pending)
+            self.db.insert_multiple_logs(pending)
 
 class LogsHub(object):
     def __init__(self):
@@ -393,6 +394,7 @@ class LogsManager(object):
         self.hub = LogsHub()
         self.logs_to_db = LogsToDBHandler(ev_loop, db)
         self.hub.addHandler(self.logs_to_db)
+        self.stream_id_cache = defaultdict(dict)
         tcp_server.register_listener_class(
                     req_id = Requests.REQ_DUMP_LOGS,
                     cls = LogsToSocketHandler,
@@ -417,6 +419,9 @@ class LogsManager(object):
         sys.stderr = LoggerFile(self, 'daemon.stderr', sys.__stderr__)
 
     def get_stream_id(self, sender_ip, stream_name, mode='line'):
+        stream_id = self.stream_id_cache[sender_ip].get(stream_name, None)
+        if stream_id is not None:
+            return stream_id
         sender_info = self.db.select_unique('devices', ip = sender_ip)
         if sender_info == None:
             # sender device is unknown in database,
@@ -433,6 +438,7 @@ class LogsManager(object):
             stream_id = self.db.insert('logstreams', returning='id',
                             sender_mac = sender_mac, name = stream_name,
                             mode = mode)
+        self.stream_id_cache[sender_ip][stream_name] = stream_id
         return stream_id
 
     def get_stream_info(self, stream_id):
@@ -456,7 +462,10 @@ class LogsManager(object):
                      stream_id = stream_id)
 
     def forget_device(self, device_name):
+        self.logs_to_db.flush()
         device_info = self.db.select_unique('devices', name=device_name)
+        if device_info.ip in self.stream_id_cache:
+            del self.stream_id_cache[device_info.ip]
         self.netconsole.forget_ip(device_info.ip)
 
     # Look for a checkpoint. Return a tuple.
