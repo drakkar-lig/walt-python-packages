@@ -85,6 +85,7 @@ class NodesManager(object):
                 model = model,
                 image_fullname = image_fullname,
                 blocking = self.blocking,
+                logs = self.logs,
                 **self.other_kwargs
         )
 
@@ -93,6 +94,7 @@ class NodesManager(object):
                 db = self.db,
                 image_fullname = image_fullname,
                 blocking = self.blocking,
+                logs = self.logs,
                 **self.other_kwargs
         )
 
