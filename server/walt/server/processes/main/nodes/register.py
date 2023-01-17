@@ -1,4 +1,5 @@
 from walt.server.processes.main.network import tftp
+import sys
 
 def associate_node_image(db, mac, image_fullname, **kwargs):
     # update table node
@@ -16,6 +17,27 @@ def update_images_and_finalize(images, image_fullname, **kwargs):
     images[image_fullname].ready = True
     # we are all done
     finalize_registration(images = images, **kwargs)
+
+def dup_error(msg, logs, **kwargs):
+    sys.stderr.write(msg + '\n')
+    logs.platform_log('devices', msg)
+
+def pull_image(blocking, image_fullname, **kwargs):
+    full_kwargs = dict(
+        image_fullname = image_fullname,
+        **kwargs
+    )
+    def callback(pull_result):
+        if pull_result[0]:
+            # ok
+            update_images_and_finalize(**full_kwargs)
+        else:
+            failure = pull_result[1]
+            # not being able to download default images for nodes
+            # is a rather critical issue!
+            dup_error(failure, **full_kwargs)
+            dup_error("CANNOT FULFILL NODE REGISTRATION!!", **full_kwargs)
+    blocking.pull_image(image_fullname, callback)
 
 def handle_registration_request(
                 db, blocking, mac, images, model, image_fullname = None,
@@ -40,17 +62,9 @@ def handle_registration_request(
     if image_is_new:
         # we have to pull an image, that will be long,
         # let's do this asynchronously
-        def callback(res):
-            update_images_and_finalize(**full_kwargs)
-        blocking.pull_image(image_fullname, callback)
+        pull_image(blocking, **full_kwargs)
     else:
         finalize_registration(**full_kwargs)
 
-def restore_interrupted_registration(blocking, image_fullname, **kwargs):
-    full_kwargs = dict(
-        image_fullname = image_fullname,
-        **kwargs
-    )
-    def callback(res):
-        update_images_and_finalize(**full_kwargs)
-    blocking.pull_image(image_fullname, callback)
+def restore_interrupted_registration(**kwargs):
+    pull_image(**kwargs)

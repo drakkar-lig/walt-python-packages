@@ -188,8 +188,13 @@ class Server(object):
             requester.set_busy_label(f'Downloading default image for "{model}"')
             task.set_async()
             def callback(pull_result):
-                on_default_image_ready()
-                task.return_result(True)
+                if pull_result[0]:
+                    on_default_image_ready()
+                    task.return_result(True)
+                else:
+                    failure = pull_result[1]
+                    requester.stderr.write(failure + '\n')
+                    task.return_result(False)
             self.blocking.pull_image(default_image_fullname, callback)
         else:
             on_default_image_ready()
