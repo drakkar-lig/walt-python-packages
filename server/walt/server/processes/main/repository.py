@@ -225,13 +225,7 @@ class WalTLocalRepository:
     def image_umount(self, image_id, mount_path):
         cont_name = self.get_mount_container_name(image_id)
         if mount_exists(mount_path):
-            while True:
-                try:
-                    umount(mount_path)
-                    break
-                except:
-                    time.sleep(0.1)
-                    continue
+            umount('-lf', mount_path)
         buildah.umount(cont_name)
         buildah.rm(cont_name)
         image_name = self.get_mount_image_name(image_id)
