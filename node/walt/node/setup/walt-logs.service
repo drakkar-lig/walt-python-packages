@@ -6,8 +6,8 @@
 
 [Unit]
 Description=WalT logs daemon
-# start the daemon after ssh is started.
-After=ssh.service
+# start the daemon after network is ready
+After=network.target
 
 [Service]
 Type=simple
