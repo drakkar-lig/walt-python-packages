@@ -20,6 +20,8 @@ Available sub-directories:
 </html>
 '''
 
+MAIN_DAEMON_SOCKET_TIMEOUT = 3
+
 def fake_tftp_read(s_conn, ip, path):
     # send message
     req_id = Requests.REQ_FAKE_TFTP_GET_FD
@@ -49,6 +51,7 @@ def notify_systemd():
 def get_socket():
     s_conn = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
     bind_to_random_sockname(s_conn)
+    s_conn.settimeout(MAIN_DAEMON_SOCKET_TIMEOUT)
     s_conn.connect(UNIX_SERVER_SOCK_PATH)
     return s_conn
 
