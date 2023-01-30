@@ -81,6 +81,7 @@ class Server(object):
 
     def cleanup(self):
         APISession.cleanup_all()
+        tftp.cleanup(self.db)
         self.images.cleanup()
         self.nodes.cleanup()
         self.devices.cleanup()

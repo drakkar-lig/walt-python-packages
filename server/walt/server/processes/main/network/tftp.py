@@ -1,4 +1,4 @@
-import os, shutil
+import os, shutil, tarfile
 from walt.common.tools import failsafe_makedirs, failsafe_symlink
 from pkg_resources import resource_filename
 from pathlib import Path
@@ -6,12 +6,17 @@ from pathlib import Path
 TFTP_ROOT = '/var/lib/walt/'
 PXE_PATH = TFTP_ROOT + 'pxe/'
 NODES_PATH = TFTP_ROOT + 'nodes/'
+TFTP_STANDBY_DIR = Path(TFTP_ROOT + 'tftp-standby')
 
 def prepare():
     if not Path(PXE_PATH).exists():
         failsafe_makedirs(PXE_PATH)
         orig_path = resource_filename(__name__, 'walt-x86-undionly.kpxe')
         shutil.copy(orig_path, PXE_PATH)
+    if not TFTP_STANDBY_DIR.exists():
+        archive_path = resource_filename(__name__, 'tftp-standby.tar.gz')
+        with tarfile.open(archive_path) as tar:
+            tar.extractall(str(TFTP_STANDBY_DIR.parent))
 
 def update(db, images):
     # create dir if it does not exist yet
@@ -63,3 +68,22 @@ def update(db, images):
             shutil.rmtree(entry)
         else:
             os.remove(entry)
+
+def cleanup(db):
+    # walt-server-daemon is going down, which will cause nodes to reboot.
+    # Some node models may hang forever in the boot procedure if they cannot
+    # download appropriate boot files using TFTP. This is the case for rpi 3b+
+    # and later boards, whose firmware is able to boot over the network without
+    # a SD card: if the firmware is not able to download the TFTP files, it
+    # will hang. In this cleanup procedure, we replace the target of the 'tftp'
+    # symlink, which normally targets '[image-root]:/boot/<model>', by
+    # '/var/lib/walt/tftp-standby/<model>', where appropriate boot files can
+    # be found. These boot files will cause the node to continuously reboot
+    # until walt-server-daemon is back.
+    for db_node in db.select('nodes'):
+        mac = db_node.mac
+        model = db_node.model
+        standby_target = TFTP_STANDBY_DIR / model
+        standby_target.mkdir(parents=True, exist_ok=True)
+        failsafe_symlink(str(standby_target),
+                         NODES_PATH + mac + '/tftp', force_relative=True)
