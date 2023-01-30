@@ -23,6 +23,8 @@ class RegistryClientBase:
             raise Exception(line.strip())
     def get_registry_label(self):
         raise NotImplementedError
+    def get_origin_clone_url(self, requester, registry_label, image_fullname):
+        return f'{registry_label}:{image_fullname}'
     def get_podman_url(self, image_fullname):
         raise NotImplementedError
     def get_podman_pull_url(self, image_fullname):
@@ -37,7 +39,7 @@ class RegistryClientBase:
     def pull(self, server, image_fullname):
         url = self.get_podman_pull_url(image_fullname)
         label = 'Downloading %s' % image_fullname
-        stream = podman.pull.stream(self.get_tls_opt(), url, out_stream='stderr')
+        stream = podman.pull.stream(self.get_tls_opt(), url)
         indicate_progress(sys.stdout, label, stream, self.checker)
         # we rename all our images with prefix docker.io
         # (images downloaded from the docker daemon get this prefix)
@@ -106,14 +108,22 @@ class SkopeoRegistryClient(RegistryClientBase):
 class DockerHubClient(SkopeoRegistryClient):
     def get_podman_url(self, image_fullname):
         return 'docker.io/' + image_fullname
-    def get_podman_push_url(self, requester, image_fullname):
+    def get_fullname_with_remote_user(self, requester, image_fullname):
         # walt username may be different than the hub account
         image_user, image_name = image_fullname.split('/')
         walt_user = requester.get_username()
         hub_user = requester.get_hub_username()
         if image_user == walt_user:
             image_user = hub_user
-        return f'docker.io/{image_user}/{image_name}'
+        return f'{image_user}/{image_name}'
+    def get_podman_push_url(self, requester, image_fullname):
+        remote_image_fullname = self.get_fullname_with_remote_user(
+                                    requester, image_fullname)
+        return f'docker.io/{remote_image_fullname}'
+    def get_origin_clone_url(self, requester, registry_label, image_fullname):
+        remote_image_fullname = self.get_fullname_with_remote_user(
+                                    requester, image_fullname)
+        return f'{registry_label}:{image_fullname}'
     def get_registry_label(self):
         return 'hub'
     def login(self, requester):
