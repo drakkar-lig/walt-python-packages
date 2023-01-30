@@ -108,9 +108,12 @@ class DockerHubClient(SkopeoRegistryClient):
         return 'docker.io/' + image_fullname
     def get_podman_push_url(self, requester, image_fullname):
         # walt username may be different than the hub account
+        image_user, image_name = image_fullname.split('/')
+        walt_user = requester.get_username()
         hub_user = requester.get_hub_username()
-        image_name = image_fullname.split('/')[1]
-        return f'docker.io/{hub_user}/{image_name}'
+        if image_user == walt_user:
+            image_user = hub_user
+        return f'docker.io/{image_user}/{image_name}'
     def get_registry_label(self):
         return 'hub'
     def login(self, requester):
