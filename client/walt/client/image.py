@@ -76,10 +76,9 @@ class WalTImagePublish(WalTApplication):
                     return False
             server_link.set_busy_label('Validating / Publishing')
             res = server_link.publish_image(self.registry, image_name)
-            if res is False:
+            if res[0] is False:
                 return False
-            print('OK, image was published.')
-            return res
+            print(f'OK, image was published at:\n{res[1]}')
 
 @WalTImage.subcommand("show")
 class WalTImageShow(WalTApplication):
