@@ -37,7 +37,14 @@ class NodeBootupStatusListener:
     # handle_event() will be called when the event loop detects
     # something for us
     def handle_event(self, ts):
-        # in our case, nothing is expected, thus getting here means
+        try:
+            c = self.sock_file.read(1)
+            if len(c) == 1:
+                # all is fine
+                return True # continue
+        except:
+            pass
+        # If we are here, there was an Exception or an empty read, which means
         # the connection was lost.
         # however, detecting a lost connection might take time and actually
         # happen after the node has rebooted and established a new connection.
