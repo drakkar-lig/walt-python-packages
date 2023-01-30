@@ -70,9 +70,9 @@ def get_config_from_file():
         return {}, False
     # handle legacy conf items
     updated = False
-    if 'walt' not in conf_dict:
+    if 'walt' not in conf_dict or not isinstance(conf_dict['walt'], dict):
         conf_dict['walt'] = {}
-    if 'hub' not in conf_dict:
+    if 'hub' not in conf_dict or not isinstance(conf_dict['hub'], dict):
         conf_dict['hub'] = {}
     if 'server' in conf_dict:
         conf_dict['walt']['server'] = conf_dict.pop('server')
@@ -85,6 +85,10 @@ def get_config_from_file():
     if 'password' in conf_dict:
         conf_dict['hub']['password'] = conf_dict.pop('password')
         updated = True
+    if len(conf_dict['walt']) == 0:
+        del conf_dict['walt']
+    if len(conf_dict['hub']) == 0:
+        del conf_dict['hub']
     # decode coded items
     for group_name, items in conf_dict.items():
         for key in list(items):
@@ -103,7 +107,7 @@ class ConfigFileSaver(object):
         config_file.parent.mkdir(exist_ok=True)
         config_file.write_text(self.printed())
         config_file.chmod(0o600)
-        print('\nConfiguration was stored in %s.\n' % config_file)
+        print('\nConfiguration was updated in %s.\n' % config_file)
     def add_item_group(self, name, desc, explain=None):
         self.item_groups.append(dict(
             name    = name,
