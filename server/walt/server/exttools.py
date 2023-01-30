@@ -34,13 +34,13 @@ class ExtTool:
     def stream(self):
         return StreamExtTool(*self.path)
 
-    async def awaitable(self, *args, out_stream = 'stdout'):
-        popen_stream_arg = { out_stream: asyncio.subprocess.PIPE }
+    async def awaitable(self, *args):
         args = self.path + args
         popen = await asyncio.create_subprocess_exec(
-                        *args, **popen_stream_arg)
-        stream = getattr(popen, out_stream)
-        output = await stream.read()
+                        *args,
+                        stdout = asyncio.subprocess.PIPE,
+                        stderr = asyncio.subprocess.STDOUT)
+        output = await popen.stdout.read()
         await popen.wait()
         if popen.returncode != 0:
             raise Exception(f'{self.path} returned exit code {popen.returncode}')
@@ -63,7 +63,7 @@ class StreamExtTool:
     def __init__(self, *path):
         self.path = tuple(path)
 
-    def __call__(self, *args, converter = None, out_stream = 'stdout'):
+    def __call__(self, *args, converter = None):
         if converter is None:
             converter = lambda line: line
         # this function must remain a function and not become
@@ -72,10 +72,11 @@ class StreamExtTool:
         # is called, and not delayed up to the first __next__() call.
         # otherwise, calling podman.events.stream() for instance would
         # miss all events up to first next() call on the returned iterator.
-        popen_stream_arg = { out_stream: PIPE }
         popen = Popen(self.path + args,
-                    encoding=sys.stdout.encoding, **popen_stream_arg)
-        stream = getattr(popen, out_stream)
+                    encoding=sys.stdout.encoding,
+                    stdout = asyncio.subprocess.PIPE,
+                    stderr = asyncio.subprocess.STDOUT)
+        stream = popen.stdout
         def read_stream():
             while True:
                 try:

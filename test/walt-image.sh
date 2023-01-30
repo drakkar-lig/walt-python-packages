@@ -37,7 +37,7 @@ define_test "walt image shell" as {
 
 define_test "walt image publish" as {
     walt image clone --force "$TEST_IMAGE_URL" && \
-    walt image publish pc-x86-64-test-suite && \
+    walt image publish --registry hub pc-x86-64-test-suite && \
     walt image remove pc-x86-64-test-suite
 }
 
