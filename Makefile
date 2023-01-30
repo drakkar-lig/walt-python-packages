@@ -28,7 +28,7 @@
 
 ALL_PACKAGES=common virtual vpn server node client client-g5k
 # common must be installed 1st (needed by others), then virtual
-INSTALLABLE_PACKAGES_ON_SERVER=common virtual vpn server client
+INSTALLABLE_PACKAGES_ON_SERVER=common virtual vpn client server
 INSTALLABLE_PACKAGES_ON_CLIENT=common client
 INSTALLABLE_PACKAGES_ON_CLIENT_G5K=common client client-g5k
 GNUMAKEFLAGS=--no-print-directory
