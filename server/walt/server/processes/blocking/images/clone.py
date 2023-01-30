@@ -137,7 +137,7 @@ def verify_overwrite(image_store, requester, clonable_link,
     if not force:
         msg = image_store.get_image_overwrite_warning(ws_image_fullname)
         force_clone = "walt image clone --force " + clonable_link
-        if image_name is not None:
+        if image_name is not None and not clonable_link.endswith(image_name):
             force_clone += ' ' + image_name
         requester.stderr.write(msg + (MSG_USE_FORCE % force_clone))
         return False
@@ -190,7 +190,7 @@ def pull_image(server, remote_location,
         docker_daemon = DockerDaemonClient()
         docker_daemon.pull(server, remote_image_fullname)
     else:
-        registry = get_registry_client(remote_location)
+        registry = get_custom_registry_client(remote_location)
         registry.pull(server, remote_image_fullname)
 
 class WorkflowCleaner:
@@ -361,7 +361,10 @@ def perform_clone(requester,
         res = workflow_run(workflow, **context)
 
     if res:
-        requester.stdout.write('Image was cloned successfully.\n')
+        ws_name = ws_image_fullname.split('/')[1]
+        if ws_name.endswith(':latest'):
+            ws_name = ws_name[:-7]
+        requester.stdout.write(f'Image "{ws_name}" was cloned successfully (cf. walt image show).\n')
         if existing_ws_image:
             return ('OK_BUT_REBOOT_NODES', ws_image_fullname)
         else:
