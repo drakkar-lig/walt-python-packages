@@ -50,7 +50,7 @@ class BlockingTasksContextService:
     def pull_image(self, image_fullname):
         return pull_image(self.server, image_fullname)
 
-    def hub_login(self, dh_peer, auth_conf):
+    def hub_login(self):
         hub = DockerHubClient()
         return hub.login(self.requester)
 
