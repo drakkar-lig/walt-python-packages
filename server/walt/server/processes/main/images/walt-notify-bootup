@@ -2,7 +2,7 @@
 
 RETRY_DELAY_SECONDS=5
 RETRY_COUNT=2
-NC_FIFO="/tmp/nc-$$.fifo"
+NC_STOP="/tmp/nc-$$.fifo"
 CONNECT_MAX_DELAY=5
 DELAY_BEFORE_REBOOT=10
 
@@ -25,8 +25,6 @@ on_exit()
 
 trap on_exit EXIT
 echo "[bg] walt-notify-bootup started."
-
-busybox mkfifo $NC_FIFO
 
 wait_for_ssh() {
     while [ 1 ]
@@ -53,14 +51,24 @@ remove_nologin() {
 }
 
 run_permanent_connection() {
+    rm -f $NC_STOP
 	{
 		echo REQ_NOTIFY_BOOTUP_STATUS
-        # keep nc stdin open until we detect a disconnection
-        # otherwise nc stops immediately
-		read feeback < $NC_FIFO
-	} | busybox nc $walt_server_ip $walt_server_notify_bootup_port | {
+        # It is important to keep nc stdin open until we detect a disconnection
+        # otherwise nc stops immediately.
+        # Some versions of busybox nc also fail to stop when the remote end
+        # is closed. We send EOL chars periodically to detect this.
+		while [ ! -f $NC_STOP ]
+        do
+            echo
+            sleep 20
+        done
+	} | {
+        busybox nc $walt_server_ip $walt_server_notify_bootup_port
+        echo
+    } | {
 		read empty_read   # detect disconnection or failed connection
-		echo STOP > $NC_FIFO
+		echo > $NC_STOP
 	}
 }
 
