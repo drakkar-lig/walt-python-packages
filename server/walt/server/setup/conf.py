@@ -33,15 +33,18 @@ WALT_SERVER_SPEC_CONTENT = """\
 }
 """
 
+ROOT_LEGACY_WALTRC_PATH = Path("/root/.waltrc")
 ROOT_WALT_CONFIG_PATH = Path("/root/.walt/config")
 SKEL_WALT_CONFIG_PATH = Path("/etc/skel/.walt/config")
 LOCAL_WALT_CONFIG_CONTENT = """\
 # WalT configuration file
 # ***********************
 
-# ip or hostname of walt server
-# -----------------------------
-server: localhost
+# WalT platform
+# -------------
+walt:
+    # IP or hostname of WalT server
+    server: localhost
 """
 
 def get_current_conf():
@@ -149,6 +152,12 @@ def update_server_conf(conf):
     print('done')
 
 def fix_other_conf_files():
+    if not ROOT_WALT_CONFIG_PATH.exists() and ROOT_LEGACY_WALTRC_PATH.exists():
+        print(f'Moving legacy {ROOT_LEGACY_WALTRC_PATH} -> {ROOT_WALT_CONFIG_PATH}... ', end='')
+        sys.stdout.flush()
+        ROOT_WALT_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        ROOT_LEGACY_WALTRC_PATH.rename(str(ROOT_WALT_CONFIG_PATH))
+        print('done')
     for path, content in ((WALT_SERVER_SPEC_PATH, WALT_SERVER_SPEC_CONTENT),
                           (ROOT_WALT_CONFIG_PATH, LOCAL_WALT_CONFIG_CONTENT),
                           (SKEL_WALT_CONFIG_PATH, LOCAL_WALT_CONFIG_CONTENT)):
