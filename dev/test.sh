@@ -1,5 +1,7 @@
 #!/bin/bash
 
+DEBUG_TESTS=0
+
 THIS_DIR="$(cd "$(dirname $0)"; pwd)"
 TESTS_DIR="$(cd "$THIS_DIR/../test"; pwd)"
 
@@ -23,10 +25,18 @@ __testsuite_exec_prev_test() {
         # so we use parenthesis to start a subshell in which we can set this option
         # independently from this framework code.
         __testsuite_output="$(
+            if [ $DEBUG_TESTS -eq 1 ]
+            then
             (
                 set -xeuo pipefail
                 __testsuite_func
-            ) 2>&1
+            ) 1>&2  # debug: send everything to stderr for immediate display
+            else
+            (
+                set -xeuo pipefail
+                __testsuite_func
+            ) 2>&1  # not debug: catch and hide everything (unless an error is detected)
+            fi
         )"
         __testsuite_result=$?
 
