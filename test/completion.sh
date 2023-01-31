@@ -19,7 +19,7 @@ define_test "testing auto completions" as {
     image_suffix=${image: -1}
 
     # run various autocompletion tests
-    $TESTS_DIR/includes/autocomplete.exp << EOF
+    $TESTS_DIR/includes/autocomplete.py << EOF
 test_tab_complete "walt help show ad" "min "
 test_tab_complete "walt node reboot ${node},my-n" "odes"
 test_tab_complete "walt node shell $node_prefix" "$node_suffix "
