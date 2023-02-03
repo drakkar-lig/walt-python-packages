@@ -331,10 +331,8 @@ class SettingsManager:
             elif setting_name == 'type':
                 for device_info in device_infos:
                     device_info = device_info._asdict()
-                    device_info.update(
-                        requester = requester,
-                        type = setting_value)
-                    self.server.devices.add_or_update(**device_info)
+                    device_info.update(type = setting_value)
+                    self.server.devices.add_or_update(requester = requester, **device_info)
                 # 'type' is a column of table 'devices', so this setting should not
                 # be recorded in 'devices.conf' column
                 del db_settings['type']
