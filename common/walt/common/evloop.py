@@ -79,8 +79,12 @@ class EventLoop(object):
         heappush(self.planned_events,
                  (ts, id(kwargs), callback, repeat_delay, kwargs))
 
+    def waiting_for_events(self):
+        # events are usually not urgent, so restrict to top level recursion
+        return (self.recursion_depth == 1) and (len(self.planned_events) > 0)
+
     def get_timeout(self):
-        if len(self.planned_events) == 0:
+        if not self.waiting_for_events():
             return EventLoop.MAX_TIMEOUT_MS
         else:
             delay_ms = (self.planned_events[0][0] - time())*1000
@@ -145,8 +149,7 @@ class EventLoop(object):
             if not self.should_continue(loop_condition):
                 break
             # handle any expired planned event
-            # (these are usually not urgent, so restrict to top level recursion)
-            if self.recursion_depth == 1:
+            if self.waiting_for_events():
                 now = time()
                 while len(self.planned_events) > 0 and \
                             self.planned_events[0][0] <= now:
