@@ -1,14 +1,5 @@
 source $TESTS_DIR/includes/common.sh
 
-SQL_CONFIGURED_SWITCH="""\
-select d.name, (d.conf->'lldp.explore')::text
-from devices d
-where d.conf->'snmp.version' is not NULL
-  and d.conf->'snmp.community' is not NULL
-  and d.type = 'switch'
-limit 1;
-"""
-
 SQL_ONE_DEVICE_NAME="""\
 select d.name
 from devices d
@@ -24,30 +15,46 @@ negate() {
     fi
 }
 
+end_of_mac() {
+    set -- $(echo "$1" | tr ':' ' ')
+    echo $4$5$6
+}
+
 define_test "walt device config" as {
-    output="$(
-        psql walt -t -c "$SQL_CONFIGURED_SWITCH" | tr -d '|'
+    cat << EOF
+Preparation work: we want to create an unknown device in database.
+We will first create it as a virtual node, retrieve
+its ip and mac, then remove this virtual node and recreate
+it as an unknown device using walt-dhcp-event.
+EOF
+    dev_name="unknown-device-$$"
+    walt node create "$dev_name"
+    ip_mac="$(
+        psql walt -t -c "select ip, mac from devices where name='$dev_name'" | tr -d '|'
     )"
+    set -- $ip_mac
+    ip=$1
+    mac=$2
+    mac_suffix=$(end_of_mac $mac)
+    walt node remove "$dev_name"
+    walt-dhcp-event commit "" "" $ip $mac "unknown"
+    dev_name="unknown-$mac_suffix"
+    sleep 2
 
-    if [ "$output" = "" ]
-    then
-        echo "did not find a switch to run this test on" >&2
-        return 1
-    fi
+    # real tests...
 
-    set -- $output
-    name="$1"
-    orig_lldp_explore="$2"
-    other_lldp_explore="$(negate $orig_lldp_explore)"
+    # turn the unknown device to a switch
+    walt device config "$dev_name" type='switch'
+    dev_name="switch-$mac_suffix" # server should have renamed it like this
 
-    # try to change setting, then restore it
-    walt device config "$name" lldp.explore=$other_lldp_explore
+    # try to change settings
+    walt device config "$dev_name" lldp.explore=true snmp.community='private' snmp.version=2
 
-    # verify it is really updated
-    walt device config "$name" | grep "lldp.explore=" | grep "$other_lldp_explore"
+    # verify they were really updated
+    walt device config "$dev_name" | grep "lldp.explore=" | grep "true"
 
-    # restore
-    walt device config "$name" lldp.explore=$orig_lldp_explore
+    # cleanup
+    walt device forget "$dev_name"
 }
 
 define_test "walt device ping" as {
