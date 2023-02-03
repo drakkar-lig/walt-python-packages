@@ -1,5 +1,5 @@
 
-# log checkpoints
+# Log checkpoints
 
 A checkpoint is a kind of marker in time. It allows to easily reference the associated point in time by just giving its name.
 
