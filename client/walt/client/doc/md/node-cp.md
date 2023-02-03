@@ -1,5 +1,5 @@
 
-# transfering files to or from a node
+# Transfering files to or from a node
 
 `walt node cp` allows to transfer files to or from a node.
 Its interface is very similar to `scp`, but simplified. Three forms are allowed:

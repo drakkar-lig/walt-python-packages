@@ -1,5 +1,5 @@
 
-# transfering files to or from a walt image
+# Transfering files to or from a walt image
 
 `walt image cp` allows to transfer files to or from a walt image.
 Its interface is very similar to `scp`, but simplified. Two forms are allowed:

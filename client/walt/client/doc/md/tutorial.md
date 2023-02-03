@@ -1,32 +1,26 @@
-# Getting Started
+# User Tutorial
 
 ## Prerequisites
 
-You can use the walt client application on any Mac OS X or GNU/Linux machine.
-Since WalT interacts with the docker hub, you need an account there.
-If you do not have one already, please register at: https://hub.docker.com/
+If you want to interact with the docker hub to clone or publish OS images,
+you will need an account there. If you do not have one already, you can register
+at: https://hub.docker.com/.
 
-## Install walt-client
+## (Optional) Install walt-client
 
-The Walt client is written in python and hosted on [PyPi](https://pypi.python.org/pypi), so it can be installed using pip:
+Most users use ssh to connect to the WalT server and use the walt client already
+installed there.
+
+If you want to install the WalT client on your own machine (Mac OS X or GNU/Linux)
+instead, you can type:
 
 ```console
 $ sudo pip install walt-client
 ```
 
-Don’t forget to frequently check for updates:
-
-```console
-$ sudo pip install walt-client --upgrade
-```
-
 ## The `walt` command
 
-`walt` is the client entry point of the walt platform management.
-
-On the very first launch, this command will prompt for a small set of parameters:
-* IP or hostname of the WalT server
-* your docker hub credentials
+`walt` is the entry point of the walt platform management.
 
 You can get an overview of walt subcommands categories by just typing:
 ```console
@@ -104,6 +98,9 @@ main-switch
 $
 ```
 
+This tree view requires proper LLDP configuration, see [`walt help show switch-install`](switch-install.md).
+However, LLDP is an optional feature and the other WalT commands can work without it.
+
 Table form:
 
 ```console
@@ -148,7 +145,7 @@ rpi-D314-1     rpi   rpi-jessie       192.168.12.16  yes
 rpi-D314-jtag  rpi   rpi-jtag-target  192.168.12.2   yes
 [...]
 
-The following nodes are free (they have never been used):
+The following nodes are free (they boot a default image):
 
 name           type  ip              reachable
 -------------  ----  --------------  ---------
@@ -168,8 +165,8 @@ $
 
 Three categories of nodes are listed:
 
-1. the nodes that you **own**: in WalT terminology, if node <N> boots an image created by user <U>, we consider that “<U> owns <N>”. Thus, if you just started using WalT, this category is empty for now.
-2. the nodes that are **free**: no user ever booted an image on these nodes. The server associated a default image to them.
+1. the nodes that you **own**: in WalT terminology, if node `<N>` boots an image created by user `<U>`, we consider that “`<U>` owns `<N>`”. Thus, if you just started using WalT, this category is empty for now.
+2. the nodes that are **free**: they boot a default image (users currently do not use them).
 3. the nodes that are **owned by someone else**: the image they are running belongs to another user. If you want to use them, make sure this user is ok. This category is not shown unless you specify the `--all` option.
 
 For more information on this topic, you can type:
@@ -199,8 +196,8 @@ $
 
 You can see the names of the different images, if they are currently used, their creation date, and whether they are ready (when downloading an image, you will see Ready = False until the download completes).
 
-If you just started using WalT, this list of images is empty.
-You will have to `clone` existing images in order to make them “yours”.
+If you just started using WalT, this list of images is initialized with a set of default images.
+You may `clone` other images in order to make them “yours”.
 
 You can `search` for images available for cloning as follows:
 
@@ -222,8 +219,9 @@ Listed images may be stored in one of the following locations:
 * docker hub (clonable link prefix 'hub:')
 * local server, managed by docker daemon (clonable link prefix 'docker:')
 * already in walt internal storage (clonable link prefix 'walt:')
+* possibly other custom registries configured on the WalT server.
 
-In the last case, only images of other users are listed, since the images you already own do not need to be cloned.
+In the third case, only images of other users are listed, since the images you already own do not need to be cloned.
 
 Let’s choose one and clone it:
 
@@ -252,20 +250,20 @@ $ walt image shell rpi-jessie
 You should now be logged into the image as indicated by the prompt:
 
 ```console
-root@image-shell:/#
+root@image-shell:~#
 ```
 
 Now install `avahi-daemon` in order to allow discovery through the devices and `netcat` to set up a lightweight client/server architecture.
 
 ```console
-root@image-shell:/# apt-get install avahi-daemon netcat
+root@image-shell:~# apt-get install avahi-daemon netcat
 ```
 
 Now go to the root directory, create and edit a file named pong.sh. It will be our master server:
 
 ```console
-root@image-shell:/# cd root/
-root@image-shell:/# vim pong.sh
+root@image-shell:~# cd root/
+root@image-shell:~# vim pong.sh
 ```
 
 And copy the following script:
@@ -396,13 +394,11 @@ Then we boot nodes:
 
 ```console
 $ walt node boot rpi-sw3-3-pong rpi-entertainment
-rpi-sw3-3-pong was powered off.
-rpi-sw3-3-pong will now boot rpi-entertainment.
-rpi-sw3-3-pong was powered on.
+Node rpi-sw3-3-pong will now boot rpi-entertainment.
+Node rpi-sw3-3-pong: rebooted ok.
 $ walt node boot rpi-sw3-2-ping rpi-entertainment
-rpi-sw3-2-ping was powered off.
-rpi-sw3-2-ping will now boot rpi-entertainment.
-rpi-sw3-2-ping was powered on.
+Node rpi-sw3-2-ping will now boot rpi-entertainment.
+Node rpi-sw3-2-ping: rebooted ok.
 ```
 
 Nodes are now booting the OS contained in our image.
