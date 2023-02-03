@@ -1,5 +1,5 @@
 
-# How to configure the network on a WalT server
+# WalT server-side network configuration
 
 ## Overview
 
