@@ -1,5 +1,5 @@
 
-# How to install a switch on WalT platform network
+# Switch installation in WalT network
 
 ## Scope
 

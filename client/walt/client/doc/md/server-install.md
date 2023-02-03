@@ -1,16 +1,14 @@
 
-# How to install a WalT server
+# WalT server installation
 
 ## Overview
 
-These instructions assume you are familiar with Debian operating systems.
+We provide instructions to setup walt server software and dependencies on a freshly installed
+debian 11 (bullseye) operating system.
 
-For easy setup, we provide a server OS image at https://github.com/drakkar-lig/walt-project/releases/latest.
-When dumped to a USB flash drive, you can use it to boot any PC and turn it into a WalT server.
-Then, you can migrate the OS to the internal disk of the server.
-
-Alternatively, we provide instructions to setup walt server software and dependencies on a freshly installed
-debian system.
+Note that walt server software interacts with various network daemons (lldpd, snmpd, dhcpd, ptpd, ntpd,
+tftpd, nfsd), thus you should not run other software related to network management on this walt server
+machine.
 
 
 ## Hardware requirements
@@ -19,7 +17,7 @@ The WalT server must be installed on a 64bits (intel / amd64 CPU) machine, equip
 * A 64 bits (intel or amd) CPU (recent core i5 or better is recommended).
 * A 250Go (or more) disk.
 * 16 Go RAM or more is recommended (RAM is mainly needed for the "virtual nodes" feature).
-* 2 wired LAN interfaces.
+* 2 wired LAN interfaces (recommended).
 
 Note: in some cases, 1 wired network interface may be enough with appropriate configuration of the
 server and/or network equipment. See section about network configuration.
@@ -33,13 +31,64 @@ In the second case, you could choose a small-form-factor PC. These rarely provid
 few models do; and most of them are barebone (you need to buy RAM and disk separately).
 Contact us (walt-contact at univ-grenoble-alpes.fr) for more advice.
 
-About the USB flash drive: 16Go can be enough, considering you will migrate to the server main disk soon
-(see below).
+
+## 1- Install a first set of packages
+
+```
+$ apt update
+$ apt install -y gcc python3-dev libsmi2-dev python3-apt gpg curl git make
+```
+
+## 2- Install python package manager
+
+```
+$ curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py && python3 get-pip.py
+```
+
+## 3- Install walt software
+
+Here you have two options:
+- Install the last official version of walt (recommended)
+- Install the development version of walt (with last features and quick access to source code,
+  but less thoroughly tested)
+
+If you want the official version:
+```
+$ pip3 install walt-server walt-client
+```
+
+If you want to setup the development version instead:
+```
+$ cd /root
+$ git clone https://github.com/drakkar-lig/walt-python-packages
+$ cd walt-python-packages
+$ git checkout -b dev origin/dev
+$ make install
+```
+
+## 4- Run walt automated setup command
+
+```
+$ walt-server-setup
+```
+
+Note: interactive configuration interfaces for network and image registries will be displayed first.
+For more information about WalT network concepts and configuration, see [`walt help show networking`](networking.md).
+For more information about WalT image registries, see [`walt help show registries`](registries.md).
 
 
-## Installing the walt server system
+## 5- Start playing!
 
-If you want to use our provided server OS image, see [`walt help show server-install-from-image`](server-install-from-image.md).
-If you prefer to use a machine already installed with debian OS, see [`walt help show server-install-from-fresh-debian`](server-install-from-fresh-debian.md).
+The system is now all set.
+You can first verify that the system is running well by creating a virtual node.
+```
+$ walt node create vnode1
+$ walt node shell vnode1
+```
 
+After a few minutes (download of the default image + node bootup) you should be connected on the virtual node.
+
+Then, connect physical nodes and check that you can reach them (see [`walt help show node-install`](node-install.md)).
+Caution: do not connect a node directly to the server (with no intermediate switch). It will NOT work.
+(See [`walt help show networking`](networking.md) and [`walt help show switch-install`](switch-install.md).)
 
