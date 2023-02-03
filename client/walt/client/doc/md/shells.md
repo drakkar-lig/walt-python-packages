@@ -18,6 +18,9 @@ Be warned that a WalT node is a very **volatile** environment. Each time a node 
 This ensures that a node booting a given image will always act the same.
 (See [`walt help show node-bootup`](node-bootup.md) for a more technical explanation on this aspect.)
 
+However, for convenience, a directory `/persist` is available on each node. Data stored there do remain available accross reboots.
+You can use it to store large experiment results files for instance. `/persist` is a read-write NFS-mount: data is actually stored on the server.
+
 ## `walt image shell`: modification of operating system
 
 If you want to modify files in a permanent way, you must modify the image the node boots. `walt image shell` is the most common way to do this. It provides a shell running in a virtual environment (docker container) where you can make the changes, such as installing packages for example.

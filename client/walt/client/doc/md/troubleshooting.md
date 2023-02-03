@@ -61,7 +61,7 @@ pc-x86-64 architecture, thus the image must be compatible with this architecture
 ## Reporting and asking for help
 
 You can report new issues at https://github.com/drakkar-lig/walt-python-packages/issues.
-If you have subscribed to [`walt-users`](https://listes.univ-grenoble-alpes.fr/sympa/subscribe/walt-users) mailing list, you can also send a message there.
+If you have subscribed to [walt-users mailing list](https://listes.univ-grenoble-alpes.fr/sympa/subscribe/walt-users), you can also send a message there.
 You can also ask for help by sending an email to walt dev team: `walt-contact at univ-grenoble-alpes.fr`.
 
 Try to include any relevant diagnosis data.
