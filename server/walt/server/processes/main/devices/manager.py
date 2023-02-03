@@ -202,7 +202,7 @@ class DevicesManager(object):
                     # device name already exists! Check next one.
                     i += 1
 
-    def add_or_update(self, **args_data):
+    def add_or_update(self, requester = None, **args_data):
         """Return True if a new equipment (node, switch) was identified, False otherwise"""
         if 'type' not in args_data:
             args_data['type'] = 'unknown'
@@ -222,8 +222,7 @@ class DevicesManager(object):
                     name = self.generate_device_name(**args_data)
                     updates['name'] = name
                     self.logs.platform_log('devices', f'renamed {db_data.name} to {name} for clarity')
-                    if 'requester' in args_data:
-                        requester = args_data['requester']
+                    if requester is not None:
                         requester.stdout.write(f'Renaming {db_data.name} to {name} for clarity.\n')
                 # now we know its type, so we consider we have a new equipment here.
                 new_equipment = True
