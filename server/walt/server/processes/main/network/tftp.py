@@ -80,6 +80,9 @@ def cleanup(db):
     # '/var/lib/walt/tftp-standby/<model>', where appropriate boot files can
     # be found. These boot files will cause the node to continuously reboot
     # until walt-server-daemon is back.
+    if not TFTP_STANDBY_DIR.exists():
+        # There was an issue in startup code before tftp.prepare() could be called
+        return
     for db_node in db.select('nodes'):
         mac = db_node.mac
         model = db_node.model
