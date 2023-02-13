@@ -291,8 +291,17 @@ class ServerDB(PostgresDB):
         # due to buffering, we might still get stream_ids of a device
         # recently forgotten, which could lead to a foreign constraint violation
         # (stream_id no longer exists in the logstream table).
-        # we just ignore those log records (bypass_conflicting=True).
-        return self.insert_multiple('logs', records, bypass_conflicting=True)
+        # we just ignore those log records.
+        cols, formats, values = self.get_insert_cols_and_values('logs', records)
+        l_dot_cols = ','.join(('l.' + col) for col in cols.split(','))
+        sql = """INSERT INTO logs(%s)
+                 SELECT %s
+                 FROM (
+                    VALUES %s
+                 ) l (%s), logstreams s
+                 WHERE l.stream_id = s.id""" % (cols, l_dot_cols, formats, cols)
+        self.c.execute(sql + ';', values)
+        #print(f'Inserted {self.c.rowcount} log records')
 
     def get_user_images(self, username):
         sql = f"""  SELECT i.fullname, i.ready, count(n.mac)>0 as in_use
