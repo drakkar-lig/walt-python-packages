@@ -139,6 +139,16 @@ class PostgresDB:
         constraints = [ "%s=%%s" % col for col in cols ]
         return self.get_where_clause_from_constraints(constraints)
 
+    def get_insert_cols_and_values(self, table, rows_kwargs):
+        values_formats = []
+        all_values = []
+        for kwargs in rows_kwargs:
+            cols, values = self.get_cols_and_values(table, kwargs)
+            values_format = '(' + ','.join(['%s'] * len(values)) + ')'
+            values_formats.append(values_format)
+            all_values.extend(values)
+        return ','.join(cols), ','.join(values_formats), tuple(all_values)
+
     # allow statements like:
     # db.insert("network", ip=ip, switch_ip=swip)
     def insert(self, table, returning=None, **kwargs):
@@ -147,23 +157,14 @@ class PostgresDB:
     # insert multiple rows at once
     def insert_multiple(self, table, rows_kwargs, returning=None,
                               bypass_conflicting=False):
-        values_formats = []
-        all_values = []
-        for kwargs in rows_kwargs:
-            cols, values = self.get_cols_and_values(table, kwargs)
-            values_format = '(' + ','.join(['%s'] * len(values)) + ')'
-            values_formats.append(values_format)
-            all_values.extend(values)
+        cols, formats, values = self.get_insert_cols_and_values(table, rows_kwargs)
         sql = """INSERT INTO %s(%s)
-                VALUES %s""" % (
-                    table,
-                    ','.join(cols),
-                    ','.join(values_formats))
+                VALUES %s""" % (table, cols, formats)
         if bypass_conflicting:
             sql += " ON CONFLICT DO NOTHING"
         if returning:
             sql += " RETURNING %s" % returning
-        self.c.execute(sql + ';', tuple(all_values))
+        self.c.execute(sql + ';', values)
         if returning:
             return self.c.fetchone()[0]
 
