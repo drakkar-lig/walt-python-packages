@@ -65,7 +65,11 @@ def change_walt_nodes(context, recipe_info):
     site = choose('On which site should WalT nodes be defined?', get_g5k_sites())
     number = prompt('Define how many WalT nodes should run there', type=int,
                     validator = lambda x: x >= 0)
-    recipe_info['node_counts'][site] = number
+    if number > 0:
+        recipe_info['node_counts'][site] = number
+    else:
+        # 0 nodes, remove the site from "node_counts"
+        recipe_info['node_counts'].pop(site, None)
 
 def validate_walltime(wt):
     valid = True

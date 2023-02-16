@@ -59,9 +59,9 @@ def filter_vlans_from_planning(planning, vlan_type='kavlan-local'):
 def analyse_reservation(recipe_info, start_time_margin = DEFAULT_START_TIME_MARGIN_SECS):
     execo_g5k = load_execo_g5k()
     walltime = recipe_info['walltime']
-    g5k_node_counts = dict(
-        **recipe_info['node_counts']
-    )
+    g5k_node_counts = {
+        site: num for (site, num) in recipe_info['node_counts'].items() if num > 0
+    }
     # add one g5k node for walt server
     server_site = recipe_info['server']['site']
     g5k_node_counts[server_site] = \
@@ -239,8 +239,9 @@ def get_submission_info(recipe_info, deployment_id, start_time_margin):
     deployment_info['server']['g5k_env_file'] = WALT_SERVER_ENV_FILE
     site_resources = {}
     for site, node_count in recipe_info['node_counts'].items():
-        resource = '/nodes=' + str(node_count)
-        append_site_resource(site_resources, site, resource)
+        if node_count > 0:
+            resource = '/nodes=' + str(node_count)
+            append_site_resource(site_resources, site, resource)
     append_site_resource(site_resources, server_site, SERVER_NODE_RESOURCE)
     append_site_resource(site_resources, vlan_site, VLAN_RESOURCE % vlan_type)
     oar_date = datetime.fromtimestamp(reservation_date).strftime('%Y-%m-%d %H:%M:%S')
