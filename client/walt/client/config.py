@@ -1,4 +1,4 @@
-import yaml, re, os, socket, copy
+import yaml, re, os, socket
 from walt.client.plugins import get_hook
 from walt.client.tools import yes_or_no
 from os.path import expanduser
@@ -6,8 +6,6 @@ from collections import OrderedDict
 from walt.common.config import load_conf
 from getpass import getpass
 from pathlib import Path
-from contextlib import contextmanager
-
 
 CONFIG_FILE_TOP_COMMENT="""\
 WalT configuration file
@@ -192,17 +190,6 @@ def reload_conf():
     set_conf(conf_dict)
     if should_rewrite:
         save_config()
-
-@contextmanager
-def temporary_conf_changes():
-    global conf_dict
-    # save config
-    saved_conf_dict = copy.deepcopy(conf_dict)
-    try:
-        yield
-    finally:
-        # restore
-        conf_dict = saved_conf_dict
 
 def resolve_new_user():
     server_check = 'server' not in conf_dict['walt']
