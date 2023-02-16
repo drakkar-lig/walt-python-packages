@@ -8,7 +8,7 @@ from walt.client.g5k.reboot import reboot_nodes
 from walt.client.g5k.deploy.status import get_deployment_status, log_status_change, \
                                   record_main_job_startup, record_main_job_ending, \
                                   save_deployment_status
-from walt.client.config import save_config, get_config_from_file, set_conf
+from walt.client.config import conf, save_config, temporary_conf_changes
 from walt.client.link import ClientToServerLink
 from urllib3.exceptions import InsecureRequestWarning
 from pkg_resources import resource_string
@@ -204,18 +204,17 @@ def run_deployment_tasks(info):
         raise Exception('Reboot failed!')
     # update server in .walt/config
     log_status_change(info, 'client.conf', 'Updating $HOME/.walt/config', verbose = True)
-    conf = get_config_from_file()
-    conf['server'] = server_node
-    save_config(conf)
-    # note: waiting for nodes may require user credentials to be available,
-    # and they may not be present yet in .walt/config, so set temporary ones.
-    conf['username'], conf['password'] = 'anonymous', 'none'
-    set_conf(conf)  # temporary conf, not saved in .walt/config
-    busy_indicator = LoggerBusyIndicator(info, 'nodes.waiting',
-                                         'Waiting for first bootup of nodes')
-    with ClientToServerLink(do_checks=False, busy_indicator=busy_indicator) as server:
-        server.wait_for_nodes('all-nodes')
-    log_status_change(info, 'ready', 'Ending WalT platform deployment')
+    conf.walt.server = server_node
+    save_config()
+    # note: waiting for nodes may require a walt username,
+    # and it may not be present yet in .walt/config, so set a temporary one.
+    with temporary_conf_changes():  # restore conf after this section
+        conf.walt.username = 'anonymous'
+        busy_indicator = LoggerBusyIndicator(info, 'nodes.waiting',
+                                             'Waiting for first bootup of nodes')
+        with ClientToServerLink(do_checks=False, busy_indicator=busy_indicator) as server:
+            server.wait_for_nodes('all-nodes')
+        log_status_change(info, 'ready', 'Ending WalT platform deployment')
     print('Ready!')
     sys.stdout.flush()
 
