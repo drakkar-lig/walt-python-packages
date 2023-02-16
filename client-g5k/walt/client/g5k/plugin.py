@@ -1,8 +1,5 @@
 import sys
-from walt.client.g5k.deploy.status import get_last_deployment_status, get_expiry_message, \
-                                          save_deployment_status
-
-DEFAULT_IMAGE_NAME = 'pc-x86-64-default'
+from walt.client.g5k.deploy.status import get_last_deployment_status, get_expiry_message
 
 def config_missing_server_hook():
     print("No WalT platform is deployed. Use 'walt g5k deploy' first.")
@@ -20,16 +17,3 @@ def failing_server_socket_hook():
         print("Deployment of WalT platform is not complete yet. Use 'walt g5k wait'.")
         sys.exit(1)
     return  # if we are here, this is a real issue, let the caller handle it
-
-def connection_hook(link, server):
-    info = get_last_deployment_status()
-    if info is not None and not info.get('got_first_user_api_connection', False):
-        # gain possession of nodes by associating them to our copy of their
-        # default image (note: no need to reboot them because this is another
-        # tag of the same image)
-        link.set_busy_label("Associating nodes to your default image")
-        info['got_first_user_api_connection'] = True
-        save_deployment_status(info)
-        link.set_silent(True)
-        server.set_image('all-nodes', DEFAULT_IMAGE_NAME)
-        link.set_silent(False)

@@ -8,10 +8,12 @@ from walt.client.g5k.reboot import reboot_nodes
 from walt.client.g5k.deploy.status import get_deployment_status, log_status_change, \
                                   record_main_job_startup, record_main_job_ending, \
                                   save_deployment_status
-from walt.client.config import conf, save_config, temporary_conf_changes
+from walt.client.config import conf, save_config
 from walt.client.link import ClientToServerLink
 from urllib3.exceptions import InsecureRequestWarning
 from pkg_resources import resource_string
+
+DEFAULT_IMAGE_NAME = 'pc-x86-64-default'
 
 # Suppress warning about requests not verifying remote certificate
 requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
@@ -163,24 +165,24 @@ def run_deployment_tasks(info):
     analyse_g5k_resources(info, server_site)
     server_node = info['server']['host']
     walt_netcard = secondary_netcard(server_node)
-    # deploy server
+    # -- deploy server
     log_status_change(info, 'server.deploy', f'Deploying walt server on node {server_node}', verbose = True)
     env_file = info['server']['g5k_env_file']
     run_cmd_on_site(info, server_site,
                 f'kadeploy3 -m {server_node} -a {env_file} -k'.split())
-    # wait for secondary jobs at other sites (they should be ready now...)
+    # -- wait for secondary jobs at other sites (they should be ready now...)
     log_status_change(info, 'jobs.others.checking', 'Checking secondary jobs are ready', verbose = True)
     wait_for_other_jobs(info)
-    # detect g5k resources at those other sites
+    # -- detect g5k resources at those other sites
     for site in info['sites']:
         if site == server_site:
             continue
         analyse_g5k_resources(info, site)
     verify_vlan_rights(info)
-    # configure server
+    # -- configure server
     log_status_change(info, 'server.walt.conf', 'Configuring walt server', verbose = True)
     configure_server(info, walt_netcard['name'])
-    # update vlan conf
+    # -- update vlan conf
     vlan_id = info['vlan']['vlan_id']
     vlan_site = info['vlan']['site']
     log_status_change(info, 'vlan.conf.dhcp', f'Removing default DHCP service on VLAN {vlan_id}', verbose = True)
@@ -193,7 +195,19 @@ def run_deployment_tasks(info):
             continue
         nodes = list(site_info['nodes'])
         set_vlan(info, site, vlan_id, *nodes)
-    # reboot nodes
+    # -- update .walt/config
+    log_status_change(info, 'client.conf', 'Updating $HOME/.walt/config', verbose = True)
+    conf.walt.server = server_node
+    # this walt server is dedicated to the calling user
+    # no need to manage multiple usernames on server side
+    conf.walt.username = 'walt-g5k'
+    save_config()
+    # -- associate nodes to the calling user
+    busy_indicator = LoggerBusyIndicator(info, 'nodes.set_owner',
+                                         'Associating nodes to the calling user')
+    with ClientToServerLink(do_checks=False, busy_indicator=busy_indicator) as server:
+        server.set_image('all-nodes', DEFAULT_IMAGE_NAME)
+    # -- reboot nodes
     log_status_change(info, 'nodes.reboot', f'Rebooting walt nodes', verbose = True)
     all_nodes = sum((list(site_info['nodes']) for site_info in info['sites'].values()), [])
     rebooted_node_names, reboot_errors = reboot_nodes(info, all_nodes)
@@ -202,19 +216,12 @@ def run_deployment_tasks(info):
         for node_name, err in reboot_errors.items():
             print('{node_name}: {err}')
         raise Exception('Reboot failed!')
-    # update server in .walt/config
-    log_status_change(info, 'client.conf', 'Updating $HOME/.walt/config', verbose = True)
-    conf.walt.server = server_node
-    save_config()
-    # note: waiting for nodes may require a walt username,
-    # and it may not be present yet in .walt/config, so set a temporary one.
-    with temporary_conf_changes():  # restore conf after this section
-        conf.walt.username = 'anonymous'
-        busy_indicator = LoggerBusyIndicator(info, 'nodes.waiting',
-                                             'Waiting for first bootup of nodes')
-        with ClientToServerLink(do_checks=False, busy_indicator=busy_indicator) as server:
-            server.wait_for_nodes('all-nodes')
-        log_status_change(info, 'ready', 'Ending WalT platform deployment')
+    # -- wait for nodes
+    busy_indicator = LoggerBusyIndicator(info, 'nodes.waiting',
+                                         'Waiting for first bootup of nodes')
+    with ClientToServerLink(do_checks=False, busy_indicator=busy_indicator) as server:
+        server.wait_for_nodes('all-nodes')
+    log_status_change(info, 'ready', 'Ending WalT platform deployment')
     print('Ready!')
     sys.stdout.flush()
 
