@@ -1,4 +1,4 @@
-import yaml, re, os, socket
+import yaml, re, os, socket, copy
 from walt.client.plugins import get_hook
 from walt.client.tools import yes_or_no
 from os.path import expanduser
@@ -6,6 +6,8 @@ from collections import OrderedDict
 from walt.common.config import load_conf
 from getpass import getpass
 from pathlib import Path
+from contextlib import contextmanager
+
 
 CONFIG_FILE_TOP_COMMENT="""\
 WalT configuration file
@@ -191,6 +193,17 @@ def reload_conf():
     if should_rewrite:
         save_config()
 
+@contextmanager
+def temporary_conf_changes():
+    global conf_dict
+    # save config
+    saved_conf_dict = copy.deepcopy(conf_dict)
+    try:
+        yield
+    finally:
+        # restore
+        conf_dict = saved_conf_dict
+
 def resolve_new_user():
     server_check = 'server' not in conf_dict['walt']
     if server_check:
@@ -293,30 +306,61 @@ server_link_cls = None
 conf_dict = None
 
 class Conf:
-    def __init__(self, path=(), lazyload=False):
+    def __init__(self, path=()):
         self._path = path
-        self._lazyload = lazyload
-    # we use point-based notation (e.g., conf.walt.server)
-    def __getattr__(self, attr):
-        if self._lazyload:
+    def __repr__(self):
+        return '<Configuration: ' + repr(self._analyse_path(self._path)) + '>'
+    def _do_lazyload(self):
+        if conf_dict is None:
             reload_conf()
-            self._lazyload = False
-        path = self._path + (attr,)
-        conf_tree, conf_obj = ConfTree, conf_dict
+    def _analyse_path(self, path):
+        self._do_lazyload()
+        conf_tree, conf_obj, cur_path = ConfTree, conf_dict, ()
         for attr in path:
-            conf_tree = getattr(conf_tree, attr)
+            cur_path += (attr,)
+            conf_tree = getattr(conf_tree, attr, None)
+            if conf_tree is None:
+                conf_item_str = 'conf.' + '.'.join(cur_path)
+                raise Exception(f'Unexpected conf item: {conf_item_str}')
             if hasattr(conf_tree, 'resolve'):
                 # leaf value
-                if not attr in conf_obj:
-                    conf_tree.resolve()
-                    save_config()
-                return conf_obj[attr]
+                if attr in conf_obj:
+                    return { 'type': 'present-leaf', 'value': conf_obj[attr] }
+                else:
+                    def resolve():
+                        conf_tree.resolve()
+                        save_config()
+                    return { 'type': 'missing-leaf', 'resolve': resolve }
             else:
                 # category node
                 if not attr in conf_obj:
                     conf_obj[attr] = {}
             conf_obj = conf_obj[attr]
-        return Conf(path)
+        return { 'type': 'category', 'value': conf_obj }
+    # we use point-based notation (e.g., conf.walt.server)
+    def __getattr__(self, attr):
+        path = self._path + (attr,)
+        path_info = self._analyse_path(path)
+        if path_info['type'] == 'present-leaf':
+            return path_info['value']
+        elif path_info['type'] == 'missing-leaf':
+            path_info['resolve']()
+            return self.__getattr__(attr)   # redo
+        else:   # category
+            return Conf(path)
+    def __hasattr__(self, attr):
+        path = self._path + (attr,)
+        path_info = self._analyse_path(path)
+        return path_info['type'] != 'missing-leaf'
+    def __setattr__(self, attr, v):
+        if attr in ('_path',):
+            self.__dict__[attr] = v
+            return
+        cat_path_info = self._analyse_path(self._path)
+        item_path_info = self._analyse_path(self._path + (attr,))
+        assert cat_path_info['type'] == 'category'
+        assert item_path_info['type'] in ('present-leaf', 'missing-leaf')
+        cat_path_info['value'][attr] = v
 
-conf = Conf(lazyload=True)
+conf = Conf()
 
