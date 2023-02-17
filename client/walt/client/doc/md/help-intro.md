@@ -45,6 +45,8 @@ For instance it is easy to setup an IoT testbed by connecting IoT boards on USB 
 
 For installation and upgrade procedures (server, network switches, nodes, VPN), a general view of WalT network structure, etc., checkout [`walt help show admin`](admin.md).
 
+Note: as an alternative to a physical platform installation, or to get a first insight of WalT, Grid'5000 users can also deploy WalT on-demand on the Grid'5000 testbed. See [`walt help show g5k`](g5k.md).
+
 ## User documentation
 
 In order to get familiar with main WalT concepts, see [`walt help show tutorial`](tutorial.md).
