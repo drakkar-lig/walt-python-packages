@@ -57,6 +57,9 @@ For this reason, when developing a new walt image or making low level OS changes
 it is recommended to test on a virtual node first, if possible (virtual nodes have a
 pc-x86-64 architecture, thus the image must be compatible with this architecture).
 
+For debugging early bootup problems on other architectures, you will need a serial
+connection. For raspberry boards, see [`walt help show rpi-serial`](rpi-serial.md).
+
 
 ## Reporting and asking for help
 
