@@ -32,7 +32,7 @@ for md_file in tuple(md_dir.glob('*.md')):
         # rst = reStructuredText; gfm = GitHub Flavored Markdown
         rst_content = pypandoc.convert_file(md_file, 'rst', format='gfm')
         rst_content = re.sub(r'help-intro\.md', r'index.md', rst_content)
-        rst_content = re.sub(r'```([a-z -]*)`` <([a-z-]*)\.md>`__', r':doc:`\1 <\2>`', rst_content)
+        rst_content = re.sub(r'```([a-z0-9 -]*)`` <([a-z0-9-]*)\.md>`__', r':doc:`\1 <\2>`', rst_content)
         if rst_file.name == 'index.rst':
             index_rst_tables = (THIS_DIR / 'index_rst_tables').read_text()
             rst_content = f'{rst_content}\n{index_rst_tables}'
