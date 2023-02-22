@@ -9,14 +9,20 @@ class VLANCapableBridge(Variant):
     def test_or_exception(snmp_proxy):
         dict(snmp_proxy.dot1qTpFdbPort)
         dict(snmp_proxy.dot1qTpFdbStatus)
+        dict(snmp_proxy.ifPhysAddress)
+        str(snmp_proxy.dot1dBaseBridgeAddress)
 
     @staticmethod
     def load():
+        load_mib('IF-MIB')
+        load_mib('BRIDGE-MIB')
         load_mib(b"Q-BRIDGE-MIB")
 
     @staticmethod
     def unload():
         unload_mib(b"Q-BRIDGE-MIB")
+        unload_mib(b"BRIDGE-MIB")
+        unload_mib(b"IF-MIB")
 
     @staticmethod
     def get_macs_per_port(snmp_proxy):
@@ -41,6 +47,15 @@ class VLANCapableBridge(Variant):
 
         return macs_per_port
 
+    @staticmethod
+    def get_secondary_macs(snmp_proxy):
+        macs = set(dict(snmp_proxy.ifPhysAddress).values())
+        macs |= set((snmp_proxy.dot1dBaseBridgeAddress,))
+        macs = set(decode_mac_address(mac) for mac in macs)
+        macs -= set(('00:00:00:00:00:00',))
+        return macs
+
+
 BRIDGE_VARIANTS = VariantsSet('Switch forwarding table retrieval', (VLANCapableBridge,))
 
 class BridgeProxy(VariantProxy):
@@ -48,3 +63,5 @@ class BridgeProxy(VariantProxy):
         VariantProxy.__init__(self, snmp_proxy, host, BRIDGE_VARIANTS)
     def get_macs_per_port(self):
         return self.variant.get_macs_per_port(self.snmp)
+    def get_secondary_macs(self):
+        return self.variant.get_secondary_macs(self.snmp)
