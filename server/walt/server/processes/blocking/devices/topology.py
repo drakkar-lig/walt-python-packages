@@ -1,5 +1,6 @@
-import time
+import time, itertools
 from snimpy.snmp import SNMPException
+from collections import defaultdict
 
 from walt.common.formatting import format_sentence, human_readable_delay
 from walt.server import const
@@ -39,7 +40,140 @@ def format_explanation(item_type, items):
         return item_type + ': ' + items[0] + '.\n'
     return item_type + 's:' + ''.join('\n- ' + item for item in items) + '\n'
 
-class Topology(object):
+def get_unique_value(s):
+    return next(iter(s))
+
+def two_levels_dict_browse(d):
+    for k1, v1 in d.items():
+        for k2, v2 in v1.items():
+            yield k1, k2, v2
+
+class BridgeTopology:
+    def __init__(self):
+        self.secondary_to_main_mac = {}
+        self.candidate_macs_per_port = defaultdict(set)
+
+    def register_secondary_macs(self, sw_mac, secondary_macs):
+        """Register secondary mac addresses of a switch"""
+        secondary_macs -= set((sw_mac,))
+        self.secondary_to_main_mac.update({ mac: sw_mac for mac in secondary_macs })
+
+    def register_neighbor(self, local_mac, local_port, neighbor_mac):
+        """Register a neighbor of the forwarding table"""
+        # This is a neighbor of the forwarding table, thus we may have
+        # many of them on a single switch port.
+        self.candidate_macs_per_port[(local_mac, local_port)].add(neighbor_mac)
+
+    def add_ll_confirmed_data(self, ll_topology):
+        """Add lldp topology data to this bridge"""
+        # Adding LLDP data to this bridge topology helps getting a better analysis,
+        # for instance regarding the fact the server only replies to LLDP queries.
+        # Having an LLDP record (server_mac, server_port) -> main_switch_mac
+        # is an interesting information we would miss otherwise.
+        # The bridge data of the main_switch will be:
+        # (main_switch_mac, main_switch_port) -> many macs including server_mac
+        # because of the various virtual mac addresses on the server (vnodes, etc.)
+        # Having the LLDP record, the deduce_link_layer_topology() method below
+        # will deduce that the two-way link is:
+        # (server_mac, server_port) <-> (main_switch_mac, main_switch_port)
+        # Otherwise, the main_switch_port information would be lost.
+        for mac1, mac2, port1, port2, confirmed in ll_topology:
+            if confirmed:
+                if port1 is not None:
+                    self.register_neighbor(mac1, port1, mac2)
+                if port2 is not None:
+                    self.register_neighbor(mac2, port2, mac1)
+
+    def deduce_link_layer_topology(self, db):
+        """Analyse the forwarding table to deduce the link layer topology"""
+        # First steps:
+        # * replace secondary macs of switches with their main mac
+        # * filter-out mac addresses missing in db (unlike LLDP, we cannot
+        #   insert these missing devices in db because we don't know their ip)
+        # * compute a 'backbone' view reduced to the links between the switches or the server
+        # * compute an 'edge' view reduced to the links between a switch and an edge device
+        db_types = { dev.mac: dev.type for dev in db.select('devices') }
+        db_macs = set(db_types.keys())
+        db_backbone_macs = set(mac for mac, t in db_types.items() if t in ('switch', 'server'))
+        backbone_candidate_macs_per_port = defaultdict(lambda: defaultdict(set))
+        edge_candidate_macs_per_port = defaultdict(lambda: defaultdict(set))
+        for sw_port_info, macs in self.candidate_macs_per_port.items():
+            macs = set(self.secondary_to_main_mac.get(mac, mac) for mac in macs)
+            macs = macs.intersection(db_macs)
+            backbone_macs = macs.intersection(db_backbone_macs)
+            edge_macs = macs - backbone_macs
+            sw_mac, sw_port = sw_port_info
+            if len(backbone_macs) > 0:
+                backbone_candidate_macs_per_port[sw_mac][sw_port] = backbone_macs
+            if len(edge_macs) > 0:
+                edge_candidate_macs_per_port[sw_mac][sw_port] = edge_macs
+        # We first analyse the backbone topology.
+        changed = False
+        while not changed:
+            # We invert backbone_candidate_macs_per_port to know on which switch ports
+            # a given device is possibly connected.
+            # (cf. backbone_candidate_ports_per_mac)
+            backbone_candidate_ports_per_mac = defaultdict(set)
+            for sw_mac, sw_port, macs in two_levels_dict_browse(backbone_candidate_macs_per_port):
+                for mac in macs:
+                    backbone_candidate_ports_per_mac[mac].add((sw_mac, sw_port))
+            # let's consider a device D reported both on port a of switch A and on port b
+            # of switch B.
+            # if switch B is reported on a port a' (different from a) on switch A, then we know
+            # that switch A is closer to device D than switch B.
+            candidate_macs_per_port = defaultdict(lambda: defaultdict(set))
+            for mac_D, candidate_sw_ports in backbone_candidate_ports_per_mac.items():
+                excluded_candidates = set()
+                for switch_A_port, switch_B_port in itertools.permutations(candidate_sw_ports, 2):
+                    mac_A, a = switch_A_port
+                    mac_B, b = switch_B_port
+                    a_prim = None
+                    for mac, port in backbone_candidate_ports_per_mac.get(mac_B, ()):
+                        if mac == mac_A:
+                            a_prim = port
+                            if a_prim != a:
+                                backbone_candidate_macs_per_port[mac_B][b] -= set((mac_D,))
+                                changed = True
+                            break
+            if changed:
+                continue
+            # if switch A has a unique candidate on port a which is switch B,
+            # then if switch A is reported on any port b of switch B,
+            # replace the list of candidates there by switch A only.
+            match = False
+            for mac_A, a, candidate_macs in \
+                        two_levels_dict_browse(backbone_candidate_macs_per_port):
+                if len(candidate_macs) == 1:
+                    mac_B = get_unique_value(candidate_macs)
+                    ports_B = backbone_candidate_macs_per_port.get(mac_B, {})
+                    for b, candidate_macs in ports_B.items():
+                        if mac_A in candidate_macs:
+                            # if switch A is already the unique candidate,
+                            # there is nothing to change
+                            if len(candidate_macs) != 1:
+                                match = True
+                            break
+                if match:
+                    break
+            if match:
+                backbone_candidate_macs_per_port[mac_B][b] = set((mac_A,))
+                changed = True
+            if not changed:
+                break       # nothing changed during last iteration, exit loop
+        # We now build ll_topology considering switch ports with only one candidate mac.
+        # Edge devices reported on the ports of the backbone are ignored.
+        # (We actually process them first so that they are overridden in this case)
+        ll_topology = LinkLayerTopology()
+        for candidate_macs_per_port in (edge_candidate_macs_per_port,
+                                        backbone_candidate_macs_per_port):
+            for sw_mac, sw_port, candidate_macs in \
+                            two_levels_dict_browse(candidate_macs_per_port):
+                if len(candidate_macs) == 1:
+                    mac = get_unique_value(candidate_macs)
+                    ll_topology.register_neighbor(sw_mac, sw_port, mac)
+        return ll_topology
+
+class LinkLayerTopology(object):
     def __init__(self):
         # links as a dict (mac1, mac2) -> (port1, port2, confirmed)
         self.links = {}
@@ -339,7 +473,7 @@ class TopologyManager(object):
         print(message)
 
     def collect_devices(self, requester, server, devices):
-        lldp_topology, bridge_topology = Topology(), Topology()
+        lldp_topology, bridge_topology = LinkLayerTopology(), BridgeTopology()
         server_mac = server.devices.get_server_mac()
         server_ip = get_server_ip()
         for device in devices:
@@ -372,8 +506,8 @@ class TopologyManager(object):
         if bridge_topology is None:
             message = {
                 None:           'OK',
-                'snmp-variant': 'FAILED (LLDP SNMP variant detection failed)',
-                'snmp-issue':   'FAILED (issue with LLDP SNMP request)'
+                'snmp-variant': 'FAILED (LLDP SNMP issue)',
+                'snmp-issue':   'FAILED (LLDP SNMP issue)'
             }[lldp_error]
         else:
             bridge_error = self.get_and_process_bridge_neighbors(
@@ -381,12 +515,12 @@ class TopologyManager(object):
                                 host_ip, host_mac, host_snmp_conf)
             message = {
                 (None,           None):           'OK',
-                (None,           'snmp-variant'): 'PASSED (LLDP-only data; BRIDGE SNMP variant detection failed)',
-                (None,           'snmp-issue'):   'PASSED (LLDP-only data; issue with BRIDGE SNMP request)',
-                ('snmp-variant', None):           'PASSED (BRIDGE-only data; LLDP SNMP variant detection failed)',
-                ('snmp-variant', 'snmp-variant'): 'FAILED (LLDP and BRIDGE SNMP variant detection)',
+                (None,           'snmp-variant'): 'OK (LLDP-only data)',
+                (None,           'snmp-issue'):   'OK (LLDP-only data)',
+                ('snmp-variant', None):           'OK (BRIDGE-only data)',
+                ('snmp-variant', 'snmp-variant'): 'FAILED (LLDP and BRIDGE SNMP issues)',
                 ('snmp-variant', 'snmp-issue'):   'FAILED (LLDP and BRIDGE SNMP issues)',
-                ('snmp-issue',   None):           'PASSED (BRIDGE-only data; issue with LLDP SNMP request)',
+                ('snmp-issue',   None):           'OK (BRIDGE-only data)',
                 ('snmp-issue',   'snmp-variant'): 'FAILED (LLDP and BRIDGE SNMP issues)',
                 ('snmp-issue',   'snmp-issue'):   'FAILED (LLDP and BRIDGE SNMP issues)',
             }[(lldp_error, bridge_error)]
@@ -429,32 +563,26 @@ class TopologyManager(object):
 
     def get_and_process_bridge_neighbors(self, server, server_mac, server_ip, topology, host_name,
                                     host_ip, host_mac, host_snmp_conf):
+        # SNMP communication
         try:
             snmp_proxy = snmp.Proxy(host_ip, host_snmp_conf, bridge=True)
         except NoSNMPVariantFound:
             return 'snmp-variant'
         try:
             macs_per_port = snmp_proxy.bridge.get_macs_per_port()
+            secondary_macs = snmp_proxy.bridge.get_secondary_macs()
         except SNMPException:
             return 'snmp-issue'
+        # Register secondary switch macs
+        topology.register_secondary_macs(host_mac, secondary_macs)
+        # Register switch neighbors --
         # This is the switch forwarding table, so mac addresses may not be immediate neighbors.
-        # However, if we have multiple mac addresses on a given port, we know this port is
-        # connected to another switch. Thus a probably good estimate can be obtained by:
-        # - ignoring results about ports associated to multiple mac addresses
-        # - ignoring mac addresses for which we already have an LLDP result (this means
-        #   we will give precedence to the LLDP-based topology when merging with this one)
+        # We don't get neighbor IPs here (unlike LLDP), so we cannot register new devices in db.
         for port, macs in macs_per_port.items():
-            msg_prefix = f'---- bridge: found on {host_name} {host_mac} -- port {port}'
-            if len(macs) > 1:
-                print(f'{msg_prefix}: {len(macs)} hosts, ignoring')
-                continue
-            mac = list(macs)[0]
-            db_info = server.devices.get_complete_device_info(mac)
-            if db_info is None:
-                print(f'{msg_prefix}: {mac} unknown in db, ignoring')
-                continue
-            print(f'{msg_prefix}: {mac}')
-            topology.register_neighbor(host_mac, port, mac)
+            msg = ', '.join(macs)
+            print(f'---- bridge: found on {host_name} {host_mac} -- port {port}: {msg}')
+            for mac in macs:
+                topology.register_neighbor(host_mac, port, mac)
         return None  # no error
 
     def rescan(self, requester, server, db, remote_ip, devices):
@@ -468,14 +596,20 @@ class TopologyManager(object):
         # explore the network equipments
         lldp_topology, bridge_topology = self.collect_devices(requester, server, devices)
 
+        # help bridge data analysis by adding lldp confirmed data to bridge topology
+        bridge_topology.add_ll_confirmed_data(lldp_topology)
+
+        # deduce link-layer topology from bridge data
+        ll_br_topology = bridge_topology.deduce_link_layer_topology(db)
+
         # merge with priority to LLDP data
-        bridge_topology.set_confirm_all(False)
+        ll_br_topology.set_confirm_all(False)
         new_topology = lldp_topology
-        new_topology.merge_other(bridge_topology)
+        new_topology.merge_other(ll_br_topology)
         new_topology.set_confirm_all(True)
 
         # retrieve past topology data from db
-        db_topology = Topology()
+        db_topology = LinkLayerTopology()
         db_topology.load_from_db(db)
         db_topology.unconfirm(devices)
 
@@ -521,7 +655,7 @@ class TopologyManager(object):
         return (False, out)
 
     def tree(self, requester, server, db, show_all):
-        db_topology = Topology()
+        db_topology = LinkLayerTopology()
         db_topology.load_from_db(db)
         if db_topology.is_empty():
             return MSG_UNKNOWN_TOPOLOGY
