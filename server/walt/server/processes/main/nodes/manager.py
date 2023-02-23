@@ -198,7 +198,13 @@ class NodesManager(object):
             return None # error already reported
         device_type = device_info.type
         if device_type != 'node':
-            requester.stderr.write('%s is not a node, it is a %s.\n' % \
+            # if the user uses "walt device forget" but the node is still
+            # there, it may be detected by the DHCP server and temporarily
+            # recorded again as an unknown device. When the previous bootup
+            # monitoring connection ends at this time, this function gets
+            # called with requester set to None and we get here.
+            if requester is not None:
+                requester.stderr.write('%s is not a node, it is a %s.\n' % \
                                     (node_name, device_type))
             return None
         return self.devices.get_complete_device_info(device_info.mac)
@@ -290,8 +296,8 @@ class NodesManager(object):
                 if node_name is not None:
                     node_info = self.get_node_info(None, node_name)
                 if node_info is None:
-                    # if a virtual node was removed, when tcp connection timeout is reached
-                    # we get here. ignore.
+                    # if a virtual node was removed or a node was forgotten,
+                    # when tcp connection timeout is reached we get here. ignore.
                     continue
                 nodes.append(node_info)
         for node_info in nodes:
