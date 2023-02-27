@@ -451,15 +451,21 @@ class LinkLayerTopology(object):
                 else:
                     count = sum(node_count_prune(child_mac) for child_mac in t.children(mac) \
                                        if child_mac not in seen)
+                # In some cases, lldp & bridge table retrieval may be forbidden
+                # on a switch but we may still display the tree appropriately thanks
+                # to information coming from neighboring devices.
+                # In this case, even if queries are forbidden on this specific switch,
+                # we still want to display the subtree rooted there.
+                # All in all, we prune the subtree only if no nodes are found there.
                 if device_types[mac] == 'switch' and count == 0:
-                    t.prune(mac, '[...] ~> no nodes there')
+                    if mac in lldp_forbidden:
+                        # No nodes there, but let's indicate it is probably because
+                        # exploration is forbidden.
+                        t.prune(mac, '[...] ~> forbidden (cf. walt device config)')
+                    else:
+                        t.prune(mac, '[...] ~> no nodes there')
                 return count
             node_count_prune(root_mac)
-        # prune subtrees where LLDP exploration is not allowed
-        # (those subtrees where already ignored when scanning,
-        # but this will display an appropriate message to the user)
-        for sw_mac in lldp_forbidden:
-            t.prune(sw_mac, '[...] ~> forbidden (cf. walt device config)')
 
 class TopologyManager(object):
 
