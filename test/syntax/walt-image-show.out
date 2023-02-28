@@ -8,5 +8,5 @@ Meta-switches:
 
 Switches:
     --names-only      list image names only
-    --refresh         resync image list from Docker daemon.
+    --refresh         resync image list from podman storage
 

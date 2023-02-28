@@ -170,8 +170,8 @@ class CSAPI(APISession):
         return context.blocking.hub_login(context.requester, context.task.return_result)
 
     @api_expose_method
-    def show_images(self, context, username, refresh, names_only=False):
-        return context.images.show(context.requester, username, refresh, names_only)
+    def get_images_tabular_data(self, context, username, refresh, fields=None):
+        return context.images.get_tabular_data(context.requester, username, refresh, fields)
 
     @api_expose_method
     def create_image_shell_session(self, context, image_name, task_label):
