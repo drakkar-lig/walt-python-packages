@@ -43,9 +43,10 @@ def complete_rescan_set_of_devices(server, partial_token):
     return complete_set(all_switches + keywords, partial_token)
 
 def complete_image(server, requester, username):
-    names = server.images.show(requester, username, refresh=False, names_only=True).split()
+    rows = server.images.get_tabular_data(requester, username, refresh=False, fields=['name'])
+    names = tuple(row[0] for row in rows)
     implicit_names = tuple(f'{name}:latest' for name in names if ':' not in name)
-    return tuple(names) + implicit_names
+    return names + implicit_names
 
 def fs_remote_completions(server, requester, entity_type, entity, partial_token):
     # '<entity>:<remote-path>' pattern
