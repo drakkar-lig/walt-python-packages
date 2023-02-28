@@ -8,7 +8,7 @@ from walt.server.processes.main.images.clone import clone
 from walt.server.processes.main.images.publish import publish
 from walt.server.processes.main.images.squash import squash
 from walt.server.processes.main.images.metadata import update_hub_metadata
-from walt.server.processes.main.images.show import show
+from walt.server.processes.main.images.tabular import get_tabular_data
 from walt.server.processes.main.images.rename import rename
 from walt.server.processes.main.images.remove import remove
 from walt.server.processes.main.images.duplicate import duplicate
@@ -48,8 +48,8 @@ class NodeImageManager:
         return publish(self.store, self.blocking, requester, task, image_name, **kwargs)
     def squash(self, requester, task_callback, image_name, confirmed):
         return squash(self.store, self.blocking, requester, task_callback, image_name, confirmed)
-    def show(self, requester, username, refresh, names_only):
-        return show(self.db, self.store, requester, username, refresh, names_only)
+    def get_tabular_data(self, requester, username, refresh, fields):
+        return get_tabular_data(self.db, self.store, requester, username, refresh, fields)
     def rename(self, requester, image_name, new_name):
         rename(self.store, self.repository, requester, image_name, new_name)
     def remove(self, requester, image_name):
