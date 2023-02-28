@@ -187,7 +187,7 @@ class WalTLocalRepository:
             im = self.get_podman_image(fullname)
             if im is not None:
                 self.refresh_names_cache_for_image(im)
-        image_id = self.names_cache.get(fullname)
+                image_id = self.names_cache.get(fullname)
         if image_id is None:
             print(f'get_metadata() failed for {fullname}: image not found')
             return None
