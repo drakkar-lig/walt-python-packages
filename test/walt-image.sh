@@ -1,4 +1,5 @@
 source $TESTS_DIR/includes/common.sh
+source $TESTS_DIR/includes/image-build.sh
 
 define_test "walt image show" as {
     walt image show
@@ -33,6 +34,10 @@ define_test "walt image cp" as {
 
 define_test "walt image shell" as {
     test_walt_shell image $(test_suite_image)
+}
+
+define_test "walt image build" as {
+    test_walt_image_build $(test_suite_image)-3 $(test_suite_image)-4
 }
 
 define_test "walt image publish" as {

@@ -1,6 +1,6 @@
 # Creating a WalT image from scratch
 
-Most users just need to modify existing images built by other users, such as the official images build by walt platform developers (with docker user `waltplatform`). In order to modify an image easily, they can use `walt image shell` or `walt image cp`. However, for specific needs, it is sometimes useful to create a whole new operating system image for WalT. This page describes how to achieve this.
+Most users just need to modify existing images built by other users, such as the official images build by walt platform developers (with docker user `waltplatform`). In order to modify an image easily, they can use `walt image shell`, [`walt image cp`](image-cp.md) or [`walt image build`](image-build.md). However, for specific needs, it is sometimes useful to create a whole new operating system image for WalT. This page describes how to achieve this.
 
 This procedure is dedicated to advanced users that are familiar with operating systems operation and `docker` classical tools.
 

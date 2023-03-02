@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+# walt-image-build-helper is a build script run when the server
+# has to handle a "walt image build" command requested by a client.
+set -e
+
+export LC_ALL=C
+
+mode=""
+image_fullname=""
+debug=0
+
+while [ ! -z "$1" ]
+do
+    case "$1" in
+        "--from-url")
+            shift
+            url="$1"
+            if [ ! -z "$url" ]
+            then
+                mode=url
+                shift
+            fi
+            ;;
+        "--from-stdin")
+            mode=stdin
+            shift
+            ;;
+        "--debug")
+            debug=1
+            shift
+            ;;
+        *)
+            image_fullname="$1"
+            shift
+            break
+    esac
+done
+
+if [ -z "$mode" -o -z "$image_fullname" -o ! -z "$1" ]
+then
+	echo "Usage:" >&2
+    echo "  $0 [--debug] --from-url <git-remote-build-repo> <image_fullname>" >&2
+    echo "  tar cf - . | $0 [--debug] --from-stdin <image_fullname>" >&2
+	exit
+fi
+
+if [ $debug -eq 1 ]
+then
+    set -x
+fi
+
+tmp_dir=$(mktemp -d)
+
+on_exit() {
+    # save return code
+    retcode="$?"
+    # cleanup
+    rm -rf "${tmp_dir}"
+    # print failure message if relevant
+    if [ "$retcode" -ne 0 ]
+    then
+        echo "Sorry, image build FAILED." >&2
+    fi
+}
+
+trap "on_exit" EXIT
+
+cd "$tmp_dir"
+if [ "$mode" = "url" ]
+then
+    # note: 'buildah bud' should be able to use a remote git URL, but it seems too picky,
+    # so use git clone ourselves.
+    echo "** Cloning the git repository at $url"
+    git clone --depth 1 --single-branch "$url" .
+else
+    echo "** Receiving the client directory content"
+    tar x
+fi
+
+echo "** Verifying the repository"
+if [ ! -f Dockerfile -a ! -f ContainerFile ]
+then
+    if [ "$mode" = "url" ]
+    then
+        word="repository"
+    else
+        word="directory"
+    fi
+    echo "FAILED: the specified $word does not contain a Dockerfile or ContainerFile."
+fi
+
+echo "** Building the image"
+buildah bud --format docker -t "docker.io/$image_fullname" .
+
+echo "** Verifying the image"
+walt-image-check "docker.io/$image_fullname"
+

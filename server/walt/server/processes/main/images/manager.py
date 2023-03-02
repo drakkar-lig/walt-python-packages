@@ -3,6 +3,7 @@ from __future__ import annotations
 import typing
 
 from walt.server.processes.main.images.shell import ImageShellSession
+from walt.server.processes.main.images.build import ImageBuildSession
 from walt.server.processes.main.images.search import search
 from walt.server.processes.main.images.clone import clone
 from walt.server.processes.main.images.publish import publish
@@ -14,6 +15,8 @@ from walt.server.processes.main.images.remove import remove
 from walt.server.processes.main.images.duplicate import duplicate
 from walt.server.processes.main.images.fixowner import fix_owner
 from walt.server.processes.main.images.store import NodeImageStore
+from walt.server.processes.main.images.image import format_image_fullname, \
+                                                    validate_image_name
 from walt.server.processes.main.network import tftp
 from walt.common.formatting import format_sentence, format_sentence_about_nodes
 
@@ -92,11 +95,13 @@ class NodeImageManager:
     def cleanup(self):
         # un-mount images
         self.store.cleanup()
-    def has_image(self, requester, image_name, default_allowed):
+    def has_image(self, requester, image_name, default_allowed, expected = True):
         if default_allowed and image_name == 'default':
             return True
         else:
-            return self.store.get_user_image_from_name(requester, image_name) != None
+            image = self.store.get_user_image_from_name(requester, image_name,
+                                                        expected = expected)
+            return image != None
     def set_image(self, requester, nodes, image_name):
         # if image tag is specified, let's get its fullname
         if image_name != 'default':
@@ -155,4 +160,14 @@ class NodeImageManager:
                            requester = context.requester,
                                 task = context.task,
                    waltplatform_user = waltplatform_user)
-
+    def create_build_session(self, requester, image_name, **info):
+        if not validate_image_name(requester, image_name):
+            return None
+        image_fullname = format_image_fullname(requester.get_username(), image_name)
+        image_overwrite = self.has_image(requester, image_name, False, expected = None)
+        if image_overwrite:
+            msg = self.store.get_image_overwrite_warning(image_fullname)
+            requester.stderr.write(msg)
+        session = ImageBuildSession(self.blocking, self.store,
+                                    image_fullname, image_overwrite, **info)
+        return session

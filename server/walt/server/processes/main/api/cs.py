@@ -271,3 +271,24 @@ class CSAPI(APISession):
     @api_expose_method
     def get_registries(self, context):
         return context.server.get_registries()
+
+    @api_expose_method
+    def create_image_build_session(self, context, **info):
+        session = context.images.create_build_session(
+                    context.requester, **info)
+        if session == None:
+            return None
+        session_id = self.register_session_object(session)
+        session_info = session.get_parameters()
+        session_info.update(session_id = session_id)
+        return session_info
+
+    @api_expose_method
+    def run_image_build_from_url(self, context, session_id):
+        session = self.get_session_object(session_id)
+        return session.run_image_build_from_url(context.requester, context.task)
+
+    @api_expose_method
+    def finalize_image_build_session(self, context, session_id):
+        session = self.get_session_object(session_id)
+        return session.finalize_image_build_session(context.requester, context.server, context.task)

@@ -5,11 +5,14 @@ from walt.common.formatting import columnate
 from walt.client.link import ClientToServerLink
 from walt.client.tools import confirm
 from walt.client.interactive import run_image_shell_prompt
-from walt.client.transfer import run_transfer_with_image
+from walt.client.transfer import run_transfer_with_image, \
+                                 run_transfer_for_image_build
 from walt.client.config import conf
 from walt.client.application import WalTCategoryApplication, WalTApplication
 from walt.client.types import IMAGE, IMAGE_CLONE_URL, \
-                              IMAGE_CP_SRC, IMAGE_CP_DST
+                              IMAGE_CP_SRC, IMAGE_CP_DST, \
+                              GIT_URL, DIRECTORY, \
+                              IMAGE_BUILD_NAME
 
 MSG_WS_IS_EMPTY="""\
 Your working set is empty.
@@ -53,7 +56,7 @@ class WalTImageClone(WalTApplication):
 @WalTImage.subcommand("publish")
 class WalTImagePublish(WalTApplication):
     """publish a WalT image on the hub (or other registry)"""
-    ORDERING = 9
+    ORDERING = 10
     registry = cli.SwitchAttr(
                 [ "--registry" ],
                 str,
@@ -158,7 +161,7 @@ class WalTImageShell(WalTApplication):
 @WalTImage.subcommand("remove")
 class WalTImageRemove(WalTApplication):
     """remove an image from your working set"""
-    ORDERING = 7
+    ORDERING = 8
     def main(self, image_name : IMAGE):
         with ClientToServerLink() as server:
             server.remove_image(image_name)
@@ -166,7 +169,7 @@ class WalTImageRemove(WalTApplication):
 @WalTImage.subcommand("rename")
 class WalTImageRename(WalTApplication):
     """rename an image of your working set"""
-    ORDERING = 8
+    ORDERING = 9
     def main(self, image_name : IMAGE, new_image_name):
         with ClientToServerLink() as server:
             server.rename_image(image_name, new_image_name)
@@ -174,15 +177,76 @@ class WalTImageRename(WalTApplication):
 @WalTImage.subcommand("duplicate")
 class WalTImageDuplicate(WalTApplication):
     """duplicate an image of your working set"""
-    ORDERING = 6
+    ORDERING = 7
     def main(self, image_name : IMAGE, new_image_name):
         with ClientToServerLink() as server:
             server.duplicate_image(image_name, new_image_name)
 
+@WalTImage.subcommand("build")
+class WalTImageBuild(WalTApplication):
+    """build a WalT image using a Dockerfile"""
+    ORDERING = 5
+    USAGE="""\
+    walt image build --from-url <git-repo-url> <image-name>
+    walt image build --from-dir <local-directory> <image-name>
+
+    See 'walt help show image-build' for more info.
+    """
+    src_url = cli.SwitchAttr(
+                "--from-url",
+                str,
+                argname = 'GIT_URL',
+                default = None,
+                help= """Git repository URL containing a Dockerfile""")
+    src_dir = cli.SwitchAttr(
+                "--from-dir",
+                str,
+                argname = 'DIRECTORY',
+                default = None,
+                help= """Local directory containing a Dockerfile""")
+    # note: we should not use type IMAGE like most other subcommands
+    # because IMAGE only selects existing image names whereas the user
+    # can specify a new image name here.
+    def main(self, image_name: IMAGE_BUILD_NAME):
+        if self.src_url is None and self.src_dir is None:
+            print('You must specify 1 of the options --from-url and --from-dir.')
+            print("See 'walt help show image-build' for more info.")
+            return
+        mode = 'dir' if self.src_url is None else 'url'
+        with ClientToServerLink() as server:
+            info = dict(mode = mode, image_name = image_name)
+            if mode == 'dir':
+                info['src_dir'] = self.src_dir
+            else:
+                info['url'] = self.src_url
+            info = server.create_image_build_session(**info)
+            if info == None:
+                return False # issue already reported
+            image_overwrite = info.pop('image_overwrite')
+            if image_overwrite:
+                if not confirm():
+                    return False
+            session_id = info.pop('session_id')
+            if mode == 'dir':
+                try:
+                    if not run_transfer_for_image_build(**info):
+                        print("See 'walt help show image-build' for help.")
+                        return False
+                except (KeyboardInterrupt, EOFError):
+                    print()
+                    print('Aborted.')
+                    return False
+            else:
+                if not server.run_image_build_from_url(session_id):
+                    # failed
+                    print("See 'walt help show image-build' for help.")
+                    return False
+            server.finalize_image_build_session(session_id)
+
 @WalTImage.subcommand("cp")
 class WalTImageCp(WalTApplication):
     """transfer files (client machine <-> image)"""
-    ORDERING = 5
+    ORDERING = 6
     USAGE="""\
     walt image cp <local-path> <image>:<path>
     walt image cp <image>:<path> <local-path>
@@ -221,7 +285,7 @@ class WalTImageCp(WalTApplication):
 @WalTImage.subcommand("squash")
 class WalTImageSquash(WalTApplication):
     """squash all layers of an image into one"""
-    ORDERING = 10
+    ORDERING = 11
     def main(self, image_name: IMAGE):
         with ClientToServerLink() as server:
             status = server.squash_image(image_name, False)
