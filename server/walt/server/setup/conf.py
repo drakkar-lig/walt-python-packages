@@ -1,4 +1,4 @@
-import os, sys, copy, yaml, re
+import os, sys, copy, yaml, re, json, textwrap
 from pathlib import Path
 from string import Template
 from walt.server.setup.netconf import get_default_netconf, edit_netconf_interactive, \
@@ -22,6 +22,13 @@ WALT_SERVER_CONF = {
         (0, 'registries:'): category_comment('image registries'),
         (0, 'services:'): category_comment('service files')
     }
+}
+
+CONTAINERS_REGISTRIES_CONF = {
+    "PATH": Path("/etc/containers/registries.conf.d/walt.conf"),
+    "HEADER_COMMENT": """
+# Image registries configuration for this WALT server.
+# Run 'walt-server-setup --edit-conf' to update."""
 }
 
 WALT_SERVER_SPEC_PATH = Path("/etc/walt/server.spec")
@@ -137,19 +144,51 @@ def dump_commented_conf(conf, comment_info):
     conf_dump = re.sub(r'^([ \t]*)([^\n]*)', add_desc_comment, conf_dump, flags=re.MULTILINE)
     return WALT_SERVER_CONF["HEADER_COMMENT"] + conf_dump + '\n'
 
+def dump_containers_registries_conf(regconf):
+    containers_registries = []
+    for reg in regconf:
+        if reg['api'] == 'docker-hub':
+            containers_registries.append(dict(
+                    prefix = "docker.io",
+                    location = "registry-1.docker.io",
+                    insecure = False))
+        else:
+            location = f'{reg["host"]}:{reg["port"]}'
+            insecure = not reg["https-verify"]
+            containers_registries.append(dict(
+                    prefix = location,
+                    location = location,
+                    insecure = insecure))
+    header = CONTAINERS_REGISTRIES_CONF["HEADER_COMMENT"]
+    seach_list_text = 'unqualified-search-registries = ' + \
+            json.dumps(list(reg['prefix'] for reg in containers_registries))
+    reg_sections_text = textwrap.dedent("\n\n".join(f'''\
+            [[registry]]
+            prefix = "{reg['prefix']}"
+            location = "{reg['location']}"
+            insecure = {json.dumps(reg['insecure'])}'''
+        for reg in containers_registries))
+    return '\n\n'.join((header, seach_list_text, reg_sections_text)) + '\n'
+
 def update_server_conf(conf):
-    if same_confs(get_current_conf(), conf):
-        return
-    print(f'Saving configuration at {WALT_SERVER_CONF["PATH"]}... ', end='')
-    conf = cleanup_defaults(conf)
-    comment_info = dict(WALT_SERVER_CONF["COMMENT_INFO"])
-    netconf = conf['network']
-    netconf_entry_comments = get_netconf_entry_comments(netconf)
-    comment_info.update({(1, k): v for (k, v) in netconf_entry_comments.items()})
-    conf_text = dump_commented_conf(conf, comment_info)
-    WALT_SERVER_CONF["PATH"].parent.mkdir(parents=True, exist_ok=True)
-    WALT_SERVER_CONF["PATH"].write_text(conf_text)
-    print('done')
+    same_conf = same_confs(get_current_conf(), conf)
+    if not same_conf:
+        print(f'Saving configuration at {WALT_SERVER_CONF["PATH"]}... ', end='')
+        conf = cleanup_defaults(conf)
+        comment_info = dict(WALT_SERVER_CONF["COMMENT_INFO"])
+        netconf = conf['network']
+        netconf_entry_comments = get_netconf_entry_comments(netconf)
+        comment_info.update({(1, k): v for (k, v) in netconf_entry_comments.items()})
+        conf_text = dump_commented_conf(conf, comment_info)
+        WALT_SERVER_CONF["PATH"].parent.mkdir(parents=True, exist_ok=True)
+        WALT_SERVER_CONF["PATH"].write_text(conf_text)
+        print('done')
+    if not same_conf or not CONTAINERS_REGISTRIES_CONF["PATH"].exists():
+        print(f'Saving registries configuration at {CONTAINERS_REGISTRIES_CONF["PATH"]}... ', end='')
+        registries_text = dump_containers_registries_conf(conf['registries'])
+        CONTAINERS_REGISTRIES_CONF["PATH"].parent.mkdir(parents=True, exist_ok=True)
+        CONTAINERS_REGISTRIES_CONF["PATH"].write_text(registries_text)
+        print('done')
 
 def fix_other_conf_files():
     if not ROOT_WALT_CONFIG_PATH.exists() and ROOT_LEGACY_WALTRC_PATH.exists():
