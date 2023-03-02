@@ -62,6 +62,10 @@ Bad name: expected format is <name> or <name>:<tag>.
 Only lowercase letters, digits and dash(-) characters are allowed in <name> and <tag>.
 '''
 
+ERROR_DEFAULT_IMAGE_RESERVED='''\
+Sorry 'default' is a reserved keyword.
+'''
+
 def parse_image_fullname(image_fullname):
     image_user, image_name = image_fullname.split('/')
     if image_name.endswith(':latest'):
@@ -81,7 +85,10 @@ def check_alnum_dash(token):
     return re.match('^[a-zA-Z0-9\-]+$', token)
 
 def validate_image_name(requester, image_name):
-    if  image_name.count(':') in (0,1) and \
+    if image_name == 'default':
+        requester.stderr.write(ERROR_DEFAULT_IMAGE_RESERVED)
+        return False
+    if image_name.count(':') in (0,1) and \
         re.match('^[a-z0-9\-]+$', image_name.replace(':', '')):
         return True     # ok
     requester.stderr.write(ERROR_BAD_IMAGE_NAME)

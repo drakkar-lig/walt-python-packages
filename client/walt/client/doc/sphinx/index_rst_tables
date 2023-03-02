@@ -43,6 +43,7 @@ Full table of Contents
    :maxdepth: 1
    :caption: Using images
 
+   image-build
    image-cp
    image-spec-file
    image-from-scratch

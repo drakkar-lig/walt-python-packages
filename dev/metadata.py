@@ -92,10 +92,13 @@ PACKAGE_SPECIFIC_INFO = {
                     'walt-server-lldpd = walt.server.services.lldpd:run',
                     'walt-server-ptpd = walt.server.services.ptpd:run',
                     'walt-dhcp-event = walt.server.dhcpevent:run',
-                    'walt-net-config = walt.server.netconfig:run'
+                    'walt-net-config = walt.server.netconfig:run',
+                    'walt-image-check = walt.server.imagecheck:run',
+                    'walt-annotate-cmd = walt.server.annotatecmd:run'
                 ]
             },
-            scripts = [ 'sh/walt-image-shell-helper' ],
+            scripts = [ 'sh/walt-image-shell-helper',
+                        'sh/walt-image-build-helper' ],
             include_package_data = True
         )
     ),
