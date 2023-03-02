@@ -16,6 +16,7 @@ Sub-commands:
     search     search for remote WalT node OS images
     clone      clone a remote image into your working set
     shell      modify an image through an interactive shell
+    build      build a WalT image using a Dockerfile
     cp         transfer files (client machine <-> image)
     duplicate  duplicate an image of your working set
     remove     remove an image from your working set

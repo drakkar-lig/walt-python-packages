@@ -59,6 +59,7 @@ WalT provides:
 For details, see:
 * [`walt help show shells`](shells.md)
 * [`walt help show node-cp`](node-cp.md)
+* [`walt help show image-build`](image-build.md)
 * [`walt help show image-cp`](image-cp.md)
 
 WalT also provides a logging system to manage your experiment logs.
