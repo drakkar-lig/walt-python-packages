@@ -1,0 +1,15 @@
+build a WalT image using a Dockerfile
+
+Usage:
+    walt image build --from-url <git-repo-url> <image-name>
+    walt image build --from-dir <local-directory> <image-name>
+
+    See 'walt help show image-build' for more info.
+    
+Meta-switches:
+    -h, --help                    Prints this help message and quits
+
+Switches:
+    --from-dir DIRECTORY:str      Local directory containing a Dockerfile
+    --from-url GIT_URL:str        Git repository URL containing a Dockerfile
+

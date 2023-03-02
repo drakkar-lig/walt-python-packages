@@ -125,10 +125,15 @@ FOOTER='''\
     local possible_described=""
     case "$token_type" in
         'value-of-option')
-            possible="$(walt-autocomplete-helper "$valued_option_type" "${words[@]}")"
-            if [ "$?" -ne 0 ]
-            then    # issue (it is important not to store this result in cache)
-                return 1
+            if [ "$valued_option_type" = "DIRECTORY" ]
+            then
+                possible="$(compgen -d -- "$partial_token")"
+            else
+                possible="$(walt-autocomplete-helper "$valued_option_type" "${words[@]}")"
+                if [ "$?" -ne 0 ]
+                then    # issue (it is important not to store this result in cache)
+                    return 1
+                fi
             fi
             ;;
         'positional')

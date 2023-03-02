@@ -48,3 +48,12 @@ class LOG_CHECKPOINT(str):
 
 class HISTORY_RANGE(str):
     pass
+
+class GIT_URL(str):
+    pass
+
+class DIRECTORY(str):
+    pass
+
+class IMAGE_BUILD_NAME(str):
+    pass

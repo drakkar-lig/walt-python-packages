@@ -72,7 +72,7 @@ def analyse_file_types(requester, operand_types, src_path, src_fs, dst_path, dst
         dst_name = os.path.basename(dst_path)
         dst_dir = os.path.dirname(dst_path)
     elif dst_dir is None:
-        if os.path.basename(src_path) is '.':
+        if os.path.basename(src_path) == '.':
             # walt node cp '.' <node>:/<existing_dir>
             # dir content should be merged into <existing_dir>
             dst_name = os.path.basename(dst_path)
@@ -231,6 +231,15 @@ class NodeTarReceiver(ParallelProcessSocketListener):
     def get_command(self, **params):
         return ssh_wrap_cmd(TarReceiveCommand) % params
 
+IMAGE_BUILD_TAR_RECEIVER_COMMAND = '''\
+walt-annotate-cmd --mode pickle4 \
+    walt-image-build-helper --from-stdin %(image_fullname)s'''
+
+class ImageBuildTarReceiver(ParallelProcessSocketListener):
+    REQ_ID = Requests.REQ_TAR_FOR_IMAGE_BUILD
+    def get_command(self, **params):
+        return IMAGE_BUILD_TAR_RECEIVER_COMMAND % params
+
 class NodeFakeTFTPGet(ParallelProcessSocketListener):
     REQ_ID = Requests.REQ_FAKE_TFTP_GET
     def prepare(self, node_mac=None, node_ip=None, **params):
@@ -279,6 +288,7 @@ class TransferManager(object):
                         ImageTarReceiver,
                         NodeTarSender,
                         NodeTarReceiver,
+                        ImageBuildTarReceiver,
                         NodeFakeTFTPGet,
                         VPNNodeImageDump ]:
             tcp_server.register_listener_class(
