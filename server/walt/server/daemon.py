@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import os, signal
+from walt.common.tools import interrupt_print
 from walt.server.tools import set_rlimits, fix_pdb
 from walt.server.process import EvProcessesManager
 from walt.server.processes.main.process import ServerMainProcess
@@ -10,7 +11,7 @@ from walt.server.spec import reload_server_spec
 
 def on_sighup_reload_conf():
     def signal_handler(signal, frame):
-        print('SIGHUP received. Reloading conf.')
+        interrupt_print('SIGHUP received. Reloading conf.')
         reload_server_spec()
     signal.signal(signal.SIGHUP, signal_handler)
 
@@ -24,7 +25,7 @@ def on_sigchld_call_waitpid():
             pid = waitstatus[0]
             if pid > 0:
                 #import pdb; pdb.set_trace()
-                print(f'process pid={pid} has stopped.')
+                #interrupt_print(f'process pid={pid} has stopped.')
                 continue
             else:
                 return
