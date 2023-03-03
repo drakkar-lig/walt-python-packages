@@ -75,7 +75,12 @@ class BlockingTasksContextService:
     def nodes_set_poe(self, *args, **kwargs):
         return self.topology.nodes_set_poe(self.server, *args, **kwargs)
 
-    def run_shell_cmd(self, *args, **kwargs):
+    def run_shell_cmd(self, *args, pipe_outstreams=False, **kwargs):
+        if pipe_outstreams:
+            kwargs.update(
+                stdout = self.requester.stdout,
+                stderr = self.requester.stderr,
+            )
         return run_shell_cmd(*args, **kwargs)
 
 class BlockingTasksService(object):
