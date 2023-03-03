@@ -168,9 +168,15 @@ def set_non_blocking(fd):
 def remove_non_utf8(s):
     return s.decode('utf-8','ignore').encode("utf-8")
 
+# Caution: if we are in an interrupt handler, and the process
+# is catching its stdout stream for soem reason, calling print()
+# could cause re-entrant calls in some cases.
+def interrupt_print(s):
+    os.write(1, f'{s}\n'.encode())
+
 def on_sigterm_throw_exception():
     def signal_handler(signal, frame):
-        print('SIGTERM received.')
+        interrupt_print('SIGTERM received.')
         raise KeyboardInterrupt
     signal.signal(signal.SIGTERM, signal_handler)
 
