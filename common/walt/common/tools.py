@@ -9,21 +9,41 @@ import shutil
 import signal
 import subprocess
 import sys
+import shlex
 from collections import OrderedDict
 from fcntl import fcntl, F_GETFD, F_SETFD, F_GETFL, F_SETFL, FD_CLOEXEC
 from pathlib import Path
-
-DEVNULL = open(os.devnull, 'w')
+from subprocess import Popen, PIPE
+from select import select
 
 def get_mac_address(interface):
     return Path("/sys/class/net/" + interface + "/address").read_text().strip()
 
-def do(cmd: str | [str], shell=False):
+def do(cmd: str | [str], shell=False, stdout=None, stderr=None, text=True):
     """Exec a system command, return the command's returncode."""
     if not shell and isinstance(cmd, str):
         # Split command-line in an array
         cmd = shlex.split(cmd)
-    return subprocess.call(cmd, stdout=DEVNULL, shell=shell)
+    with Popen(cmd, shell=shell, stdout=PIPE, stderr=PIPE, text=text, bufsize=0) as proc:
+        pipes_proc_to_caller = { proc.stdout: stdout, proc.stderr: stderr }
+        pipes = list(pipes_proc_to_caller.keys())
+        # by default, a read() on a pipe will block until the pipe is closed.
+        # set it to non-blocking to prevent this behavior.
+        for f in pipes:
+            fd = f.fileno()
+            fl = fcntl(fd, F_GETFL)
+            fcntl(fd, F_SETFL, fl | os.O_NONBLOCK)
+        while len(pipes) > 0:
+            r, w, e = select(pipes, [], [])
+            for f in r:
+                chunk = f.read()
+                if len(chunk) == 0:
+                    pipes.remove(f)
+                else:
+                    caller_pipe = pipes_proc_to_caller[f]
+                    if caller_pipe is not None:
+                        caller_pipe.write(chunk)
+    return proc.returncode
 
 def succeeds(cmd):
     return do(cmd) == 0
