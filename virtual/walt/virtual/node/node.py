@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from walt.common.apilink import ServerAPILink
 from walt.common.logs import LoggedApplication
 from walt.common.fakeipxe import ipxe_boot
-from walt.common.tools import failsafe_makedirs, get_persistent_random_mac
+from walt.common.tools import failsafe_makedirs, get_persistent_random_mac, interrupt_print
 from walt.common.settings import parse_vnode_disks_value, parse_vnode_networks_value
 from walt.virtual.node.udhcpc import udhcpc_fake_netboot
 from pkg_resources import resource_string
@@ -410,13 +410,13 @@ def kill_vm():
 
 def on_sighup_restart_vm():
     def signal_handler(sig, frame):
-        print('SIGHUP received. restarting VM.')
+        interrupt_print('SIGHUP received. restarting VM.')
         kill_vm()
     signal.signal(signal.SIGHUP, signal_handler)
 
 def on_sigterm_terminate():
     def signal_handler(sig, frame):
-        print('SIGTERM received. Stopping virtual node.')
+        interrupt_print('SIGTERM received. Stopping virtual node.')
         STATE['STOPPING'] = True
         kill_vm()
     signal.signal(signal.SIGTERM, signal_handler)
