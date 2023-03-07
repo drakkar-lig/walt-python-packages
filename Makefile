@@ -87,4 +87,7 @@ upload:
 test:
 	@./dev/test.sh
 
-.PHONY: test
+test-debug:
+	@./dev/test.sh --debug
+
+.PHONY: test test-debug
