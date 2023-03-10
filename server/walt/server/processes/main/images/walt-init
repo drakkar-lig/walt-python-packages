@@ -174,7 +174,10 @@ mount_persistent()
     # Mount the share
     mkdir fs_union/persist
     $MOUNT -t nfs -o rw,relatime,vers=3,nolock \
-           "${persist_path}" fs_union/persist
+           "${persist_path}" fs_union/persist 2>/dev/null || {
+        echo "/persist was not mounted (cf. walt node config)"
+        rm -rf fs_union/persist
+    }
 }
 
 has_mount()
