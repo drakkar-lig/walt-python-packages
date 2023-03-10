@@ -18,6 +18,46 @@ def prepare():
         with tarfile.open(archive_path) as tar:
             tar.extractall(str(TFTP_STANDBY_DIR.parent))
 
+def persist_symlink_path(node_mac):
+    return Path(NODES_PATH) / node_mac / 'persist'
+
+def persist_dir_path(node_mac):
+    return Path(NODES_PATH) / node_mac / 'persist_dir'
+
+# Note: NFSv4 needs to be able to read symlinks, thus
+# the whole /var/lib/walt/nodes directory is a read-only share.
+#
+# If a node has its config option "mount.persist" set to false,
+# removing /var/lib/walt/nodes/<mac>/persist from the exports file
+# is not enough: the client mount with still be accepted, as read-only,
+# because of the previous statement.
+#
+# That's why we actually manage a symlink at
+# /var/lib/walt/nodes/<mac>/persist. The symlink targets directory
+# /var/lib/walt/nodes/<mac>/persist_dir in the usual situation
+# (mount.persist=true) and a missing path otherwise (mount.persist=false),
+# in order to make the mount fail on client side.
+def update_persist_files(node):
+    p_lnk = persist_symlink_path(node.mac)
+    p_dir = persist_dir_path(node.mac)
+    if node.conf.get('mount.persist', True):
+        p_lnk_target = 'persist_dir'
+    else:
+        p_lnk_target = 'forbidden_dir'
+    if p_lnk.is_symlink():
+        if str(p_lnk.readlink()) == p_lnk_target:
+            return        # already ok
+        else:
+            p_lnk.unlink()  # remove wrong symlink and continue
+    # if p_lnk is a directory, rename it to 'persist_dir'
+    # (compatibility with older walt code)
+    if p_lnk.is_dir():
+        p_lnk.rename(p_dir)
+    # ensure persist_dir exists
+    p_dir.mkdir(parents=True, exist_ok=True)
+    # create the correct symlink
+    p_lnk.symlink_to(p_lnk_target)
+
 def update(db, images):
     # create dir if it does not exist yet
     failsafe_makedirs(NODES_PATH)
@@ -34,14 +74,16 @@ def update(db, images):
     # - mac address written <hh>-<hh>-<hh>-<hh>-<hh>-<hh>
     # - ipv4 address (dotted quad notation)
     # - walt node name
-    for db_node in db.select('nodes'):
+    for db_node in db.execute('''
+                SELECT d.mac, d.ip, d.name, d.conf, n.model, n.image
+                FROM devices d, nodes n
+                WHERE d.mac = n.mac'''):
         mac = db_node.mac
         model = db_node.model
         mac_dash = mac.replace(':', '-')
-        device = db.select_unique('devices', mac=mac)
         failsafe_makedirs(NODES_PATH + mac)
-        failsafe_makedirs(NODES_PATH + mac + '/persist')
-        for ln_name in (mac_dash, device.ip, device.name):
+        update_persist_files(db_node)
+        for ln_name in (mac_dash, db_node.ip, db_node.name):
             failsafe_symlink(NODES_PATH + mac, NODES_PATH + ln_name, force_relative=True)
             # this entry is valid
             invalid_entries.discard(ln_name)

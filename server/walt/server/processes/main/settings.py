@@ -2,6 +2,7 @@ import json, re
 from collections import defaultdict
 from walt.server.tools import ip_in_walt_network
 from walt.server.processes.main.network.netsetup import NetSetup
+from walt.server.processes.main.network import tftp
 from walt.server.processes.main.nodes.manager import VNODE_DEFAULT_RAM, VNODE_DEFAULT_CPU_CORES, \
                                                    VNODE_DEFAULT_DISKS, VNODE_DEFAULT_NETWORKS
 from walt.common.settings import parse_vnode_disks_value, parse_vnode_networks_value
@@ -10,6 +11,9 @@ from walt.common.formatting import format_sentence
 
 def uncapitalize(s):
     return s[0].lower() + s[1:]
+
+def pprint_bool(bool_val):
+    return str(bool_val).lower()
 
 class SettingsManager:
     def __init__(self, server):
@@ -23,13 +27,15 @@ class SettingsManager:
             'networks':         { 'category': 'virtual-nodes', 'value-check': self.correct_networks_value, 'default': VNODE_DEFAULT_NETWORKS },
             'type':             { 'category': 'unknown-devices', 'value-check': self.value_is_switch, 'default': 'unknown' },
             'lldp.explore':     { 'category': 'switches', 'value-check': self.correct_lldp_explore_value, 'default': False,
-                                    'pretty_print': lambda bool_val: str(bool_val).lower() },
+                                    'pretty_print': pprint_bool },
             'poe.reboots':      { 'category': 'switches', 'value-check': self.correct_poe_reboots_value, 'default': False,
-                                    'pretty_print': lambda bool_val: str(bool_val).lower() },
+                                    'pretty_print': pprint_bool },
             'snmp.version':     { 'category': 'switches', 'value-check': self.correct_snmp_version_value, 'default': None },
             'snmp.community':   { 'category': 'switches', 'value-check': self.correct_snmp_community_value, 'default': None },
             'kexec.allow':      { 'category': 'nodes', 'value-check': self.correct_kexec_allow_value, 'default': True,
-                                    'pretty_print': lambda bool_val: str(bool_val).lower() }
+                                    'pretty_print': pprint_bool },
+            'mount.persist':    { 'category': 'nodes', 'value-check': self.correct_mount_persist_value, 'default': True,
+                                    'pretty_print': pprint_bool }
         }
         self.category_filters = {
             'devices':          self.filter_devices,
@@ -51,6 +57,9 @@ class SettingsManager:
         }
 
     def correct_kexec_allow_value(self, requester, device_infos, setting_name, setting_value, all_settings):
+        return self.correct_bool_value(requester, setting_name, setting_value)
+
+    def correct_mount_persist_value(self, requester, device_infos, setting_name, setting_value, all_settings):
         return self.correct_bool_value(requester, setting_name, setting_value)
 
     def correct_snmp_community_value(self, requester, device_infos, setting_name, setting_value, all_settings):
@@ -298,6 +307,7 @@ class SettingsManager:
 
         # effectively configure the devices
         should_reboot_devices = False
+        should_update_tftp = False
         db_settings = all_settings.copy()
         for setting_name, setting_value in all_settings.items():
             if setting_name == 'netsetup':
@@ -324,6 +334,11 @@ class SettingsManager:
             elif setting_name in ('lldp.explore', 'poe.reboots', 'kexec.allow'):
                 setting_value = (setting_value.lower() == 'true')   # convert value to boolean
                 db_settings[setting_name] = setting_value
+            elif setting_name == 'mount.persist':
+                setting_value = (setting_value.lower() == 'true')   # convert value to boolean
+                db_settings[setting_name] = setting_value
+                should_reboot_devices = True
+                should_update_tftp = True
             elif setting_name == 'snmp.version':
                 db_settings[setting_name] = int(setting_value)
             elif setting_name == 'snmp.community':
@@ -343,6 +358,10 @@ class SettingsManager:
             self.server.db.execute("update devices set conf = conf || %s::jsonb where mac = %s",
                             (new_vals, di.mac))
         self.server.db.commit()
+
+        # update tftp links if needed
+        if should_update_tftp:
+            tftp.update(self.server.db, self.server.images.store)
 
         # notify user
         if should_reboot_devices:
