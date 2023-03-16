@@ -15,10 +15,10 @@ from walt.server.processes.main.images.remove import remove
 from walt.server.processes.main.images.duplicate import duplicate
 from walt.server.processes.main.images.fixowner import fix_owner
 from walt.server.processes.main.images.store import NodeImageStore
-from walt.server.processes.main.images.image import format_image_fullname, \
-                                                    validate_image_name
+from walt.server.processes.main.images.image import validate_image_name
 from walt.server.processes.main.network import tftp
 from walt.common.formatting import format_sentence, format_sentence_about_nodes
+from walt.common.tools import format_image_fullname
 
 if typing.TYPE_CHECKING:
     from walt.server.processes.main.server import Server
@@ -54,11 +54,11 @@ class NodeImageManager:
     def get_tabular_data(self, requester, username, refresh, fields):
         return get_tabular_data(self.db, self.store, requester, username, refresh, fields)
     def rename(self, requester, image_name, new_name):
-        rename(self.store, self.repository, requester, image_name, new_name)
+        return rename(self.store, self.repository, requester, image_name, new_name)
     def remove(self, requester, image_name):
-        remove(self.store, self.repository, requester, image_name)
+        return remove(self.store, self.repository, requester, image_name)
     def duplicate(self, requester, image_name, new_name):
-        duplicate(self.store, self.repository, requester, image_name, new_name)
+        return duplicate(self.store, self.repository, requester, image_name, new_name)
     def validate_cp_entity(self, requester, image_name, index, **info):
         if image_name == 'booted-image':
             username = requester.get_username()

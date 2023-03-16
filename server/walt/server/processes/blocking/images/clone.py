@@ -39,9 +39,12 @@ Invalid clonable image link.
 Images of the form 'walt:%s/<image_name>' already belong to
 your working set and thus are not clonable.
 """
-MSG_USE_FORCE = """\
+MSG_USE_FORCE_CLI = """\
 If this is what you want, rerun with --force:
 $ %s
+"""
+MSG_USE_FORCE_API = """\
+If this is what you want, use force=True.
 """
 MSG_INVALID_CLONABLE_LINK = """\
 Invalid clonable image link. Format must be:
@@ -135,11 +138,18 @@ def error_image_belongs_to_ws(requester, username, **args):
 def verify_overwrite(image_store, requester, clonable_link,
                      ws_image_fullname, force, image_name, **args):
     if not force:
+        client_type = requester.get_client_type()
+        if client_type is None:
+            return False    # already disconnected
         msg = image_store.get_image_overwrite_warning(ws_image_fullname)
-        force_clone = "walt image clone --force " + clonable_link
-        if image_name is not None and not clonable_link.endswith(image_name):
-            force_clone += ' ' + image_name
-        requester.stderr.write(msg + (MSG_USE_FORCE % force_clone))
+        if client_type == 'cli':
+            force_clone = "walt image clone --force " + clonable_link
+            if image_name is not None and not clonable_link.endswith(image_name):
+                force_clone += ' ' + image_name
+            msg += MSG_USE_FORCE_CLI % force_clone
+        elif client_type == 'api':
+            msg += MSG_USE_FORCE_API
+        requester.stderr.write(msg)
         return False
 
 # check possible compatibility issue regarding node models
@@ -361,14 +371,10 @@ def perform_clone(requester,
         res = workflow_run(workflow, **context)
 
     if res:
-        ws_name = ws_image_fullname.split('/')[1]
-        if ws_name.endswith(':latest'):
-            ws_name = ws_name[:-7]
-        requester.stdout.write(f'Image "{ws_name}" was cloned successfully (cf. walt image show).\n')
         if existing_ws_image:
             return ('OK_BUT_REBOOT_NODES', ws_image_fullname)
         else:
-            return ('OK',)
+            return ('OK', ws_image_fullname)
     else:
         return ('FAILED',)
 

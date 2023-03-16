@@ -1,12 +1,10 @@
 import sys, socket
 from walt.common.apilink import LinkException
 from walt.client.plugins import get_hook
-from walt.client.timeout import timeout_init_handler
 
 def wrap_client_command(f):
     def wrapped(*args, **kwargs):
         try:
-            timeout_init_handler()
             # note: plumbum.cli applications end by calling sys.exit(<retcode>).
             # Here, by convention, when main() function returns False it means "failure",
             # but sys.exit(False) translates to a return code int(False) which leads to

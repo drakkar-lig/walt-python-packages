@@ -62,8 +62,7 @@ For details, see:
 * [`walt help show image-build`](image-build.md)
 * [`walt help show image-cp`](image-cp.md)
 
-WalT also provides a logging system to manage your experiment logs.
-See [`walt help show logging`](logging.md) for more info.
+WalT also provides a logging system to manage your experiment logs (see [`walt help show logging`](logging.md)), python scripting features (see [`walt help show scripting`](scripting.md)), and many other features.
 
 ## Advanced topics
 
