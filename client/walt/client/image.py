@@ -45,7 +45,8 @@ class WalTImageClone(WalTApplication):
             server_link.set_busy_label('Validating / Cloning')
             res = server_link.clone_image(clonable_image_link,
                                     force=self._force, image_name=image_name)
-            if res == 'OK':
+            if res['status'] == 'OK':
+                print(f'Image "{res["image_name"]}" was cloned successfully (cf. walt image show).')
                 return True     # success
             else:
                 return False    # issue
@@ -164,7 +165,7 @@ class WalTImageRemove(WalTApplication):
     ORDERING = 8
     def main(self, image_name : IMAGE):
         with ClientToServerLink() as server:
-            server.remove_image(image_name)
+            return server.remove_image(image_name)
 
 @WalTImage.subcommand("rename")
 class WalTImageRename(WalTApplication):
@@ -172,7 +173,7 @@ class WalTImageRename(WalTApplication):
     ORDERING = 9
     def main(self, image_name : IMAGE, new_image_name):
         with ClientToServerLink() as server:
-            server.rename_image(image_name, new_image_name)
+            return server.rename_image(image_name, new_image_name)
 
 @WalTImage.subcommand("duplicate")
 class WalTImageDuplicate(WalTApplication):
@@ -180,7 +181,7 @@ class WalTImageDuplicate(WalTApplication):
     ORDERING = 7
     def main(self, image_name : IMAGE, new_image_name):
         with ClientToServerLink() as server:
-            server.duplicate_image(image_name, new_image_name)
+            return server.duplicate_image(image_name, new_image_name)
 
 @WalTImage.subcommand("build")
 class WalTImageBuild(WalTApplication):

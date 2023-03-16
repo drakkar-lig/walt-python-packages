@@ -240,3 +240,19 @@ def get_persistent_random_mac(mac_file):
                             random.randint(0x00, 0xff) ]])
         mac_file_path.write_text(mac + '\n')
         return mac
+
+def parse_image_fullname(image_fullname):
+    image_user, image_name = image_fullname.split('/')
+    if image_name.endswith(':latest'):
+        image_name = image_name[:-7]
+    elif ':' not in image_fullname:
+        image_fullname += ':latest'
+    return image_fullname, image_user, image_name
+
+def format_image_fullname(user, image_name):
+    if ':' in image_name:
+        repo, tag = image_name.split(':')
+    else:
+        repo, tag = image_name, 'latest'
+    return user + '/' + repo + ':' + tag
+

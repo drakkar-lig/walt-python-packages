@@ -4,7 +4,7 @@ from operator import itemgetter
 from pathlib import Path
 from collections import defaultdict
 
-from walt.server.processes.main.network.netsetup import NetSetup
+from walt.common.netsetup import NetSetup
 from walt.server.tools import ip, get_walt_subnet, get_server_ip, get_dns_servers
 from walt.server.processes.main.network.service import ServiceRestarter
 

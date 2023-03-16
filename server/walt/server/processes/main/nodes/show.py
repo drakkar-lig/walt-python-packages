@@ -1,4 +1,4 @@
-from walt.server.processes.main.network.netsetup import NetSetup
+from walt.common.netsetup import NetSetup
 from walt.common.formatting import format_paragraph, columnate
 
 NODE_SHOW_QUERY = """
