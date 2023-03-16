@@ -4,7 +4,7 @@ WalT client shell autocompletion helper.
 import sys
 from walt.client.link import ClientToServerLink
 from walt.client.config import conf
-from walt.client.timeout import timeout_init_handler, start_timeout
+from walt.client.timeout import start_timeout
 from walt.client.plugins import get_hook
 
 AUTOCOMPLETE_TIMEOUT = 4
@@ -18,7 +18,6 @@ def autocomplete_helper():
         other_argv = sys.argv[1:]
     try:
         if not debug:
-            timeout_init_handler()
             start_timeout(AUTOCOMPLETE_TIMEOUT)
         plugin_shell_autocomplete = get_hook('shell_completion_hook')
         result = None

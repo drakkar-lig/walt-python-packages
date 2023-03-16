@@ -3,7 +3,7 @@ from __future__ import annotations
 import typing
 import uuid
 
-from walt.server.processes.main.images.image import parse_image_fullname
+from walt.common.tools import parse_image_fullname
 
 if typing.TYPE_CHECKING:
     from walt.server.processes.main.images.image import NodeImage

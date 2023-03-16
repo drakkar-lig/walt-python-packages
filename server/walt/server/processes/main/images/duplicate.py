@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import typing
 
-from walt.server.processes.main.images.image import validate_image_name, format_image_fullname
+from walt.server.processes.main.images.image import validate_image_name
+from walt.common.tools import format_image_fullname
 
 if typing.TYPE_CHECKING:
     from walt.server.processes.main.repository import WalTLocalRepository
@@ -18,8 +19,10 @@ def do_duplicate(images, repository: WalTLocalRepository, image, new_name):
 
 def duplicate(images, repository: WalTLocalRepository, requester, image_name, new_name):
     if not validate_image_name(requester, new_name):
-        return
+        return False
     image = images.get_user_image_from_name(requester, image_name)
     if image:   # otherwise issue is already reported
         if not images.get_user_image_from_name(requester, new_name, expected=False):
             do_duplicate(images, repository, image, new_name)
+            return True
+    return False
