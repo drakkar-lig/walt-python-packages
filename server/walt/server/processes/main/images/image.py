@@ -3,6 +3,8 @@ from __future__ import annotations
 import re
 import typing
 
+from walt.common.tools import parse_image_fullname
+
 if typing.TYPE_CHECKING:
     from walt.server.processes.main.images.store import NodeImageStore
 
@@ -65,21 +67,6 @@ Only lowercase letters, digits and dash(-) characters are allowed in <name> and 
 ERROR_DEFAULT_IMAGE_RESERVED='''\
 Sorry 'default' is a reserved keyword.
 '''
-
-def parse_image_fullname(image_fullname):
-    image_user, image_name = image_fullname.split('/')
-    if image_name.endswith(':latest'):
-        image_name = image_name[:-7]
-    elif ':' not in image_fullname:
-        image_fullname += ':latest'
-    return image_fullname, image_user, image_name
-
-def format_image_fullname(user, image_name):
-    if ':' in image_name:
-        repo, tag = image_name.split(':')
-    else:
-        repo, tag = image_name, 'latest'
-    return user + '/' + repo + ':' + tag
 
 def check_alnum_dash(token):
     return re.match('^[a-zA-Z0-9\-]+$', token)

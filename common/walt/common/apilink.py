@@ -124,6 +124,7 @@ class ServerAPIConnection(object):
         self.remote_version = None
         self.client_proxy = AttrCallAggregator(self.handle_client_call)
         self.local_api_handler = AttrCallRunner(local_service)
+        self.local_service = local_service
         self.indicator = busy_indicator
         self.connected = False
         self.idle_start_time = None
@@ -225,15 +226,25 @@ class ServerAPIConnection(object):
             raise LinkException('Unexpected communication issue with the server.')
         self.indicator.done()
         return api_result
+    def set_config(self, **config):
+        self.local_service.set_config(**config)
     def __del__(self):
         if self.sock is not None:
             self.sock.close()
 
 @api
 class BaseAPIService(object):
+    def __init__(self):
+        self.client_type = 'cli'
+    def set_config(self, client_type = None):
+        if client_type is not None:
+            self.client_type = client_type
     @api_expose_method
     def is_alive(self):
         return True
+    @api_expose_method
+    def get_client_type(self):
+        return self.client_type
 
 # This class provides a 'with' environment to connect to
 # the server API.
