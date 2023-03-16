@@ -1,6 +1,8 @@
 
 IMAGE_FIELDS = {
+    'id':                       lambda db_info, image: image.image_id,
     'name':                     lambda db_info, image: image.name,
+    'fullname':                 lambda db_info, image: image.fullname,
     'in_use':                   lambda db_info, image: db_info.in_use,
     'created':                  lambda db_info, image: image.metadata['created_at'],
     'ready':                    lambda db_info, image: db_info.ready,

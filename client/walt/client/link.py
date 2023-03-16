@@ -15,7 +15,6 @@ from walt.client.auth import get_encrypted_credentials
 class ExposedStream(object):
     def __init__(self, stream):
         self.stream = stream
-        self.silent = False
     @api_expose_method
     def fileno(self):
         return self.stream.fileno()
@@ -24,12 +23,10 @@ class ExposedStream(object):
         return self.stream.readline(size)
     @api_expose_method
     def write(self, s):
-        if not self.silent:
-            self.stream.write(s)
+        self.stream.write(s)
     @api_expose_method
     def flush(self):
-        if not self.silent:
-            self.stream.flush()
+        self.stream.flush()
     @api_expose_method
     def get_encoding(self):
         if hasattr(self.stream, 'encoding'):
@@ -39,8 +36,6 @@ class ExposedStream(object):
     @api_expose_method
     def isatty(self):
         return os.isatty(self.stream.fileno())
-    def set_silent(self, silent):
-        self.silent = silent
 
 # most of the functionality is provided at the server,
 # of course.
@@ -50,6 +45,7 @@ class ExposedStream(object):
 class WaltClientService(BaseAPIService):
     @api_expose_attrs('stdin','stdout','stderr','filesystem')
     def __init__(self):
+        super().__init__()
         self.stdin = ExposedStream(sys.stdin)
         self.stdout = ExposedStream(sys.stdout)
         self.stderr = ExposedStream(sys.stderr)
@@ -84,8 +80,6 @@ class WaltClientService(BaseAPIService):
     @api_expose_method
     def get_hub_username(self):
         return conf.hub.username
-    def set_silent(self, silent):
-        self.stdout.set_silent(silent)
 
 class InternalClientToServerLink(ServerAPILink):
     # optimization:
@@ -98,8 +92,6 @@ class InternalClientToServerLink(ServerAPILink):
         ServerAPILink.__init__(self,
                 conf.walt.server, 'CSAPI',
                 InternalClientToServerLink.service, busy_indicator)
-    def set_silent(self, silent):
-        InternalClientToServerLink.service.set_silent(silent)
 
 class ClientToServerLink:
     num_calls = 0

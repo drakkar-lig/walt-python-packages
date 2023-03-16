@@ -2,12 +2,12 @@ import datetime, pickle
 
 from walt.common.crypto.dh import DHPeer
 from walt.common.api import api, api_expose_method
-from walt.common.tools import serialize_ordered_dict, deserialize_ordered_dict
+from walt.common.tools import serialize_ordered_dict, deserialize_ordered_dict, \
+                              format_image_fullname
 from walt.common.tcp import PICKLE_VERSION
 
 from walt.server.processes.main.apisession import APISession
-from walt.server.processes.main.images.image import format_image_fullname, \
-                                                    validate_image_name
+from walt.server.processes.main.images.image import validate_image_name
 
 # Client -> Server API (thus the name CSAPI)
 # Provides remote calls performed from a client to the server.
@@ -115,7 +115,7 @@ class CSAPI(APISession):
 
     @api_expose_method
     def rename(self, context, old_name, new_name):
-        context.server.rename_device(context.requester, old_name, new_name)
+        return context.server.rename_device(context.requester, old_name, new_name)
 
     @api_expose_method
     def has_image(self, context, image_name, default_allowed):
@@ -131,7 +131,7 @@ class CSAPI(APISession):
 
     @api_expose_method
     def forget(self, context, device_name):
-        context.server.forget_device(device_name)
+        return context.server.forget_device(device_name)
 
     @api_expose_method
     def get_device_info(self, context, device_name):
@@ -196,15 +196,15 @@ class CSAPI(APISession):
 
     @api_expose_method
     def remove_image(self, context, image_name):
-        context.images.remove(context.requester, image_name)
+        return context.images.remove(context.requester, image_name)
 
     @api_expose_method
     def rename_image(self, context, image_name, new_name):
-        context.images.rename(context.requester, image_name, new_name)
+        return context.images.rename(context.requester, image_name, new_name)
 
     @api_expose_method
     def duplicate_image(self, context, image_name, new_name):
-        context.images.duplicate(context.requester, image_name, new_name)
+        return context.images.duplicate(context.requester, image_name, new_name)
 
     @api_expose_method
     def validate_image_cp(self, context, src, dst):
@@ -251,6 +251,10 @@ class CSAPI(APISession):
     @api_expose_method
     def get_device_config(self, context, device_set):
         context.server.settings.get_device_config(context.requester, device_set)
+
+    @api_expose_method
+    def get_device_config_data(self, context, device_set):
+        return context.server.settings.get_device_config_data(context.requester, device_set)
 
     @api_expose_method
     def vpn_wait_grant_request(self, context):

@@ -5,9 +5,9 @@ from walt.common.constants import WALT_SERVER_TCP_PORT
 from walt.common.devices.registry import get_device_info_from_mac
 from walt.common.tcp import TCPServer
 from walt.common.formatting import format_sentence
+from walt.common.tools import format_image_fullname, parse_image_fullname
 from walt.server.process import SyncRPCProcessConnector
 from walt.server.processes.main.blocking import BlockingTasksManager
-from walt.server.processes.main.images.image import format_image_fullname, parse_image_fullname
 from walt.server.processes.main.images.manager import NodeImageManager
 from walt.server.processes.main.interactive import InteractionManager
 from walt.server.processes.main.unix import UnixSocketServer
@@ -137,6 +137,7 @@ class Server(object):
         self.devices.rename(requester, old_name, new_name)
         self.dhcpd.update()
         tftp.update(self.db, self.images.store)
+        return True
 
     def device_rescan(self, requester, task, remote_ip, device_set):
         devices = self.devices.parse_device_set(requester, device_set)
@@ -159,6 +160,7 @@ class Server(object):
         # if it's a node and no other node uses its image,
         # this image should be unmounted.
         self.images.store.update_image_mounts()
+        return True
 
     def create_vnode(self, requester, task, name):
         if not KVM_DEV_FILE.exists():
@@ -227,9 +229,10 @@ class Server(object):
     def remove_vnode(self, requester, name):
         info = self.nodes.get_virtual_node_info(requester, name)
         if info is None:
-            return  # error already reported
+            return False  # error already reported
         self.nodes.forget_vnode(info.mac)
         self.forget_device(name)
+        return True
 
     def reboot_nodes_after_image_change(self, requester, task_callback, image_fullname):
         nodes = self.nodes.get_nodes_using_image(image_fullname)

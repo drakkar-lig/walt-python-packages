@@ -3,7 +3,7 @@ import re
 from walt.common.formatting import format_paragraph, format_sentence, columnate
 from walt.common.tools import do, get_mac_address
 from walt.server import const
-from walt.server.processes.main.network.netsetup import NetSetup
+from walt.common.netsetup import NetSetup
 from walt.server.tools import ip_in_walt_network, get_walt_subnet, \
                               to_named_tuple, merge_named_tuples, get_server_ip
 
