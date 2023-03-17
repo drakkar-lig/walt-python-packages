@@ -1,28 +1,20 @@
 from __future__ import annotations
 
-import json
 import os
-import random
-import re
-import shlex
-import shutil
-import signal
-import subprocess
 import sys
-import shlex
-from collections import OrderedDict
 from fcntl import fcntl, F_GETFD, F_SETFD, F_GETFL, F_SETFL, FD_CLOEXEC
 from pathlib import Path
-from subprocess import Popen, PIPE
-from select import select
 
 def get_mac_address(interface):
     return Path("/sys/class/net/" + interface + "/address").read_text().strip()
 
 def do(cmd: str | [str], shell=False, stdout=None, stderr=None, text=True):
     """Exec a system command, return the command's returncode."""
+    from subprocess import Popen, PIPE
+    from select import select
     if not shell and isinstance(cmd, str):
         # Split command-line in an array
+        import shlex
         cmd = shlex.split(cmd)
     with Popen(cmd, shell=shell, stdout=PIPE, stderr=PIPE, text=text, bufsize=0) as proc:
         pipes_proc_to_caller = { proc.stdout: stdout, proc.stderr: stderr }
@@ -175,6 +167,7 @@ def interrupt_print(s):
     os.write(1, f'{s}\n'.encode())
 
 def on_sigterm_throw_exception():
+    import signal
     def signal_handler(signal, frame):
         interrupt_print('SIGTERM received.')
         raise KeyboardInterrupt
@@ -190,6 +183,7 @@ class SimpleContainer(object):
         return SimpleContainer(**self.__dict__)
 
 def serialize_ordered_dict(od):
+    from collections import OrderedDict
     res = []
     for k, v in od.items():
         if isinstance(v, OrderedDict):
@@ -198,6 +192,7 @@ def serialize_ordered_dict(od):
     return tuple(res)
 
 def deserialize_ordered_dict(t):
+    from collections import OrderedDict
     d = OrderedDict()
     for k, v in t:
         if isinstance(v, tuple):
@@ -217,6 +212,7 @@ def restart():
     os.execvp(sys.argv[0], sys.argv)
 
 def chown_tree(path, user, group):
+    import shutil
     for p_entry in Path(path).iterdir():
         if p_entry.is_dir():
             chown_tree(p_entry, user, group)
@@ -237,6 +233,7 @@ def get_persistent_random_mac(mac_file):
     if mac_file_path.exists():
         return mac_file_path.read_text().strip()
     else:
+        import random
         mac = ':'.join(["%02x" % x for x in [ 0x52, 0x54, 0x00,
                             random.randint(0x00, 0x7f),
                             random.randint(0x00, 0xff),
