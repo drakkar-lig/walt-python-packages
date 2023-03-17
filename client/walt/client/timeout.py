@@ -1,4 +1,3 @@
-import signal
 from time import time
 
 MARGIN = 0.001  # margin when testing if timeout is reached
@@ -11,14 +10,17 @@ def timeout_sighandler(signum, frame):
     raise TimeoutException()
 
 def timeout_init_handler():
+    import signal
     signal.signal(signal.SIGALRM, timeout_sighandler)
 
 def start_timeout(secs):
+    import signal
     global timeout
     timeout = time() + secs - MARGIN
     signal.alarm(secs)
 
 def stop_timeout():
+    import signal
     signal.alarm(0)
 
 def timeout_reached():
