@@ -2,7 +2,8 @@
 
 THIS_DIR="$(cd "$(dirname $0)"; pwd)"
 TESTS_DIR="$(cd "$THIS_DIR/../test"; pwd)"
-TMP_DIR="$(mktemp -d)"
+TESTSUITE_TMP_DIR="$(mktemp -d)"
+export TESTSUITE_TMP_DIR
 
 __test_suite_debug_tests=0
 
@@ -18,7 +19,7 @@ __testsuite_num_tests_skipped=0
 __testsuite_test_name=""
 
 skip_test() {
-    echo "$*" > $TMP_DIR/skipped
+    echo "$*" > $TESTSUITE_TMP_DIR/skipped
     return 1
 }
 
@@ -56,11 +57,11 @@ __testsuite_exec_prev_test() {
         if [ "$__testsuite_result" = 0 ]
         then
             echo -e '\r \xE2\x9C\x94'
-        elif [ -f $TMP_DIR/skipped ]
+        elif [ -f $TESTSUITE_TMP_DIR/skipped ]
         then
             __testsuite_num_tests_skipped=$((__testsuite_num_tests_skipped+1))
-            echo -e "\e[33m\r - $__testsuite_test_name -- skipped -- $(cat $TMP_DIR/skipped)\e[0m"
-            rm $TMP_DIR/skipped
+            echo -e "\e[33m\r - $__testsuite_test_name -- skipped -- $(cat $TESTSUITE_TMP_DIR/skipped)\e[0m"
+            rm $TESTSUITE_TMP_DIR/skipped
         else
             __testsuite_num_tests_failed=$((__testsuite_num_tests_failed+1))
             echo -e "\e[31m\r \xE2\x9C\x97 $__testsuite_test_name"
@@ -71,7 +72,8 @@ __testsuite_exec_prev_test() {
     __testsuite_test_name=""
 }
 
-declare -a TEST_TO_RUN
+declare -a SH_TEST_FILES
+declare -a PY_TEST_FILES
 while [[ $# != 0 ]]
 do
     case "$1" in
@@ -79,7 +81,7 @@ do
             echo "$(basename "$0"): [tests]"
             echo "    [tests] is the list of tests to run.  Should be the"\
                  "name of a test in the $TESTS_DIR directory, without its"\
-                 ".sh extension.  Default: run all tests."
+                 ".sh or .py extension.  Default: run all tests."
             exit 0
             ;;
         -*)
@@ -87,28 +89,51 @@ do
             exit 1
             ;;
         *)
-            [[ -e "$TESTS_DIR/$1.sh" ]] || {
+            if [ -e "$TESTS_DIR/$1.sh" ]
+            then
+                SH_TEST_FILES+=("$TESTS_DIR/$1.sh")
+            elif [ -e "$TESTS_DIR/$1.py" ]
+            then
+                PY_TEST_FILES+=("$TESTS_DIR/$1.py")
+            else
                 echo >&2 "$1: no such test"
                 exit 1
-            }
-            TEST_TO_RUN+=("$TESTS_DIR/$1.sh")
+            fi
             ;;
     esac
     shift
 done
 
-if [[ ${#TEST_TO_RUN[@]} == 0 ]]
+if [[ ${#SH_TEST_FILES[@]} == 0 && ${#PY_TEST_FILES[@]} == 0 ]]
 then
-    TEST_TO_RUN=("$TESTS_DIR"/*.sh)
+    SH_TEST_FILES=("$TESTS_DIR"/*.sh)
+    PY_TEST_FILES=("$TESTS_DIR"/*.py)
 fi
 
-__testsuite_modified_source="$TMPDIR/modified_source.sh"
+__prepared_sh_source="$TMPDIR/prepared_source.sh"
 
-for __testsuite_source_file in "${TEST_TO_RUN[@]}"
+for __testsuite_source_file in "${SH_TEST_FILES[@]}"
 do
     sed -e 's/\<define_test\>/__testsuite_exec_prev_test; __testsuite_test_name=$(echo/' \
-        -e 's/\<as\>/); __testsuite_func() /' "$__testsuite_source_file" > "$__testsuite_modified_source"
-    source "$__testsuite_modified_source"
+        -e 's/\<as\>/); __testsuite_func() /' "$__testsuite_source_file" > "$__prepared_sh_source"
+    source "$__prepared_sh_source"
+    __testsuite_exec_prev_test
+done
+
+cd "$TESTS_DIR"
+for __testsuite_source_file in "${PY_TEST_FILES[@]}"
+do
+    $THIS_DIR/py-test-file.py "$__testsuite_source_file" describe | while read num_test __testsuite_test_name
+    do
+        cat << EOF
+__testsuite_exec_prev_test
+__testsuite_test_name="$__testsuite_test_name"
+__testsuite_func() {
+    $THIS_DIR/py-test-file.py "$__testsuite_source_file" run $num_test
+}
+EOF
+    done > "$__prepared_sh_source"
+    source "$__prepared_sh_source"
     __testsuite_exec_prev_test
 done
 
