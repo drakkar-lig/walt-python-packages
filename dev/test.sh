@@ -2,6 +2,7 @@
 
 THIS_DIR="$(cd "$(dirname $0)"; pwd)"
 TESTS_DIR="$(cd "$THIS_DIR/../test"; pwd)"
+TMP_DIR="$(mktemp -d)"
 
 __test_suite_debug_tests=0
 
@@ -13,7 +14,13 @@ fi
 
 __testsuite_num_tests=0
 __testsuite_num_tests_failed=0
+__testsuite_num_tests_skipped=0
 __testsuite_test_name=""
+
+skip_test() {
+    echo "$*" > $TMP_DIR/skipped
+    return 1
+}
 
 __testsuite_exec_prev_test() {
     if [[ $__testsuite_test_name != "" ]]
@@ -49,6 +56,11 @@ __testsuite_exec_prev_test() {
         if [ "$__testsuite_result" = 0 ]
         then
             echo -e '\r \xE2\x9C\x94'
+        elif [ -f $TMP_DIR/skipped ]
+        then
+            __testsuite_num_tests_skipped=$((__testsuite_num_tests_skipped+1))
+            echo -e "\e[33m\r - $__testsuite_test_name -- skipped -- $(cat $TMP_DIR/skipped)\e[0m"
+            rm $TMP_DIR/skipped
         else
             __testsuite_num_tests_failed=$((__testsuite_num_tests_failed+1))
             echo -e "\e[31m\r \xE2\x9C\x97 $__testsuite_test_name"
@@ -90,7 +102,7 @@ then
     TEST_TO_RUN=("$TESTS_DIR"/*.sh)
 fi
 
-__testsuite_modified_source="$(mktemp)"
+__testsuite_modified_source="$TMPDIR/modified_source.sh"
 
 for __testsuite_source_file in "${TEST_TO_RUN[@]}"
 do
@@ -100,11 +112,15 @@ do
     __testsuite_exec_prev_test
 done
 
-rm "$__testsuite_modified_source"
+rm -rf "$TMPDIR"
 
 # summary
 echo
 echo -n " $__testsuite_num_tests test(s), "
+if [[ $__testsuite_num_tests_skipped -gt 0 ]]
+then
+    echo -en "\e[33m$__testsuite_num_tests_skipped skipped\e[0m, "
+fi
 if [[ $__testsuite_num_tests_failed -eq 0 ]]
 then
     echo "no failure."
