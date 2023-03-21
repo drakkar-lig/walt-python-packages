@@ -106,8 +106,7 @@ define_test "walt device shell (on non existing device)" as {
 define_test "walt device expose" as {
 
     which wget || {
-        echo 'This test requires the "wget" command.' >&2
-        return 1
+        skip_test 'requires the "wget" command'
     }
 
     # use walt device expose to redirect port localhost:8083 to <server-ip>:80
