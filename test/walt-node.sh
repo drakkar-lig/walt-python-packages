@@ -60,8 +60,7 @@ define_test "walt node expose" as {
     node="$(test_suite_node)"
 
     which nc || {
-        echo 'This test requires the "nc" command.' >&2
-        return 1
+        skip_test 'requires the "nc" command'
     }
 
     # run a echo server on the node for 5 seconds
