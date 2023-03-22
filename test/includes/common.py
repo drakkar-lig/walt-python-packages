@@ -43,3 +43,17 @@ def skip_test(reason):
     skip_notify_file = Path(os.environ['TESTSUITE_TMP_DIR']) / 'skipped'
     skip_notify_file.write_text(reason)
     sys.exit(1)
+
+def get_first_items(item_set, n_items, item_label):
+    it = iter(item_set)
+    result = []
+    try:
+        for _ in range(n_items):
+            result.append(next(it))
+    except StopIteration:
+        skip_test(f'requires at least two {item_label}s')
+    if n_items == 1:
+        return result[0]
+    else:
+        return tuple(result)
+
