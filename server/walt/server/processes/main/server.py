@@ -128,6 +128,7 @@ class Server(object):
             # this is a walt node
             self.nodes.register_node(   mac = mac,
                                         model = info.get('model'))
+        self.dhcpd.update()
 
     def get_device_info(self, device_mac):
         return dict(self.devices.get_complete_device_info(device_mac)._asdict())
