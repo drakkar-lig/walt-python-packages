@@ -83,8 +83,16 @@ subnet %(subnet_ip)s netmask %(subnet_netmask)s {
     # when we assign a new IP address, let walt register
     # this new device
     on commit {
-        # if the device has no host entry yet
-        if not known {
+        if known {  # if the device already has a host entry
+            set is_known = "1";     # execute() expects string arguments
+            # var dev_type was set in the relevant host entry
+        }
+        else {
+            set is_known = "0";     # execute() expects string arguments
+            set dev_type = "unknown";
+        }
+        # if the device type is not known (yet)
+        if (dev_type = "unknown") {
             set ip_string = binary-to-ascii(10, 8, ".", leased-address);
             # note: we ensure all 6 bytes of the mac address are left padded with 0 if needed
             # (binary-to-ascii would not output '0e' but just 'e').
@@ -97,8 +105,8 @@ subnet %(subnet_ip)s netmask %(subnet_netmask)s {
                 suffix (concat ("0", binary-to-ascii (16, 8, "", substring(hardware,6,1))),2)
             );
             set client_name = pick-first-value(option host-name, config-option host-name, client-name, "");
-            execute("walt-dhcp-event", "commit", vci, uci,
-                            ip_string, mac_address_string, client_name);
+            execute("walt-dhcp-event", "commit", vci, uci, ip_string, mac_address_string,
+                    client_name, is_known, dev_type);
         }
     }
 }
@@ -149,6 +157,7 @@ HOST_CONF_PATTERN = """\
         hardware ethernet %(mac)s;
         fixed-address %(ip)s;
         option host-name "%(hostname)s";
+        set dev_type = "%(type)s";
     }
 """
 
