@@ -37,7 +37,7 @@ EOF
     mac=$2
     mac_suffix=$(end_of_mac $mac)
     walt node remove "$dev_name"
-    walt-dhcp-event commit "" "" $ip $mac "unknown"
+    walt-dhcp-event commit "" "" $ip $mac "unknown" "0" "unknown"
     dev_name="unknown-$mac_suffix"
     sleep 2
 
