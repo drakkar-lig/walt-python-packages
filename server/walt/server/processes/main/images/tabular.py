@@ -5,7 +5,6 @@ IMAGE_FIELDS = {
     'fullname':                 lambda db_info, image: image.fullname,
     'in_use':                   lambda db_info, image: db_info.in_use,
     'created':                  lambda db_info, image: image.metadata['created_at'],
-    'ready':                    lambda db_info, image: db_info.ready,
     'compatibility:compact':    lambda db_info, image: image.metadata['node_models_desc'],
     'compatibility:tuple':      lambda db_info, image: tuple(image.metadata['node_models']),
 }

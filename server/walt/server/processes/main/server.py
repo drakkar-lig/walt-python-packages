@@ -111,6 +111,7 @@ class Server(object):
             auto_id = None
         if auto_id is None:
             info = get_device_info_from_mac(mac)
+            info['type'] = info.get('type', 'unknown')
         else:
             model = auto_id[10:]
             info = {
@@ -122,10 +123,21 @@ class Server(object):
             name = self.cleanup_device_name(name)
             if self.devices.validate_device_name(None, name):   # name seems meaningful...
                 kwargs.update(name = name)
-        new_equipment = self.devices.add_or_update(
-                    ip = ip, mac = mac, **kwargs)
-        if new_equipment and info.get('type') == 'node':
-            # this is a walt node
+        # what is the current status of this device in db?
+        db_info = self.db.select_unique('devices', mac = mac)
+        if db_info is None:
+            status = 'new'
+        else:
+            status = db_info.type
+        # new nodes whose default image is not available yet are first recorded
+        # as simple devices of unknown type because downloading their default image may fail.
+        if status in ('new', 'unknown') and kwargs['type'] == 'node':
+            image_fullname = self.images.store.get_default_image_fullname(info['model'])
+            if image_fullname not in self.images.store:
+                kwargs['type'] = 'unknown'
+        self.devices.add_or_update(ip = ip, mac = mac, **kwargs)
+        if status in ('new', 'unknown') and info['type'] == 'node':
+            # register the walt node or convert the unknown device to a walt node
             self.nodes.register_node(   mac = mac,
                                         model = info.get('model'))
         self.dhcpd.update()
@@ -185,7 +197,7 @@ class Server(object):
             user_image_fullname = format_image_fullname(username, image_name)
             if user_image_fullname not in self.images.store:
                 self.repository.tag(default_image_fullname, user_image_fullname)
-                self.images.store.register_image(user_image_fullname, True)
+                self.images.store.register_image(user_image_fullname)
                 requester.stdout.write(
                     f'Default image for {model} was saved as "{image_name}" in your working set.\n')
             requester.set_busy_label(f'Registering virtual node')
@@ -223,6 +235,9 @@ class Server(object):
                                  model = model,
                                  image_fullname = image_fullname)
         # start background vm
+        # note: create_vnode_using_image() is called after the default image
+        # is downloaded, so we know register_node() completed its process
+        # synchronously and we can proceed with the following steps.
         node = self.devices.get_complete_device_info(mac)
         self.nodes.start_vnode(node)
 

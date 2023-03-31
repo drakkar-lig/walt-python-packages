@@ -16,8 +16,7 @@ from walt.server.processes.main.nodes.expose import ExposeManager
 from walt.server.processes.main.nodes.status import NodeBootupStatusManager
 from walt.server.processes.main.nodes.netservice import node_request
 from walt.server.processes.main.nodes.reboot import reboot_nodes
-from walt.server.processes.main.nodes.register \
-    import handle_registration_request, restore_interrupted_registration
+from walt.server.processes.main.nodes.register import handle_registration_request
 from walt.server.processes.main.nodes.show import show
 from walt.server.processes.main.nodes.wait import WaitInfo
 from walt.server.tools import get_server_ip, ip, get_walt_subnet
@@ -81,17 +80,9 @@ class NodesManager(object):
     def register_node(self, mac, model, image_fullname = None):
         handle_registration_request(
                 db = self.db,
+                devices = self.devices,
                 mac = mac,
                 model = model,
-                image_fullname = image_fullname,
-                blocking = self.blocking,
-                logs = self.logs,
-                **self.other_kwargs
-        )
-
-    def restore_interrupted_registration(self, image_fullname):
-        restore_interrupted_registration(
-                db = self.db,
                 image_fullname = image_fullname,
                 blocking = self.blocking,
                 logs = self.logs,

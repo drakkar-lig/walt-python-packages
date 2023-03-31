@@ -91,8 +91,6 @@ def update(db, images):
         if db_node.image is None:
             continue
         image = images[db_node.image]
-        if not image.ready:
-            continue
         image_path = image.mount_path
         if image_path is None:
             # when overwritting a mounted image, we umount it even if it is in use,

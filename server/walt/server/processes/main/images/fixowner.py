@@ -50,8 +50,7 @@ def fix_owner(images, repository: WalTLocalRepository, requester, other_user):
         return
     problematic = set()
     for image in candidates:
-        if images.get_user_image_from_name(requester, image.name,
-                                    expected = None, ready_only = False):
+        if images.get_user_image_from_name(requester, image.name, expected = None):
             problematic.add(image.name)
     if len(problematic) > 0:
         requester.stderr.write(MSG_OVERWRITING % \

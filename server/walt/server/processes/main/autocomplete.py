@@ -134,7 +134,7 @@ def complete_device_config_param(server, requester, argv):
 def get_walt_clone_urls(server, username):
     # faster than using server.repository
     return tuple(f'walt:{img.fullname}' for img in server.db.select('images') \
-                 if not img.fullname.startswith(f'{username}/') and img.ready)
+                 if not img.fullname.startswith(f'{username}/'))
 
 def complete_image_clone_url(server, username, partial_token):
     # note: we might implement completion of docker daemon images without blocking

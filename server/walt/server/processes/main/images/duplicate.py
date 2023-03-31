@@ -15,7 +15,7 @@ def do_duplicate(images, repository: WalTLocalRepository, image, new_name):
     # add a tag to the image
     repository.tag(image.fullname, new_fullname)
     # update the store
-    images.register_image(new_fullname, True)
+    images.register_image(new_fullname)
 
 def duplicate(images, repository: WalTLocalRepository, requester, image_name, new_name):
     if not validate_image_name(requester, new_name):

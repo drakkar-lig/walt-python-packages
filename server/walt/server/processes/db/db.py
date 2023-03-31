@@ -36,8 +36,7 @@ class ServerDB(PostgresDB):
                     port2 INTEGER,
                     confirmed BOOLEAN);""")
         self.execute("""CREATE TABLE IF NOT EXISTS images (
-                    fullname TEXT PRIMARY KEY,
-                    ready BOOLEAN);""")
+                    fullname TEXT PRIMARY KEY);""")
         self.execute("""CREATE TABLE IF NOT EXISTS nodes (
                     mac TEXT REFERENCES devices(mac),
                     image TEXT REFERENCES images(fullname),
@@ -107,6 +106,9 @@ class ServerDB(PostgresDB):
             self.execute("""CREATE TYPE logmode AS ENUM ('line', 'chunk');""")
             self.execute("""ALTER TABLE logstreams
                             ADD COLUMN mode logmode DEFAULT 'line';""")
+        if self.column_exists('images', 'ready'):
+            self.execute("""DELETE FROM images WHERE ready = false;""")
+            self.execute("""ALTER TABLE images DROP COLUMN ready;""")
         # fix server entry
         self.fix_server_device_entry()
         # commit
@@ -304,7 +306,7 @@ class ServerDB(PostgresDB):
         #print(f'Inserted {self.c.rowcount} log records')
 
     def get_user_images(self, username):
-        sql = f"""  SELECT i.fullname, i.ready, count(n.mac)>0 as in_use
+        sql = f"""  SELECT i.fullname, count(n.mac)>0 as in_use
                     FROM images i
                     LEFT JOIN nodes n ON i.fullname = n.image
                     WHERE fullname like '{username}/%'

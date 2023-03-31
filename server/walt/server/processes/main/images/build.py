@@ -6,7 +6,6 @@ import uuid
 from walt.common.tools import parse_image_fullname
 
 if typing.TYPE_CHECKING:
-    from walt.server.processes.main.images.image import NodeImage
     from walt.server.processes.main.images.store import NodeImageStore
 
 # About terminology: See comment about it in image.py.
