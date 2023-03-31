@@ -102,7 +102,7 @@ class WalTImageShow(WalTApplication):
         if self._names_only:
             fields = ('name',)
         else:
-            fields = ('name', 'in_use', 'created', 'ready', 'compatibility:compact')
+            fields = ('name', 'in_use', 'created', 'compatibility:compact')
         with ClientToServerLink() as server:
             tabular_data = server.get_images_tabular_data(
                             conf.walt.username, self._refresh, fields)

@@ -37,20 +37,16 @@ ORDER BY type, name;"""
 
 MY_NODES_QUERY = """\
 SELECT  d.mac as mac
-FROM devices d, nodes n, images i
+FROM devices d, nodes n
 WHERE   d.mac = n.mac
-AND     n.image = i.fullname
-AND     i.ready = True
 AND     split_part(n.image, '/', 1) = '%s'
 ORDER BY name;"""
 
 DEVICE_SET_QUERIES = {
         'all-nodes': """
             SELECT  d.mac as mac
-            FROM devices d, nodes n, images i
+            FROM devices d, nodes n
             WHERE   d.mac = n.mac
-            AND     n.image = i.fullname
-            AND     i.ready = True
             ORDER BY d.name;""",
         'all-switches': """
             SELECT  d.mac as mac
@@ -229,10 +225,10 @@ class DevicesManager(object):
                 newly_identified = True
                 print('Device: %s updating type, unknown -> %s' % (name, args_data['type']))
                 updates['type'] = args_data['type']
-            if db_data.ip is None and args_data['ip'] is not None:
+            if db_data.ip is None and args_data.get('ip', None) is not None:
                 print('Device: %s updating ip, unknown -> %s' % (name, args_data['ip']))
                 updates['ip'] = args_data['ip']
-            elif db_data.ip is not None and args_data['ip'] is not None and \
+            elif db_data.ip is not None and args_data.get('ip', None) is not None and \
                     not ip_in_walt_network(db_data.ip) and ip_in_walt_network(args_data['ip']):
                 # the device updated its IP by requesting our managed DHCP server
                 print('Device: %s updating ip, %s -> %s (now in walt network)' % (name, db_data.ip, args_data['ip']))
