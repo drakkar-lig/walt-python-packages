@@ -23,7 +23,8 @@ def dhcp_commit_event(vci, uci, ip, mac, client_name,
     name = None
     if client_name is not None and client_name != '':
         mac_suffix = ''.join(mac.split(':'))[-6:]
-        name = f'{client_name}-{mac_suffix}'.lower()
+        if not client_name.endswith(mac_suffix):
+            name = f'{client_name}-{mac_suffix}'.lower()
     from walt.common.apilink import ServerAPILink
     with ServerAPILink('localhost', 'SSAPI') as server:
         server.register_device(vci, uci, ip, mac, name)

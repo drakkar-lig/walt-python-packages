@@ -20,7 +20,7 @@ class APIImageInfoCache(APIItemInfoCache):
     def __init__(self):
         super().__init__(show_aliases=True)
     def do_refresh(self, server):
-        fields = ('id', 'name', 'fullname', 'in_use', 'created', 'ready', 'compatibility:tuple')
+        fields = ('id', 'name', 'fullname', 'in_use', 'created', 'compatibility:tuple')
         tabular_data = server.get_images_tabular_data(
                     conf.walt.username, refresh=False, fields=fields)
         # remove ':<suffix>' on field names

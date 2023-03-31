@@ -44,14 +44,8 @@ This operation would overwrite it%s.
 MSG_WOULD_OVERWRITE_IMAGE_REBOOTED_NODES='\
  (and reboot %d node(s))'
 
-MSG_RESTORING_PULL = """\
-NOTE: Daemon was interrupted while pulling image %s. Restoring this background process."""
-
 MSG_PULLING_FROM_DOCKER = """\
 NOTE: Pulling image %s from docker daemon to podman storage (migration v4->v5)."""
-
-MSG_IMAGE_READY_BUT_MISSING = """\
-Image %s is marked ready in db, but walt does not have it in its own repo! Aborting."""
 
 MSG_WOULD_REBOOT_NODES = """\
 This operation would reboot %d node(s) currently using the image.
@@ -77,30 +71,25 @@ class NodeImageStore(object):
 
     def resync_from_db(self):
         "Synchronization function called on daemon startup."
-        db_images = { db_img.fullname: db_img.ready \
-                        for db_img in self.db.select('images') }
+        db_images = set(db_img.fullname \
+                        for db_img in self.db.select('images'))
         # gather local images
         podman_images = set(self.repository.get_images())
         docker_images = None  # Loaded on-demand thereafter
         # import new images from podman into the database
         for fullname in podman_images:
             if fullname not in db_images:
-                self.db.insert('images', fullname=fullname, ready=True)
-                db_images[fullname] = True
+                self.db.insert('images', fullname=fullname)
+                db_images.add(fullname)
         # update images listed in db and add missing ones to this store
-        for db_fullname, db_ready in db_images.items():
+        for db_fullname in db_images:
             if db_fullname not in self.images:
                 if db_fullname in podman_images:
                     # add missing image in this store
-                    self.images[db_fullname] = NodeImage(self, db_fullname, db_ready)
+                    self.images[db_fullname] = NodeImage(self, db_fullname)
                     continue
-                if not db_ready:
-                    print(MSG_RESTORING_PULL % db_fullname)
-                    self.images[db_fullname] = NodeImage(self, db_fullname, db_ready)
-                    self.server.nodes.restore_interrupted_registration(db_fullname)
-                    continue
-                if db_ready:
-                    # image is known and ready in db, but missing in walt (podman) images
+                else:
+                    # image is known and found in db, but missing in walt (podman) images
                     # check if we should pull images from docker daemon to
                     # podman storage (migration v4->v5)
                     if docker_images is None:  # Loaded on-demand
@@ -108,7 +97,7 @@ class NodeImageStore(object):
                     if db_fullname in docker_images:
                         print(MSG_PULLING_FROM_DOCKER % db_fullname)
                         self.blocking.sync_pull_docker_daemon_image(db_fullname)
-                        self.images[db_fullname] = NodeImage(self, db_fullname, True)
+                        self.images[db_fullname] = NodeImage(self, db_fullname)
                         continue
                     # Ready, but not found anywhere
                     print("Unable to find image %s. Hope it is not used and remove it." % \
@@ -118,8 +107,8 @@ class NodeImageStore(object):
 
     def resync_from_repository(self, rescan = False):
         "Resync function podman repo -> this image store"
-        db_images = { db_img.fullname: db_img.ready \
-                        for db_img in self.db.select('images') }
+        db_images = set(db_img.fullname \
+                        for db_img in self.db.select('images'))
         # gather local images
         if rescan:
             self.repository.scan()
@@ -127,28 +116,25 @@ class NodeImageStore(object):
         # import new images from podman into this store (and into the database)
         for fullname in podman_images:
             if fullname not in db_images:
-                self.db.insert('images', fullname=fullname, ready=True)
+                self.db.insert('images', fullname=fullname)
                 self.db.commit()
-                db_images[fullname] = True  # for the next loop below
+                db_images.add(fullname)  # for the next loop below
             if fullname not in self.images:
-                self.images[fullname] = NodeImage(self, fullname, True)
-        # all images marked ready should be available in this store
+                self.images[fullname] = NodeImage(self, fullname)
+        # all images should be available in this store
         # if not, this means they were deleted from repository,
         # so remove them here too (and in db)
         for fullname in tuple(self.images):
-            ready = db_images[fullname]
-            if not ready:
-                continue
             if fullname not in podman_images:
                 self.remove(fullname)
 
     def get_labels(self):
         return { fullname: image.labels for fullname, image in self.images.items() }
 
-    def register_image(self, image_fullname, is_ready):
-        self.db.insert('images', fullname=image_fullname, ready=is_ready)
+    def register_image(self, image_fullname):
+        self.db.insert('images', fullname=image_fullname)
         self.db.commit()
-        self.images[image_fullname] = NodeImage(self, image_fullname, is_ready)
+        self.images[image_fullname] = NodeImage(self, image_fullname)
 
     # Make sure to rename the image in docker *before* calling this.
     def rename(self, old_fullname, new_fullname):
@@ -190,7 +176,7 @@ class NodeImageStore(object):
         return self.images.values()
 
     def get_user_image_from_name(self, requester, image_name,
-                                 expected: bool | None = True, ready_only = True):
+                                 expected: bool | None = True):
         """Look for an image belonging to the requester.
 
         :param expected: specify if we expect a matching result (True), no
@@ -217,11 +203,6 @@ class NodeImageStore(object):
         if expected == False and found is not None:
             requester.stderr.write(
                 "Error: Image '%s' already exists.\n" % image_name)
-        if expected == True and found is not None:
-            if ready_only and found.ready == False:
-                requester.stderr.write(
-                    "Error: Image '%s' is not ready.\n" % image_name)
-                found = None
         return found
 
     def count_images_of_user(self, username):
@@ -241,14 +222,13 @@ class NodeImageStore(object):
         for fullname in self.get_images_in_use():
             if fullname in self.images:
                 img = self.images[fullname]
-                if img.ready:
-                    if not img.mounted:
-                        self.mount(img.image_id, img.fullname)
-                    new_mounts.add(img.image_id)
-                    # if image was re-mounted while it was waiting grace time
-                    # expiry, remove the deadline
-                    if img.image_id in self.deadlines:
-                        del self.deadlines[img.image_id]
+                if not img.mounted:
+                    self.mount(img.image_id, img.fullname)
+                new_mounts.add(img.image_id)
+                # if image was re-mounted while it was waiting grace time
+                # expiry, remove the deadline
+                if img.image_id in self.deadlines:
+                    del self.deadlines[img.image_id]
             else:
                 sys.stderr.write(MSG_IMAGE_IS_USED_BUT_NOT_FOUND % fullname)
         # check which images should be unmounted
@@ -398,7 +378,7 @@ class NodeImageStore(object):
                 image_name = default_image.split('/')[1]
             ws_image = username + '/' + image_name
             self.repository.tag(default_image, ws_image)
-            self.register_image(ws_image, True)
+            self.register_image(ws_image)
             # remove from remaining models all models declared in label "walt.node.models"
             image_models = default_image_labels.get('walt.node.models').split(',')
             node_models -= set(image_models)
