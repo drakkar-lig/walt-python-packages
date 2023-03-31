@@ -82,13 +82,12 @@ def validate_image_name(requester, image_name):
     return False
 
 class NodeImage(object):
-    def __init__(self, store: NodeImageStore, fullname, is_ready):
+    def __init__(self, store: NodeImageStore, fullname):
         self.store = store
         self.db = store.db
         self.repository = store.repository
         self.rename(fullname)
         self.task_label = None
-        self._is_ready = is_ready
     @property
     def filesystem(self):
         return self.store.get_filesystem(self.image_id)
@@ -115,14 +114,6 @@ class NodeImage(object):
     @property
     def editable(self):
         return self.metadata['editable']
-    @property
-    def ready(self):
-        return self._is_ready
-    @ready.setter
-    def ready(self, is_ready):
-        self.db.update('images', 'fullname', fullname=self.fullname, ready=is_ready)
-        self.db.commit()
-        self._is_ready = is_ready
     def get_node_models(self):
         return self.node_models
     def get_labels(self):

@@ -5,14 +5,12 @@ NODE_SHOW_QUERY = """
     SELECT  d.name as name, n.model as model,
         split_part(n.image, '/', 1) as image_owner,
         split_part(n.image, '/', 2) as image_name,
-        i.ready as image_ready,
         d.virtual as virtual, d.mac as mac,
         d.ip as ip, COALESCE((d.conf->'netsetup')::int, 0) as netsetup,
         (case when n.booted then 'yes' else 'NO' end) as booted
-    FROM devices d, nodes n, images i
+    FROM devices d, nodes n
     WHERE   d.type = 'node'
     AND     d.mac = n.mac
-    AND     n.image = i.fullname
     ORDER BY image_owner, name;"""
 
 MSG_USING_NO_NODES = """\
@@ -30,10 +28,6 @@ The following nodes are running one of your images:"""
 TITLE_NODE_SHOW_OTHER_NODES_PART = """\
 The following nodes are likely to be used by other users, since you do
 not own the image they boot."""
-
-TITLE_NODE_SHOW_NOT_READY_NODES_PART = """\
-The following nodes were detected but are not available for now:
-the startup OS image they will boot is being downloaded."""
 
 MSG_NO_NODES = """\
 No nodes detected!"""
@@ -74,21 +68,18 @@ def generate_table(title, footnote, records, *col_titles):
     return format_paragraph(title, columnate(table, header=header), footnote)
 
 def show(db, username, show_all, names_only):
-    res_user, res_free, res_other, res_not_ready = [], [], [], []
+    res_user, res_free, res_other = [], [], []
     res = db.execute(NODE_SHOW_QUERY)
     for record in res:
-        if not record.image_ready:
-            res_not_ready.append(record)
+        if record.image_owner == username:
+            res_user.append(record)
+        elif record.image_owner == 'waltplatform':
+            res_free.append(record)
         else:
-            if record.image_owner == username:
-                res_user.append(record)
-            elif record.image_owner == 'waltplatform':
-                res_free.append(record)
-            else:
-                res_other.append(record)
+            res_other.append(record)
     if names_only:
         if show_all:
-            all_records = res_user + res_free + res_other + res_not_ready
+            all_records = res_user + res_free + res_other
         else:
             all_records = res_user
         return "\n".join(record.name for record in all_records)
@@ -108,18 +99,14 @@ def show(db, username, show_all, names_only):
         # display free nodes
         result_msg += generate_table(TITLE_NODE_SHOW_FREE_NODES_PART, None, res_free,
                         'name', 'type', 'model', 'ip', 'netsetup', 'booted')
-    if len(res_other) + len(res_user) + len(res_free) + len(res_not_ready) == 0:
+    if len(res_other) + len(res_user) + len(res_free) == 0:
         return MSG_NO_NODES + '\n'
-    if len(res_free) + len(res_other) + len(res_not_ready) == 0:
+    if len(res_free) + len(res_other) == 0:
         result_msg += MSG_NO_OTHER_NODES + '\n'
     else:
         if len(res_other) > 0:
             # display nodes of other users
             result_msg += generate_table(TITLE_NODE_SHOW_OTHER_NODES_PART, None, res_other,
                             'name', 'type', 'model', 'image_owner', 'clonable_image_link', 'ip', 'netsetup', 'booted')
-        if len(res_not_ready) > 0:
-            # display nodes whose image is currently being downloaded
-            result_msg += generate_table(TITLE_NODE_SHOW_NOT_READY_NODES_PART, None, res_not_ready,
-                            'name', 'type', 'model', 'ip', 'netsetup')
     return result_msg
 
