@@ -229,6 +229,16 @@ class APIObjectBase:
         l += list(self.__buffered_get_info__().keys())
         return l
 
+def api_namedtuple_cls(cls_name, keys):
+    from collections import namedtuple
+    keys = list(keys)
+    nt_cls = namedtuple(cls_name, keys)
+    def repr_nt(nt):
+        attrs_line = ', '.join(f'{k}={short_repr(v)}' for k, v in nt._asdict().items())
+        return f'{cls_name}({attrs_line})'
+    nt_cls.__repr__ = repr_nt
+    return nt_cls
+
 class LazyObject:
     def __init__(self, compute):
         self.obj = None
@@ -250,6 +260,7 @@ class LazyObject:
 
 class APIFilteredSet:
     def __init__(self, object_cache, object_factory_cls, names):
+        assert isinstance(names, set), 'APIFilteredSet must be built with a set of names.'
         self._names = names
         self._object_cache = object_cache
         self._object_cache.register_obj(self)
@@ -389,6 +400,7 @@ class APISetOfItemsClassFactory:
     @staticmethod
     def create(object_cache, in_names, item_cls_label, item_base_cls,
                item_factory, item_set_base_cls, item_set_factory):
+        in_names = set(in_names)
         d = APIFilteredSet(object_cache, item_factory, in_names)
         class APISetOfItems(APIObjectRegistryClass(d)):
             _names = in_names

@@ -15,7 +15,7 @@ from walt.client.console import run_node_console
 from walt.client.transfer import run_transfer_with_node
 from walt.client.expose import TCPExposer
 from walt.client.application import WalTCategoryApplication, WalTApplication
-from walt.client.timeout import start_timeout, stop_timeout, TimeoutException, cli_timeout_switch
+from walt.client.timeout import timeout_context, TimeoutException, cli_timeout_switch
 from walt.client.types import NODE, SET_OF_NODES, IMAGE, IMAGE_OR_DEFAULT, \
                               NODE_CP_SRC, NODE_CP_DST, NODE_CONFIG_PARAM
 
@@ -29,18 +29,18 @@ class WalTNode(WalTCategoryApplication):
     def wait_for_nodes(server, node_set, busy_label = WAIT_NODES_BUSY_LABEL, timeout = -1):
         try:
             server.set_busy_label(busy_label)
-            if timeout > 0:
-                start_timeout(timeout)
-            server.wait_for_nodes(node_set)
-            if timeout > 0:
-                stop_timeout()
+            with timeout_context(timeout):
+                server.wait_for_nodes(node_set)
             server.set_default_busy_label()
+            return True
         except KeyboardInterrupt:
             print()
             server.set_default_busy_label()
+            return False
         except TimeoutException:
             server.set_default_busy_label()
             print('Timeout was reached.')
+            return False
 
     @staticmethod
     def run_cmd(node_set, several_nodes_allowed, cmdargs,
@@ -60,7 +60,8 @@ class WalTNode(WalTCategoryApplication):
                 sys.stderr.write(
                     'Error: this command must target 1 node only.\n')
                 return
-            WalTNode.wait_for_nodes(server, node_set)
+            if not WalTNode.wait_for_nodes(server, node_set):
+                return False
             server.prepare_ssh_access(node_set)
         if nodes_ip:
             for ip in nodes_ip:
@@ -164,7 +165,8 @@ class WalTNodeBlink(WalTApplication):
                 '<duration> must be an integer (number of seconds).\n')
         else:
             with ClientToServerLink() as server:
-                WalTNode.wait_for_nodes(server, node_name)
+                if not WalTNode.wait_for_nodes(server, node_name):
+                    return False
                 if server.blink(node_name, True):
                     print('blinking for %ds... ' % seconds)
                     try:
@@ -172,6 +174,7 @@ class WalTNodeBlink(WalTApplication):
                         print('done.')
                     except KeyboardInterrupt:
                         print('Aborted.')
+                        return False
                     finally:
                         server.blink(node_name, False)
 
@@ -259,11 +262,12 @@ class WalTNodeCp(WalTApplication):
                 if confirm():
                     info['status'] = 'OK'
                 else:
-                    return  # give up
+                    return False # give up
             if info['status'] == 'FAILED':
-                return
+                return False
             node_name = info['node_name']
-            WalTNode.wait_for_nodes(server, node_name)
+            if not WalTNode.wait_for_nodes(server, node_name):
+                return False
             if dst == 'booted-image':
                 path_info = dict(
                     src_path = info['src_path'],
@@ -276,6 +280,7 @@ class WalTNodeCp(WalTApplication):
                 except (KeyboardInterrupt, EOFError):
                     print()
                     print('Aborted.')
+                    return False
 
 @WalTNode.subcommand("wait")
 class WalTNodeWait(WalTApplication):
@@ -285,7 +290,7 @@ class WalTNodeWait(WalTApplication):
     def main(self, node_set : SET_OF_NODES):
         with ClientToServerLink() as server_link:
             busy_label = 'Node bootup notification pending'
-            WalTNode.wait_for_nodes(server_link, node_set, busy_label, self.timeout)
+            return WalTNode.wait_for_nodes(server_link, node_set, busy_label, self.timeout)
 
 @WalTNode.subcommand("expose")
 class WalTNodeExpose(WalTApplication):
@@ -297,8 +302,9 @@ class WalTNodeExpose(WalTApplication):
         with ClientToServerLink() as server_link:
             node_ip = server_link.get_node_ip(node_name)
             if not node_ip:
-                return
-            WalTNode.wait_for_nodes(server_link, node_name)
+                return False
+            if not WalTNode.wait_for_nodes(server_link, node_name):
+                return False
             print('Listening on TCP port %d and redirecting connections to %s:%d.' % \
                             (local_port, node_name, node_port))
             exposer = TCPExposer(local_port, node_ip, node_port)

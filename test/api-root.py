@@ -5,7 +5,9 @@ API_ROOT_REPR = '''\
 
   read-only attributes:
   - self.images: <API submodule for WALT images>
+  - self.logs: <API submodule for WALT logs>
   - self.nodes: <API submodule for WALT nodes>
+  - self.tools: <Misc API features>
 >'''
 
 @define_test('repr(api)')

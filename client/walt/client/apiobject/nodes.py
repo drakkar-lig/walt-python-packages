@@ -1,5 +1,5 @@
 from collections import defaultdict
-from walt.client.timeout import start_timeout, stop_timeout
+from walt.client.timeout import timeout_context
 from walt.client.apiobject.base import APIObjectBase, APISetOfItemsClassFactory, \
                                        APIItemClassFactory, APIItemInfoCache, \
                                        APICommentedString
@@ -125,7 +125,7 @@ class APINodeFactory:
                     owner = APICommentedString(owner, 'yourself')
                 elif owner == 'waltplatform':
                     owner = APICommentedString(owner, 'node is free')
-                info.update(owner = owner)
+                info.update(owner = owner, device_type = 'node')
                 del info['conf']
                 info['image'] = get_image_object_from_fullname(info['image'])
                 return info
@@ -153,14 +153,19 @@ class APINodeFactory:
                 self._check_owned_or_force(force)
                 with silent_server_link() as server:
                     server.reboot_nodes(self.name, hard_only)
-            def wait(self, timeout_secs=-1):
+            def wait(self, timeout=-1):
                 """Wait until node is booted"""
                 with silent_server_link() as server:
-                    if timeout_secs > 0:
-                        start_timeout(timeout_secs)
-                    server.wait_for_nodes(self.name)
-                    if timeout_secs > 0:
-                        stop_timeout()
+                    with timeout_context(timeout):
+                        server.wait_for_nodes(self.name)
+            def get_logs(self, realtime=False, history=None, timeout=-1):
+                """Iterate over historical or realtime logs"""
+                from walt.client.apiobject.logs import get_api_logs_submodule
+                api_logs = get_api_logs_submodule()
+                return api_logs.get_logs(realtime=realtime,
+                                        history=history,
+                                        issuers=self,
+                                        timeout=timeout)
             def _remove_or_forget(self, force=False):
                 self._check_owned_or_force(force)
                 with silent_server_link() as server:
@@ -209,14 +214,19 @@ class APISetOfNodesFactory:
                     n._check_owned_or_force(force)
                 with silent_server_link() as server:
                     server.reboot_nodes(Tools.get_comma_nodeset(self), hard_only)
-            def wait(self, timeout_secs=-1):
+            def wait(self, timeout=-1):
                 """Wait until all nodes of this set are booted"""
                 with silent_server_link() as server:
-                    if timeout_secs > 0:
-                        start_timeout(timeout_secs)
-                    server.wait_for_nodes(Tools.get_comma_nodeset(self))
-                    if timeout_secs > 0:
-                        stop_timeout()
+                    with timeout_context(timeout):
+                        server.wait_for_nodes(Tools.get_comma_nodeset(self))
+            def get_logs(self, realtime=False, history=None, timeout=-1):
+                """Iterate over historical or realtime logs"""
+                from walt.client.apiobject.logs import get_api_logs_submodule
+                api_logs = get_api_logs_submodule()
+                return api_logs.get_logs(realtime=realtime,
+                                        history=history,
+                                        issuers=self,
+                                        timeout=timeout)
             def boot(self, image, force=False):
                 """Boot the specified image on all nodes of this set"""
                 Tools.boot_image(self, image, force=force)
