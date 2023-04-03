@@ -1,5 +1,5 @@
 from includes.common import define_test, test_suite_node, test_suite_image, \
-                            get_first_items, TEST_IMAGE_URL, skip_test
+                            get_first_items, TEST_IMAGE_URL, skip_test, test_create_vnode
 from walt.client import api
 
 def get_existing_vnode():
@@ -11,10 +11,7 @@ def get_existing_vnode():
 
 @define_test('api.nodes.create_vnode()')
 def test_api_nodes_create_vnode():
-    node_name = test_suite_node()
-    node = api.nodes.create_vnode(node_name)
-    assert node.name == node_name
-    assert node_name in api.nodes.get_nodes()
+    test_create_vnode()
 
 @define_test('repr(api.nodes.get_nodes())')
 def test_repr_get_nodes():
@@ -112,7 +109,7 @@ def test_api_node_boot():
 def test_api_node_get_logs():
     node = get_existing_vnode()
     # more testing will be done in api-logs.py
-    for logline in node.get_logs(history_range='full'):
+    for logline in node.get_logs(history='full'):
         break
 
 @define_test('api node.reboot()')

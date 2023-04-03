@@ -1,4 +1,5 @@
 from time import time
+from contextlib import contextmanager
 
 MARGIN = 0.001  # margin when testing if timeout is reached
 timeout = None
@@ -34,3 +35,13 @@ def cli_timeout_switch():
                 argname = 'SECONDS',
                 default = -1,
                 help= """stop if still waiting after this number of seconds""")
+
+@contextmanager
+def timeout_context(timeout):
+    if timeout > 0:
+        start_timeout(timeout)
+    try:
+        yield
+    finally:
+        if timeout > 0:
+            stop_timeout()

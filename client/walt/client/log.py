@@ -4,7 +4,7 @@ from plumbum import cli
 from walt.client.application import WalTCategoryApplication, WalTApplication
 from walt.client.link import ClientToServerLink, connect_to_tcp_server
 from walt.client.tools import confirm
-from walt.client.timeout import start_timeout, stop_timeout, timeout_reached, cli_timeout_switch
+from walt.client.timeout import timeout_context, timeout_reached, cli_timeout_switch, TimeoutException
 from walt.client.types import LOG_CHECKPOINT
 
 DATE_FORMAT_STRING= '%Y-%m-%d %H:%M:%S'
@@ -146,7 +146,26 @@ class WalTLogShowOrWait(WalTApplication):
         return True
 
     @staticmethod
-    def start_streaming(format_string, history_range, realtime, issuers, streams,
+    def start_display(format_string, history_range, realtime, issuers, streams,
+                        logline_regexp, stop_test, timeout = -1):
+        try:
+            for record in WalTLogShowOrWait.start_streaming(history_range, realtime,
+                        issuers, streams, logline_regexp, stop_test, timeout):
+                print(format_string.format(**record))
+                sys.stdout.flush()
+        except TimeoutException:
+            print('Timeout was reached.')
+            return False
+        except KeyboardInterrupt:
+            print()
+            return False
+        except Exception as e:
+            print('Could not display the log record.')
+            print('Verify your format string.')
+            return False
+
+    @staticmethod
+    def start_streaming(history_range, realtime, issuers, streams,
                         logline_regexp, stop_test, timeout = -1):
         conn = LogsFlowFromServer()
         conn.request_log_dump(  history = history_range,
@@ -154,32 +173,19 @@ class WalTLogShowOrWait(WalTApplication):
                                 issuers = issuers,
                                 streams = streams,
                                 logline_regexp = logline_regexp)
-        if timeout > 0:
-            start_timeout(timeout)
-        while True:
-            try:
+        with timeout_context(timeout):
+            while True:
                 record = conn.read_log_record()
-                # sigalarm is caught by pickle, it will just abort the read
+                # most probably sigalarm will be caught by pickle, it will just abort the read
                 # and record will be None.
-                # Since we cannot get a TimeoutException, we check with timeout_reached().
+                # we would miss the TimeoutException in this case, so we check with timeout_reached().
                 if timeout > 0 and timeout_reached():
-                    print('Timeout was reached.')
-                    break
+                    raise TimeoutException()
                 if record == None:
                     break
-                print(format_string.format(**record))
-                sys.stdout.flush()
+                yield record
                 if stop_test is not None and stop_test(**record):
                     break
-            except KeyboardInterrupt:
-                print()
-                break
-            except Exception as e:
-                print('Could not display the log record.')
-                print('Verify your format string.')
-                break
-        if timeout > 0:
-            stop_timeout()
 
 @WalTLog.subcommand("show")
 class WalTLogShow(WalTLogShowOrWait):
@@ -222,7 +228,7 @@ class WalTLogShow(WalTLogShowOrWait):
                     print('This will display approximately %d log records from history.' % num_logs)
                     if not confirm():
                         return
-        WalTLogShowOrWait.start_streaming(self.format_string, history_range, self.realtime,
+        return WalTLogShowOrWait.start_display(self.format_string, history_range, self.realtime,
                                             issuers, self.streams, logline_regexp, None)
 
 @WalTLog.subcommand("add-checkpoint")
@@ -312,5 +318,5 @@ class WalTLogWait(WalTLogShowOrWait):
                     return True     # yes, we should stop
                 else:
                     return False    # no, we are not done yet
-        WalTLogShowOrWait.start_streaming(self.format_string, history_range, True,
+        return WalTLogShowOrWait.start_display(self.format_string, history_range, True,
                                     issuers, self.streams, logline_regexp, stop_test, self.timeout)
