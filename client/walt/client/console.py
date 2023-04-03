@@ -62,7 +62,7 @@ def run_node_console(server, node_info):
     conn = LogsFlowFromServer()
     conn.request_log_dump(  history = None,
                             realtime = True,
-                            senders = (node_info['name'],),
+                            issuers = (node_info['name'],),
                             streams = 'virtualconsole',
                             logline_regexp = None)
 
