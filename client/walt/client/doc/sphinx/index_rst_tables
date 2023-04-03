@@ -24,7 +24,6 @@ Full table of Contents
 
    tutorial
    shells
-   scripting
 
 
 .. toctree::
@@ -77,6 +76,17 @@ Full table of Contents
    log-cat
    log-tee
    log-monitor
+
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Scripting
+
+   scripting
+   scripting-nodes
+   scripting-images
+   scripting-logs
+   scripting-tools
 
 
 .. toctree::

@@ -16,6 +16,14 @@ def test_suite_node():
         p.write_text(f'testnode-{os.getpid()}\n')
     return p.read_text().strip()
 
+def test_create_vnode():
+    node_name = test_suite_node()
+    from walt.client import api
+    node = api.nodes.create_vnode(node_name)
+    assert node.name == node_name
+    assert node_name in api.nodes.get_nodes()
+    return node
+
 TEST_CONTEXT = {
 }
 
