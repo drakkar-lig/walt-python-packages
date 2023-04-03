@@ -14,7 +14,7 @@ def stream_db_logs(db, logs_handler, **params):
             break
         d = record._asdict()
         if logs_handler.write_to_client(
-                    senders_filtered = True, **d) == False:
+                    issuers_filtered = True, **d) == False:
             break
     # delete server cursor
     db.delete_server_cursor(cursor_name)

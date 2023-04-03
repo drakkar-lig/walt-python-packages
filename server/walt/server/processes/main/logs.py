@@ -66,8 +66,8 @@ class LogsStreamListener(object):
         name = self.sock_file.readline().strip().decode('UTF-8')
         timestamps_mode = self.sock_file.readline().strip()
         self.server_timestamps = (timestamps_mode == b'NO_TIMESTAMPS')
-        sender_ip, sender_port = self.sock_file.getpeername()
-        return self.manager.get_stream_id(sender_ip, name)
+        issuer_ip, issuer_port = self.sock_file.getpeername()
+        return self.manager.get_stream_id(issuer_ip, name)
 
     # let the event loop know what we are reading on
     def fileno(self):
@@ -190,7 +190,7 @@ class NetconsoleListener(object):
         self.manager = manager
         self.hub = manager.hub
         self.s = udp_server_socket(port)
-        self.sender_info = dict()
+        self.issuer_info = dict()
 
     def join_event_loop(self, ev_loop):
         self.ev_loop = ev_loop
@@ -204,19 +204,19 @@ class NetconsoleListener(object):
         # TODO: we should decode the extended format and handle continuation messages.
         # https://www.kernel.org/doc/Documentation/ABI/testing/dev-kmsg
         (msg, addrinfo) = self.s.recvfrom(9000)
-        sender_ip, sender_port = addrinfo
-        if sender_ip not in self.sender_info:
+        issuer_ip, issuer_port = addrinfo
+        if issuer_ip not in self.issuer_info:
             # Cache IP -> stream ID association, to avoid hitting the
             # database for each received netconsole message.
-            stream_id = self.manager.get_stream_id(sender_ip, 'netconsole')
+            stream_id = self.manager.get_stream_id(issuer_ip, 'netconsole')
             if stream_id is None:
                 # ignore this UDP message, but obviously continue listening
                 return True
-            # Second list element is the current pending message for this sender
+            # Second list element is the current pending message for this issuer
             # (in some cases we may receive a line in multiple parts before getting
             # the end-of-line char)
-            self.sender_info[sender_ip] = [stream_id, b'']
-        stream_id, cur_msg = self.sender_info[sender_ip]
+            self.issuer_info[issuer_ip] = [stream_id, b'']
+        stream_id, cur_msg = self.issuer_info[issuer_ip]
         cur_msg += msg
         # log terminated lines
         lines = cur_msg.split(b'\n')
@@ -227,14 +227,14 @@ class NetconsoleListener(object):
             for line in lines[:-1]: # terminated lines
                 record = dict(timestamp=timestamp, line=line.decode('ascii'), stream_id=stream_id)
                 self.hub.log(**record)
-        # update current message of this sender
+        # update current message of this issuer
         cur_msg = lines[-1] # last line (unterminated one)
-        self.sender_info[sender_ip][1] = cur_msg
+        self.issuer_info[issuer_ip][1] = cur_msg
         return True
 
     def forget_ip(self, device_ip):
-        if device_ip in self.sender_info:
-            del self.sender_info[device_ip]
+        if device_ip in self.issuer_info:
+            del self.issuer_info[device_ip]
 
     def close(self):
         self.s.close()
@@ -283,15 +283,15 @@ class LogsToSocketHandler(object):
         else:
             # no realtime mode, we can quit
             self.close()
-    def write_to_client(self, stream_id, senders_filtered=False, **record):
+    def write_to_client(self, stream_id, issuers_filtered=False, **record):
         try:
             if stream_id not in self.cache:
                 self.cache[stream_id] = self.manager.get_stream_info(stream_id)
             stream_info = self.cache[stream_id]
-            # when data comes from the db, senders are already filtered,
+            # when data comes from the db, issuers are already filtered,
             # while data coming from the hub has to be filtered.
-            if not senders_filtered:
-                if stream_info['sender'] not in self.params['senders']:
+            if not issuers_filtered:
+                if stream_info['issuer'] not in self.params['issuers']:
                     return  # filter out
             # matching the streams or the logline is always done here, otherwise
             # there may be inconsistencies between the regexp format in the
@@ -319,7 +319,7 @@ class LogsToSocketHandler(object):
     def fileno(self):
         return self.sock_file.fileno()
     # this is what we will do depending on the client request params
-    def handle_params(self, history, realtime, senders, streams, logline_regexp):
+    def handle_params(self, history, realtime, issuers, streams, logline_regexp):
         if history:
             # unpickle the elements of the history range
             history = tuple(pickle.loads(e) if e else None for e in history)
@@ -333,7 +333,7 @@ class LogsToSocketHandler(object):
             self.logline_regexp = None
         self.params = dict( history = history,
                             realtime = realtime,
-                            senders = senders)
+                            issuers = issuers)
         if history:
             self.phase = PHASE_WAIT_FOR_BLCK_THREAD
             self.blocking.stream_db_logs(self)
@@ -408,8 +408,8 @@ class LogsManager(object):
         self.netconsole = NetconsoleListener(self, WALT_SERVER_NETCONSOLE_PORT)
         self.netconsole.join_event_loop(self.ev_loop)
 
-    def monitor_file(self, fileobj, sender_ip, stream_name):
-        stream_id = self.get_stream_id(sender_ip, stream_name, 'chunk')
+    def monitor_file(self, fileobj, issuer_ip, stream_name):
+        stream_id = self.get_stream_id(issuer_ip, stream_name, 'chunk')
         listener = FileListener(self.ev_loop, self.hub, fileobj, stream_id)
         self.ev_loop.register_listener(listener)
         return listener
@@ -418,35 +418,35 @@ class LogsManager(object):
         sys.stdout = LoggerFile(self, 'daemon.stdout', sys.__stdout__)
         sys.stderr = LoggerFile(self, 'daemon.stderr', sys.__stderr__)
 
-    def get_stream_id(self, sender_ip, stream_name, mode='line'):
-        stream_id = self.stream_id_cache[sender_ip].get(stream_name, None)
+    def get_stream_id(self, issuer_ip, stream_name, mode='line'):
+        stream_id = self.stream_id_cache[issuer_ip].get(stream_name, None)
         if stream_id is not None:
             return stream_id
-        sender_info = self.db.select_unique('devices', ip = sender_ip)
-        if sender_info == None:
-            # sender device is unknown in database,
+        issuer_info = self.db.select_unique('devices', ip = issuer_ip)
+        if issuer_info == None:
+            # issuer device is unknown in database,
             # this stream must be ignored
             return None
-        sender_mac = sender_info.mac
+        issuer_mac = issuer_info.mac
         stream_info = self.db.select_unique('logstreams',
-                            sender_mac = sender_mac, name = stream_name)
+                            issuer_mac = issuer_mac, name = stream_name)
         if stream_info:
             # found existing stream
             stream_id = stream_info.id
         else:
             # register new stream
             stream_id = self.db.insert('logstreams', returning='id',
-                            sender_mac = sender_mac, name = stream_name,
+                            issuer_mac = issuer_mac, name = stream_name,
                             mode = mode)
-        self.stream_id_cache[sender_ip][stream_name] = stream_id
+        self.stream_id_cache[issuer_ip][stream_name] = stream_id
         return stream_id
 
     def get_stream_info(self, stream_id):
         return self.db.execute(
-                """SELECT d.name as sender, s.name as stream
+                """SELECT d.name as issuer, s.name as stream
                    FROM logstreams s, devices d
                    WHERE s.id = %s
-                     AND s.sender_mac = d.mac
+                     AND s.issuer_mac = d.mac
                 """ % stream_id)[0]._asdict()
 
     def platform_log(self, stream_name, line):

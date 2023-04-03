@@ -47,7 +47,7 @@ class ServerDB(PostgresDB):
                     model TEXT);""")
         self.execute("""CREATE TABLE IF NOT EXISTS logstreams (
                     id SERIAL PRIMARY KEY,
-                    sender_mac TEXT REFERENCES devices(mac),
+                    issuer_mac TEXT REFERENCES devices(mac),
                     name TEXT);""")
         self.execute("""CREATE TABLE IF NOT EXISTS logs (
                     stream_id INTEGER REFERENCES logstreams(id),
@@ -57,15 +57,6 @@ class ServerDB(PostgresDB):
                     username TEXT,
                     timestamp TIMESTAMP,
                     name TEXT);""")
-        # indexes
-        self.execute("""CREATE INDEX IF NOT EXISTS logs_timestamp_idx
-                         ON logs ( timestamp );""")
-        self.execute("""CREATE INDEX IF NOT EXISTS logstreams_sender_mac_name_idx
-                         ON logstreams ( sender_mac, name );""")
-        self.execute("""CREATE INDEX IF NOT EXISTS devices_ip_idx
-                         ON devices ( ip );""")
-        self.execute("""CREATE INDEX IF NOT EXISTS checkpoints_username_idx
-                         ON checkpoints ( username );""")
         # migration v4 -> v5
         if not self.column_exists('devices', 'conf'):
             self.execute("""ALTER TABLE devices
@@ -109,6 +100,19 @@ class ServerDB(PostgresDB):
         if self.column_exists('images', 'ready'):
             self.execute("""DELETE FROM images WHERE ready = false;""")
             self.execute("""ALTER TABLE images DROP COLUMN ready;""")
+        # logstreams.sender_mac renamed to logstreams.issuer_mac
+        if self.column_exists('logstreams', 'sender_mac'):
+            self.execute("""ALTER TABLE logstreams RENAME COLUMN sender_mac TO issuer_mac;""")
+            self.execute("""DROP INDEX logstreams_sender_mac_name_idx;""")  # will be re-created below
+        # indexes
+        self.execute("""CREATE INDEX IF NOT EXISTS logs_timestamp_idx
+                         ON logs ( timestamp );""")
+        self.execute("""CREATE INDEX IF NOT EXISTS logstreams_issuer_mac_name_idx
+                         ON logstreams ( issuer_mac, name );""")
+        self.execute("""CREATE INDEX IF NOT EXISTS devices_ip_idx
+                         ON devices ( ip );""")
+        self.execute("""CREATE INDEX IF NOT EXISTS checkpoints_username_idx
+                         ON checkpoints ( username );""")
         # fix server entry
         self.fix_server_device_entry()
         # commit
@@ -136,8 +140,8 @@ class ServerDB(PostgresDB):
         for entry in wrong_entries:
             self.execute("""
                 DELETE FROM logs l USING logstreams s
-                    WHERE s.sender_mac = %s AND l.stream_id = s.id;
-                DELETE FROM logstreams s WHERE s.sender_mac = %s;
+                    WHERE s.issuer_mac = %s AND l.stream_id = s.id;
+                DELETE FROM logstreams s WHERE s.issuer_mac = %s;
                 DELETE FROM topology t WHERE t.mac1 = %s;
                 DELETE FROM topology t WHERE t.mac2 = %s;
                 DELETE FROM devices d WHERE d.mac = %s;
@@ -208,51 +212,51 @@ class ServerDB(PostgresDB):
         sql, args = self.format_logs_query('l.*', ordering='l.timestamp', **kwargs)
         return self.create_server_cursor(sql, args)
 
-    def get_logstream_ids(self, senders):
-        if senders == None:
+    def get_logstream_ids(self, issuers):
+        if issuers == None:
             return self.select_no_fetch('logstreams')
         else:
-            sender_names = '''('%s')''' % "','".join(senders)
+            issuer_names = '''('%s')''' % "','".join(issuers)
             sql = """   SELECT s.*
                         FROM logstreams s, devices d
-                        WHERE s.sender_mac = d.mac AND d.name IN %s;""" % sender_names
+                        WHERE s.issuer_mac = d.mac AND d.name IN %s;""" % issuer_names
             return self.execute(sql)
 
-    def count_logs(self, history, streams = None, senders = None, **kwargs):
+    def count_logs(self, history, streams = None, issuers = None, **kwargs):
         unpickled_history = (pickle.loads(e) if e else None for e in history)
         if streams:
             # compute streams ids whose name match the regular expression
             stream_ids = []
             streams_re = re.compile(streams)
-            for row in self.get_logstream_ids(senders):
+            for row in self.get_logstream_ids(issuers):
                 matches = streams_re.findall(row.name)
                 if len(matches) > 0:
                     stream_ids.append(str(row.id))
             if len(stream_ids) == 0:
                 return 0    # no streams => no logs
-            # we can release the constraint on senders since we restrict to
+            # we can release the constraint on issuers since we restrict to
             # their logstreams (cf. stream_ids variable we just computed)
-            senders = None
+            issuers = None
         else:
             stream_ids = None
         sql, args = self.format_logs_query('count(*)',
                                            history = unpickled_history,
-                                           senders = senders,
+                                           issuers = issuers,
                                            stream_ids = stream_ids,
                                            **kwargs)
         return self.execute(sql, args)[0][0]
 
     def format_logs_query(self, projections, ordering=None, \
-                    senders=None, history=(None,None), stream_ids=None, **kwargs):
+                    issuers=None, history=(None,None), stream_ids=None, **kwargs):
         args = []
-        constraints = [ 's.sender_mac = d.mac', 'l.stream_id = s.id' ]
+        constraints = [ 's.issuer_mac = d.mac', 'l.stream_id = s.id' ]
         if stream_ids:
             stream_ids_sql = '''(%s)''' % ",".join(
                 str(stream_id) for stream_id in stream_ids)
             constraints.append('s.id IN %s' % stream_ids_sql)
-        if senders:
-            sender_names = '''('%s')''' % "','".join(senders)
-            constraints.append('d.name IN %s' % sender_names)
+        if issuers:
+            issuer_names = '''('%s')''' % "','".join(issuers)
+            constraints.append('d.name IN %s' % issuer_names)
         start, end = history
         if start:
             constraints.append('l.timestamp > %s')
@@ -271,8 +275,8 @@ class ServerDB(PostgresDB):
     def forget_device(self, dev_name):
         self.execute("""
             DELETE FROM logs l USING devices d, logstreams s
-                WHERE d.name = %s AND s.sender_mac = d.mac AND l.stream_id = s.id;
-            DELETE FROM logstreams s USING devices d WHERE d.name = %s AND s.sender_mac = d.mac;
+                WHERE d.name = %s AND s.issuer_mac = d.mac AND l.stream_id = s.id;
+            DELETE FROM logstreams s USING devices d WHERE d.name = %s AND s.issuer_mac = d.mac;
             DELETE FROM nodes n USING devices d WHERE d.name = %s AND d.mac = n.mac;
             DELETE FROM switches s USING devices d WHERE d.name = %s AND d.mac = s.mac;
             DELETE FROM topology t USING devices d WHERE d.name = %s AND d.mac = t.mac1;
