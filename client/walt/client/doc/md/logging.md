@@ -7,7 +7,7 @@ WalT provides a subsystem to save and query experiment logs. This page describes
 
 Let's start with some basic notions:
 * A **logline** is a line of text transmitted from a node to the server, and then to any client that would query it.
-* A **timestamp** and an **emitter** (the device that emitted it, i.e. a node or the server) is associated with each logline.
+* A **timestamp** and an **issuer** (the device that emitted it, i.e. a node or the server) is associated with each logline.
 * A **logstream** is a subset of loglines. Logstreams have a name, which can be used to filter logs easily.
 
 All loglines and logstreams are saved in a database on the server.
@@ -94,6 +94,6 @@ Depending on what you want to achieve, you may get more information in the follo
 * Retrieving past logs: [`walt help show log-history`](log-history.md)
 * Printing logs in real time: [`walt help show log-realtime`](log-realtime.md)
 * Updating log display format: [`walt help show log-format`](log-format.md)
-* Filtering log emitters: [`walt help show log-emitters`](log-emitters.md)
+* Filtering log issuers: [`walt help show log-issuers`](log-issuers.md)
 * Synchronizing a script based on logs: [`walt help show log-wait`](log-wait.md)
 * Using log checkpoints: [`walt help show log-checkpoint`](log-checkpoint.md)

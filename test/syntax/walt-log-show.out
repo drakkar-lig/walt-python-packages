@@ -4,14 +4,14 @@ Usage:
     walt log show [SWITCHES] [logline_regexp=None]
 
 Meta-switches:
-    -h, --help                                   Prints this help message and quits
+    -h, --help                                             Prints this help message and quits
 
 Switches:
-    --emitters, --nodes SET_OF_EMITTERS:str      selected emitters (see walt help show log-emitters); the default is my-nodes
-    --format LOG_FORMAT:str                      format used to print logs (see walt help show log-format); the default is {timestamp:%H:%M:%S.%f} {sender}.{stream} -> {line}
-    --history HISTORY_RANGE:str                  history range to be retrieved (see walt help show log-history); the default is none
-    --platform                                   shortcut for: --emitters server --streams platform.*; excludes --emitters, --nodes, --streams, --server
-    --realtime                                   enable realtime mode (see walt help show log-realtime)
-    --server                                     shortcut for: --emitters server --streams daemon.*; excludes --emitters, --nodes, --streams, --platform
-    --streams STREAMS_REGEXP:str                 selected log streams (as a regular expr.)
+    --format LOG_FORMAT:str                                printing format (see walt help show log-format); the default is {timestamp:%H:%M:%S.%f} {issuer}.{stream} -> {line}
+    --history HISTORY_RANGE:str                            history range to be retrieved (see walt help show log-history); the default is none
+    --issuers, --emitters, --nodes SET_OF_ISSUERS:str      selected issuers (see walt help show log-issuers); the default is my-nodes
+    --platform                                             shortcut for: --issuers server --streams platform.*; excludes --issuers, --nodes, --streams, --server
+    --realtime                                             enable realtime mode (see walt help show log-realtime)
+    --server                                               shortcut for: --issuers server --streams daemon.*; excludes --issuers, --nodes, --streams, --platform
+    --streams STREAMS_REGEXP:str                           selected log streams (as a regular expr.)
 

@@ -209,7 +209,7 @@ def shell_autocomplete_switch(server, requester, username, argv):
         return complete_log_checkpoint(server, username)
     elif arg_type == 'HISTORY_RANGE':
         return complete_history_range(server, username, partial_token)
-    elif arg_type == 'SET_OF_EMITTERS':
+    elif arg_type == 'SET_OF_ISSUERS':
         return complete_set_of_emitters(server, partial_token)
     elif arg_type == 'REGISTRY':
         return complete_image_registry(partial_token)
