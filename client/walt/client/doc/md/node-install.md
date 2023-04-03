@@ -100,6 +100,21 @@ Important notes:
   the SD card readonly, which greatly improves its lifetime anyway.
 
 
+## Google Coral Dev Boards
+
+First, follow the standard startup procedure at https://coral.ai/docs/dev-board/get-started.
+Then run the following on the board (with a proper internet access):
+```
+$ cd /tmp
+$ wget https://github.com/drakkar-lig/walt-project/releases/latest/coral-devb-boot.tar.gz
+$ cd /boot
+$ mv boot.scr boot.scr.orig
+$ tar xfz /tmp/coral-devb-boot.tar.gz
+```
+
+You can now connect the board to a WALT network and it will boot as a WALT node.
+
+
 ## How to identify and use the new node
 
 When WALT server detects a node for the first time, a log line is emitted.
