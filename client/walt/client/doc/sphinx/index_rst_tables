@@ -71,7 +71,7 @@ Full table of Contents
    log-checkpoint
    log-history
    log-realtime
-   log-emitters
+   log-issuers
    log-format
    log-echo
    log-cat

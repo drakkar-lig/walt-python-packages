@@ -140,7 +140,7 @@ class WalTDeviceForget(WalTApplication):
             if not self._force:
                 logs_cnt = server.count_logs(
                         history = (None, None),
-                        senders = set([device_name]))
+                        issuers = set([device_name]))
                 if logs_cnt > 0:
                     print(MSG_FORGET_DEVICE_WITH_LOGS % (
                         device_name, logs_cnt, device_name

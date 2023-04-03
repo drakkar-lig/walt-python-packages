@@ -12,7 +12,7 @@ DATE_FORMAT_STRING_HUMAN= '<YYYY>-<MM>-<DD> <hh>:<mm>:<ss>'
 DATE_FORMAT_STRING_EXAMPLE= '2015-09-28 15:16:39'
 
 DEFAULT_FORMAT_STRING= \
-   '{timestamp:%H:%M:%S.%f} {sender}.{stream} -> {line}'
+   '{timestamp:%H:%M:%S.%f} {issuer}.{stream} -> {line}'
 
 SECONDS_PER_UNIT = {'s':1, 'm':60, 'h':3600, 'd':86400}
 NUM_LOGS_CONFIRM_TRESHOLD = 1000
@@ -63,13 +63,13 @@ class WalTLogShowOrWait(WalTApplication):
                 str,
                 argname = 'LOG_FORMAT',
                 default = DEFAULT_FORMAT_STRING,
-                help= """format used to print logs (see walt help show log-format)""")
-    set_of_emitters = cli.SwitchAttr(
-                [ "--emitters", "--nodes" ],
+                help= """printing format (see walt help show log-format)""")
+    set_of_issuers = cli.SwitchAttr(
+                [ "--issuers", "--emitters", "--nodes" ],
                 str,
-                argname = 'SET_OF_EMITTERS',
+                argname = 'SET_OF_ISSUERS',
                 default = 'my-nodes',
-                help= """selected emitters (see walt help show log-emitters)""")
+                help= """selected issuers (see walt help show log-issuers)""")
     streams = cli.SwitchAttr(
                 "--streams",
                 str,
@@ -79,24 +79,24 @@ class WalTLogShowOrWait(WalTApplication):
     platform_opt = cli.Flag(
                 "--platform",
                 default = False,
-                excludes = ['--emitters', '--nodes', '--streams', '--server'],
-                help= """shortcut for: --emitters server --streams platform.*""")
+                excludes = ['--issuers', '--nodes', '--streams', '--server'],
+                help= """shortcut for: --issuers server --streams platform.*""")
     server_opt = cli.Flag(
                 "--server",
                 default = False,
-                excludes = ['--emitters', '--nodes', '--streams', '--platform'],
-                help= """shortcut for: --emitters server --streams daemon.*""")
+                excludes = ['--issuers', '--nodes', '--streams', '--platform'],
+                help= """shortcut for: --issuers server --streams daemon.*""")
 
     def handle_shortcut_options(self):
         if self.platform_opt:
-            self.set_of_emitters = 'server'
+            self.set_of_issuers = 'server'
             self.streams = 'platform.*'
         elif self.server_opt:
-            self.set_of_emitters = 'server'
+            self.set_of_issuers = 'server'
             self.streams = 'daemon.*'
 
-    def get_senders(self, server):
-        return server.parse_set_of_devices(self.set_of_emitters, allowed_device_set='server,all-nodes')
+    def get_issuers(self, server):
+        return server.parse_set_of_devices(self.set_of_issuers, allowed_device_set='server,all-nodes')
 
     @staticmethod
     def analyse_history_range(server, history_range):
@@ -146,12 +146,12 @@ class WalTLogShowOrWait(WalTApplication):
         return True
 
     @staticmethod
-    def start_streaming(format_string, history_range, realtime, senders, streams,
+    def start_streaming(format_string, history_range, realtime, issuers, streams,
                         logline_regexp, stop_test, timeout = -1):
         conn = LogsFlowFromServer()
         conn.request_log_dump(  history = history_range,
                                 realtime = realtime,
-                                senders = senders,
+                                issuers = issuers,
                                 streams = streams,
                                 logline_regexp = logline_regexp)
         if timeout > 0:
@@ -205,8 +205,8 @@ class WalTLogShow(WalTLogShowOrWait):
         if not WalTLogShowOrWait.verify_regexps(self.streams, logline_regexp):
             return
         with ClientToServerLink() as server:
-            senders = self.get_senders(server)
-            if senders == None:
+            issuers = self.get_issuers(server)
+            if issuers == None:
                 return
             range_analysis = WalTLogShowOrWait.analyse_history_range(server, self.history_range)
             if not range_analysis[0]:
@@ -217,13 +217,13 @@ class WalTLogShow(WalTLogShowOrWait):
             # of log records, because this computation would be too expensive, and the number of
             # matching lines is probably low.
             if history_range and logline_regexp is None and isatty():
-                num_logs = server.count_logs(history = history_range, senders = senders, streams = self.streams)
+                num_logs = server.count_logs(history = history_range, issuers = issuers, streams = self.streams)
                 if num_logs > NUM_LOGS_CONFIRM_TRESHOLD:
                     print('This will display approximately %d log records from history.' % num_logs)
                     if not confirm():
                         return
         WalTLogShowOrWait.start_streaming(self.format_string, history_range, self.realtime,
-                                            senders, self.streams, logline_regexp, None)
+                                            issuers, self.streams, logline_regexp, None)
 
 @WalTLog.subcommand("add-checkpoint")
 class WalTLogAddCheckpoint(WalTApplication):
@@ -290,8 +290,8 @@ class WalTLogWait(WalTLogShowOrWait):
         if not WalTLogShowOrWait.verify_regexps(self.streams, logline_regexp):
             return
         with ClientToServerLink() as server:
-            senders = self.get_senders(server)
-            if senders == None:
+            issuers = self.get_issuers(server)
+            if issuers == None:
                 return
             if self.time_margin != 0:
                 history_range = '-%ds:' % self.time_margin
@@ -305,12 +305,12 @@ class WalTLogWait(WalTLogShowOrWait):
                 return True
         else:
             # we stop when all nodes have emitted a matching logline
-            missing_senders = set(senders)
+            missing_issuers = set(issuers)
             def stop_test(**record):
-                missing_senders.discard(record['sender'])
-                if len(missing_senders) == 0:
+                missing_issuers.discard(record['issuer'])
+                if len(missing_issuers) == 0:
                     return True     # yes, we should stop
                 else:
                     return False    # no, we are not done yet
         WalTLogShowOrWait.start_streaming(self.format_string, history_range, True,
-                                    senders, self.streams, logline_regexp, stop_test, self.timeout)
+                                    issuers, self.streams, logline_regexp, stop_test, self.timeout)
