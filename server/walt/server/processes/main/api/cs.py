@@ -2,8 +2,7 @@ import datetime, pickle
 
 from walt.common.crypto.dh import DHPeer
 from walt.common.api import api, api_expose_method
-from walt.common.tools import serialize_ordered_dict, deserialize_ordered_dict, \
-                              format_image_fullname
+from walt.common.tools import format_image_fullname
 from walt.common.tcp import PICKLE_VERSION
 
 from walt.server.processes.main.apisession import APISession
@@ -138,7 +137,7 @@ class CSAPI(APISession):
         device_info = context.devices.get_device_info(context.requester, device_name)
         if device_info is None:
             return None
-        return serialize_ordered_dict(device_info._asdict())
+        return device_info._asdict()
 
     @api_expose_method
     def fix_image_owner(self, context, other_user):

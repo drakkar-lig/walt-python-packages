@@ -182,24 +182,6 @@ class SimpleContainer(object):
     def copy(self):
         return SimpleContainer(**self.__dict__)
 
-def serialize_ordered_dict(od):
-    from collections import OrderedDict
-    res = []
-    for k, v in od.items():
-        if isinstance(v, OrderedDict):
-            v = serialize_ordered_dict(v)
-        res.append((k, v))
-    return tuple(res)
-
-def deserialize_ordered_dict(t):
-    from collections import OrderedDict
-    d = OrderedDict()
-    for k, v in t:
-        if isinstance(v, tuple):
-            v = deserialize_ordered_dict(v)
-        d[k] = v
-    return d
-
 def set_close_on_exec(fd, close_on_exec):
     val = fcntl(fd, F_GETFD)
     if close_on_exec:
