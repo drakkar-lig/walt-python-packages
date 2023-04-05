@@ -299,7 +299,7 @@ class WalTLogWait(WalTLogShowOrWait):
                 history_range = range_analysis[1]
             else:
                 history_range = None
-        if self.mode == 'ANY':
+        if self.mode.upper() == 'ANY':
             # as soon as a logline matches, we stop
             def stop_test(**record):
                 return True
