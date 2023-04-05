@@ -1,5 +1,4 @@
 from plumbum import cli
-from walt.common.tools import deserialize_ordered_dict
 from walt.client.link import ClientToServerLink
 from walt.client.interactive import run_device_ping, run_device_shell
 from walt.client.tools import confirm
@@ -60,7 +59,6 @@ class WalTDeviceShell(WalTApplication):
             device_info = server.get_device_info(device_name)
             if device_info == None:
                 return False # issue already reported
-            device_info = deserialize_ordered_dict(device_info)
             if device_info['type'] == 'node':
                 print(MSG_USE_WALT_NODE_SHELL % dict(node = device_name))
                 return False
@@ -78,7 +76,6 @@ class WalTDeviceExpose(WalTApplication):
             device_info = server.get_device_info(device_name)
             if device_info == None:
                 return False    # issue already reported
-            device_info = deserialize_ordered_dict(device_info)
             if not WalTDevice.confirm_devices_not_owned(server, device_name):
                 return False
             device_ip = device_info['ip']
@@ -133,7 +130,6 @@ class WalTDeviceForget(WalTApplication):
             device_info = server.get_device_info(device_name)
             if device_info == None:
                 return  # issue already reported
-            device_info = deserialize_ordered_dict(device_info)
             if device_info['type'] == 'node' and device_info['virtual']:
                 print(MSG_USE_WALT_NODE_REMOVE % dict(node = device_name))
                 return
