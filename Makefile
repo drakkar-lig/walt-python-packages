@@ -37,20 +37,20 @@ GNUMAKEFLAGS=--no-print-directory
 # (sys.base_prefix == sys.prefix test returns False in a virtual env).
 SUDO=$(shell python3 -c 'import os, sys; print("sudo -H" if sys.base_prefix == sys.prefix and os.getuid() != 0 else "")')
 PIP=$(shell echo `which pip3`)
-PIP_INSTALL=$(PIP) install --ignore-installed greenlet
+PIP_INSTALL=$(SUDO) $(PIP) install --ignore-installed greenlet
 
 # ------
 
 install: server.install
 
 server.install: $(patsubst %,%.wheel,$(INSTALLABLE_PACKAGES_ON_SERVER))
-	$(SUDO) $(PIP_INSTALL) $(patsubst %,./%,$(INSTALLABLE_PACKAGES_ON_SERVER))
+	$(PIP_INSTALL) $(patsubst %,./%/dist/*.whl,$(INSTALLABLE_PACKAGES_ON_SERVER))
 
 client.install: $(patsubst %,%.wheel,$(INSTALLABLE_PACKAGES_ON_CLIENT))
-	$(SUDO) $(PIP_INSTALL) $(patsubst %,./%,$(INSTALLABLE_PACKAGES_ON_CLIENT))
+	$(PIP_INSTALL) $(patsubst %,./%/dist/*.whl,$(INSTALLABLE_PACKAGES_ON_CLIENT))
 
 client-g5k.install: $(patsubst %,%.wheel,$(INSTALLABLE_PACKAGES_ON_CLIENT_G5K))
-	$(SUDO) $(PIP_INSTALL) $(patsubst %,./%,$(INSTALLABLE_PACKAGES_ON_CLIENT_G5K))
+	$(PIP_INSTALL) $(patsubst %,./%/dist/*.whl,$(INSTALLABLE_PACKAGES_ON_CLIENT_G5K))
 
 uninstall: $(patsubst %,%.uninstall,$(ALL_PACKAGES))
 
@@ -59,10 +59,11 @@ pull: $(patsubst %,%.pull,$(INSTALLABLE_PACKAGES_ON_SERVER))
 clean: $(patsubst %,%.clean,$(ALL_PACKAGES))
 
 %.clean: %.info
-	@cd $*; pwd; python3 setup.py clean --all
+	@cd $*; pwd; rm -rf dist build *.egg-info
 
 %.wheel: %.info
-	@cd $*; pwd; python3 setup.py bdist_wheel
+	@$(PIP) show build >/dev/null 2>&1 || $(PIP_INSTALL) build
+	@cd $*; pwd; rm -rf dist && python3 -m build
 
 %.info:
 	@$(MAKE) $*/walt/$(subst -,/,$*)/info.py
