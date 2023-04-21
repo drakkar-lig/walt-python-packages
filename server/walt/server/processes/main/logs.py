@@ -44,15 +44,14 @@ class LogsHub(object):
         self.handlers.remove(handler)
 
     def log(self, **kwargs):
-        to_be_removed = set([])
-        for handler in self.handlers:
+        for handler in self.handlers.copy():
+            if handler not in self.handlers:
+                continue
             res = handler.log(**kwargs)
             # a handler may request to be deleted
             # by returning False
-            if res == False:
-                to_be_removed.add(handler)
-        for handler in to_be_removed:
-            self.handlers.remove(handler)
+            if res == False and handler in self.handlers:
+                self.handlers.remove(handler)
 
 class LogsStreamListener(object):
     def __init__(self, manager, sock_file, **kwargs):
