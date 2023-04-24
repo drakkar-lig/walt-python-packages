@@ -106,8 +106,8 @@ done
 
 if [[ ${#SH_TEST_FILES[@]} == 0 && ${#PY_TEST_FILES[@]} == 0 ]]
 then
-    SH_TEST_FILES=("$TESTS_DIR"/*.sh)
-    PY_TEST_FILES=("$TESTS_DIR"/*.py)
+    ls "$TESTS_DIR"/*.sh >/dev/null 2>&1 && SH_TEST_FILES=("$TESTS_DIR"/*.sh)
+    ls "$TESTS_DIR"/*.py >/dev/null 2>&1 && PY_TEST_FILES=("$TESTS_DIR"/*.py)
 fi
 
 __prepared_sh_source="$TMPDIR/prepared_source.sh"
