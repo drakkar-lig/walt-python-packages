@@ -64,7 +64,7 @@ PACKAGE_SPECIFIC_INFO = {
     "walt-server": dict(
         subdir = 'server',
         requires = [    'plumbum>=1.7.2', 'snimpy>=0.8.3',
-                        'pysnmp>=4.4.12',
+                        'pysnmp==4.4.12', 'pyasn1==0.4.8',  # new pyasn1 0.5.0 has an issue
                         'ipaddress>=1.0.7','requests>=2.21.0',
                         'sdnotify>=0.3.0',
                         'psycopg2-binary>=2.8.2',
