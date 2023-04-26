@@ -134,9 +134,11 @@ class WalTDeviceForget(WalTApplication):
                 print(MSG_USE_WALT_NODE_REMOVE % dict(node = device_name))
                 return
             if not self._force:
+                # note: do not count logs of "*console" streams
                 logs_cnt = server.count_logs(
                         history = (None, None),
-                        issuers = set([device_name]))
+                        issuers = set([device_name]),
+                        streams = '$(?<!console)')
                 if logs_cnt > 0:
                     print(MSG_FORGET_DEVICE_WITH_LOGS % (
                         device_name, logs_cnt, device_name

@@ -213,47 +213,55 @@ class ServerDB(PostgresDB):
         return self.create_server_cursor(sql, args)
 
     def get_logstream_ids(self, issuers):
-        if issuers == None:
+        if issuers is None:
             return self.select_no_fetch('logstreams')
         else:
             issuer_names = '''('%s')''' % "','".join(issuers)
             sql = """   SELECT s.*
                         FROM logstreams s, devices d
-                        WHERE s.issuer_mac = d.mac AND d.name IN %s;""" % issuer_names
+                        WHERE s.issuer_mac = d.mac
+                          AND d.name IN %s;""" % issuer_names
             return self.execute(sql)
 
-    def count_logs(self, history, streams = None, issuers = None, **kwargs):
+    def count_logs(self, history, streams = None, issuers = None, stream_mode = None, **kwargs):
         unpickled_history = (pickle.loads(e) if e else None for e in history)
+        # filter relevant streams
+        stream_ids = []
         if streams:
-            # compute streams ids whose name match the regular expression
-            stream_ids = []
             streams_re = re.compile(streams)
-            for row in self.get_logstream_ids(issuers):
+        for row in self.get_logstream_ids(issuers):
+            if streams:
                 matches = streams_re.findall(row.name)
-                if len(matches) > 0:
-                    stream_ids.append(str(row.id))
-            if len(stream_ids) == 0:
-                return 0    # no streams => no logs
-            # we can release the constraint on issuers since we restrict to
-            # their logstreams (cf. stream_ids variable we just computed)
-            issuers = None
-        else:
-            stream_ids = None
+                if len(matches) == 0:
+                    continue    # discard this one
+            if stream_mode:
+                if row.mode != stream_mode:
+                    continue    # discard this one
+            stream_ids.append(str(row.id))
+        if len(stream_ids) == 0:
+            return 0    # no streams => no logs
+        # note: we can release the constraint on issuers and stream mode
+        # since we restrict to relevant logstreams
+        # (cf. stream_ids variable we just computed)
         sql, args = self.format_logs_query('count(*)',
                                            history = unpickled_history,
-                                           issuers = issuers,
                                            stream_ids = stream_ids,
+                                           issuers = None,
+                                           stream_mode = None,
                                            **kwargs)
         return self.execute(sql, args)[0][0]
 
-    def format_logs_query(self, projections, ordering=None, \
-                    issuers=None, history=(None,None), stream_ids=None, **kwargs):
+    def format_logs_query(self, projections, ordering=None,
+                    issuers=None, history=(None,None), stream_ids=None,
+                    stream_mode=None, **kwargs):
         args = []
         constraints = [ 's.issuer_mac = d.mac', 'l.stream_id = s.id' ]
         if stream_ids:
             stream_ids_sql = '''(%s)''' % ",".join(
                 str(stream_id) for stream_id in stream_ids)
             constraints.append('s.id IN %s' % stream_ids_sql)
+        if stream_mode:
+            constraints.append(f"s.mode = '{stream_mode}'")
         if issuers:
             issuer_names = '''('%s')''' % "','".join(issuers)
             constraints.append('d.name IN %s' % issuer_names)
