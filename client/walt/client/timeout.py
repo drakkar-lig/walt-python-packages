@@ -1,11 +1,9 @@
 from time import time
 from contextlib import contextmanager
+from walt.client.exceptions import TimeoutException
 
 MARGIN = 0.001  # margin when testing if timeout is reached
 timeout = None
-
-class TimeoutException(Exception):
-    pass
 
 def timeout_sighandler(signum, frame):
     raise TimeoutException()
