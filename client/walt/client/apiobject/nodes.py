@@ -9,27 +9,8 @@ from walt.client.apiobject.images import APIImageBase, get_image_from_name, \
 from walt.client.apiobject.config import APINodeConfig
 from walt.client.apitools import silent_server_link, get_devices_names
 from walt.client.config import conf
-
-EXCEPTION_NODE_HAS_LOGS = """\
-Removing a node with logs without the force parameter is not allowed"""
-
-class NodeHasLogsException(Exception):
-    def __init__(self):
-        super().__init__(EXCEPTION_NODE_HAS_LOGS)
-
-EXCEPTION_NODE_NOT_OWNED = """\
-Using a node owned by someone else without the force parameter is not allowed"""
-
-class NodeNotOwnedException(Exception):
-    def __init__(self):
-        super().__init__(EXCEPTION_NODE_NOT_OWNED)
-
-EXCEPTION_PARAMETER_NOT_AN_IMAGE = """\
-The specified parameter is not a WalT image"""
-
-class ParameterNotAnImageException(Exception):
-    def __init__(self):
-        super().__init__(EXCEPTION_PARAMETER_NOT_AN_IMAGE)
+from walt.client.exceptions import NodeHasLogsException, NodeNotOwnedException, \
+                                   ParameterNotAnImageException
 
 class APINodeInfoCache(APIItemInfoCache):
     def __init__(self):

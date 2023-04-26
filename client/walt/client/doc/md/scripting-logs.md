@@ -51,7 +51,7 @@ root@vn23:~#
 It is possible to specify a timeout value in seconds:
 
 ```
->>> from walt.client.timeout import TimeoutException
+>>> from walt.client.exceptions import TimeoutException
 >>> try:
 ...     for logline in api.logs.get_logs(realtime=True, timeout=5):
 ...         if logline.issuer.name == 'vn23':
