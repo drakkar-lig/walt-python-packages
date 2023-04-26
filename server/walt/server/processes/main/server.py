@@ -146,10 +146,11 @@ class Server(object):
         return dict(self.devices.get_complete_device_info(device_mac)._asdict())
 
     def rename_device(self, requester, old_name, new_name):
-        self.devices.rename(requester, old_name, new_name)
-        self.dhcpd.update()
-        tftp.update(self.db, self.images.store)
-        return True
+        result = self.devices.rename(requester, old_name, new_name)
+        if result is True:
+            self.dhcpd.update()
+            tftp.update(self.db, self.images.store)
+        return result
 
     def device_rescan(self, requester, task, remote_ip, device_set):
         devices = self.devices.parse_device_set(requester, device_set)
