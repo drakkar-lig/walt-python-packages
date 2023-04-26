@@ -8,13 +8,7 @@ from walt.client.apiobject.base import APIObjectBase, APISetOfItemsClassFactory,
 from walt.client.apitools import silent_server_link
 from walt.client.config import conf
 from walt.client.transfer import run_transfer_for_image_build
-
-EXCEPTION_NO_SUCH_IMAGE_NAME = """\
-No such WalT image name"""
-
-class NoSuchImageNameException(Exception):
-    def __init__(self):
-        super().__init__(EXCEPTION_NO_SUCH_IMAGE_NAME)
+from walt.client.exceptions import NoSuchImageNameException
 
 class APIImageInfoCache(APIItemInfoCache):
     def __init__(self):
