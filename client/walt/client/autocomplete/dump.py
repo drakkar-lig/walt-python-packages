@@ -18,12 +18,49 @@ _walt_comp_get_cols() {
     fi
 }
 
-_walt_comp_pad_lines() {
+_walt_comp_pad_reply_lines() {
     local cols="$1"
-    while read line
+    for i in ${!COMPREPLY[@]}
     do
-        printf '%-*s\\n' $cols "$line"
+        COMPREPLY[i]="$(printf '%-*s\\n' $cols "${COMPREPLY[i]}")"
     done
+}
+
+_walt_comp_print_array() {
+    echo "size ${#} -- "
+    i=1
+    for item in "$@"
+    do
+        echo "    $i: $(echo $item)"
+        i=$((i+1))
+    done
+}
+
+# filter lines starting with a prefix
+# and save result in COMPREPLY
+# (for some reason compgen -W sometimes does not work with lines
+# and using grep is slower)
+_walt_compgen_lines()
+{
+    prefix="$1"
+    lines="$2"
+    # prefix all lines with "__del"
+    lines="__del${lines//$'\\n'/$'\\n'__del}"
+    # replace __del${prefix} with ${prefix}
+    lines="${lines//__del${prefix}/${prefix}}"
+    # use newline as field separator
+    OLDIFS="$IFS"; IFS=$'\\n'
+    # turn lines text into an array
+    array_lines=($lines)
+    # remove lines still prefixed with __del
+    # and save result into COMPREPLY
+    COMPREPLY=(${array_lines[@]//__del*})
+    # restore field separator
+    IFS="$OLDIFS"
+}
+
+_walt_date() {
+    printf '%(%s)T'  # bash builtin, faster than "date +%s"
 }
 
 _walt_complete()
@@ -32,14 +69,14 @@ _walt_complete()
     _init_completion -s -n : || return
     if [ "$_walt_comp_debug" -eq 1 ]
     then
-        echo -n "(INPUT ** ${words[@]})" >> log.txt
+        echo "INPUT ** ${words[@]}" >> log.txt
     fi
     # if last request was the same and recent, return the same
     if [ "${words[*]}" = "$_walt_comp_cache_last_request" ]
     then
         # cache hit, check if not too old
         if [ $((_walt_comp_cache_timestamp+_WALT_COMP_CACHE_VALIDITY_SECS)) \\
-                -ge "$(date +%s)" ]
+                -ge "$(_walt_date)" ]
         then
             # ok
             COMPREPLY=("${_walt_comp_cache_last_reply[@]}")
@@ -188,18 +225,15 @@ __described_help_topics__"
             # we cannot pad, so keep the basic completions display
             return 0
         fi
-        possible_described="$(echo "$possible_described" | _walt_comp_pad_lines $cols)"
-        local OLDIFS="$IFS"
-        local IFS=$'\\n'
-        COMPREPLY=( $( compgen -W "$possible_described" -- "$partial_token" ) )
-        IFS="$OLDIFS"
+        _walt_compgen_lines "$partial_token" "$possible_described"
+        _walt_comp_pad_reply_lines "$cols"
     fi
     if [ "$_walt_comp_debug" -eq 1 ]
     then
-        echo "(OUTPUT ** ${COMPREPLY[@]})" >> log.txt
+        echo "OUTPUT ** $(_walt_comp_print_array "${COMPREPLY[@]}")" >> log.txt
     fi
     # save in cache for possible reuse
-    _walt_comp_cache_timestamp="$(date +%s)"
+    _walt_comp_cache_timestamp="$(_walt_date)"
     _walt_comp_cache_last_request="${words[*]}"
     _walt_comp_cache_last_reply=("${COMPREPLY[@]}")
     # fix possible issues with ":" in arguments
