@@ -3,7 +3,7 @@
 
 `walt log wait` allows to wait for a given log trace to be emitted. The command returns when it occurs.
 
-Option `--issuers` allows to specify the set of devices monitored. If unspecified, the nodes you own (see [`walt help show node-terminology`](node-terminology.md)) will be selected.
+Option `--issuers` allows to specify the set of devices monitored. If unspecified, the nodes you own (see [`walt help show node-ownership`](node-ownership.md)) will be selected.
 
 The default behavior (`--mode ANY`) of this command is to wait until a logline emitted by **one** of the selected issuers matches the specified regular expression. In some cases, one may require a different behavior by using option `--mode ALL`. With this option, the command will wait until **all** selected issuers emit a given logline.
 

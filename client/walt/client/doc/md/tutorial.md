@@ -172,7 +172,7 @@ Three categories of nodes are listed:
 For more information on this topic, you can type:
 
 ```console
-$ walt help show node-terminology
+$ walt help show node-ownership
 ```
 
 ## The images

@@ -22,6 +22,20 @@ class NodeNotOwnedException(Exception):
     def __init__(self):
         super().__init__(EXCEPTION_NODE_NOT_OWNED)
 
+EXCEPTION_NODE_ALREADY_OWNED = """\
+This operation does not apply to nodes you already own"""
+
+class NodeAlreadyOwnedException(Exception):
+    def __init__(self):
+        super().__init__(EXCEPTION_NODE_ALREADY_OWNED)
+
+EXCEPTION_OP_APPLIES_NODE_OWNED = """\
+This operation only applies to nodes you own"""
+
+class OpAppliesNodeOwnedException(Exception):
+    def __init__(self):
+        super().__init__(EXCEPTION_OP_APPLIES_NODE_OWNED)
+
 EXCEPTION_PARAMETER_NOT_AN_IMAGE = """\
 The specified parameter is not a WalT image"""
 

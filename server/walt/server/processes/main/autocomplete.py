@@ -18,20 +18,20 @@ def complete_set(possible_items, partial_token):
 
 def complete_set_of_nodes(server, username, partial_token):
     all_nodes = complete_node(server, username)
-    keywords = [ 'my-nodes', 'all-nodes' ]
+    keywords = [ 'my-nodes', 'all-nodes', 'free-nodes' ]
     return complete_set(all_nodes + keywords, partial_token)
 
 def complete_set_of_devices(server, partial_token):
     all_devices = list(dev.name for dev in server.db.select('devices'))
     keywords = [ 'all-devices', 'all-switches', 'explorable-switches',
-                 'my-nodes', 'all-nodes' ]
+                 'my-nodes', 'all-nodes', 'free-nodes' ]
     return complete_set(all_devices + keywords, partial_token)
 
 def complete_set_of_emitters(server, partial_token):
     all_allowed_devices = list(dev.name for dev in server.db.select('devices')
                                     if dev.name.startswith(partial_token) and \
                                        dev.type in ('node', 'server'))
-    keywords = [ 'my-nodes', 'all-nodes', 'server' ]
+    keywords = [ 'my-nodes', 'all-nodes', 'free-nodes', 'server' ]
     return complete_set(all_allowed_devices + keywords, partial_token)
 
 def complete_rescan_set_of_devices(server, partial_token):

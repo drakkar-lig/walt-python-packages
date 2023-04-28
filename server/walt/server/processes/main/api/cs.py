@@ -85,8 +85,8 @@ class CSAPI(APISession):
             return tuple(d.name for d in devices)
 
     @api_expose_method
-    def includes_devices_not_owned(self, context, device_set, warn):
-        return context.devices.includes_devices_not_owned(context.requester, device_set, warn)
+    def filter_ownership(self, context, node_set):
+        return context.nodes.filter_ownership(context.requester, node_set)
 
     @api_expose_method
     def develop_node_set(self, context, node_set):
@@ -295,3 +295,7 @@ class CSAPI(APISession):
     def finalize_image_build_session(self, context, session_id):
         session = self.get_session_object(session_id)
         return session.finalize_image_build_session(context.requester, context.server, context.task)
+
+    @api_expose_method
+    def get_clones_of_default_images(self, context, node_set):
+        return context.images.store.get_clones_of_default_images(context.requester, node_set)

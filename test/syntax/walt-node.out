@@ -13,6 +13,8 @@ Help about WalT in general:
 
 Sub-commands:
     show     show WalT nodes
+    acquire  get ownership of a (set of) node(s)
+    release  release ownership of a (set of) node(s)
     boot     let a (set of) node(s) boot an operating system image
     shell    run an interactive shell connected to the node
     run      run a command on a (set of) node(s)

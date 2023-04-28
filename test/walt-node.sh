@@ -9,6 +9,14 @@ define_test "walt node create" as {
     node_exists $(test_suite_node)
 }
 
+define_test "walt node release" as {
+    walt node release $(test_suite_node)
+}
+
+define_test "walt node acquire" as {
+    walt node acquire $(test_suite_node)
+}
+
 define_test "walt node rename" as {
     walt node rename $(test_suite_node) $(test_suite_node)-2
     node_exists $(test_suite_node)-2

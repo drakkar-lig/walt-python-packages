@@ -1,6 +1,6 @@
 import re
 
-from walt.common.formatting import format_paragraph, format_sentence, columnate
+from walt.common.formatting import format_paragraph, columnate
 from walt.common.tools import do, get_mac_address
 from walt.server import const
 from walt.common.netsetup import NetSetup
@@ -48,6 +48,12 @@ DEVICE_SET_QUERIES = {
             FROM devices d, nodes n
             WHERE   d.mac = n.mac
             ORDER BY d.name;""",
+        'free-nodes': """
+            SELECT  d.mac as mac
+            FROM devices d, nodes n
+            WHERE   d.mac = n.mac
+            AND     n.image = ('waltplatform/' || n.model || '-default:latest')
+            ORDER BY name;""",
         'all-switches': """
             SELECT  d.mac as mac
             FROM devices d
@@ -309,26 +315,6 @@ class DevicesManager(object):
                         FOOTNOTE_SOME_UNKNOWN_DEVICES)
         return msg
 
-    def includes_devices_not_owned(self, requester, device_set, warn):
-        username = requester.get_username()
-        if not username:
-            return False    # client already disconnected, give up
-        devices = self.parse_device_set(requester, device_set)
-        if devices is None:
-            return None
-        not_owned = [d for d in devices
-                     if not (d.type == "node" and
-                             (d.image.startswith(username + '/') or d.image.startswith('waltplatform/'))
-                             or d.type != "node")]
-        if len(not_owned) == 0:
-            return False
-        else:
-            if warn:
-                requester.stderr.write(format_sentence(
-                    'Warning: %s seems(seem) to be used by another(other) user(users).',
-                    [d.name for d in not_owned], "No device", "Device", "Devices") + '\n')
-            return True
-
     def parse_device_set(self, requester, device_set, allowed_device_set=None, allow_empty=False):
         devices = []
         if ',' in device_set:
@@ -369,7 +355,7 @@ class DevicesManager(object):
                     requester.stderr.write(f"Invalid value '{device_set}'; allowed devices belong to '{allowed_device_set}'\n")
                     return None
         if len(devices) == 0 and not allow_empty:
-            requester.stderr.write('No matching devices found! (tip: walt help show node-terminology)\n')
+            requester.stderr.write('No matching devices found! (tip: walt help show node-ownership)\n')
             return None
         return sorted(devices)
 

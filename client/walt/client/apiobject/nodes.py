@@ -10,6 +10,7 @@ from walt.client.apiobject.config import APINodeConfig
 from walt.client.apitools import silent_server_link, get_devices_names
 from walt.client.config import conf
 from walt.client.exceptions import NodeHasLogsException, NodeNotOwnedException, \
+                                   NodeAlreadyOwnedException, OpAppliesNodeOwnedException, \
                                    ParameterNotAnImageException
 
 class APINodeInfoCache(APIItemInfoCache):
@@ -68,14 +69,38 @@ class Tools:
                 raise ParameterNotAnImageException()
         return image_name_or_default
     @staticmethod
-    def boot_image(nodes, image, force=False):
+    def boot_image(nodes, image, force=False, ownership_mode='owned-or-free'):
         image_name_or_default = Tools.get_image_name_or_default(image)
         for n in nodes:
-            n._check_owned_or_force(force)
+            n._check_owned_or_force(force, ownership_mode)
         nodeset = Tools.get_comma_nodeset(nodes)
         with silent_server_link() as server:
             if not server.set_image(nodeset, image_name_or_default):
                 return
+            server.reboot_nodes(nodeset)
+        # update node info cache to print the correct image name
+        # on this node
+        __info_cache__.refresh()
+        # update image info cache (the <image>.in_use flag may have changed)
+        update_image_cache()
+    @staticmethod
+    def acquire(nodes, force=False):
+        for n in nodes:
+            n._check_owned_or_force(force=force, mode='free-or-not-owned')
+        nodeset = Tools.get_comma_nodeset(nodes)
+        with silent_server_link() as server:
+            _, _, image_per_node = server.get_clones_of_default_images(nodeset)
+            # revert image_per_node dictionary
+            from collections import defaultdict
+            nodes_per_image = defaultdict(list)
+            for node, image in image_per_node.items():
+                nodes_per_image[image].append(node)
+            # associate nodes with appropriate image
+            for image, nodes in nodes_per_image.items():
+                image_node_set = ','.join(nodes)
+                if not server.set_image(image_node_set, image):
+                    return  # unexpected issue
+            # reboot
             server.reboot_nodes(nodeset)
         # update node info cache to print the correct image name
         # on this node
@@ -124,10 +149,13 @@ class APINodeFactory:
             def _set_config(self, setting_name, setting_value):
                 with silent_server_link() as server:
                     server.set_device_config(self.name, (f'{setting_name}={setting_value}',))
-            def _check_owned_or_force(self, force=False):
-                # check whether user owns the node
-                # if the node is free (user 'waltplatform'), that's OK too.
-                if not force and self.owner not in (conf.walt.username, 'waltplatform'):
+            def _check_owned_or_force(self, force=False, mode='owned-or-free'):
+                if mode == 'free-or-not-owned' and self.owner == conf.walt.username:
+                    raise NodeAlreadyOwnedException()
+                if mode == 'owned' and self.owner != conf.walt.username:
+                    raise OpAppliesNodeOwnedException()
+                if mode in ('owned-or-free', 'free-or-not-owned') and \
+                        not force and self.owner not in (conf.walt.username, 'waltplatform'):
                     raise NodeNotOwnedException()
             def reboot(self, force=False, hard_only=False):
                 """Reboot this node"""
@@ -174,6 +202,12 @@ class APINodeFactory:
             def boot(self, image, force=False):
                 """Boot the specified WalT image"""
                 Tools.boot_image((self,), image, force=force)
+            def release(self):
+                """Release ownership of this node"""
+                Tools.boot_image((self,), 'default', ownership_mode="owned")
+            def acquire(self, force=False):
+                """Get ownership of this node"""
+                Tools.acquire((self,), force=force)
         api_node = APINode()
         APINodeFactory.__nodes_per_mac__[node_mac] = api_node
         __info_cache__.register_obj(api_node)
@@ -212,6 +246,12 @@ class APISetOfNodesFactory:
             def boot(self, image, force=False):
                 """Boot the specified image on all nodes of this set"""
                 Tools.boot_image(self, image, force=force)
+            def release(self):
+                """Release ownership of all nodes in this set"""
+                Tools.boot_image(self, 'default', ownership_mode="owned")
+            def acquire(self, force=False):
+                """Get ownership of all nodes in this set"""
+                Tools.acquire(self, force=force)
         return APISetOfNodes()
 
 class APINodesSubModule(APIObjectBase):

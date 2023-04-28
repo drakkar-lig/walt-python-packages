@@ -333,9 +333,36 @@ class NodesManager(object):
         return self.get_node_filesystem(requester, node_name)
 
     def get_cp_entity_attrs(self, requester, node_name, **info):
-        owned = not self.devices.includes_devices_not_owned(requester, node_name, True)
+        owned, free, not_owned, _ = \
+                self.filter_ownership(requester, node_name)
+        ownership = 'error'
+        if len(owned) == 1:
+            ownership = 'owned'
+        elif len(free) == 1:
+            ownership = 'free'
+        elif len(not_owned) == 1:
+            ownership = 'not_owned'
         node_info = self.get_node_info(requester, node_name)
         return dict(node_name = node_info.name,
                     node_ip = node_info.ip,
                     node_image = node_info.image,
-                    node_owned = owned)
+                    node_ownership = ownership)
+
+    def filter_ownership(self, requester, node_set):
+        username = requester.get_username()
+        if not username:
+            return (), (), (), ()    # client already disconnected, give up
+        devices = self.devices.parse_device_set(requester, node_set)
+        if devices is None:
+            return (), (), (), ()
+        owned, free, not_owned, not_nodes = (), (), (), ()
+        for n in devices:
+            if n.type != "node":
+                not_nodes += (n.name,)
+            elif n.image.startswith(username + '/'):
+                owned += (n.name,)
+            elif n.image.startswith('waltplatform/'):
+                free += (n.name,)
+            else:
+                not_owned += (n.name,)
+        return owned, free, not_owned, not_nodes
