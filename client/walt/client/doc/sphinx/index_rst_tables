@@ -30,7 +30,7 @@ Full table of Contents
    :maxdepth: 1
    :caption: Using nodes
 
-   node-terminology
+   node-ownership
    node-config
    node-console
    node-cp
@@ -100,6 +100,7 @@ Full table of Contents
    :maxdepth: 1
    :caption: Other topics
 
+   design-notes
    optional-features
    shell-completion
    vpn
