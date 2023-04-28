@@ -1,7 +1,6 @@
 import contextlib
 import time, sys
 from plumbum import cli
-from walt.client.device import WalTDevice
 
 from walt.common.tools import SilentBusyIndicator
 from walt.common.formatting import format_sentence_about_nodes
@@ -51,7 +50,7 @@ class WalTNode(WalTCategoryApplication):
                     'Error: Only one node allowed when capturing output.\n')
             return
         with ClientToServerLink() as server:
-            if not WalTDevice.confirm_devices_not_owned(server, node_set):
+            if not WalTNode.check_nodes_ownership(server, node_set):
                 return
             nodes_ip = server.get_nodes_ip(node_set)
             if len(nodes_ip) == 0:
@@ -75,7 +74,7 @@ class WalTNode(WalTCategoryApplication):
     def run_console(node_name):
         indicator = SilentBusyIndicator()
         with ClientToServerLink(busy_indicator = indicator) as server:
-            if not WalTDevice.confirm_devices_not_owned(server, node_name):
+            if not WalTNode.check_nodes_ownership(server, node_name):
                 return
             nodes_info = server.get_nodes_info(node_name)
             if len(nodes_info) == 0:
@@ -92,22 +91,51 @@ class WalTNode(WalTCategoryApplication):
             run_node_console(server, node_info)
 
     @staticmethod
-    def boot_nodes(node_set, image_name_or_default):
+    def boot_nodes(node_set, image_name_or_default, ownership_mode='owned-or-free'):
         with ClientToServerLink() as server:
             if server.has_image(image_name_or_default, True):
-                # the list of nodes the keyword "my-nodes" refers to
+                # the list of nodes keywords "my-nodes" or "free-nodes" refers to
                 # may be altered by the server.set_image() call, thus
                 # we have to get a real list of nodes before starting
                 # anything.
                 node_set = server.develop_node_set(node_set)
                 if node_set is None:
                     return
-                if not WalTDevice.confirm_devices_not_owned(server, node_set):
+                if not WalTNode.check_nodes_ownership(server, node_set, ownership_mode):
                     return
                 if not server.set_image(node_set, image_name_or_default):
                     return
                 server.set_busy_label('Rebooting')
                 server.reboot_nodes(node_set)
+
+    @staticmethod
+    def check_nodes_ownership(server, node_set, mode='owned-or-free', ignore_other_devices=False):
+        from walt.common.formatting import format_sentence
+        owned, free, not_owned, not_nodes = server.filter_ownership(node_set)
+        if len(owned) + len(free) + len(not_owned) + len(not_nodes) == 0:
+            return False    # error during api call, already reported
+        if not ignore_other_devices and len(not_nodes) > 0:
+            sys.stderr.write(format_sentence(
+                    'Error: %s is(are) not WalT nodes. Aborting.',
+                    owned, "", "Device", "Devices") + '\n')
+            return False
+        if mode == 'free-or-not-owned' and len(owned) > 0:
+            sys.stderr.write(format_sentence(
+                    'Error: %s is(are) already yours. See `walt help show node-ownership`.',
+                    owned, "", "Node", "Nodes") + '\n')
+            return False
+        if mode == 'owned' and len(free) + len(not_owned) > 0:
+            sys.stderr.write(format_sentence(
+                    'Error: %s is(are) not yours. See `walt help show node-ownership`.',
+                    free + not_owned, "", "Node", "Nodes") + '\n')
+            return False
+        if mode in ('owned-or-free', 'free-or-not-owned') and len(not_owned) > 0:
+            sys.stderr.write(format_sentence(
+                    'Warning: %s seems(seem) to be used by another(other) user(users).',
+                    not_owned, "", "Node", "Nodes") + '\n')
+            if not confirm():
+                return False
+        return True
 
 @WalTNode.subcommand("show")
 class WalTNodeShow(WalTApplication):
@@ -128,7 +156,7 @@ class WalTNodeShow(WalTApplication):
 @WalTNode.subcommand("create")
 class WalTNodeCreate(WalTApplication):
     """create a virtual WalT node"""
-    ORDERING = 8
+    ORDERING = 10
     def main(self, node_name : NODE):
         with ClientToServerLink() as server:
             server.create_vnode(node_name)
@@ -136,27 +164,27 @@ class WalTNodeCreate(WalTApplication):
 @WalTNode.subcommand("remove")
 class WalTNodeRemove(WalTApplication):
     """remove a virtual WalT node"""
-    ORDERING = 9
+    ORDERING = 11
     def main(self, node_name : NODE):
         with ClientToServerLink() as server:
-            if not WalTDevice.confirm_devices_not_owned(server, node_name):
+            if not WalTNode.check_nodes_ownership(server, node_name):
                 return
             server.remove_vnode(node_name)
 
 @WalTNode.subcommand("rename")
 class WalTNodeRename(WalTApplication):
     """rename a WalT node"""
-    ORDERING = 10
+    ORDERING = 12
     def main(self, old_node_name : NODE, new_node_name):
         with ClientToServerLink() as server:
-            if not WalTDevice.confirm_devices_not_owned(server, old_node_name):
+            if not WalTNode.check_nodes_ownership(server, old_node_name):
                  return
             server.rename(old_node_name, new_node_name)
 
 @WalTNode.subcommand("blink")
 class WalTNodeBlink(WalTApplication):
     """make a node blink for a given number of seconds"""
-    ORDERING = 13
+    ORDERING = 15
     def main(self, node_name : NODE, duration=60):
         try:
             seconds = int(duration)
@@ -181,35 +209,73 @@ class WalTNodeBlink(WalTApplication):
 @WalTNode.subcommand("reboot")
 class WalTNodeReboot(WalTApplication):
     """reboot a (set of) node(s)"""
-    ORDERING = 6
+    ORDERING = 8
     _hard_only = False # default
     def main(self, node_set : SET_OF_NODES):
         with ClientToServerLink() as server:
-            if not WalTDevice.confirm_devices_not_owned(server, node_set):
+            if not WalTNode.check_nodes_ownership(server, node_set):
                 return
             server.reboot_nodes(node_set, self._hard_only)
     @cli.autoswitch(help='allow PoE-reboots only (power-cycle)')
     def hard(self):
         self._hard_only = True
 
+@WalTNode.subcommand("acquire")
+class WalTNodeAcquire(WalTApplication):
+    """get ownership of a (set of) node(s)"""
+    ORDERING = 2
+    def main(self, node_set : SET_OF_NODES):
+        with ClientToServerLink() as server:
+            if not WalTNode.check_nodes_ownership(server, node_set, 'free-or-not-owned'):
+                return False
+            # get info about images clones, possibly clone them
+            valid, _, image_per_node = server.get_clones_of_default_images(node_set)
+            if not valid:
+                return False    # already reported
+            # the list of nodes keywords "my-nodes" or "free-nodes" refers to
+            # may be altered by the server.set_image() call, thus
+            # we have to get a real list of nodes before starting
+            # anything.
+            node_set = server.develop_node_set(node_set)
+            # revert image_per_node dictionary
+            from collections import defaultdict
+            nodes_per_image = defaultdict(list)
+            for node, image in image_per_node.items():
+                nodes_per_image[image].append(node)
+            # associate nodes with appropriate image
+            for image, nodes in nodes_per_image.items():
+                image_node_set = ','.join(nodes)
+                if not server.set_image(image_node_set, image):
+                    return False    # unexpected issue
+            # reboot
+            server.set_busy_label('Rebooting')
+            server.reboot_nodes(node_set)
+
+@WalTNode.subcommand("release")
+class WalTNodeRelease(WalTApplication):
+    """release ownership of a (set of) node(s)"""
+    ORDERING = 3
+    def main(self, node_set : SET_OF_NODES):
+        return WalTNode.boot_nodes(node_set, 'default', 'owned')
+
 @WalTNode.subcommand("boot")
 class WalTNodeBoot(WalTApplication):
     """let a (set of) node(s) boot an operating system image"""
-    ORDERING = 2
+    ORDERING = 4
     def main(self, node_set : SET_OF_NODES, image_name_or_default : IMAGE_OR_DEFAULT):
         return WalTNode.boot_nodes(node_set, image_name_or_default)
 
 @WalTNode.subcommand("deploy")
 class WalTNodeDeploy(WalTApplication):
     """alias to 'boot' subcommand"""
-    ORDERING = 16
+    ORDERING = 18
     def main(self, node_set : SET_OF_NODES, image_name_or_default : IMAGE_OR_DEFAULT):
         return WalTNode.boot_nodes(node_set, image_name_or_default)
 
 @WalTNode.subcommand("ping")
 class WalTNodePing(WalTApplication):
     """check that a node is reachable on WalT network"""
-    ORDERING = 11
+    ORDERING = 13
     def main(self, node_name : NODE):
         node_ip = None
         with ClientToServerLink() as server:
@@ -220,14 +286,14 @@ class WalTNodePing(WalTApplication):
 @WalTNode.subcommand("console")
 class WalTNodeConsole(WalTApplication):
     """connect to the console of a WalT node"""
-    ORDERING = 12
+    ORDERING = 14
     def main(self, node_name : NODE):
         WalTNode.run_console(node_name)
 
 @WalTNode.subcommand("shell")
 class WalTNodeShell(WalTApplication):
     """run an interactive shell connected to the node"""
-    ORDERING = 3
+    ORDERING = 5
     def main(self, node_name : NODE):
         WalTNode.run_cmd(node_name, False, [ ],
                          startup_msg = NODE_SHELL_MESSAGE,
@@ -236,7 +302,7 @@ class WalTNodeShell(WalTApplication):
 @WalTNode.subcommand("run")
 class WalTNodeRun(WalTApplication):
     """run a command on a (set of) node(s)"""
-    ORDERING = 4
+    ORDERING = 6
     _term = False # default
     def main(self, node_set : SET_OF_NODES, *cmdargs):
         WalTNode.run_cmd(node_set, True, cmdargs, tty = self._term)
@@ -247,7 +313,7 @@ class WalTNodeRun(WalTApplication):
 @WalTNode.subcommand("cp")
 class WalTNodeCp(WalTApplication):
     """transfer files/dirs to or from a node"""
-    ORDERING = 5
+    ORDERING = 7
     USAGE="""\
     walt node cp <local-path> <node>:<path>
     walt node cp <node>:<path> <local-path>
@@ -258,13 +324,16 @@ class WalTNodeCp(WalTApplication):
             info = server.validate_node_cp(src, dst)
             if info == None:
                 return
+            if info['status'] == 'FAILED':
+                return False
+            if info['node_ownership'] == 'not_owned':
+                print(f"Warning: {info['node_name']} seems to be used by another user.")
+                info['status'] = 'NEEDS_CONFIRM'
             if info['status'] == 'NEEDS_CONFIRM':
                 if confirm():
                     info['status'] = 'OK'
                 else:
                     return False # give up
-            if info['status'] == 'FAILED':
-                return False
             node_name = info['node_name']
             if not WalTNode.wait_for_nodes(server, node_name):
                 return False
@@ -285,7 +354,7 @@ class WalTNodeCp(WalTApplication):
 @WalTNode.subcommand("wait")
 class WalTNodeWait(WalTApplication):
     """wait for bootup notification of a node (or set of nodes)"""
-    ORDERING = 14
+    ORDERING = 16
     timeout = cli_timeout_switch()
     def main(self, node_set : SET_OF_NODES):
         with ClientToServerLink() as server_link:
@@ -295,7 +364,7 @@ class WalTNodeWait(WalTApplication):
 @WalTNode.subcommand("expose")
 class WalTNodeExpose(WalTApplication):
     """expose a network port of a node on the local machine"""
-    ORDERING = 15
+    ORDERING = 17
     @cli.positional(str, int, int)
     def main(self, node_name : NODE, node_port, local_port):
         node_ip = None
@@ -313,14 +382,14 @@ class WalTNodeExpose(WalTApplication):
 @WalTNode.subcommand("config")
 class WalTNodeConfig(WalTApplication):
     """get or set nodes configuration"""
-    ORDERING = 7
+    ORDERING = 9
     def main(self, node_set : SET_OF_NODES, *configuration : NODE_CONFIG_PARAM):
         with ClientToServerLink() as server:
             node_set = server.develop_node_set(node_set)
             if node_set is None:
                 return
             if len(configuration) > 0:
-                if not WalTDevice.confirm_devices_not_owned(server, node_set):
+                if not WalTNode.check_nodes_ownership(server, node_set):
                     return
                 server.set_device_config(node_set, configuration)
             else:

@@ -14,20 +14,22 @@ NODE_SHOW_QUERY = """
     ORDER BY image_owner, name;"""
 
 MSG_USING_NO_NODES = """\
-You are currently using no nodes. (tip: walt help show node-terminology)"""
+You currently do not own any nodes."""
 
 MSG_RERUN_WITH_ALL = """\
 Re-run with --all to see all available nodes."""
 
+MSG_TIP = """\
+Type `walt help show node-ownership` for help."""
+
 TITLE_NODE_SHOW_FREE_NODES_PART = """\
-The following nodes are free (they boot a default image):"""
+The following nodes are currently free:"""
 
 TITLE_NODE_SHOW_USER_NODES_PART = """\
-The following nodes are running one of your images:"""
+You currently own the following nodes:"""
 
 TITLE_NODE_SHOW_OTHER_NODES_PART = """\
-The following nodes are likely to be used by other users, since you do
-not own the image they boot."""
+The following nodes currently belong to other users:"""
 
 MSG_NO_NODES = """\
 No nodes detected!"""
@@ -84,29 +86,28 @@ def show(db, username, show_all, names_only):
             all_records = res_user
         return "\n".join(record.name for record in all_records)
     result_msg = ''
+    footnotes = ()
     if len(res_user) == 0 and not show_all:
-        return MSG_USING_NO_NODES + '\n' + MSG_RERUN_WITH_ALL
-    if len(res_user) > 0:
-        # display nodes of requester
-        footnote = None
-        if not show_all:
-            footnote = MSG_RERUN_WITH_ALL
-        result_msg += generate_table(TITLE_NODE_SHOW_USER_NODES_PART, footnote, res_user,
-                        'name', 'type', 'model', 'image', 'ip', 'netsetup', 'booted')
-    if not show_all:
-        return result_msg
-    if len(res_free) > 0:
-        # display free nodes
-        result_msg += generate_table(TITLE_NODE_SHOW_FREE_NODES_PART, None, res_free,
-                        'name', 'type', 'model', 'ip', 'netsetup', 'booted')
-    if len(res_other) + len(res_user) + len(res_free) == 0:
-        return MSG_NO_NODES + '\n'
-    if len(res_free) + len(res_other) == 0:
-        result_msg += MSG_NO_OTHER_NODES + '\n'
+        footnotes += (MSG_USING_NO_NODES, MSG_RERUN_WITH_ALL)
+    elif len(res_other) + len(res_user) + len(res_free) == 0:
+        footnotes += (MSG_NO_NODES,)
     else:
-        if len(res_other) > 0:
-            # display nodes of other users
-            result_msg += generate_table(TITLE_NODE_SHOW_OTHER_NODES_PART, None, res_other,
-                            'name', 'type', 'model', 'image_owner', 'clonable_image_link', 'ip', 'netsetup', 'booted')
-    return result_msg
-
+        if len(res_user) > 0:
+            # display nodes of requester
+            if not show_all:
+                footnotes += (MSG_RERUN_WITH_ALL,)
+            result_msg += generate_table(TITLE_NODE_SHOW_USER_NODES_PART, None, res_user,
+                            'name', 'type', 'model', 'image', 'ip', 'netsetup', 'booted')
+        if show_all:
+            if len(res_free) + len(res_other) == 0:
+                footnotes += (MSG_NO_OTHER_NODES,)
+            if len(res_free) > 0:
+                # display free nodes
+                result_msg += generate_table(TITLE_NODE_SHOW_FREE_NODES_PART, None, res_free,
+                                'name', 'type', 'model', 'ip', 'netsetup', 'booted')
+            if len(res_other) > 0:
+                # display nodes of other users
+                result_msg += generate_table(TITLE_NODE_SHOW_OTHER_NODES_PART, None, res_other,
+                                'name', 'type', 'model', 'image_owner', 'clonable_image_link', 'ip', 'netsetup', 'booted')
+    footnotes += (MSG_TIP,)
+    return result_msg + '\n'.join(footnotes)

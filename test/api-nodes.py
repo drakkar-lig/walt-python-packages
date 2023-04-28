@@ -123,6 +123,19 @@ def test_api_node_wait():
     node = get_existing_vnode()
     node.wait(timeout=90)
 
+@define_test('api node.release()')
+def test_api_node_release():
+    node = get_existing_vnode()
+    node.release()
+    assert node.owner == 'waltplatform'
+
+@define_test('api node.acquire()')
+def test_api_node_acquire():
+    node = get_existing_vnode()
+    node.acquire()
+    from walt.client.config import conf
+    assert node.owner == conf.walt.username
+
 @define_test('api node.rename()')
 def test_api_image_rename():
     node = get_existing_vnode()

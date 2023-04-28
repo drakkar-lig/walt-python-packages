@@ -4,6 +4,13 @@
 The [WalT project](https://walt-project.liglab.fr) allows to easily build and use your own WalT testbed.
 Up to now, WalT testbeds have been used for research experiments, medium-sized (e.g., 100 nodes) industrial testing infrastructures, and mobile demo setups.
 
+## Scope and design notes
+
+WalT is designed as **a tool for teammates**.
+If many users want to use WalT, then **each team should install its own private WalT platform**.
+Much of the versatility and user-friendliness we advertise comes from this concept of private platform.
+See [`walt help show design-notes`](design-notes.md) for more info.
+
 ## Main features
 
 WalT mainly provides the following set of features:
@@ -50,7 +57,7 @@ Note: as an alternative to a physical platform installation, or to get a first i
 ## User documentation
 
 In order to get familiar with main WalT concepts, see [`walt help show tutorial`](tutorial.md).
-To understand why a given user owns a given node or not, and for related aspects of terminology, see [`walt help show node-terminology`](node-terminology.md).
+To understand why a given user owns a given node or not, and for related aspects of terminology, see [`walt help show node-ownership`](node-ownership.md).
 
 WalT provides:
 * direct access to nodes (using `walt node shell`, `walt node cp` for instance)

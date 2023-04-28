@@ -143,8 +143,8 @@ $ walt device rename node-f26782 rpi3bp-412-A
 
 The new node first boots a default image, thus it belongs to nobody.
 It will be listed as a "free" node when you use `walt node show --all`.
-To make this node yours, let it boot one of your images by using `walt node boot <image> <node>`
-(see [`walt help show node-terminology`](node-terminology.md)).
+To make this node yours, run `walt node acquire <node>` or let it boot one of your images by using `walt node boot <image> <node>`
+(see [`walt help show node-ownership`](node-ownership.md)).
 
 Troubleshooting notes:
 * If ever the node failed to boot over the network (this probably means the network or the node
