@@ -195,7 +195,7 @@ class NodeImageStore(object):
         if fullname not in self.images and self.count_images_of_user(username) == 0:
             # new user, try to make his life easier by cloning
             # default images of node models present on the platform.
-            self.clone_default_images(requester)
+            self.get_clones_of_default_images(requester, 'all-nodes')
         found = self.images.get(fullname)
         if expected == True and found is None:
             requester.stderr.write(
@@ -359,28 +359,46 @@ class NodeImageStore(object):
     def __del__(self):
         self.cleanup()
 
-    def clone_default_images(self, requester):
+    def get_clones_of_default_images(self, requester, node_set):
+        # returns a tuple of 3 values:
+        # 1: whether the request was valid
+        # 2: whether some new images have been cloned by this procedure
+        # 3: a dictionary indicating the defaut image name for each input node name
         username = requester.get_username()
         if not username:
-            return False     # client already disconnected, give up
-        node_models = set(n.model for n in self.db.select('nodes'))
-        if len(node_models) == 0:   # no nodes
-            return False
-        requester.set_busy_label('Cloning default images')
-        while len(node_models) > 0:
-            model = node_models.pop()
+            return False, False, {}     # client already disconnected, give up
+        nodes = self.server.nodes.parse_node_set(requester, node_set)
+        if nodes is None:   # issue already reported
+            return False, False, {}
+        real_update = False
+        image_per_node_name = {}
+        while len(nodes) > 0:
+            model = nodes[0].model
             default_image = self.get_default_image_fullname(model)
             # if default image has a 'preferred-name' tag, clone it with that name
-            default_image_labels = self.images[default_image].labels
-            image_name = default_image_labels.get('walt.image.preferred-name')
+            image_labels = self.images[default_image].labels
+            image_name = image_labels.get('walt.image.preferred-name')
             if image_name is None:
                 # no 'preferred-name' tag, reuse name of default image
                 image_name = default_image.split('/')[1]
+            image_node_models = self.images[default_image].node_models
+            image_node_models_desc = self.images[default_image].node_models_desc
             ws_image = username + '/' + image_name
-            self.repository.tag(default_image, ws_image)
-            self.register_image(ws_image)
-            # remove from remaining models all models declared in label "walt.node.models"
-            image_models = default_image_labels.get('walt.node.models').split(',')
-            node_models -= set(image_models)
-        requester.set_default_busy_label()
-        return True
+            if ws_image not in self.images:
+                if real_update is False:
+                    real_update = True
+                    requester.set_busy_label('Cloning default images')
+                self.repository.tag(default_image, ws_image)
+                self.register_image(ws_image)
+                requester.stdout.write(f'Cloned {image_name}, a defaut image for {image_node_models_desc}.\n')
+            # remove from remaining nodes those with a model declared in label "walt.node.models"
+            remaining_nodes = []
+            for node in nodes:
+                if node.model in image_node_models:
+                    image_per_node_name[node.name] = image_name
+                else:
+                    remaining_nodes.append(node)
+            nodes = remaining_nodes
+        if real_update:
+            requester.set_default_busy_label()
+        return True, real_update, image_per_node_name

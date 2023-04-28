@@ -20,7 +20,8 @@ To specify this kind of command parameter, the following options are allowed:
 * combine previous options (e.g. `server,explorable-switches`)
 
 Here is the list of predefined sets:
-* `my-nodes`: nodes the user currently owns
+* `my-nodes`: nodes the user currently owns (see [`walt help show node-ownership`](node-ownership.md))
+* `free-nodes`: nodes that no one currently owns
 * `all-nodes`: all nodes of the platform
 * `all-switches`: all switches of the platform
 * `all-devices`: all devices (nodes, switches, unknown devices, and the server)
