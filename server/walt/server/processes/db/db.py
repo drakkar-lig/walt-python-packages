@@ -57,6 +57,10 @@ class ServerDB(PostgresDB):
                     username TEXT,
                     timestamp TIMESTAMP,
                     name TEXT);""")
+        self.execute("""CREATE TABLE IF NOT EXISTS poeoff (
+                    mac TEXT REFERENCES devices(mac),
+                    port INTEGER,
+                    reason TEXT);""")
         # migration v4 -> v5
         if not self.column_exists('devices', 'conf'):
             self.execute("""ALTER TABLE devices
@@ -144,8 +148,9 @@ class ServerDB(PostgresDB):
                 DELETE FROM logstreams s WHERE s.issuer_mac = %s;
                 DELETE FROM topology t WHERE t.mac1 = %s;
                 DELETE FROM topology t WHERE t.mac2 = %s;
+                DELETE FROM poeoff po WHERE po.mac = %s;
                 DELETE FROM devices d WHERE d.mac = %s;
-            """,  (entry.mac,)*5)
+            """,  (entry.mac,)*6)
             self.commit()
 
     def column_exists(self, table_name, column_name):
@@ -289,8 +294,9 @@ class ServerDB(PostgresDB):
             DELETE FROM switches s USING devices d WHERE d.name = %s AND d.mac = s.mac;
             DELETE FROM topology t USING devices d WHERE d.name = %s AND d.mac = t.mac1;
             DELETE FROM topology t USING devices d WHERE d.name = %s AND d.mac = t.mac2;
+            DELETE FROM poeoff po USING devices d WHERE d.name = %s AND d.mac = po.mac;
             DELETE FROM devices d WHERE d.name = %s;
-        """,  (dev_name,)*7)
+        """,  (dev_name,)*8)
         self.commit()
 
     def insert_multiple_logs(self, records):
@@ -324,3 +330,42 @@ class ServerDB(PostgresDB):
                     WHERE fullname like '{username}/%'
                     GROUP BY i.fullname;"""
         return self.execute(sql)
+
+    def record_poe_port_status(self, sw_mac, sw_port, poe_status, reason=None):
+        if poe_status is True:  # poe on
+            self.execute('''DELETE FROM poeoff
+                                   WHERE mac = %s
+                                     AND port = %s;''',
+                         (sw_mac, sw_port))
+        else:                   # poe off
+            assert reason is not None
+            self.execute('''INSERT INTO poeoff
+                            VALUES (%s, %s, %s);''',
+                         (sw_mac, sw_port, reason))
+        self.commit()
+
+    def get_poe_off_macs(self, reason=None):
+        """List mac addresses of devices connected on a switch port with PoE off."""
+        if reason is None:
+            # if reason is unspecified, match any reason
+            sql_optional_condition = ''
+            sql_values = ()
+        else:
+            sql_optional_condition = 'AND po.reason = %s'
+            sql_values = (reason, reason)
+        return tuple(row.mac for row in self.execute(f'''
+                 SELECT t.mac2 as mac
+                 FROM topology t, poeoff po
+                 WHERE po.mac = t.mac1
+                   AND po.port = t.port1
+                   {sql_optional_condition}
+               UNION
+                 SELECT t.mac1 as mac
+                 FROM topology t, poeoff po
+                 WHERE po.mac = t.mac2
+                   AND po.port = t.port2
+                   {sql_optional_condition};''', sql_values))
+
+    def forget_topology_entry_for_mac(self, mac):
+        self.execute("""DELETE FROM topology WHERE mac1 = %s OR mac2 = %s;""", (mac, mac))
+        self.commit()

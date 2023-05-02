@@ -460,12 +460,11 @@ class LogsManager(object):
                      line = line,
                      stream_id = stream_id)
 
-    def forget_device(self, device_name):
+    def forget_device(self, device):
         self.logs_to_db.flush()
-        device_info = self.db.select_unique('devices', name=device_name)
-        if device_info.ip in self.stream_id_cache:
-            del self.stream_id_cache[device_info.ip]
-        self.netconsole.forget_ip(device_info.ip)
+        if device.ip in self.stream_id_cache:
+            del self.stream_id_cache[device.ip]
+        self.netconsole.forget_ip(device.ip)
 
     # Look for a checkpoint. Return a tuple.
     # If the result conforms to 'expected', return (True, <checkpoint_found_or_none>)

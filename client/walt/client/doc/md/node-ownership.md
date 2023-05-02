@@ -20,6 +20,8 @@ $ walt node release my-nodes
 ```
 (`my-nodes` is a keyword, cf. [`walt help show device-sets`](device-sets.md) for details.)
 
+Releasing PoE-powered nodes also allows automatic power savings (cf. [`walt help show optional-features`](optional-features.md)).
+
 Users usually acquire nodes from the set of "free" ones. However, a teammate may have forgotten to release some nodes.
 In this case, one can still acquire such nodes owned by someone else but a confirmation is required.
 

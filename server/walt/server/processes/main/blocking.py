@@ -3,7 +3,9 @@ from walt.common.apilink import AttrCallRunner, AttrCallAggregator
 
 class BlockingTasksManager(RPCProcessConnector):
     def __init__(self, server):
-        super().__init__(local_context = False, label = 'main-to-blocking')
+        super().__init__(default_service = RPCService(server = server),
+                         local_context = False,
+                         label = 'main-to-blocking')
         self.server = server
 
     def session(self, requester):
@@ -48,8 +50,11 @@ class BlockingTasksManager(RPCProcessConnector):
     def topology_tree(self, requester, result_cb, *args, **kwargs):
         self.session(requester).do_async.topology_tree(*args, **kwargs).then(result_cb)
 
-    def nodes_set_poe(self, requester, result_cb, *args, **kwargs):
-        self.session(requester).do_async.nodes_set_poe(*args, **kwargs).then(result_cb)
+    def nodes_set_poe(self, result_cb, *args, **kwargs):
+        self.do_async.nodes_set_poe(*args, **kwargs).then(result_cb)
+
+    def restore_poe_on_all_ports(self):
+        self.do_async.restore_poe_on_all_ports()
 
     def run_shell_cmd(self, requester, result_cb, cmd, **kwargs):
         self.session(requester).do_async.run_shell_cmd(cmd, **kwargs).then(result_cb)

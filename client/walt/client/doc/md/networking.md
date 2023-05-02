@@ -34,9 +34,9 @@ in a selected WALT image.
 As shown in the figure, there are two main requirements regarding network setup:
 * The server should have internet connectivity, in order to be able to communicate with the docker hub.
   In these documentation pages, this is sometimes refered as `walt-out`.
-* The platform LAN (or VLAN) MUST be fully dedicated to WALT. The WALT server will fully manage this
-  platform network, by providing various network services, such as DHCP, NFS, TFTP, PTP, etc. We call
-  this platform network `walt-net` in these documentation pages and in configuration files.
+* The platform LAN (or, sometimes, VLAN) MUST be fully dedicated to WALT. The WALT server will fully
+  manage this platform network, by providing various network services, such as DHCP, NFS, TFTP, etc.
+  We call this platform network `walt-net` in these documentation pages and in configuration files.
 
 Of course we can cascade several switches to extend `walt-net`, as shown on the figure.
 Caution: connecting a walt node directly to the server (with no intermediate switch) will not work!
@@ -47,7 +47,7 @@ and allow a specific set of nodes to access internet. Check-out [`walt help show
 for more info.
 
 
-## walt-adm: optional network admin network
+## walt-adm: optional admin network
 
 If WALT is installed in a building and reuses an existing network infrastructure, there is usually
 a dedicated VLAN already in place for remote administration of switches.
@@ -75,15 +75,16 @@ physical nodes by running `walt-server-setup --edit-conf` again.
 
 ## Network switch remote administration features
 
-The WALT server, if allowed, may send SNMP queries to a given switch, for one of these two purposes:
+When configured to do so, the WALT server may send SNMP queries to a given switch, for one of these
+purposes:
 * retrieve LLDP data (Link Layer Discovery Protocol), for network discovery
-* activate / deactivate PoE on one of the ports (for remotely hard-rebooting a walt node)
+* activate / deactivate PoE on one of the ports (for remotely hard-rebooting a walt node or saving power)
 
-These two requests are disabled by default. You can activate and configure them for a given switch
+These requests are disabled by default. You can activate and configure them for a given switch
 using `walt device config <switch> <parameter>...` (see [`walt help show device-config`](device-config.md)).
 
 Of course this is only possible if the switch provides related features.
-Check-out [`walt help show switch-install`](switch-install.md) for more info.
+See [`walt help show optional-features`](optional-features.md) for more info.
 
 Note that if `walt-adm` is configured, WALT may send SNMP requests on both `walt-net` and `walt-adm`
 networks. To clarify, let's consider WALT has been installed in a large building, and some wall plugs

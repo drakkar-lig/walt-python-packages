@@ -22,6 +22,7 @@ from walt.server.processes.main.apisession import APISession
 from walt.server.processes.main.network import tftp
 from walt.server.processes.main.vpn import VPNManager
 from walt.server.processes.main.autocomplete import shell_autocomplete
+from walt.server.processes.main.workflow import Workflow
 from walt.server.processes.main.transfer import validate_cp, \
                     format_node_to_booted_image_transfer_cmd
 
@@ -44,15 +45,7 @@ class Server(object):
         self.unix_server = UnixSocketServer()
         self.transfer = TransferManager(\
                         self.tcp_server, self.ev_loop)
-        self.nodes = NodesManager(tcp_server=self.tcp_server,
-                                  ev_loop=self.ev_loop,
-                                  db=self.db,
-                                  blocking=self.blocking,
-                                  images=self.images.store,
-                                  dhcpd=self.dhcpd,
-                                  repository=self.repository,
-                                  devices=self.devices,
-                                  logs=self.logs)
+        self.nodes = NodesManager(self)
         self.settings = SettingsManager(server=self)
         self.vpn = VPNManager()
 
@@ -76,6 +69,8 @@ class Server(object):
     def update(self):
         # mount images needed
         self.images.update(startup = True)
+        # enable PoE if some ports remained off
+        self.blocking.restore_poe_on_all_ports()
         # restores nodes setup
         self.nodes.restore()
 
@@ -166,14 +161,28 @@ class Server(object):
             task.return_result(res)
         self.blocking.rescan_topology(requester, cb, remote_ip=remote_ip, devices=devices)
 
-    def forget_device(self, device_name):
-        self.logs.forget_device(device_name)
-        self.db.forget_device(device_name)
+    def forget_device(self, requester, task, device_name):
+        device = self.devices.get_device_info(requester, device_name)
+        if device is None:
+            return False
+        task.set_async()
+        wf = Workflow([ self.nodes.powersave.wf_forget_device,
+                        self.wf_forget_device_other_steps ],
+                      requester = requester,
+                      device = device,
+                      task = task
+        )
+        wf.run()
+
+    def wf_forget_device_other_steps(self, wf, task, device, **env):
+        self.logs.forget_device(device)
+        self.db.forget_device(device.name)
         self.dhcpd.update()
         # if it's a node and no other node uses its image,
         # this image should be unmounted.
         self.images.store.update_image_mounts()
-        return True
+        # unblock client
+        task.return_result(True)
 
     def create_vnode(self, requester, task, name):
         if not KVM_DEV_FILE.exists():
@@ -242,13 +251,12 @@ class Server(object):
         node = self.devices.get_complete_device_info(mac)
         self.nodes.start_vnode(node)
 
-    def remove_vnode(self, requester, name):
+    def remove_vnode(self, requester, task, name):
         info = self.nodes.get_virtual_node_info(requester, name)
         if info is None:
             return False  # error already reported
         self.nodes.forget_vnode(info.mac)
-        self.forget_device(name)
-        return True
+        return self.forget_device(requester, task, name)
 
     def reboot_nodes_after_image_change(self, requester, task_callback, image_fullname):
         nodes = self.nodes.get_nodes_using_image(image_fullname)
