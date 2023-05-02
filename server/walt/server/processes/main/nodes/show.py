@@ -2,12 +2,20 @@ from walt.common.netsetup import NetSetup
 from walt.common.formatting import format_paragraph, columnate
 
 NODE_SHOW_QUERY = """
+    WITH powersave_macs AS (
+        SELECT n.mac
+        FROM nodes n, topology t, poeoff po
+        WHERE po.reason = 'powersave' AND (
+            (n.mac = t.mac1 AND t.mac2 = po.mac AND t.port2 = po.port) OR
+            (n.mac = t.mac2 AND t.mac1 = po.mac AND t.port1 = po.port)))
     SELECT  d.name as name, n.model as model,
         split_part(n.image, '/', 1) as image_owner,
         split_part(n.image, '/', 2) as image_name,
         d.virtual as virtual, d.mac as mac,
         d.ip as ip, COALESCE((d.conf->'netsetup')::int, 0) as netsetup,
-        (case when n.booted then 'yes' else 'NO' end) as booted
+        (CASE WHEN n.booted THEN 'yes'
+              WHEN n.mac in (SELECT mac FROM powersave_macs) THEN 'no (powersave)'
+              ELSE 'NO' END) as booted
     FROM devices d, nodes n
     WHERE   d.type = 'node'
     AND     d.mac = n.mac

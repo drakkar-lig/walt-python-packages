@@ -38,7 +38,7 @@ class CSAPI(APISession):
 
     @api_expose_method
     def remove_vnode(self, context, node_name):
-        return context.server.remove_vnode(context.requester, node_name)
+        return context.server.remove_vnode(context.requester, context.task, node_name)
 
     @api_expose_method
     def prepare_ssh_access(self, context, device_set):
@@ -110,7 +110,7 @@ class CSAPI(APISession):
 
     @api_expose_method
     def wait_for_nodes(self, context, node_set):
-        context.nodes.wait(context.requester, context.task, node_set)
+        return context.nodes.wait(context.requester, context.task, node_set)
 
     @api_expose_method
     def rename(self, context, old_name, new_name):
@@ -130,7 +130,7 @@ class CSAPI(APISession):
 
     @api_expose_method
     def forget(self, context, device_name):
-        return context.server.forget_device(device_name)
+        return context.server.forget_device(context.requester, context.task, device_name)
 
     @api_expose_method
     def get_device_info(self, context, device_name):
