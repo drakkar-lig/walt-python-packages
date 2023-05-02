@@ -18,12 +18,15 @@ this case you should contact your network admins.
 
 The following WalT features are optional:
 * Node "hard-reboots" (being able to remotely stop powering a given node to force a reboot in case of problem)
+* Automatic power savings (by powering off unused nodes)
 * Network topology exploration
 
 In order to enable those features, the switches you connect to `walt-net` must provide the following features:
 * PoE (Power-Over-Ethernet) ports
 * LLDP support (Link Layer Discovery Protocol)
 * SNMP remote administration, with support for standard MIBs (POWER-OVER-ETHERNET.mib, IF.mib and LLDP.mib)
+
+See [`walt help show optional-features`](optional-features.md) for more info.
 
 
 ## Hardware recommendation
@@ -94,12 +97,13 @@ Notes:
 
 ## Switch configuration settings
 
-If you want to enable LLDP or PoE reboots, WalT server will have to communicate with the switch by using SNMP.
+If you want to enable LLDP or PoE reboots and power savings, WalT server will have to communicate with the switch by using SNMP.
 Thus you should specify SNMP configuration parameters `snmp.version` (with value `1` or `2`) and `snmp.community`.
 Then, you can enable LLDP by specifying `lldp.explore=true`.
 And finally you can enable node hard-reboots using PoE by specifying `poe.reboots=true`.
+This setting also activates automatic power savings.
 Note that you cannot enable `poe.reboots` without enabling `lldp.explore` (since WalT needs to know on which PoE
-switch port a node is connected in order to hard-reboot it).
+switch port a node is connected in order to hard-reboot it or power it off).
 
 For instance, on the netgear gs110tp in its default configuration, one may run:
 ```
