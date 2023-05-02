@@ -38,14 +38,10 @@ class WaitInfo(object):
                 continue  # requester is disconnected
             requester.set_busy_label(message)
 
-    def wait(self, requester, task, nodes):
-        if nodes == None:
-            return         # unblock the client
-        not_booted = [ node for node in nodes if not node.booted ]
+    def wf_wait(self, wf, requester, task, nodes, **env):
+        not_booted = [node for node in nodes if not node.booted]
         if len(not_booted) == 0:
-            return         # unblock the client
-        # ok, the client will really have to wait
-        task.set_async()   # result will be available later
+            task.return_result(0)        # unblock the client
         tid = id(task)
         self.tasks[tid] = task
         for node in not_booted:

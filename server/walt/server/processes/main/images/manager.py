@@ -32,6 +32,7 @@ Sorry, this image is not compatible with %s.
 
 class NodeImageManager:
     def __init__(self, server: Server):
+        self.server = server
         self.db = server.db
         self.blocking = server.blocking
         self.dhcpd = server.dhcpd
@@ -103,8 +104,9 @@ class NodeImageManager:
                                                         expected = expected)
             return image != None
     def set_image(self, requester, nodes, image_name):
+        is_default = (image_name == 'default')
         # if image tag is specified, let's get its fullname
-        if image_name != 'default':
+        if not is_default:
             image = self.store.get_user_image_from_name(requester, image_name)
             if image == None:
                 return False
@@ -118,7 +120,7 @@ class NodeImageManager:
                 return False
             ignored_names = set(node.name for node in nodes if node.image == image.fullname)
             image_fullnames = { node.mac: image.fullname for node in nodes \
-                                    if node not in ignored_names }
+                                    if node.name not in ignored_names }
         else:
             ignored_names = set()
             image_fullnames = {}
@@ -138,12 +140,13 @@ class NodeImageManager:
                 self.db.update('nodes', 'mac',
                         mac=node_mac,
                         image=image_fullname)
+                self.server.nodes.powersave.handle_event('set_image', node_mac, is_default)
             self.store.update_image_mounts(requester = requester)
             tftp.update(self.db, self.store)
             self.db.commit()
             self.dhcpd.update()
             # inform requester
-            if image_name == 'default':
+            if is_default:
                 sentence = MSG_BOOT_DEFAULT_IMAGE
             else:
                 sentence = '%s will now boot ' + image_name + '.'
