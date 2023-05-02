@@ -31,7 +31,7 @@ A WALT platform is cost-effective, easy to install, easy to use, lightweight, ve
 
 With compliant network switches, WalT also provides the following *optional* features:
 * **Platform topology automated discovery**;
-* **PoE** for simplified deployment and possible **hard-reboot** (power-cycling) of nodes.
+* **PoE** for simplified deployment, possible **hard-reboot** (power-cycling) of nodes and automatic **power saving**.
 
 See [`walt help show optional-features`](optional-features.md) for more info.
 

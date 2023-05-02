@@ -19,6 +19,8 @@ from walt.server.processes.main.nodes.reboot import reboot_nodes
 from walt.server.processes.main.nodes.register import handle_registration_request
 from walt.server.processes.main.nodes.show import show
 from walt.server.processes.main.nodes.wait import WaitInfo
+from walt.server.processes.main.workflow import Workflow
+from walt.server.processes.main.nodes.powersave import PowersaveManager
 from walt.server.tools import get_server_ip, ip, get_walt_subnet
 
 VNODE_DEFAULT_RAM = "512M"
@@ -35,25 +37,31 @@ CMD_START_VNODE = "walt-virtual-node --mac %(mac)s --ip %(ip)s --model %(model)s
                                --disks %(disks)s --networks %(networks)s"
 
 class NodesManager(object):
-    def __init__(self, tcp_server, ev_loop, db, blocking, devices, logs, **kwargs):
-        self.db = db
-        self.devices = devices
-        self.logs = logs
-        self.blocking = blocking
-        self.other_kwargs = kwargs
+    def __init__(self, server):
+        self.db = server.db
+        self.devices = server.devices
+        self.logs = server.logs
+        self.blocking = server.blocking
         self.wait_info = WaitInfo()
-        self.ev_loop = ev_loop
-        self.clock = NodesClockSyncInfo(ev_loop)
-        self.expose_manager = ExposeManager(tcp_server, ev_loop)
-        self.status_manager = NodeBootupStatusManager(tcp_server, self)
-        self.filesystems = FilesystemsCache(ev_loop, FS_CMD_PATTERN)
+        self.ev_loop = server.ev_loop
+        self.clock = NodesClockSyncInfo(server.ev_loop)
+        self.expose_manager = ExposeManager(server.tcp_server, server.ev_loop)
+        self.status_manager = NodeBootupStatusManager(server.tcp_server, self)
+        self.filesystems = FilesystemsCache(server.ev_loop, FS_CMD_PATTERN)
         self.vnodes = {}
+        self.powersave = PowersaveManager(server)
+        self.node_register_kwargs = dict(
+                images = server.images.store,
+                dhcpd = server.dhcpd,
+                repository = server.repository)
 
     def prepare(self):
         # set booted flag of all nodes to False for now
         self.db.execute('UPDATE nodes SET booted = false;')
 
     def restore(self):
+        # init powersave
+        self.powersave.restore()
         # start virtual nodes
         for vnode in self.db.select('devices', type = 'node', virtual = True):
             node = self.devices.get_complete_device_info(vnode.mac)
@@ -86,7 +94,7 @@ class NodesManager(object):
                 image_fullname = image_fullname,
                 blocking = self.blocking,
                 logs = self.logs,
-                **self.other_kwargs
+                **self.node_register_kwargs
         )
 
     def connect(self, requester, node_name, hide_issues = False):
@@ -257,6 +265,8 @@ class NodesManager(object):
         reboot_nodes(   nodes_manager = self,
                         blocking = self.blocking,
                         ev_loop = self.ev_loop,
+                        db = self.db,
+                        powersave = self.powersave,
                         requester = requester,
                         task_callback = task_callback,
                         nodes = nodes,
@@ -272,10 +282,6 @@ class NodesManager(object):
                                        (device_info.name, device_info.type))
                 return None
         return device_set
-
-    def wait(self, requester, task, node_set):
-        nodes = self.parse_node_set(requester, node_set)
-        self.wait_info.wait(requester, task, nodes)
 
     def change_nodes_bootup_status(self, nodes_ip=None, nodes=None, booted=True, cause=None):
         if nodes is None:
@@ -309,6 +315,7 @@ class NodesManager(object):
                 # unblock any related "walt node wait" command.
                 if booted:
                     self.wait_info.node_bootup_event(node_info)
+                    self.powersave.node_bootup_event(node_info)
 
     def develop_node_set(self, requester, node_set):
         nodes = self.parse_node_set(requester, node_set)
@@ -366,3 +373,18 @@ class NodesManager(object):
             else:
                 not_owned += (n.name,)
         return owned, free, not_owned, not_nodes
+
+    def wait(self, requester, task, node_set):
+        nodes = self.parse_node_set(requester, node_set)
+        if nodes is None:
+            return False        # unblock the client
+        not_booted = [ node for node in nodes if not node.booted ]
+        if len(not_booted) == 0:
+            return True         # unblock the client
+        task.set_async()
+        wf = Workflow([ self.powersave.wf_wakeup_nodes,
+                        self.wait_info.wf_wait ],
+                      requester = requester,
+                      task = task,
+                      nodes = nodes)
+        wf.run()
