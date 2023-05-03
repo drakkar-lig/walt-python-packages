@@ -116,30 +116,42 @@ class NodeImageManager:
                                 None, 'node model', 'node models')
                 requester.stderr.write(sentence)
                 return False
-            image_fullnames = { node.mac: image.fullname for node in nodes }
+            ignored_names = set(node.name for node in nodes if node.image == image.fullname)
+            image_fullnames = { node.mac: image.fullname for node in nodes \
+                                    if node not in ignored_names }
         else:
+            ignored_names = set()
             image_fullnames = {}
             # since the 'default' keyword was specified, we might have to associate
             # different images depending on the type of each WalT node.
             # we compute the appropriate image fullname here.
             for node in nodes:
-                image_fullnames[node.mac] = self.store.get_default_image_fullname(node.model)
-        # let's update the database about which node is mounting what
-        for node_mac, image_fullname in image_fullnames.items():
-            self.db.update('nodes', 'mac',
-                    mac=node_mac,
-                    image=image_fullname)
-        self.store.update_image_mounts(requester = requester)
-        tftp.update(self.db, self.store)
-        self.db.commit()
-        self.dhcpd.update()
-        # inform requester
-        if image_name == 'default':
-            sentence = MSG_BOOT_DEFAULT_IMAGE
-        else:
-            sentence = '%s will now boot ' + image_name + '.'
-        requester.stdout.write(format_sentence_about_nodes(
-            sentence, [n.name for n in nodes]) + '\n')
+                image_fullname = self.store.get_default_image_fullname(node.model)
+                if node.image == image_fullname:
+                    ignored_names.add(node.name)
+                else:
+                    image_fullnames[node.mac] = image_fullname
+        ok_names = set(n.name for n in nodes if n.name not in ignored_names)
+        if len(ok_names) > 0:
+            # let's update the database about which node is mounting what
+            for node_mac, image_fullname in image_fullnames.items():
+                self.db.update('nodes', 'mac',
+                        mac=node_mac,
+                        image=image_fullname)
+            self.store.update_image_mounts(requester = requester)
+            tftp.update(self.db, self.store)
+            self.db.commit()
+            self.dhcpd.update()
+            # inform requester
+            if image_name == 'default':
+                sentence = MSG_BOOT_DEFAULT_IMAGE
+            else:
+                sentence = '%s will now boot ' + image_name + '.'
+            requester.stdout.write(format_sentence_about_nodes(
+                sentence, ok_names) + '\n')
+        if len(ignored_names) > 0:
+            requester.stdout.write(format_sentence_about_nodes(
+                '%s: ignored, it(they) is(are) already using this image.', ignored_names) + '\n')
         return True
     def create_shell_session(self, requester, image_name, task_label):
         image = self.store.get_user_image_from_name(requester, image_name)
