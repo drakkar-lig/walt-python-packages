@@ -1,4 +1,4 @@
-import subprocess, apt, os, sys, datetime
+import subprocess, os, sys, datetime, apt
 import apt.progress.base
 from pathlib import Path
 
