@@ -7,3 +7,4 @@ info.py
 *ignore/
 client/walt/client/doc/sphinx/*.rst
 client/walt/client/doc/sphinx/_build
+.venv
