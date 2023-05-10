@@ -36,25 +36,22 @@ Contact us (walt-contact at univ-grenoble-alpes.fr) for more advice.
 
 ```
 $ apt update
-$ apt install -y gcc python3-dev libsmi2-dev python3-apt gpg curl git make
+$ apt install -y gcc python3-venv python3-dev libsmi2-dev curl git make
 ```
 
-## 2- Install python package manager
-
-```
-$ curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py && python3 get-pip.py
-```
-
-## 3- Install walt software
+## 2- Install and configure walt software
 
 Here you have two options:
 - Install the last official version of walt (recommended)
-- Install the development version of walt (with last features and quick access to source code,
+- Install the development version of walt (with last features and access to source code versioning,
   but less thoroughly tested)
 
 If you want the official version:
 ```
-$ pip3 install walt-server walt-client
+$ python3 -m venv /opt/walt-8
+$ /opt/walt-8/bin/pip install --upgrade pip
+$ /opt/walt-8/bin/pip install walt-server walt-client
+$ /opt/walt-8/bin/walt-server-setup
 ```
 
 If you want to setup the development version instead:
@@ -66,18 +63,12 @@ $ git checkout -b dev origin/dev
 $ make install
 ```
 
-## 4- Run walt automated setup command
-
-```
-$ walt-server-setup
-```
-
-Note: interactive configuration interfaces for network and image registries will be displayed first.
+Note: in any case, interactive configuration interfaces for network and image registries will be displayed.
 For more information about WalT network concepts and configuration, see [`walt help show networking`](networking.md).
 For more information about WalT image registries, see [`walt help show registries`](registries.md).
 
 
-## 5- Start playing!
+## 3- Start playing!
 
 The system is now all set.
 You can first verify that the system is running well by creating a virtual node.
