@@ -120,7 +120,7 @@ do
     __testsuite_exec_prev_test
 done
 
-cd "$TESTS_DIR"
+cd "$TESTS_DIR"/..
 for __testsuite_source_file in "${PY_TEST_FILES[@]}"
 do
     $THIS_DIR/py-test-file.py "$__testsuite_source_file" describe | while read num_test __testsuite_test_name

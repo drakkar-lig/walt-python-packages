@@ -1,8 +1,7 @@
-import shlex, datetime, requests, subprocess, json, sys, gzip, base64
+import shlex, datetime, requests, subprocess, json, sys, gzip, base64, os
 from pathlib import Path
 from pkg_resources import resource_filename
 from walt.common.version import __version__ as WALT_VERSION
-from walt.server.setup.pip import install_pip, pip
 from walt.server.setup.apt import fix_dpkg_options, package_is_installed, get_debconf_selection, \
                                   set_debconf_selection, remove_packages, upgrade_and_install_packages, \
                                   autoremove_packages
@@ -160,19 +159,6 @@ def upgrade_db():
                        stdout=subprocess.PIPE)
     print('done')
 
-def reinstall_walt():
-    dev_mode_repo = Path('/root/walt-python-packages')
-    if dev_mode_repo.exists():
-        # dev mode
-        subprocess.run('make install'.split(),
-                       cwd=dev_mode_repo,
-                       check=True,
-                       stdout=subprocess.PIPE,
-                       stderr=subprocess.STDOUT)
-    else:
-        # prod mode
-        pip.install(f'walt-server=={WALT_VERSION} walt-client=={WALT_VERSION}')
-
 def upgrade_os():
     fix_apt_sources()
     fix_docker_keyring()
@@ -180,13 +166,15 @@ def upgrade_os():
     fix_grub_pc()
     fix_packets(upgrade_dist = True, upgrade_packets = True)
     upgrade_db()
-    # existing python modules belong to the old version of python,
-    # we have to reinstall them on the new version
-    print('Re-installing pip (python was updated by OS upgrade)... ', end=''); sys.stdout.flush()
-    install_pip()
+    # the virtualenv was built from an older version of python3,
+    # upgrade it
+    print('Upgrading virtual env (python was updated by OS upgrade)... ', end=''); sys.stdout.flush()
+    subprocess.run(f'python3 -m venv --upgrade {sys.prefix}'.split(),
+                   stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     print('done')
-    print('Re-installing walt software (python was updated by OS upgrade)... ', end=''); sys.stdout.flush()
-    reinstall_walt()
+    print('Upgrading python-apt to match the new OS release... ', end=''); sys.stdout.flush()
+    subprocess.run('python3 -m pip install --upgrade python-apt-binary'.split(),
+                   stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     print('done')
 
 def fix_os():
@@ -232,3 +220,36 @@ def fix_conmon():
         conmon_fixed_path.chmod(0o755)
         print('done')
         Path('/usr/bin/conmon').symlink_to('/usr/bin/conmon.fixed')
+
+
+# We now install walt python packages in a virtual environment
+# (at least for the server).
+# Previously they were installed in the base python environment of the OS.
+# This procedure cleans up any walt python package found there.
+def cleanup_old_walt_install():
+    # we temporarily remove the venv prefix from the PATH variable,
+    # to target the python executable of the base environment of the OS.
+    saved_path = os.environ['PATH']
+    os.environ['PATH'] = ':'.join(
+        path_entry for path_entry in os.environ['PATH'].split(':')
+        if not path_entry.startswith(sys.prefix))
+    print('Looking for obsolete walt packages... ', end=''); sys.stdout.flush()
+    proc = subprocess.run('python3 -m pip list --format json'.split(), text=True,
+                          stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    print('done')
+    # pip may not be installed on the base system, in this case the previous
+    # command fails, but we know there are no obsolete pip packages there.
+    if proc.returncode == 0:  # if previous command succeeded
+        walt_packages = []
+        for package_info in json.loads(proc.stdout):
+            package_name = package_info['name']
+            if package_name.startswith('walt-'):
+                walt_packages.append(package_name)
+        if len(walt_packages) > 0:
+            print('Removing obsolete walt packages... ', end=''); sys.stdout.flush()
+            subprocess.run('python3 -m pip uninstall -y'.split() + walt_packages,
+                           stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            print('done')
+    # restore the PATH variable
+    os.environ['PATH'] = saved_path
+

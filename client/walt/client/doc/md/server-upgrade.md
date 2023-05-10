@@ -26,17 +26,19 @@ development mode, otherwise in production mode.
 
 Production mode:
 ```
-$ pip3 install --upgrade walt-server walt-client
-$ walt-server-setup
+$ apt update; apt install -y python3-venv
+$ python3 -m venv /opt/walt-8
+$ /opt/walt-8/bin/pip install --upgrade pip
+$ /opt/walt-8/bin/pip install walt-server walt-client
+$ /opt/walt-8/bin/walt-server-setup
 ```
 
 Development mode:
 ```
 $ cd /root/walt-python-packages
 $ git checkout dev
-$ git pull
+$ git pull --ff-only
 $ make install
-$ walt-server-setup
 ```
 
 Your server is now upgraded to current version.
