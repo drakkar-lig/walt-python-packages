@@ -1,11 +1,14 @@
-import sys, subprocess
+import os, sys, subprocess
 from plumbum import cli
 from pathlib import Path
 from walt.common import systemd
 from walt.common.setup import WaltGenericSetup
 from walt.common.tools import verify_root_login_shell
-from walt.server.setup.ossetup import get_os_codename, upgrade_os, install_os, fix_os, fix_conmon, install_os_on_image
-from walt.server.setup.conf import fix_other_conf_files, define_server_conf, update_server_conf
+from walt.server.setup.ossetup import get_os_codename, upgrade_os, install_os, fix_os, \
+                                      fix_conmon, install_os_on_image, \
+                                      cleanup_old_walt_install
+from walt.server.setup.conf import fix_other_conf_files, define_server_conf, \
+                                   update_server_conf
 
 WALT_SERVICES = [
     "walt-server.service",
@@ -24,29 +27,37 @@ WALT_SERVICES = [
 # Since in their default configuration they would conflict with these
 # walt services, we have to disable them.
 UNCOMPATIBLE_OS_SERVICES = [
-    'tftpd-hpa.service', 'isc-dhcp-server.service', 'snmpd.service', 'lldpd.service', 'ptpd.service'
+    'tftpd-hpa.service', 'isc-dhcp-server.service', 'snmpd.service',
+    'lldpd.service', 'ptpd.service'
 ]
 
-WALT_SOCKET_SERVICES = [ 'walt-server-podman.socket' ]
+WALT_SOCKET_SERVICES = ['walt-server-podman.socket']
 WALT_MAIN_SERVICE = 'walt-server.service'
 
 OS_ACTIONS = {
     'image-install': {
-        'bullseye': ('define_server_conf', 'install_os_on_image', 'fix_conmon', 'disable_os_services',
-                     'setup_walt_services', 'fix_other_conf_files', 'update_server_conf',
-                     'update_completion'),
+        'bullseye': ('define_server_conf', 'install_os_on_image', 'fix_conmon',
+                     'disable_os_services', 'setup_walt_services',
+                     'setup_command_symlinks', 'fix_other_conf_files',
+                     'update_server_conf', 'update_completion'),
     },
     'install': {
-        'bullseye': ('define_server_conf', 'install_os', 'fix_conmon', 'disable_os_services',
-                     'setup_walt_services', 'fix_other_conf_files', 'update_server_conf', 'systemd_reload',
-                     'start_walt_services', 'update_completion', 'msg_ready'),
+        'bullseye': ('define_server_conf', 'install_os', 'fix_conmon',
+                     'disable_os_services', 'setup_walt_services',
+                     'setup_command_symlinks', 'fix_other_conf_files',
+                     'update_server_conf', 'systemd_reload', 'start_walt_services',
+                     'update_completion', 'msg_ready'),
     },
     'upgrade': {
-        'buster': ('define_server_conf', 'stop_services', 'upgrade_os', 'fix_conmon', 'disable_os_services',
-                   'setup_walt_services', 'fix_other_conf_files', 'update_server_conf', 'update_completion',
+        'buster': ('define_server_conf', 'stop_services', 'upgrade_os', 'fix_conmon',
+                   'disable_os_services', 'cleanup_old_walt_install',
+                   'setup_walt_services', 'setup_command_symlinks',
+                   'fix_other_conf_files', 'update_server_conf', 'update_completion',
                    'msg_reboot'),
-        'bullseye': ('define_server_conf', 'stop_services', 'fix_os', 'fix_conmon', 'disable_os_services',
-                     'setup_walt_services', 'fix_other_conf_files', 'update_server_conf', 'systemd_reload',
+        'bullseye': ('define_server_conf', 'stop_services', 'fix_os', 'fix_conmon',
+                     'disable_os_services', 'cleanup_old_walt_install',
+                     'setup_walt_services', 'setup_command_symlinks',
+                     'fix_other_conf_files', 'update_server_conf', 'systemd_reload',
                      'start_walt_services', 'update_completion', 'msg_ready'),
     }
 }
@@ -72,6 +83,8 @@ class WalTServerSetup(WaltGenericSetup):
 
     def main(self):
         """setup WalT server"""
+        assert (Path(sys.prefix) / 'bin' / 'activate').exists(), \
+            "walt-server seems not installed in a virtual environment"
         verify_root_login_shell()
         os_codename = get_os_codename()
         if self.mode.lower() == 'auto':
@@ -154,8 +167,21 @@ class WalTServerSetup(WaltGenericSetup):
                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         print('done')
 
-    def setup_default_server_conf(self):
-        setup_default_server_conf()
+    def cleanup_old_walt_install(self):
+        cleanup_old_walt_install()
+
+    def setup_command_symlinks(self):
+        os_bin = Path('/usr/local/bin')
+        venv_bin = Path(sys.prefix) / 'bin'
+        print(f'Updating symlinks {venv_bin}/walt-* -> {os_bin}... ', end='')
+        sys.stdout.flush()
+        for venv_entry in venv_bin.iterdir():
+            if venv_entry.name.startswith('walt'):
+                os_entry = os_bin / venv_entry.name
+                if os_entry.exists():
+                    os_entry.unlink()
+                os_entry.symlink_to(str(venv_entry.absolute()))
+        print('done')
 
     def fix_other_conf_files(self):
         fix_other_conf_files()
