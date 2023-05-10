@@ -2,11 +2,28 @@
 set -e
 URL_REGEXP="github.com.drakkar-lig/walt-python-packages"
 SUBPACKAGES="$*"
-. dev/tools/functions.sh
 
 which twine >/dev/null || {
     echo "twine command is missing! Aborted." >&2
     exit
+}
+
+fix_binary_package_tag() {
+    subpackage="$1"
+    whl=$subpackage/dist/*.whl
+    platform_tag=$(auditwheel show $whl | grep -o 'manylinux_[0-9]*_[0-9]*_x86_64')
+    wheel tags --remove --platform-tag $platform_tag $whl
+}
+
+build_subpackages() {
+    for d in $SUBPACKAGES
+    do
+        make $d.build
+        if [ "$d" = "vpn" ]
+        then
+            fix_binary_package_tag vpn
+        fi
+    done
 }
 
 branch=$(git branch | grep '*' | awk '{print $2}')
@@ -46,8 +63,7 @@ if [ $stat_ahead = 1 ]; then
 fi
 
 # build and check that packages are fine
-rm -rf */dist
-do_subpackages python3 setup.py sdist bdist_wheel
+build_subpackages
 
 # everything seems fine, let's start the real work
 
@@ -68,8 +84,7 @@ git tag -m "$newTag (automated by 'make upload')" -a $newTag
 git push --tag $remote $branch
 
 # rebuild updated packages
-rm -rf */dist
-do_subpackages python3 setup.py sdist bdist_wheel
+build_subpackages
 
 # upload: upload packages
 twine upload $repo_option */dist/*
