@@ -63,7 +63,9 @@ PACKAGE_SPECIFIC_INFO = {
     ),
     "walt-server": dict(
         subdir = 'server',
-        requires = [    'plumbum>=1.7.2', 'snimpy>=0.8.3',
+        requires = [    'setuptools<60',     # "<60" for compatibility with python-apt
+                        'python-apt-binary', # https://github.com/drakkar-lig/python-apt-binary
+                        'plumbum>=1.7.2', 'snimpy>=0.8.3',
                         'pysnmp==4.4.12', 'pyasn1==0.4.8',  # new pyasn1 0.5.0 has an issue
                         'ipaddress>=1.0.7','requests>=2.21.0',
                         'sdnotify>=0.3.0',
@@ -73,6 +75,7 @@ PACKAGE_SPECIFIC_INFO = {
                         'aiohttp>=3.8.1',
                         'aiostream>=0.4.4',
                         'netifaces>=0.11.0',
+                        'urllib3<2',    # for compatibility with podman
                         'podman>=4.2.0',
                         'setproctitle>=1.3.2',
                         'walt-client==%(upload)s',
@@ -84,7 +87,7 @@ PACKAGE_SPECIFIC_INFO = {
             description = "WalT server components.",
             entry_points = {
                 'console_scripts': [
-                    'walt-server-setup = walt.server.setup:run',
+                    'walt-server-setup = walt.server.setup.main:run',
                     'walt-server-daemon = walt.server.daemon:run',
                     'walt-server-httpd = walt.server.services.httpd:run',
                     'walt-server-tftpd = walt.server.services.tftpd:run',
@@ -119,7 +122,9 @@ PACKAGE_SPECIFIC_INFO = {
     ),
     "walt-vpn": dict(
         subdir = 'vpn',
-        requires = ['walt-common==%(upload)s', 'python-daemon>=2.2.3', 'cffi>=1.0.0'],
+        requires = ['walt-common==%(upload)s',
+                    'python-daemon<3',  # for compatibility with setuptools<60 (see server)
+                    'cffi>=1.0.0'],
         version_str = '%(upload)s',
         setup = dict(
             description = "WalT VPN components.",

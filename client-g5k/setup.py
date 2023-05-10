@@ -3,13 +3,6 @@ import sys
 if sys.version_info[0] == 2:
     sys.exit("Sorry, Python 2 is no longer supported.")
 
-from shutil import which
-
-for cmd in ('oarsub', 'oarprint', 'kareboot3', 'kavlan'):
-    if which(cmd) is None:
-        sys.exit(("'%s' not found. " % cmd) + \
-                 "walt-client with 'g5k' extension must be installed on a G5K frontend.")
-
 from setuptools import setup, find_packages
 
 # make sure we are executing the new info.py

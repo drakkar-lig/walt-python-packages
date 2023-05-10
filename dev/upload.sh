@@ -2,7 +2,6 @@
 set -e
 URL_REGEXP="github.com.drakkar-lig/walt-python-packages"
 SUBPACKAGES="$*"
-. dev/tools/functions.sh
 
 which twine >/dev/null || {
     echo "twine command is missing! Aborted." >&2
@@ -46,8 +45,10 @@ if [ $stat_ahead = 1 ]; then
 fi
 
 # build and check that packages are fine
-rm -rf */dist
-do_subpackages python3 setup.py sdist bdist_wheel
+for d in $SUBPACKAGES
+do
+	make $d.build
+done
 
 # everything seems fine, let's start the real work
 
@@ -68,8 +69,10 @@ git tag -m "$newTag (automated by 'make upload')" -a $newTag
 git push --tag $remote $branch
 
 # rebuild updated packages
-rm -rf */dist
-do_subpackages python3 setup.py sdist bdist_wheel
+for d in $SUBPACKAGES
+do
+	make $d.build
+done
 
 # upload: upload packages
 twine upload $repo_option */dist/*
