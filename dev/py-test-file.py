@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!dev/python.sh
 import sys, atexit
 from pathlib import Path
 # find imports from the current working directory, not

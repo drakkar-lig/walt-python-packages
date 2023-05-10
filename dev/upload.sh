@@ -2,11 +2,28 @@
 set -e
 URL_REGEXP="github.com.drakkar-lig/walt-python-packages"
 SUBPACKAGES="$*"
-. dev/tools/functions.sh
 
 which twine >/dev/null || {
     echo "twine command is missing! Aborted." >&2
     exit
+}
+
+fix_binary_package_tag() {
+    subpackage="$1"
+    whl=$subpackage/dist/*.whl
+    platform_tag=$(auditwheel show $whl | grep -o 'manylinux_[0-9]*_[0-9]*_x86_64')
+    wheel tags --remove --platform-tag $platform_tag $whl
+}
+
+build_subpackages() {
+    for d in $SUBPACKAGES
+    do
+        make $d.build
+        if [ "$d" = "vpn" ]
+        then
+            fix_binary_package_tag vpn
+        fi
+    done
 }
 
 branch=$(git branch | grep '*' | awk '{print $2}')
@@ -46,8 +63,7 @@ if [ $stat_ahead = 1 ]; then
 fi
 
 # build and check that packages are fine
-rm -rf */dist
-do_subpackages python3 setup.py sdist bdist_wheel
+build_subpackages
 
 # everything seems fine, let's start the real work
 
@@ -57,7 +73,12 @@ last_upload_in_git=$(git tag | grep "^$tag_prefix" | tr '_' ' ' | awk '{print $2
 new_upload=$((last_upload_in_git+1))
 
 # update files containing version number
-echo "__version__ = '${version_prefix}${new_upload}'" > common/walt/common/version.py
+new_version="${version_prefix}${new_upload}"
+echo "__version__ = '${new_version}'" > common/walt/common/version.py
+if [ -f server/requirements.txt ]
+then
+    sed -i -e 's/^\(walt-.*\)==.*$/\1=='"$new_version"'/g' server/requirements.txt
+fi
 dev/info-updater.py
 echo "info.py, version.py files updated"
 
@@ -68,8 +89,7 @@ git tag -m "$newTag (automated by 'make upload')" -a $newTag
 git push --tag $remote $branch
 
 # rebuild updated packages
-rm -rf */dist
-do_subpackages python3 setup.py sdist bdist_wheel
+build_subpackages
 
 # upload: upload packages
 twine upload $repo_option */dist/*
