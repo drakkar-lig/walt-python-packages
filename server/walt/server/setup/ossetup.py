@@ -1,4 +1,4 @@
-import shlex, datetime, requests, subprocess, json, sys, gzip
+import shlex, datetime, requests, subprocess, json, sys, gzip, base64
 from pathlib import Path
 from pkg_resources import resource_filename
 from walt.common.version import __version__ as WALT_VERSION
@@ -89,17 +89,19 @@ def fix_apt_sources(silent_override = False):
             sources_list_d.mkdir()
         docker_list.write_text(APT_DOCKER_LIST_CONTENT)
 
+def ascii_dearmor(in_text):  # python-equivalent to: gpg --dearmor
+    return base64.b64decode(in_text.split('-----')[2].rsplit('=', maxsplit=1)[0])
+
 def fix_keyring(url, keyring_file):
     resp = requests.get(url)
     if not resp.ok:
         raise Exception(f'Failed to fetch {url}: {resp.reason}')
-    p = subprocess.run(['gpg', '--dearmor'], input=resp.content, capture_output=True)
-    keyring_file_content = p.stdout
+    keyring_file_content = ascii_dearmor(resp.text)
     if not keyring_file.exists() or \
        keyring_file.read_bytes() != keyring_file_content:
         print(f'Updating {keyring_file}')
         keyring_file.parent.mkdir(parents=True, exist_ok=True)
-        keyring_file.write_bytes(p.stdout)
+        keyring_file.write_bytes(keyring_file_content)
 
 def fix_docker_keyring():
     fix_keyring(f'{DOCKER_REPO_URL}/gpg', DOCKER_KEYRING_FILE)
