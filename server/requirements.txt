@@ -41,10 +41,10 @@ six==1.16.0
 snimpy==1.0.0
 tomli==2.0.1
 urllib3==1.26.15
-walt-client==0.25
-walt-common==0.25
-walt-virtual==0.25
-walt-vpn==0.25
+walt-client==0.29
+walt-common==0.29
+walt-virtual==0.29
+walt-vpn==0.29
 yarl==1.9.2
 zope.event==4.6
 zope.interface==6.0
