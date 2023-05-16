@@ -234,7 +234,8 @@ def resolve_hub_creds():
         conf_dict['hub'].update(
                     username = ask_config_item('username'),
                     password = ask_config_item('password', coded=True))
-        if test_config(True):
+        server_error, hub_error = test_config(True)
+        if not server_error and not hub_error:
             break
 
 class ConfTree:
