@@ -62,8 +62,8 @@ class BlockingTasksManager(RPCProcessConnector):
     # sync calls will block the 'main' process, so should only be used e.g. during
     # service startup.
     def sync_list_docker_daemon_images(self):
-        return self.session(None).do_sync.sync_list_docker_daemon_images()
+        return self.session(None).do_sync.list_docker_daemon_images()
 
     def sync_pull_docker_daemon_image(self, fullname):
-        return self.session(None).do_sync.sync_pull_docker_daemon_image(fullname)
+        return self.session(None).do_sync.pull_docker_daemon_image(fullname)
 

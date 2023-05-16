@@ -54,13 +54,13 @@ class BlockingTasksContextService:
         hub = DockerHubClient()
         return hub.login(self.requester)
 
-    def sync_list_docker_daemon_images(self):
+    def list_docker_daemon_images(self):
         if self.docker_daemon is None:
             return []
         else:
             return self.docker_daemon.images()
 
-    def sync_pull_docker_daemon_image(self, fullname):
+    def pull_docker_daemon_image(self, fullname):
         if self.docker_daemon is None:
             return
         else:
@@ -99,10 +99,7 @@ class BlockingTasksService(object):
         def m(context, *args, **kwargs):
             context_service = BlockingTasksContextService(service, context)
             result = getattr(context_service, method_name)(*args, **kwargs)
-            if method_name.startswith('sync_'):
-                return result
-            else:
-                context.task.return_result(result)
+            return result
         return m
 
 class ServerBlockingProcess(EvProcess):

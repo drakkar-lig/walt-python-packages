@@ -51,7 +51,7 @@ class APISession(object):
 
     def run_task(self, rpc_context, attr, args, kwargs):
         task = APISessionTask(rpc_context, self, attr, args, kwargs)
-        task.run()
+        return task.run()
 
     def register_session_object(self, obj):
         obj_id = len(self.session_objects)

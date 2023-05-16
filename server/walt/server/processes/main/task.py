@@ -9,15 +9,14 @@ class APISessionTask(object):
         self.args = args
         self.kwargs = kwargs
         self.rpc_context = rpc_context
-        self.async_mode = False
         self.context = api_session.context.copy().update(
             task = self,
             requester = rpc_context.remote_service.do_sync.requester
         )
     def set_async(self):
-        self.async_mode = True
+        self.rpc_context.task.set_async()
     def is_async(self):
-        return self.async_mode
+        return self.rpc_context.task.is_async()
     def return_result(self, res):
         self.rpc_context.task.return_result(res)
     def run(self):
@@ -32,6 +31,6 @@ class APISessionTask(object):
             res = e
         # return result, unless async mode was set
         if not self.is_async():
-            self.return_result(res)
+            return res
     def is_alive(self):
         return self.context.requester.is_alive()
