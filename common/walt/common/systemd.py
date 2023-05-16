@@ -73,6 +73,14 @@ def disable_unit(unit_name: str,
     subprocess.run(shlex.split(
         f'systemctl --root={install_prefix} disable {unit_name}'),
         check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    # if the unit we just disabled was in a failed state, reset this state.
+    # Note: --root option is not available in this case, so we run the
+    # command without the check=True option. If we are in a Dockerfile,
+    # no systemd daemon is running, so this would fail, but without
+    # a daemon we do not have a running state for units anyway.
+    subprocess.run(shlex.split(
+        f'systemctl reset-failed {unit_name}'),
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
 def unit_exists(unit_name: str,
                 install_prefix: Path = None):
