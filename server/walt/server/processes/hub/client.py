@@ -17,6 +17,7 @@ class APISessionManager(object):
         self.remote_ip, remote_port = sock_file.getpeername()
         self.session_id = None
         self.sent_tasks = False
+        self.stack_of_client_tasks = []
         self.requester = AttrCallAggregator(self.forward_requester_request)
         local_service = RPCService(requester = self.requester)
         self.rpc_session = self.main.create_session(local_service = local_service)
@@ -32,7 +33,7 @@ class APISessionManager(object):
         if not self.target_api:
             return self.init_session()
         else:
-            return self.handle_api_call()
+            return self.handle_client_message()
     def read_api_channel(self):
         # exceptions may occur if the client disconnects.
         # we should ignore those.
@@ -40,7 +41,7 @@ class APISessionManager(object):
             return self.api_channel.read()
         except (EOFError, SyntaxError, OSError, SocketError):
             return None
-    def handle_api_call(self):
+    def handle_client_message(self):
         try:
             event = self.read_api_channel()
             if event == None:
@@ -57,6 +58,17 @@ class APISessionManager(object):
                 attr, args, kwargs = event[1:]
                 print('hub api_call:', self.target_api, attr, args, kwargs)
                 self.record_task(attr, args, kwargs)
+                return True
+            elif cmd in ('RESULT', 'EXCEPTION'):
+                if len(event) != 2:
+                    return False
+                if len(self.stack_of_client_tasks) == 0:
+                    return False
+                task = self.stack_of_client_tasks.pop()
+                if cmd == 'RESULT':
+                    task.return_result(event[1])
+                else:
+                    task.return_exception(event[1])
                 return True
             return False
         except:
@@ -85,14 +97,11 @@ class APISessionManager(object):
             self.rpc_session.do_sync.destroy_session(self.session_id)
         self.sock_file.close()
     def forward_requester_request(self, path, args, kwargs):
-        args = args[1:] # discard 1st arg, rpc context
+        context, args = args[0], args[1:]  # 1st arg is rpc context
         try:
             self.api_channel.write('API_CALL', path, args, kwargs)
-            res = self.read_api_channel()
-            if res == None:
-                return None
-            return res[1]
+            context.task.set_async()
+            self.stack_of_client_tasks.append(context.task)
         except APISessionManager.REQUESTER_API_IGNORED:
             pass
         return None
-
