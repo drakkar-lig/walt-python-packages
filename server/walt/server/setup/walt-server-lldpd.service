@@ -24,10 +24,10 @@ PIDFile=/run/walt/lldpd/lldpd.pid
 ExecStart=walt-server-lldpd
 Restart=on-failure
 PrivateTmp=yes
-ProtectHome=yes
 ProtectKernelTunables=no
 ProtectControlGroups=yes
 ProtectKernelModules=yes
+#ProtectHome=yes
 #ProtectSystem=full
 
 [Install]
