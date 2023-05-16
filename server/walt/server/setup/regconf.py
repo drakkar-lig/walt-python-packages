@@ -3,6 +3,7 @@ from copy import deepcopy
 from walt.common.term import alternate_screen_buffer, clear_screen, choose
 from walt.common.formatting import columnate, framed, highlight
 from plumbum.cli.terminal import prompt
+from walt.client.doc.md import display_doc
 
 EDITOR_TOP_MESSAGE = """\
 Please review and validate or edit the proposed configuration of image registries.
@@ -100,6 +101,7 @@ def main_menu_info(context, regconf, valid):
     else:
         options.update({f'enable the docker hub registry': (define_docker_hub,)})
     options.update({'define a custom docker image registry': (define_custom_reg,)})
+    options.update({'display help page about WalT registries': (show_registries_doc,)})
     if context['initial_regconf'] != regconf:
         options.update({'discard changes': (discard_changes,)})
     if valid:
@@ -117,6 +119,9 @@ def define_custom_reg(context, regconf):
     regconf.append({ 'api': 'docker-registry-v2', 'description': 'Local registry',
                      'https-verify': HTTPS_VERIFY_DEFAULT })
     select_reg_edit_menu(context, regconf, i, True)
+
+def show_registries_doc(context, regconf):
+    display_doc('registries')
 
 def discard_changes(context, regconf):
     regconf.clear()
