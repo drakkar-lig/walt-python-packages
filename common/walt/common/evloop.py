@@ -80,8 +80,7 @@ class EventLoop(object):
                  (ts, id(kwargs), callback, repeat_delay, kwargs))
 
     def waiting_for_events(self):
-        # events are usually not urgent, so restrict to top level recursion
-        return (self.recursion_depth == 1) and (len(self.planned_events) > 0)
+        return (len(self.planned_events) > 0)
 
     def get_timeout(self):
         if not self.waiting_for_events():
@@ -150,6 +149,7 @@ class EventLoop(object):
                 break
             # handle any expired planned event
             if self.waiting_for_events():
+                should_continue = True
                 now = time()
                 while len(self.planned_events) > 0 and \
                             self.planned_events[0][0] <= now:
@@ -163,9 +163,10 @@ class EventLoop(object):
                         self.plan_event(
                             next_ts, callback = callback, repeat_delay = repeat_delay, **kwargs)
                     # if this planned event fulfilled the condition, quit
-                    if not self.should_continue(loop_condition):
+                    should_continue = self.should_continue(loop_condition)
+                    if not should_continue:
                         break   # this will just break the inner while loop
-                if not self.should_continue(loop_condition):
+                if not should_continue:
                     break   # break the outer while loop
             # if a listener provides a method is_valid(),
             # check it and remove it if result is False
