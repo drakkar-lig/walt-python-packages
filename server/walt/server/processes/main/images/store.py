@@ -12,6 +12,7 @@ from walt.server.processes.main.images.image import NodeImage
 from walt.server.processes.main.images.setup import setup
 from walt.server.processes.main.network import tftp
 from walt.server.processes.main.filesystem import FilesystemsCache
+from walt.server.processes.main.workflow import Workflow
 
 if typing.TYPE_CHECKING:
     from walt.server.processes.main.server import Server
@@ -24,7 +25,7 @@ if typing.TYPE_CHECKING:
 # however, if this image defines /bin/walt-reboot, rebooting the node
 # involves code from this previous image. In order to allow this pattern,
 # we implement a grace period before an unused image is really unmounted.
-# 1st call to update_image_mounts() defines a deadline; next calls verify
+# 1st call to wf_update_image_mounts() defines a deadline; next calls verify
 # if this deadline is reached and if true unmount the image.
 # If ever an image is reused before the grace time is expired, then the
 # deadline is removed.
@@ -67,7 +68,8 @@ class NodeImageStore(object):
         self.deadlines = {}
         self.filesystems = FilesystemsCache(server.ev_loop, FS_CMD_PATTERN)
         self.exports = FilesystemsExporter(server.ev_loop)
-        self.to_be_unmounted = set()
+        self._update_wf = None
+        self._planned_update_wf = None
 
     def resync_from_db(self):
         "Synchronization function called on daemon startup."
@@ -216,13 +218,49 @@ class NodeImageStore(object):
                 return None
         return image
 
-    def update_image_mounts(self, requester = None):
+    def trigger_update_image_mounts(self):
+        wf = Workflow([self.wf_update_image_mounts])
+        wf.run()
+
+    def _wf_after_plan_next_update_wf(self, wf, **env):
+        self._planned_update_wf = None
+        self._plan_next_update_wf()
+
+    def _plan_next_update_wf(self):
+        if self._planned_update_wf is None and len(self.deadlines) > 0:
+            self._planned_update_wf = Workflow(
+                [self.wf_update_image_mounts,
+                 self._wf_after_plan_next_update_wf]
+            )
+            next_time = min(self.deadlines.values()) + MOUNT_GRACE_TIME_MARGIN
+            self.server.ev_loop.plan_event(ts=next_time,
+                                           callback=self._planned_update_wf.next)
+
+    def wf_update_image_mounts(self, wf, **env):
+        # if there is not already an update workflow in progress, create it
+        if self._update_wf is None:
+            self._update_wf = Workflow(
+                [self._wf_update_image_mounts]
+            )
+            self._update_wf.run()
+        # if no change was detected, self._update_wf.run() may be already completed
+        # and the value of self._update_wf may have been set back to None.
+        if self._update_wf is None:
+            wf.next()
+        else:
+            # wait for the update workflow to be completed
+            wf.wait_for_other_workflow(self._update_wf)
+
+    def _wf_update_image_mounts(self, update_wf, **env):
         new_mounts = set()
+        to_be_unmounted = set()
+        changes = False
         # ensure all needed images are mounted
         for fullname in self.get_images_in_use():
             if fullname in self.images:
                 img = self.images[fullname]
                 if not img.mounted:
+                    changes = True
                     self.mount(img.image_id, img.fullname)
                 new_mounts.add(img.image_id)
                 # if image was re-mounted while it was waiting grace time
@@ -244,43 +282,58 @@ class NodeImageStore(object):
             else:
                 # next checks: really umount after the deadline expired
                 if deadline < curr_time:
-                    self.to_be_unmounted.add(image_id)
+                    changes = True
+                    to_be_unmounted.add(image_id)
                 else:
                     all_mounts.add(image_id) # deadline not reached yet
-        # recheck after the next deadline if any
-        if len(self.deadlines) > 0:
-            next_recheck_ts = min(self.deadlines.values()) + \
-                              MOUNT_GRACE_TIME_MARGIN
-            self.server.ev_loop.plan_event(
-                ts = next_recheck_ts,
-                callback = self.update_image_mounts
-            )
-        # update nfs and tftp configuration
-        images_info = set((image_id, self.get_mount_path(image_id)) \
-                         for image_id in all_mounts)
-        to_be_unmounted = set(self.to_be_unmounted)  # copy
-        nodes_found = self.db.select("nodes")
-        # release filesystem interpreters before unmounting images
-        for image_id in to_be_unmounted:
-            if image_id in self.filesystems:
-                del self.filesystems[image_id]
-        # unmount images found above
-        # note: this must be done after nfs unmount (otherwise directories would
-        # be locked by the NFS export)
-        def cb():
+        if changes:
+            # retrieve info for next steps
+            images_info = set((image_id, self.get_mount_path(image_id)) \
+                             for image_id in all_mounts)
+            nodes = self.db.select("nodes")
+            # release filesystem interpreters before unmounting images
             for image_id in to_be_unmounted:
-                self.unmount(image_id)
-                self.deadlines.pop(image_id, None)
-                self.to_be_unmounted.discard(image_id)
-        self.exports.update_exported_filesystems(images_info, nodes_found, cb)
-        tftp.update(self.db, self)
+                if image_id in self.filesystems:
+                    del self.filesystems[image_id]
+            # next steps:
+            # 1. nfs mount / unmount
+            # 2. unmount images
+            # 3. recurse in case something changed during the run
+            # note: step 1 is before step 2 otherwise directories would be locked by the NFS export
+            update_wf.insert_steps([
+                self.exports.wf_update_exported_filesystems,
+                self._wf_unmount_images,
+                self._wf_update_image_mounts
+            ])
+            update_wf.update_env(
+                to_be_unmounted = to_be_unmounted,
+                images_info = images_info,
+                nodes = nodes
+            )
+        else:
+            # finalize this update
+            # - update tftp symlinks
+            tftp.update(self.db, self)
+            # - notify concurrent code that this update workflow is completed
+            self._update_wf = None
+            # - automatically restart after the next unmount deadline if any
+            self._plan_next_update_wf()
+        update_wf.next()
+
+    def _wf_unmount_images(self, update_wf, to_be_unmounted, **env):
+        for image_id in to_be_unmounted:
+            self.unmount(image_id)
+            self.deadlines.pop(image_id, None)
+        update_wf.next()
 
     def cleanup(self):
         # release filesystem interpreters
         self.filesystems.cleanup()
         if len(self.mounts) > 0:
             # release nfs mounts and unmount images
-            self.exports.update_exported_filesystems([], [])
+            wf = Workflow([self.exports.wf_update_exported_filesystems],
+                          images_info = [], nodes = [])
+            wf.run()
             # Since we are cleaning up, we cannot use a callback
             # because the event loop will be stopped.
             # So we just let the unmount procedure actively wait

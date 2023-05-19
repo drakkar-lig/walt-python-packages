@@ -229,7 +229,7 @@ class WorkflowCleaner:
         # (otherwise we just restored things from backup, so there was no change)
         if ok:
             image_store.resync_from_repository()
-            image_store.update_image_mounts()
+            image_store.trigger_update_image_mounts()
 
 # workflow management functions
 # -----------------------------

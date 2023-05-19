@@ -215,7 +215,7 @@ class DHCPServer(object):
     def __init__(self, db, ev_loop):
         self.db = db
         self.restarter = ServiceRestarter(ev_loop, 'dhcpd', 'walt-server-dhcpd.service')
-    def update(self, force=False):
+    def update(self, force=False, cb=None):
         subnet = get_walt_subnet()
         devices = []
         for item in self.db.execute(QUERY_DEVICES_WITH_IP):
@@ -238,4 +238,9 @@ class DHCPServer(object):
             DHCPD_CONF_FILE.write_text(conf)
             force = True # perform the restart below
         if force == True:
-            self.restarter.restart()
+            self.restarter.restart(cb=cb)
+        else:
+            if cb is not None:
+                cb()
+    def wf_update(self, wf, force=False, **env):
+        self.update(force=force, cb=wf.next)

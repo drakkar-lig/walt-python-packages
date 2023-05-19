@@ -16,7 +16,7 @@ from walt.server.processes.main.images.duplicate import duplicate
 from walt.server.processes.main.images.fixowner import fix_owner
 from walt.server.processes.main.images.store import NodeImageStore
 from walt.server.processes.main.images.image import validate_image_name
-from walt.server.processes.main.network import tftp
+from walt.server.processes.main.workflow import Workflow
 from walt.common.formatting import format_sentence, format_sentence_about_nodes
 from walt.common.tools import format_image_fullname
 
@@ -42,8 +42,7 @@ class NodeImageManager:
         pass
     def update(self, startup = False):
         self.store.resync_from_db()
-        self.store.update_image_mounts()
-        tftp.update(self.db, self.store)
+        self.store.trigger_update_image_mounts()
     def search(self, requester, task, keyword, tty_mode):
         return search(self.blocking, requester, task, keyword, tty_mode)
     def clone(self, **kwargs):
@@ -141,10 +140,10 @@ class NodeImageManager:
                         mac=node_mac,
                         image=image_fullname)
                 self.server.nodes.powersave.handle_event('set_image', node_mac, is_default)
-            self.store.update_image_mounts(requester = requester)
-            tftp.update(self.db, self.store)
             self.db.commit()
-            self.dhcpd.update()
+            wf = Workflow([self.store.wf_update_image_mounts,
+                           self.dhcpd.wf_update])
+            wf.run()
             # inform requester
             if is_default:
                 sentence = MSG_BOOT_DEFAULT_IMAGE
