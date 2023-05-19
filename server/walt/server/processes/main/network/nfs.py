@@ -39,7 +39,7 @@ class NFSExporter(object):
     def __init__(self, ev_loop):
         service_name = conf['services']['nfsd']['service-name']
         self.restarter = ServiceRestarter(ev_loop, 'nfsd', service_name)
-    def update_exports(self, root_paths, persist_paths, subnet, cb=None):
+    def wf_update_exports(self, wf, root_paths, persist_paths, subnet, **env):
         if not WALT_EXPORTS_PATH.parent.exists():
             WALT_EXPORTS_PATH.parent.mkdir()
         if WALT_EXPORTS_PATH.exists():
@@ -48,6 +48,7 @@ class NFSExporter(object):
             prev_content = ""
         content = generate_exports_file_content(root_paths, persist_paths, subnet)
         if content == prev_content:     # no changes
+            wf.next()
             return
         WALT_EXPORTS_PATH.write_text(content)
-        self.restarter.restart(cb)
+        self.restarter.restart(wf.next)

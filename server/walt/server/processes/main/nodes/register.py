@@ -1,14 +1,5 @@
-from walt.server.processes.main.network import tftp
+from walt.server.processes.main.workflow import Workflow
 import sys
-
-def finalize_registration(devices, images, db, dhcpd, mac, image_fullname, model, **kwargs):
-    # turn the device into a node
-    devices.add_or_update(mac = mac, type = 'node', model = model, image = image_fullname)
-    # mount needed images
-    images.update_image_mounts()
-    # refresh the dhcpd and tftp conf
-    tftp.update(db, images)
-    dhcpd.update()
 
 def decapitalize(msg):
     return msg[0].lower() + msg[1:]
@@ -16,29 +7,6 @@ def decapitalize(msg):
 def dup_msg(msg, stdstream, logs):
     stdstream.write(msg + '\n')
     logs.platform_log('devices', decapitalize(msg))
-
-def pull_image(blocking, images, image_fullname, model, logs, **kwargs):
-    full_kwargs = dict(
-        images = images,
-        image_fullname = image_fullname,
-        model = model,
-        logs = logs,
-        **kwargs
-    )
-    def callback(pull_result):
-        if pull_result[0]:
-            # ok
-            images.register_image(image_fullname)
-            dup_msg(f"Image {image_fullname} was downloaded successfully.", sys.stdout, logs)
-            finalize_registration(**full_kwargs)
-        else:
-            failure = pull_result[1]
-            # not being able to download default images for nodes
-            # is a rather important issue
-            dup_msg(failure, sys.stderr, logs)
-            dup_msg(f"New {model} nodes will be seen as devices of type 'unknown' until this is solved.",
-                    sys.stderr, logs)
-    blocking.pull_image(image_fullname, callback)
 
 def handle_registration_request(
                 db, logs, blocking, mac, images, model, image_fullname = None,
@@ -55,6 +23,7 @@ def handle_registration_request(
         logs = logs,
         **kwargs
     )
+    wf_steps = []
     # if image is new
     if image_fullname not in images:
         # we have to pull an image, that will be long,
@@ -64,6 +33,38 @@ def handle_registration_request(
                 sys.stdout, logs)
         dup_msg(f"Trying to download a default image for '{model}' nodes: {image_fullname}...",
                 sys.stdout, logs)
-        pull_image(blocking, **full_kwargs)
+        wf_steps += [wf_pull_image,
+                     wf_after_pull_image]
+    wf_steps += [wf_update_device_in_db,
+                 images.wf_update_image_mounts,
+                 wf_dhcpd_update]
+    wf = Workflow(wf_steps, **full_kwargs)
+    wf.run()
+
+def wf_pull_image(wf, blocking, image_fullname, **env):
+    blocking.pull_image(image_fullname, wf.next)
+
+def wf_after_pull_image(wf, pull_result, images, image_fullname, model, logs, **env):
+    if pull_result[0]:
+        # ok
+        images.register_image(image_fullname)
+        dup_msg(f"Image {image_fullname} was downloaded successfully.", sys.stdout, logs)
+        wf.next()
     else:
-        finalize_registration(**full_kwargs)
+        failure = pull_result[1]
+        # not being able to download default images for nodes
+        # is a rather important issue
+        dup_msg(failure, sys.stderr, logs)
+        dup_msg(f"New {model} nodes will be seen as devices of type 'unknown' until this is solved.",
+                sys.stderr, logs)
+
+def wf_update_device_in_db(wf, devices, mac, model, image_fullname, **env):
+    # turn the device into a node
+    devices.add_or_update(mac = mac, type = 'node', model = model, image = image_fullname)
+    wf.next()
+
+def wf_dhcpd_update(wf, dhcpd, **env):
+    # refresh the dhcpd conf
+    dhcpd.update()
+    wf.next()
+

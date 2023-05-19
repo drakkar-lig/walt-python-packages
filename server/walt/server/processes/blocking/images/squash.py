@@ -23,6 +23,6 @@ def squash(requester, server, image_fullname):
     squash_image(server, image_fullname)
     requester.stdout.write('Image was squashed successfully.\n')
     if in_use:
-        store.update_image_mounts()
+        store.trigger_update_image_mounts()
         return 'OK_BUT_REBOOT_NODES'
     return 'OK'

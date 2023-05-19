@@ -166,8 +166,12 @@ class Server(object):
         if device is None:
             return False
         task.set_async()
+        # note: if it's a node and no other node uses its image,
+        # this image should be unmounted.
         wf = Workflow([ self.nodes.powersave.wf_forget_device,
-                        self.wf_forget_device_other_steps ],
+                        self.wf_forget_device_other_steps,
+                        self.images.store.wf_update_image_mounts,
+                        self.wf_unblock_client ],
                       requester = requester,
                       device = device,
                       task = task
@@ -178,11 +182,11 @@ class Server(object):
         self.logs.forget_device(device)
         self.db.forget_device(device.name)
         self.dhcpd.update()
-        # if it's a node and no other node uses its image,
-        # this image should be unmounted.
-        self.images.store.update_image_mounts()
-        # unblock client
+        wf.next()
+
+    def wf_unblock_client(self, wf, task, **env):
         task.return_result(True)
+        wf.next()
 
     def create_vnode(self, requester, task, name):
         if not KVM_DEV_FILE.exists():

@@ -4,6 +4,7 @@ import typing
 import uuid
 
 from walt.common.tools import parse_image_fullname
+from walt.server.processes.main.workflow import Workflow
 
 if typing.TYPE_CHECKING:
     from walt.server.processes.main.images.image import NodeImage
@@ -62,14 +63,26 @@ class ImageShellSession(object):
         if self.image.fullname == image_fullname:
             self.image.filesystem.close()
         fullname, username, new_image_name = parse_image_fullname(image_fullname)
-        def on_commit(res):
-            self.on_commit(requester, cb_return_status, new_image_name, image_fullname)
-        print('committing %s...' % self.container_name)
-        blocking.commit_image(requester, on_commit, self.container_name, image_fullname)
+        wf = Workflow([self.wf_commit_image,
+                       self.wf_on_commit,
+                       self.images.wf_update_image_mounts,
+                       self.wf_end_image_save],
+                      requester = requester,
+                      blocking = blocking,
+                      cb_return_status = cb_return_status,
+                      new_image_name = new_image_name,
+                      image_fullname = image_fullname)
+        wf.run()
 
-    def on_commit(self, requester, cb_return_status, new_image_name, image_fullname):
-        # mount new image, and plan unmount of previous one if overriden
-        self.images.update_image_mounts()
+    def wf_commit_image(self, wf, requester, blocking, image_fullname, **env):
+        print('committing %s...' % self.container_name)
+        blocking.commit_image(requester, wf.next, self.container_name, image_fullname)
+
+    def wf_on_commit(self, wf, result, **env):
+        wf.next()   # ignore result, success is assumed since there was no Exception
+
+    def wf_end_image_save(self, wf, requester, cb_return_status,
+                          new_image_name, image_fullname, **env):
         # inform user and return
         if self.image.fullname == image_fullname:
             # same name, we are modifying the image

@@ -23,8 +23,15 @@ class FilesystemsExporter:
             failsafe_makedirs(persist_path)
             persist_paths.append(persist_path)
         return root_paths, persist_paths
-    def update_exported_filesystems(self, images_info, nodes, cb=None):
+    def wf_update_exported_filesystems(self, wf, images_info, nodes, **env):
         subnet = get_walt_subnet()
         root_paths, persist_paths = self.get_exports_info(images_info, nodes)
-        self.nbfs.update_exports(root_paths.items(), subnet)
-        self.nfs.update_exports(root_paths.items(), persist_paths, subnet, cb)
+        root_paths = list(root_paths.items())
+        self.nbfs.update_exports(root_paths, subnet)
+        wf.update_env(
+            root_paths = root_paths,
+            persist_paths = persist_paths,
+            subnet = subnet
+        )
+        wf.insert_steps([self.nfs.wf_update_exports])
+        wf.next()

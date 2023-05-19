@@ -1,4 +1,5 @@
 from __future__ import annotations
+from walt.server.processes.main.workflow import Workflow
 
 import typing
 import uuid
@@ -35,10 +36,23 @@ class ImageBuildSession(object):
         self.blocking.run_shell_cmd(requester, cb, cmd, shell=False, pipe_outstreams=True)
 
     def finalize_image_build_session(self, requester, server, task):
+        task.set_async()
         self.repository.refresh_cache_for_image(self.image_fullname)
         self.store.resync_from_repository()
-        self.store.update_image_mounts()
+        wf = Workflow([self.store.wf_update_image_mounts,
+                       self.wf_reboot_nodes,
+                       self.wf_return_result],
+                      requester = requester,
+                      server = server,
+                      task = task)
+        wf.run()
+
+    def wf_reboot_nodes(self, wf, requester, server, **env):
         if self.image_overwrite:
-            task.set_async()
             server.reboot_nodes_after_image_change(
-                    requester, task.return_result, self.image_fullname)
+                    requester, wf.next, self.image_fullname)
+        else:
+            wf.next('OK')
+
+    def wf_return_result(self, wf, result, task, **env):
+        task.return_result(result)
