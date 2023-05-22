@@ -33,4 +33,5 @@ class APISessionTask(object):
         if not self.is_async():
             return res
     def is_alive(self):
-        return self.context.requester.is_alive()
+        # note: if the requester is disconnected, is_alive() actually returns None.
+        return (self.context.requester.is_alive() is True)
