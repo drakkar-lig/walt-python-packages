@@ -193,10 +193,11 @@ class RPCTask(object):
         #print(current_process().name, 'RESULT', self.remote_req_id, res)
         self.connector.write(('RESULT', self.remote_req_id, res))
         self._completed = True
-    def return_exception(self, e):
+    def return_exception(self, e, print_exc=True):
         assert not self._completed, f"{current_process().name} Returning twice from the same task"
-        print(current_process().name + ': Exception occured while performing API request:')
-        sys.excepthook(*sys.exc_info())
+        if print_exc is True:
+            print(current_process().name + ': Exception occured while performing API request:')
+            sys.excepthook(*sys.exc_info())
         self.connector.write(('RESULT', self.remote_req_id, Exception(str(e))))
         self._completed = True
 
@@ -242,14 +243,25 @@ class RPCProcessConnector(ProcessConnector):
                 continue
             elif event[0] == 'RESULT':
                 local_req_id, result = event[1], event[2]
-                if isinstance(result, Exception):
-                    print(current_process().name + ': Remote exception returned here.')
                 sync_call = self.submitted_tasks[local_req_id].sync_call
-                cb = self.submitted_tasks[local_req_id].result_cb
-                if cb != None:
-                    cb(result)
-                if sync_call:
+                if sync_call:   # result (or exception) of sync call
                     self.results[local_req_id] = result
+                else:
+                    if isinstance(result, Exception):   # exception in async call
+                        cb = self.submitted_tasks[local_req_id].exception_cb
+                        if cb != None:
+                            cb(result)
+                        else:
+                            # it does not make sense to throw the exception in this
+                            # current context since the call was asynchronous: we would
+                            # probably interrupt an unrelated procedure.
+                            print(f'{current_process().name}: WARNING: A remote ' +
+                                  'exception in an async call was ignored since no ' +
+                                  'exception callback was defined.')
+                    else:   # result of async call
+                        cb = self.submitted_tasks[local_req_id].result_cb
+                        if cb != None:
+                            cb(result)
                 del self.submitted_tasks[local_req_id]
                 continue
             raise Exception('Broken communication with remote end.')
@@ -270,6 +282,8 @@ class RPCProcessConnector(ProcessConnector):
             context.task.return_result(res)
     def then(self, cb): # specify callback
         self.submitted_tasks[self.last_req_id].result_cb = cb
+    def on_exception(self, cb): # specify exception callback
+        self.submitted_tasks[self.last_req_id].exception_cb = cb
     def async_runner(self, remote_req_id, local_service, path, args, kwargs):
         local_req_id = self.send_task(remote_req_id, local_service, path, args, kwargs, False)
         return self     # return "self" for "<...>.async.func(<args>).then(<cb>)" notation
@@ -278,7 +292,12 @@ class RPCProcessConnector(ProcessConnector):
         # resume the event loop until we get the expected result
         loop_condition = lambda : (local_req_id not in self.results)
         current_process().ev_loop.loop(loop_condition)
-        return self.results.pop(local_req_id)
+        result = self.results.pop(local_req_id)
+        if isinstance(result, Exception):
+            print(current_process().name + ': Remote exception returned here.')
+            raise result
+        else:
+            return result
     def send_task(self, remote_req_id, local_service, path, args, kwargs, sync_call):
         local_req_id = next(self.ids_generator)
         self.last_req_id = local_req_id
@@ -288,7 +307,8 @@ class RPCProcessConnector(ProcessConnector):
                     args = args,
                     kwargs = kwargs,
                     sync_call = sync_call,
-                    result_cb = None)
+                    result_cb = None,
+                    exception_cb = None)
         #print(current_process().name, 'API_CALL', remote_req_id, local_req_id, path, args, kwargs)
         self.write(('API_CALL', remote_req_id, local_req_id, path, args, kwargs))
         return local_req_id

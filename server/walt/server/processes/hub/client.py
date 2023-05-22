@@ -59,16 +59,13 @@ class APISessionManager(object):
                 print('hub api_call:', self.target_api, attr, args, kwargs)
                 self.record_task(attr, args, kwargs)
                 return True
-            elif cmd in ('RESULT', 'EXCEPTION'):
+            elif cmd == 'RESULT':
                 if len(event) != 2:
                     return False
                 if len(self.stack_of_client_tasks) == 0:
                     return False
                 task = self.stack_of_client_tasks.pop()
-                if cmd == 'RESULT':
-                    task.return_result(event[1])
-                else:
-                    task.return_exception(event[1])
+                task.return_result(event[1])
                 return True
             return False
         except:
@@ -77,12 +74,9 @@ class APISessionManager(object):
         # client might already be disconnected (ctrl-C),
         # thus we ignore errors.
         try:
-            if isinstance(res, BaseException):
-                self.api_channel.write('EXCEPTION', str(res))
-            else:
-                self.api_channel.write('RESULT', res)
+            self.api_channel.write('RESULT', res)
         except:
-            pass
+            self.close()
     def init_session(self):
         try:
             self.target_api = self.sock_file.readline().decode('UTF-8').strip()
@@ -93,15 +87,26 @@ class APISessionManager(object):
         except:
             return False
     def close(self):
+        for task in reversed(self.stack_of_client_tasks):
+            self.handle_requester_failed_task(task)
         if self.sent_tasks:
             self.rpc_session.do_sync.destroy_session(self.session_id)
         self.sock_file.close()
     def forward_requester_request(self, path, args, kwargs):
         context, args = args[0], args[1:]  # 1st arg is rpc context
-        try:
-            self.api_channel.write('API_CALL', path, args, kwargs)
-            context.task.set_async()
+        #print('main->hub requester call:', path, args, kwargs)
+        context.task.set_async()
+        if self.sock_file.closed:
+            self.handle_requester_failed_task(context.task)
+        else:
             self.stack_of_client_tasks.append(context.task)
-        except APISessionManager.REQUESTER_API_IGNORED:
-            pass
-        return None
+            try:
+                self.api_channel.write('API_CALL', path, args, kwargs)
+            except APISessionManager.REQUESTER_API_IGNORED:
+                self.close()
+    def handle_requester_failed_task(self, task):
+        # If the client disconnects, we may silently ignore many calls
+        # (e.g., stdout.write()), thus me chose to return None here.
+        # Note that get_username(), is_alive() will also return None
+        # in this case.
+        task.return_result(None)
