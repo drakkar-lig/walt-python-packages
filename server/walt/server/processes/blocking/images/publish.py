@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import typing
 
-from walt.server.processes.blocking.repositories import \
+from walt.server.processes.blocking.registries import \
      DockerHubClient, get_custom_registry_client
 from walt.server.processes.blocking.images.metadata import \
      update_user_metadata_for_image
@@ -31,7 +31,7 @@ def publish(requester, server: Server, registry_label, image_fullname, **kwargs)
         requester.stderr.write(f'Failed to communicate with {registry_label} registry. Aborted.\n')
         return (False,)
     if success:
-        clone_url = registry.get_origin_clone_url(requester, registry_label, image_fullname)
+        clone_url = registry.get_origin_clone_url(requester, image_fullname)
         if clone_url.endswith(':latest'):
             clone_url = clone_url[:-7]
         return (True, clone_url)

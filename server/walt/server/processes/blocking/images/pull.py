@@ -1,16 +1,23 @@
-from walt.server.processes.blocking.repositories import get_registry_clients
+from walt.server.processes.blocking.registries import get_registry_clients
 from walt.common.formatting import format_sentence
 
-def pull_image(server, image_fullname):
-    failed = []
+
+def pull_image(requester, server, image_fullname):
+    failed, issues = [], []
     clients = get_registry_clients()
     for label, client in clients:
+        if requester is None and client.auth == 'basic' and \
+                'pull' not in client.anonymous_operations:
+            issues.append(
+                    f"Registry '{label}' does not allow anonymous pulls, ignored.")
+            continue
         try:
-            client.pull(server, image_fullname)
+            client.pull(requester, server, image_fullname)
             return True,
-        except:
+        except Exception:
             failed.append(f"'{label}'")
-    # if we are here, then all failed
-    issue = format_sentence(f"Failed to download {image_fullname} from %s.",
-                    failed, None, 'registry', 'registries', list_type='or')
-    return False, issue
+    # if we are here, then nothing worked
+    if len(failed) > 0:
+        issues.append(format_sentence(f"Failed to download {image_fullname} from %s.",
+                      failed, None, 'registry', 'registries', list_type='or'))
+    return False, '\n'.join(issues)

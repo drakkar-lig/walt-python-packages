@@ -33,11 +33,16 @@ class BlockingTasksManager(RPCProcessConnector):
     def update_hub_metadata(self, requester, result_cb, *args, **kwargs):
         self.session(requester).do_async.update_hub_metadata(*args, **kwargs).then(result_cb)
 
-    def pull_image(self, image_fullname, result_cb):
-        self.do_async.pull_image(image_fullname).then(result_cb)
+    def pull_image(self, requester, image_fullname, result_cb):
+        if requester is None:
+            self.do_async.pull_image(
+                    image_fullname, anonymous=True).then(result_cb)
+        else:
+            self.session(requester).do_async.pull_image(
+                    image_fullname, anonymous=False).then(result_cb)
 
-    def hub_login(self, requester, result_cb, *args, **kwargs):
-        self.session(requester).do_async.hub_login(*args, **kwargs).then(result_cb)
+    def registry_login(self, requester, result_cb, *args, **kwargs):
+        self.session(requester).do_async.registry_login(*args, **kwargs).then(result_cb)
 
     def stream_db_logs(self, logs_handler):
         # request the blocking task to stream db logs

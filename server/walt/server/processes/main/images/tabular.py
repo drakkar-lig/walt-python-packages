@@ -16,7 +16,7 @@ def compute_field(db_info, image, field):
 def get_tabular_data(db, images, requester, username, refresh, fields,
                             may_clone_default_images = True):
     if refresh:
-        images.resync_from_repository(rescan=True)
+        images.resync_from_registry(rescan=True)
     images_db_info = db.get_user_images(username)
     tabular_data = []
     for db_info in images_db_info:

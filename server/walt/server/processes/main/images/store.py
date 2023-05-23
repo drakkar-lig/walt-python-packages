@@ -60,7 +60,7 @@ def get_mount_path(image_id):
 class NodeImageStore(object):
     def __init__(self, server: Server):
         self.server = server
-        self.repository = server.repository
+        self.registry = server.registry
         self.blocking = server.blocking
         self.db = server.db
         self.images: dict[str, NodeImage] = {}
@@ -76,7 +76,7 @@ class NodeImageStore(object):
         db_images = set(db_img.fullname \
                         for db_img in self.db.select('images'))
         # gather local images
-        podman_images = set(self.repository.get_images())
+        podman_images = set(self.registry.get_images())
         docker_images = None  # Loaded on-demand thereafter
         # import new images from podman into the database
         for fullname in podman_images:
@@ -107,14 +107,14 @@ class NodeImageStore(object):
                     self.db.delete('images', fullname=db_fullname)
                     self.db.commit()
 
-    def resync_from_repository(self, rescan = False):
+    def resync_from_registry(self, rescan = False):
         "Resync function podman repo -> this image store"
         db_images = set(db_img.fullname \
                         for db_img in self.db.select('images'))
         # gather local images
         if rescan:
-            self.repository.scan()
-        podman_images = set(self.repository.get_images())
+            self.registry.scan()
+        podman_images = set(self.registry.get_images())
         # import new images from podman into this store (and into the database)
         for fullname in podman_images:
             if fullname not in db_images:
@@ -124,7 +124,7 @@ class NodeImageStore(object):
             if fullname not in self.images:
                 self.images[fullname] = NodeImage(self, fullname)
         # all images should be available in this store
-        # if not, this means they were deleted from repository,
+        # if not, this means they were deleted from registry,
         # so remove them here too (and in db)
         for fullname in tuple(self.images):
             if fullname not in podman_images:
@@ -158,8 +158,8 @@ class NodeImageStore(object):
         if image_fullname not in self.images:
             # image was probably downloaded using podman commands
             # (e.g. by the blocking process), main process does not know it yet
-            self.repository.refresh_cache_for_image(image_fullname)
-            self.resync_from_repository()
+            self.registry.refresh_cache_for_image(image_fullname)
+            self.resync_from_registry()
         return self.images[image_fullname]
 
     def __iter__(self):
@@ -394,7 +394,7 @@ class NodeImageStore(object):
         print('Mounting %s...' % desc)
         mount_path = get_mount_path(image_id)
         failsafe_makedirs(mount_path)
-        self.repository.image_mount(image_id, mount_path)
+        self.registry.image_mount(image_id, mount_path)
         setup(mount_path)
         print('Mounting %s... done' % desc)
 
@@ -405,7 +405,7 @@ class NodeImageStore(object):
         desc = fullname if fullname else image_id
         print('Un-mounting %s...' % desc, end=' ')
         mount_path = get_mount_path(image_id)
-        self.repository.image_umount(image_id, mount_path)
+        self.registry.image_umount(image_id, mount_path)
         os.rmdir(mount_path)
         print('done')
 
@@ -441,7 +441,7 @@ class NodeImageStore(object):
                 if real_update is False:
                     real_update = True
                     requester.set_busy_label('Cloning default images')
-                self.repository.tag(default_image, ws_image)
+                self.registry.tag(default_image, ws_image)
                 self.register_image(ws_image)
                 requester.stdout.write(f'Cloned {image_name}, a defaut image for {image_node_models_desc}.\n')
             # remove from remaining nodes those with a model declared in label "walt.node.models"

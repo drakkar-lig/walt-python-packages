@@ -15,7 +15,9 @@ MENU_NAVIGATION_TIP = "use arrow keys to browse, <enter> to select"
 
 HUB_REPOCONF = { 'label': 'hub', 'api': 'docker-hub',
                  'description': 'Public registry at hub.docker.com' }
-HTTPS_VERIFY_DEFAULT = False
+DEFAULT_PORT = 443
+DEFAULT_PROTOCOL = 'https'
+DEFAULT_AUTH = 'basic'
 MAX_DESC_LEN = 35
 
 # tools
@@ -39,7 +41,7 @@ def pretty_print_regconf(regconf):
                 reg_config = '<not-editable>'
             else:
                 reg_config = ' '.join(f'{k}={printed_reg_value(reg, k)}' \
-                                for k in ('host', 'port', 'https-verify'))
+                                for k in ('host', 'port', 'protocol', 'auth'))
             rows.append((printed_reg_value(reg, 'label'), reg['api'], reg['description'], reg_config))
         conf_text = columnate(rows, header)
     print(framed('WalT image registries', conf_text))
@@ -54,7 +56,7 @@ def print_regconf_status(context, regconf):
     for reg in regconf:
         if reg.get('label', '') == 'hub':
             continue
-        for k in ('label', 'host', 'port'):
+        for k in ('label', 'host'):
             if k not in reg:
                 undefined.append(k)
     if len(undefined) > 0:
@@ -117,7 +119,8 @@ def define_docker_hub(context, regconf):
 def define_custom_reg(context, regconf):
     i = len(regconf)
     regconf.append({ 'api': 'docker-registry-v2', 'description': 'Local registry',
-                     'https-verify': HTTPS_VERIFY_DEFAULT })
+                     'port': DEFAULT_PORT,
+                     'protocol': DEFAULT_PROTOCOL, 'auth': DEFAULT_AUTH })
     select_reg_edit_menu(context, regconf, i, True)
 
 def show_registries_doc(context, regconf):
@@ -146,7 +149,7 @@ def edit_reg_menu_info(context, regconf, i, is_new):
     else:
         reg_name = '"' + reg['label'] + '"'
     options = {}
-    for k in ('label', 'description', 'host', 'port', 'https-verify'):
+    for k in ('label', 'description', 'host', 'port', 'protocol', 'auth'):
         verb = 'change' if k in reg else 'define'
         options.update({f'{reg_name} -- {verb} the {k} property':
                         (define_reg_property, i, k)})
@@ -161,7 +164,7 @@ def validate_registry_changes(context, regconf, i):
     # configuration file
     # (note: python dictionaries record the order their entries were inserted)
     reg = regconf[i]
-    for prop in ('label', 'api', 'description', 'host', 'port', 'https-verify'):
+    for prop in ('label', 'api', 'description', 'host', 'port', 'protocol', 'auth'):
         reg[prop] = reg.pop(prop)
     # return to main menu
     select_main_menu(context, regconf)
@@ -198,8 +201,15 @@ def define_reg_property(context, regconf, i, k):
             elif k == 'port':
                 value = prompt('Please indicate the port number of this registry (e.g., 5000):',
                          type=int)
-            elif k == 'https-verify':
-                value = not reg['https-verify']
+            elif k == 'protocol':
+                value = choose("Select the protocol to access this registry:",
+                    { "          https: HTTPS protocol": 'https',
+                      "           http: HTTP protocol": 'http',
+                      "https-no-verify: HTTPS protocol without certificate checks": 'https-no-verify' })
+            elif k == 'auth':   # toggle between none and basic
+                value = choose("Select the authentication mode for this registry:",
+                    { "basic: Basic HTTP authentication": 'basic',
+                      "none: No user authentication (anonymous access)": 'none' })
             # exit or loop again
             if value is None:
                 print('Note: type ctrl-C to abort.')

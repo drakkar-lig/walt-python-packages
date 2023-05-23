@@ -164,9 +164,9 @@ class CSAPI(APISession):
                           image_name = image_name)
 
     @api_expose_method
-    def hub_login(self, context):
+    def registry_login(self, context, reg_name):
         context.task.set_async()
-        return context.blocking.hub_login(context.requester, context.task.return_result)
+        return context.blocking.registry_login(context.requester, context.task.return_result, reg_name)
 
     @api_expose_method
     def get_images_tabular_data(self, context, username, refresh, fields=None):

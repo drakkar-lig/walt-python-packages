@@ -11,7 +11,7 @@ from walt.server.processes.blocking.images.metadata import \
     async_pull_user_metadata
 from walt.server.tools import format_node_models_list, async_merge_generators
 from walt.server.exttools import docker
-from walt.server.processes.blocking.repositories import \
+from walt.server.processes.blocking.registries import \
      DockerDaemonClient, DockerHubClient, DockerRegistryV2Client
 from walt.server import conf
 
@@ -57,11 +57,19 @@ class Search(object):
         for reg_info in conf['registries']:
             api = reg_info['api']
             if api == 'docker-hub':
-                generators += [ self.async_search_hub() ]
+                registry = DockerHubClient()
+                generators += [ self.async_search_hub(registry) ]
             elif api == 'docker-registry-v2':
-                generators += [ self.async_search_registry_v2(**reg_info) ]
+                registry = DockerRegistryV2Client(**reg_info)
+                generators += [ self.async_search_registry_v2(registry) ]
             else:
                 self.requester.stderr.write(f"Unknown registry api '{api}' in configuration, ignoring.")
+                continue
+            # First-time logins will require the user to input its credentials,
+            # which takes time and may cause unrelated coroutine timeouts if we do that
+            # later (when all coroutines will be running concurrently).
+            if registry.op_needs_authentication('search'):
+                self.requester.ensure_registry_conf_has_credentials(registry.label)
         async for record in async_merge_generators(*generators):
             yield record
     async def async_search_walt(self):
@@ -76,16 +84,15 @@ class Search(object):
             docker_images = await docker_daemon.async_images()
             for fullname in docker_images:
                 if self.validate_fullname(fullname, 'docker'):
-                    labels = await docker_daemon.async_get_labels(fullname)
+                    labels = await docker_daemon.async_get_labels(self.requester, fullname)
                     yield (fullname, 'docker', labels)
         except:
             self.requester.stderr.write(f"Ignoring images of docker daemon because of a communication failure.\n")
             return
-    async def async_search_hub(self):
+    async def async_search_hub(self, hub):
         try:
             # search for hub images
             # (detect walt users by their 'walt_metadata' dummy image)
-            hub = DockerHubClient()
             generators = []
             async for waltuser_info in hub.async_search('walt_metadata'):
                 if '/walt_metadata' in waltuser_info['name']:
@@ -101,24 +108,22 @@ class Search(object):
         for fullname, info in user_metadata['walt.user.images'].items():
             if self.validate_fullname(fullname, 'hub'):
                 yield fullname, 'hub', info['labels']
-    async def async_search_registry_v2(self, label, host, port, **kwargs):
+    async def async_search_registry_v2(self, registry):
         try:
-            https_only = kwargs['https-verify']
-            registry = DockerRegistryV2Client(host, port, https_only)
             generators = []
-            async for image_name in registry.async_catalog():
-                generators += [ self.async_get_registry_v2_image_tags(label, registry, image_name) ]
+            async for image_name in registry.async_catalog(self.requester):
+                generators += [ self.async_get_registry_v2_image_tags(registry, image_name) ]
             async for record in async_merge_generators(*generators):
                 yield record
         except:
-            self.requester.stderr.write(f"Ignoring {label} registry because of a communication failure.\n")
+            self.requester.stderr.write(f"Ignoring {registry.label} registry because of a communication failure.\n")
             return
-    async def async_get_registry_v2_image_tags(self, registry_label, registry, image_name):
-        async for tag in registry.async_list_image_tags(image_name):
+    async def async_get_registry_v2_image_tags(self, registry, image_name):
+        async for tag in registry.async_list_image_tags(self.requester, image_name):
             fullname = f'{image_name}:{tag}'
-            if self.validate_fullname(fullname, registry_label):
-                labels = await registry.async_get_labels(fullname)
-                yield fullname, registry_label, labels
+            if self.validate_fullname(fullname, registry.label):
+                labels = await registry.async_get_labels(self.requester, fullname)
+                yield fullname, registry.label, labels
 
 def short_image_name(image_name):
     if image_name.endswith(':latest'):

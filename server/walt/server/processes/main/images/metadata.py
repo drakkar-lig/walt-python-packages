@@ -3,7 +3,7 @@ def update_hub_metadata(blocking, requester, task, waltplatform_user, **kwargs):
     if waltplatform_user:
         user = 'waltplatform'
     else:
-        user = requester.get_hub_username()
+        user = requester.get_registry_username('hub')
         if not user:
             return None     # client already disconnected, give up
     task.set_async()    # result will be available later

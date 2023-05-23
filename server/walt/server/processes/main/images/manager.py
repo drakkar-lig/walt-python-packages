@@ -36,7 +36,7 @@ class NodeImageManager:
         self.db = server.db
         self.blocking = server.blocking
         self.dhcpd = server.dhcpd
-        self.repository = server.repository
+        self.registry = server.registry
         self.store = NodeImageStore(server)
     def prepare(self):
         pass
@@ -54,11 +54,11 @@ class NodeImageManager:
     def get_tabular_data(self, requester, username, refresh, fields):
         return get_tabular_data(self.db, self.store, requester, username, refresh, fields)
     def rename(self, requester, image_name, new_name):
-        return rename(self.store, self.repository, requester, image_name, new_name)
+        return rename(self.store, self.registry, requester, image_name, new_name)
     def remove(self, requester, image_name):
-        return remove(self.store, self.repository, requester, image_name)
+        return remove(self.store, self.registry, requester, image_name)
     def duplicate(self, requester, image_name, new_name):
-        return duplicate(self.store, self.repository, requester, image_name, new_name)
+        return duplicate(self.store, self.registry, requester, image_name, new_name)
     def validate_cp_entity(self, requester, image_name, index, **info):
         if image_name == 'booted-image':
             username = requester.get_username()
@@ -91,7 +91,7 @@ class NodeImageManager:
     def get_cp_entity_attrs(self, requester, image_name, **info):
         return dict(image_name=image_name)
     def fix_owner(self, requester, other_user):
-        fix_owner(self.store, self.repository, requester, other_user)
+        fix_owner(self.store, self.registry, requester, other_user)
     def cleanup(self):
         # un-mount images
         self.store.cleanup()

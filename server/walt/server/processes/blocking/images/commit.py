@@ -10,7 +10,7 @@ def commit(server, cid_or_cname, dest_fullname, tool=podman, opts=()):
     # we commit with 'docker' format to make these images compatible with
     # older walt server versions
     opts += ('-f', 'docker')
-    if server.repository.image_exists(dest_fullname):
+    if server.registry.image_exists(dest_fullname):
         # take care not making previous version of image a dangling image
         image_tempname = get_commit_temp_image()
         args = opts + (cid_or_cname, image_tempname)

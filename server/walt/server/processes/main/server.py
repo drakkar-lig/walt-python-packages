@@ -12,7 +12,7 @@ from walt.server.processes.main.images.manager import NodeImageManager
 from walt.server.processes.main.interactive import InteractionManager
 from walt.server.processes.main.unix import UnixSocketServer
 from walt.server.processes.main.logs import LogsManager
-from walt.server.processes.main.repository import WalTLocalRepository
+from walt.server.processes.main.registry import WalTLocalRegistry
 from walt.server.processes.main.network.dhcpd import DHCPServer
 from walt.server.processes.main.nodes.manager import NodesManager
 from walt.server.processes.main.devices.manager import DevicesManager
@@ -33,7 +33,7 @@ class Server(object):
     def __init__(self, ev_loop):
         self.ev_loop = ev_loop
         self.db = SyncRPCProcessConnector(label = 'main-to-db')
-        self.repository = WalTLocalRepository()
+        self.registry = WalTLocalRegistry()
         self.blocking = BlockingTasksManager(self)
         self.tcp_server = TCPServer(WALT_SERVER_TCP_PORT)
         self.logs = LogsManager(self.db, self.tcp_server, self.blocking, self.ev_loop)
@@ -52,7 +52,7 @@ class Server(object):
     def prepare(self):
         self.logs.prepare()
         self.logs.catch_std_streams()
-        self.repository.prepare()
+        self.registry.prepare()
         tftp.prepare()
         self.tcp_server.prepare(self.ev_loop)
         self.unix_server.prepare(self.ev_loop)
@@ -210,7 +210,7 @@ class Server(object):
                 renaming = True
             user_image_fullname = format_image_fullname(username, image_name)
             if user_image_fullname not in self.images.store:
-                self.repository.tag(default_image_fullname, user_image_fullname)
+                self.registry.tag(default_image_fullname, user_image_fullname)
                 self.images.store.register_image(user_image_fullname)
                 requester.stdout.write(
                     f'Default image for {model} was saved as "{image_name}" in your working set.\n')
@@ -230,7 +230,7 @@ class Server(object):
                     failure = pull_result[1]
                     requester.stderr.write(failure + '\n')
                     task.return_result(False)
-            self.blocking.pull_image(default_image_fullname, callback)
+            self.blocking.pull_image(requester, default_image_fullname, callback)
         else:
             on_default_image_ready()
             return True

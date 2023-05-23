@@ -74,12 +74,14 @@ class WaltClientService(BaseAPIService):
     def hard_reboot_nodes(self, node_macs):
         return get_hook('client_hard_reboot').reboot(node_macs)
     @api_expose_method
-    def get_hub_encrypted_credentials(self, server_pub_key):
+    def get_registry_encrypted_credentials(self, registry_label, server_pub_key):
+        reg_conf = getattr(conf.registries, registry_label)
         return get_encrypted_credentials(server_pub_key,
-                    conf.hub.username, conf.hub.password)
+                                         reg_conf.username, reg_conf.password)
     @api_expose_method
-    def get_hub_username(self):
-        return conf.hub.username
+    def get_registry_username(self, registry_label):
+        reg_conf = getattr(conf.registries, registry_label)
+        return reg_conf.username
 
 class InternalClientToServerLink(ServerAPILink):
     # optimization:

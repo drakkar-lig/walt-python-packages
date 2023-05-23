@@ -16,7 +16,7 @@ class ImageBuildSession(object):
                        image_overwrite: bool, **info):
         self.blocking = blocking
         self.store = store
-        self.repository = store.repository
+        self.registry = store.registry
         self.image_fullname = image_fullname
         self.image_overwrite = image_overwrite
         self.info = info
@@ -37,8 +37,8 @@ class ImageBuildSession(object):
 
     def finalize_image_build_session(self, requester, server, task):
         task.set_async()
-        self.repository.refresh_cache_for_image(self.image_fullname)
-        self.store.resync_from_repository()
+        self.registry.refresh_cache_for_image(self.image_fullname)
+        self.store.resync_from_registry()
         wf = Workflow([self.store.wf_update_image_mounts,
                        self.wf_reboot_nodes,
                        self.wf_return_result],

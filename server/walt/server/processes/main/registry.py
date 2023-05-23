@@ -66,7 +66,7 @@ def mount_exists(mountpoint):
         return False
     return True
 
-class WalTLocalRepository:
+class WalTLocalRegistry:
     def __init__(self):
         self.names_cache = {}
     def prepare(self):

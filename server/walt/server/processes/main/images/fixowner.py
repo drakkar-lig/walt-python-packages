@@ -3,7 +3,7 @@ from __future__ import annotations
 import typing
 
 if typing.TYPE_CHECKING:
-    from walt.server.processes.main.repository import WalTLocalRepository
+    from walt.server.processes.main.registry import WalTLocalRegistry
 
 MSG_SAME_USER="""\
 Invalid username. According to your walt.conf file, you are '%s'!
@@ -29,7 +29,7 @@ MSG_CHANGED_OWNER="""\
 Image %s now belongs to you.
 """
 
-def fix_owner(images, repository: WalTLocalRepository, requester, other_user):
+def fix_owner(images, registry: WalTLocalRegistry, requester, other_user):
     username = requester.get_username()
     if not username:
         return None     # client already disconnected, give up
@@ -65,8 +65,8 @@ def fix_owner(images, repository: WalTLocalRepository, requester, other_user):
         # rename the image
         old_fullname = image.fullname
         new_fullname = username + old_fullname.split('/')[1]
-        repository.tag(old_fullname, new_fullname)
-        repository.rmi(old_fullname)
+        registry.tag(old_fullname, new_fullname)
+        registry.rmi(old_fullname)
         # update the store
         images.rename(old_fullname, new_fullname)
         requester.stdout.write(MSG_CHANGED_OWNER % image.name)

@@ -132,7 +132,7 @@ def complete_device_config_param(server, requester, argv):
     return tuple(f'{name}=' for name in setting_names)
 
 def get_walt_clone_urls(server, username):
-    # faster than using server.repository
+    # faster than using server.registry
     return tuple(f'walt:{img.fullname}' for img in server.db.select('images') \
                  if not img.fullname.startswith(f'{username}/'))
 

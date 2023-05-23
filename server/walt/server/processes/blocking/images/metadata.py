@@ -4,7 +4,7 @@ import typing
 
 from walt.server.exttools import buildah
 from walt.server.tools import async_gather_tasks
-from walt.server.processes.blocking.repositories import DockerHubClient
+from walt.server.processes.blocking.registries import DockerHubClient
 import json, base64
 import asyncio
 
@@ -13,8 +13,7 @@ def collect_user_metadata(hub, user):
 
 async def async_collect_user_metadata(hub, user):
     tasks = []
-    repos = await hub.async_list_user_repos(user)
-    for repo in repos:
+    async for repo in hub.async_list_user_repos(user):
         reponame = user + '/' + repo
         tasks += [ asyncio.create_task(async_collect_repo_metadata(hub, reponame)) ]
     results = await async_gather_tasks(tasks)
@@ -24,11 +23,10 @@ async def async_collect_user_metadata(hub, user):
     return { 'walt.user.images': walt_images }
 
 async def async_collect_repo_metadata(hub, reponame):
-    tags = await hub.async_list_image_tags(reponame)
     tasks, fullnames = [], []
-    for tag in tags:
+    async for tag in hub.async_list_image_tags(reponame):
         fullname = reponame + ':' + tag
-        task = asyncio.create_task(hub.async_get_labels(fullname))
+        task = asyncio.create_task(hub.async_get_labels(None, fullname))
         tasks.append(task)
         fullnames.append(fullname)
     results = await async_gather_tasks(tasks)
@@ -61,7 +59,7 @@ def pull_user_metadata(hub, user):
 
 async def async_pull_user_metadata(hub, user):
     try:
-        labels = await hub.async_get_labels(
+        labels = await hub.async_get_labels(None,
                 '%(user)s/walt_metadata:latest' % dict(user = user))
         encoded = labels['metadata']
         return json.loads(base64.b64decode(encoded).decode('UTF-8'))
@@ -69,7 +67,7 @@ async def async_pull_user_metadata(hub, user):
         return { 'walt.user.images': {} }
 
 def update_user_metadata_for_image(requester, hub, image_fullname, labels):
-    hub_username = requester.get_hub_username()
+    hub_username = requester.get_registry_username('hub')
     # retrieve existing metadata (i.e. for other images...)
     metadata = pull_user_metadata(hub, hub_username)
     # update metadata of this image

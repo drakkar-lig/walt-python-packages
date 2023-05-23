@@ -42,7 +42,7 @@ def handle_registration_request(
     wf.run()
 
 def wf_pull_image(wf, blocking, image_fullname, **env):
-    blocking.pull_image(image_fullname, wf.next)
+    blocking.pull_image(None, image_fullname, wf.next)
 
 def wf_after_pull_image(wf, pull_result, images, image_fullname, model, logs, **env):
     if pull_result[0]:

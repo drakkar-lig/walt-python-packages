@@ -154,7 +154,7 @@ def dump_containers_registries_conf(regconf):
                     insecure = False))
         else:
             location = f'{reg["host"]}:{reg["port"]}'
-            insecure = not reg["https-verify"]
+            insecure = (reg["protocol"] != 'https')  # 'http' or 'https-no-verify'
             containers_registries.append(dict(
                     prefix = location,
                     location = location,

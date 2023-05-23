@@ -53,7 +53,7 @@ class NodesManager(object):
         self.node_register_kwargs = dict(
                 images = server.images.store,
                 dhcpd = server.dhcpd,
-                repository = server.repository)
+                registry = server.registry)
 
     def prepare(self):
         # set booted flag of all nodes to False for now

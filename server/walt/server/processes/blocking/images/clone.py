@@ -8,10 +8,9 @@ import uuid
 from walt.common.formatting import format_sentence
 from walt.server.processes.blocking.images.metadata import \
     pull_user_metadata
-from walt.server.processes.blocking.repositories import \
+from walt.server.processes.blocking.registries import \
      DockerDaemonClient, DockerHubClient, get_custom_registry_client
 from walt.server.exttools import docker
-from walt.server import conf
 from walt.server.tools import get_clone_url_locations
 
 if typing.TYPE_CHECKING:
@@ -191,17 +190,17 @@ def tag_server_image_to_requester(walt_local_repo, ws_image_fullname,
                                   remote_image_fullname, **args):
     walt_local_repo.tag(remote_image_fullname, ws_image_fullname)
 
-def pull_image(server, remote_location,
+def pull_image(requester, server, remote_location,
                remote_image_fullname, **args):
     if remote_location == 'hub':
         hub = DockerHubClient()
-        hub.pull(server, remote_image_fullname)
+        hub.pull(requester, server, remote_image_fullname)
     elif remote_location == 'docker':
         docker_daemon = DockerDaemonClient()
-        docker_daemon.pull(server, remote_image_fullname)
+        docker_daemon.pull(requester, server, remote_image_fullname)
     else:
         registry = get_custom_registry_client(remote_location)
-        registry.pull(server, remote_image_fullname)
+        registry.pull(requester, server, remote_image_fullname)
 
 class WorkflowCleaner:
     def __init__(self, context):
@@ -228,7 +227,7 @@ class WorkflowCleaner:
         # if ok, update the image store
         # (otherwise we just restored things from backup, so there was no change)
         if ok:
-            image_store.resync_from_repository()
+            image_store.resync_from_registry()
             image_store.trigger_update_image_mounts()
 
 # workflow management functions
@@ -297,14 +296,14 @@ def perform_clone(requester,
             return 'FAILED',
         try:
             docker_daemon = DockerDaemonClient()
-            labels = docker_daemon.get_labels(remote_image_fullname)
+            labels = docker_daemon.get_labels(requester, remote_image_fullname)
         except subprocess.CalledProcessError:
             requester.stderr.write("Error while loading images from Docker.\n")
             return 'FAILED',
     else:
         registry = get_custom_registry_client(remote_location)
         try:
-            labels = registry.get_labels(remote_image_fullname)
+            labels = registry.get_labels(requester, remote_image_fullname)
         except:
             return exit_no_such_image(requester)
     if 'walt.node.models' not in labels:
@@ -383,7 +382,7 @@ def clone(requester, server: Server, **kwargs):
     try:
         return perform_clone(requester=requester,
                              server=server,
-                             walt_local_repo=server.repository,
+                             walt_local_repo=server.registry,
                              image_store=server.images.store,
                              nodes_manager=server.nodes,
                              **kwargs)

@@ -1,7 +1,8 @@
 from __future__ import annotations
+from functools import lru_cache
 
-import typing
-
+from walt.common.crypto.dh import DHPeer
+from walt.common.crypto.blowfish import BlowFish
 from walt.server.process import EvProcess, RPCProcessConnector, SyncRPCProcessConnector
 from walt.server.processes.blocking.images.clone import clone
 from walt.server.processes.blocking.images.publish import publish
@@ -13,15 +14,52 @@ from walt.server.processes.blocking.images.pull import pull_image
 from walt.server.processes.blocking.devices.topology import TopologyManager
 from walt.server.processes.blocking.cmd import run_shell_cmd
 from walt.server.processes.blocking.logs import stream_db_logs
-from walt.server.processes.blocking.repositories import DockerDaemonClient, DockerHubClient
+from walt.server.processes.blocking.registries import DockerDaemonClient, \
+                                                      get_registry_client
 from walt.server.exttools import docker
+
+
+class CachingRequester:
+    def __init__(self, context):
+        self._remote_requester = context.remote_service.do_sync.requester
+
+    @lru_cache
+    def get_username(self):
+        return self._remote_requester.get_username()
+
+    @lru_cache
+    def get_registry_credentials(self, registry_label):
+        dh_peer = DHPeer()
+        credentials = self._remote_requester.get_registry_encrypted_credentials(
+            registry_label, dh_peer.pub_key)
+        dh_peer.establish_session(credentials['client_pub_key'])
+        symmetric_key = dh_peer.symmetric_key
+        cypher = BlowFish(symmetric_key)
+        password = cypher.decrypt(credentials['encrypted_password'])
+        return credentials['username'], password
+
+    def ensure_registry_conf_has_credentials(self, registry_label):
+        # this is an alias to get_registry_credentials() but we do
+        # not need the result
+        self.get_registry_credentials(registry_label)
+
+    @lru_cache
+    def get_registry_username(self, registry_label):
+        return self._remote_requester.get_registry_username(registry_label)
+
+    # other attributes & methods are not cached because they have
+    # side effects remotely or remote values may change during the time
+    # of the local blocking task
+    def __getattr__(self, attr):
+        return getattr(self._remote_requester, attr)
+
 
 class BlockingTasksContextService:
     def __init__(self, service, context):
         self.db = service.db
         self.topology = service.topology
         self.docker_daemon = service.docker_daemon
-        self.requester = context.remote_service.do_sync.requester
+        self.requester = CachingRequester(context)
         self.server = context.remote_service.do_sync.server
 
     def clone_image(self, *args, **kwargs):
@@ -47,12 +85,16 @@ class BlockingTasksContextService:
         #       a LogsHandler object on the main thread
         return stream_db_logs(self.db, self.requester, **params)
 
-    def pull_image(self, image_fullname):
-        return pull_image(self.server, image_fullname)
+    def pull_image(self, image_fullname, anonymous):
+        if anonymous:
+            requester = None
+        else:
+            requester = self.requester
+        return pull_image(requester, self.server, image_fullname)
 
-    def hub_login(self):
-        hub = DockerHubClient()
-        return hub.login(self.requester)
+    def registry_login(self, label):
+        registry = get_registry_client(self.requester, label)
+        return registry.login(self.requester)
 
     def list_docker_daemon_images(self):
         if self.docker_daemon is None:
@@ -64,7 +106,7 @@ class BlockingTasksContextService:
         if self.docker_daemon is None:
             return
         else:
-            return self.docker_daemon.pull(self.server, fullname)
+            return self.docker_daemon.pull(None, self.server, fullname)
 
     def rescan_topology(self, *args, **kwargs):
         return self.topology.rescan(self.requester, self.server, self.db, *args, **kwargs)

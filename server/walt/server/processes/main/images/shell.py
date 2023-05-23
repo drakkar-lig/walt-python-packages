@@ -15,10 +15,10 @@ class ImageShellSession(object):
 
     def __init__(self, images: NodeImageStore, image: NodeImage, task_label):
         self.images = images
-        self.repository = images.repository
+        self.registry = images.registry
         self.image = image
         self.container_name = str(uuid.uuid4())
-        self.events = self.repository.events()
+        self.events = self.registry.events()
         self.image.task_label = task_label
 
     def get_parameters(self):
@@ -100,7 +100,7 @@ class ImageShellSession(object):
         if self.container_name is not None:
             print('shell cleanup')
             self.events.close()
-            self.repository.stop_container(self.container_name)
+            self.registry.stop_container(self.container_name)
             self.image.task_label = None
             self.container_name = None
 

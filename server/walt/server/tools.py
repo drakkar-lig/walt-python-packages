@@ -111,10 +111,15 @@ def get_server_ip() -> str:
     from walt.server import conf
     return conf['network']['walt-net']['ip'].split('/')[0]
 
-async def async_json_http_get(url, timeout=DEFAULT_JSON_HTTP_TIMEOUT, return_links=False):
+async def async_json_http_get(url, timeout=DEFAULT_JSON_HTTP_TIMEOUT,
+                              return_links=False, https_verify=True):
+    if https_verify:
+        ssl_opt = None  # default setting of ssl option = verification enabled
+    else:
+        ssl_opt = False
     timeout = aiohttp.ClientTimeout(total=timeout)
     async with aiohttp.ClientSession(timeout=timeout) as session:
-        async with session.get(url) as response:
+        async with session.get(url, ssl=ssl_opt) as response:
             links = response.links
             json_body = await response.json()
             if return_links:

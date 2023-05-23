@@ -85,7 +85,7 @@ class NodeImage(object):
     def __init__(self, store: NodeImageStore, fullname):
         self.store = store
         self.db = store.db
-        self.repository = store.repository
+        self.registry = store.registry
         self.rename(fullname)
         self.task_label = None
     @property
@@ -95,7 +95,7 @@ class NodeImage(object):
         self.fullname, self.user, self.name = parse_image_fullname(fullname)
     @property
     def metadata(self):
-        return self.repository.get_metadata(self.fullname)
+        return self.registry.get_metadata(self.fullname)
     @property
     def image_id(self):
         return self.metadata['image_id']
@@ -127,4 +127,4 @@ class NodeImage(object):
     def mounted(self):
         return self.store.image_is_mounted(self.image_id)
     def squash(self):
-        self.repository.squash(self.fullname)
+        self.registry.squash(self.fullname)
