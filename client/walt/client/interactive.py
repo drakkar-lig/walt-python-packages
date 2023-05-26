@@ -111,8 +111,8 @@ class PromptClient(object):
                     try:
                         buf = self.stdin_reader.read(4096)
                         if buf == b'':
-                            # stdin was probably closed, inform the server input is ending
-                            # and continue by reading socket only
+                            # stdin was probably closed, inform the server input is
+                            # ending and continue by reading socket only
                             self.sock_file.shutdown(SHUT_WR)
                             fds = [ self.sock_file ]
                             continue

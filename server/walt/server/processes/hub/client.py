@@ -46,8 +46,9 @@ class APISessionManager(object):
             event = self.read_api_channel()
             if event == None:
                 return False
-            # e.g. if you send ('CLOSE',) instead of ('API_CALL','<func>',<args>,<kwargs>)
-            # the connection will be closed from server side.
+            # e.g. if you send ('CLOSE',) instead of
+            # ('API_CALL','<func>',<args>,<kwargs>) the connection will be closed
+            # from server side.
             cmd = event[0]
             if cmd == 'SET_MODE':
                 self.api_channel.set_mode(event[1])

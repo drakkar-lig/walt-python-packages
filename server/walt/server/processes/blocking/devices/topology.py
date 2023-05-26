@@ -96,8 +96,10 @@ class BridgeTopology:
         # * replace secondary macs of switches with their main mac
         # * filter-out mac addresses missing in db (unlike LLDP, we cannot
         #   insert these missing devices in db because we don't know their ip)
-        # * compute a 'backbone' view reduced to the links between the switches or the server
-        # * compute an 'edge' view reduced to the links between a switch and an edge device
+        # * compute a 'backbone' view reduced to the links between the switches or
+        #   the server
+        # * compute an 'edge' view reduced to the links between a switch
+        #   and an edge device
         db_types = { dev.mac: dev.type for dev in db.select('devices') }
         db_macs = set(db_types.keys())
         db_backbone_macs = set(mac for mac, t in db_types.items() if t in ('switch', 'server'))
@@ -123,10 +125,9 @@ class BridgeTopology:
             for sw_mac, sw_port, macs in two_levels_dict_browse(backbone_candidate_macs_per_port):
                 for mac in macs:
                     backbone_candidate_ports_per_mac[mac].add((sw_mac, sw_port))
-            # let's consider a device D reported both on port a of switch A and on port b
-            # of switch B.
-            # if switch B is reported on a port a' (different from a) on switch A, then we know
-            # that switch A is closer to device D than switch B.
+            # let's consider a device D reported both on port a of switch A and on port
+            # b of switch B. if switch B is reported on a port a' (different from a) on
+            # switch A, then we know that switch A is closer to device D than switch B.
             candidate_macs_per_port = defaultdict(lambda: defaultdict(set))
             for mac_D, candidate_sw_ports in backbone_candidate_ports_per_mac.items():
                 excluded_candidates = set()
@@ -554,10 +555,10 @@ class TopologyManager(object):
             print('---- lldp: found on %s %s -- port %d: %s %s %s' % \
                         (host_name, host_mac, port, ip, mac, sysname))
             # The switch connected to the server detects the mac address of the physical
-            # network interface, which is different from the mac address of walt-net (the one
-            # we use to identify the server in our database).
-            # However walt-server-lldpd is setup to properly announce the IP address of walt-net
-            # as its management address.
+            # network interface, which is different from the mac address of walt-net
+            # (the one we use to identify the server in our database).
+            # However walt-server-lldpd is setup to properly announce the IP address of
+            # walt-net as its management address.
             # Thus if ip is server ip, we update mac address to the one of walt-net.
             if ip == server_ip:
                 mac = server_mac
@@ -588,8 +589,10 @@ class TopologyManager(object):
         # Register secondary switch macs
         topology.register_secondary_macs(host_mac, secondary_macs)
         # Register switch neighbors --
-        # This is the switch forwarding table, so mac addresses may not be immediate neighbors.
-        # We don't get neighbor IPs here (unlike LLDP), so we cannot register new devices in db.
+        # This is the switch forwarding table, so mac addresses may not be
+        # immediate neighbors.
+        # We don't get neighbor IPs here (unlike LLDP), so we cannot register new
+        # devices in db.
         for port, macs in macs_per_port.items():
             msg = ', '.join(macs)
             print(f'---- bridge: found on {host_name} {host_mac} -- port {port}: {msg}')

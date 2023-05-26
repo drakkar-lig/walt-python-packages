@@ -176,9 +176,9 @@ class WalTLogShowOrWait(WalTApplication):
         with timeout_context(timeout):
             while True:
                 record = conn.read_log_record()
-                # most probably sigalarm will be caught by pickle, it will just abort the read
-                # and record will be None.
-                # we would miss the TimeoutException in this case, so we check with timeout_reached().
+                # most probably sigalarm will be caught by pickle, it will just abort
+                # the read and record will be None. we would miss the TimeoutException
+                # in this case, so we check with timeout_reached().
                 if timeout > 0 and timeout_reached():
                     raise TimeoutException()
                 if record == None:
@@ -219,9 +219,9 @@ class WalTLogShow(WalTLogShowOrWait):
                 print('''Invalid HISTORY_RANGE. See 'walt help show log-history' for more info.''')
                 return
             history_range = range_analysis[1]
-            # Note : if a regular expression is specified, we do not bother computing the number
-            # of log records, because this computation would be too expensive, and the number of
-            # matching lines is probably low.
+            # Note : if a regular expression is specified, we do not bother computing
+            # the number of log records, because this computation would be too
+            # expensive, and the number of matching lines is probably low.
             if history_range and logline_regexp is None and isatty():
                 num_logs = server.count_logs(history = history_range, issuers = issuers, streams = self.streams)
                 if num_logs > NUM_LOGS_CONFIRM_TRESHOLD:

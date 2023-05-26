@@ -15,12 +15,13 @@ def parse_vnode_disks_value(disks):
 
 def parse_vnode_networks_value(setting_value):
     # check global format <network>[,<network>[...]]
-    # with each <network> of the form '<network-name>' or '<network-name>[<restrictions>]'
+    # with each <network> of the form '<network-name>' or
+    # '<network-name>[<restrictions>]'
     if re.match(r'^[a-z][a-z\-]*(\[[^\]]*\])?(,[a-z][a-z\-]*(\[[^\]]*\])?)*$', setting_value) is None:
         return False, f"Could not parse networks value '{setting_value}'."
-    # both networks and restrictions are separated with a coma, so we have to be careful.
-    # first, by filtering out the restrictions enclosed in square brackets, we can isolate
-    # the network names
+    # both networks and restrictions are separated with a coma, so we have to be
+    # careful. first, by filtering out the restrictions enclosed in square brackets, we
+    # can isolate the network names
     network_names = ''.join(re.split(r'\[[^\]]*\]', setting_value)).split(',')
     networks_info = {}
     # then we can iterate to check the optional restrictions

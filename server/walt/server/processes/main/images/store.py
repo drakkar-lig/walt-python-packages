@@ -91,9 +91,9 @@ class NodeImageStore(object):
                     self.images[db_fullname] = NodeImage(self, db_fullname)
                     continue
                 else:
-                    # image is known and found in db, but missing in walt (podman) images
-                    # check if we should pull images from docker daemon to
-                    # podman storage (migration v4->v5)
+                    # image is known and found in db, but missing in walt (podman)
+                    # images check if we should pull images from docker daemon to podman
+                    # storage (migration v4->v5)
                     if docker_images is None:  # Loaded on-demand
                         docker_images = set(self.blocking.sync_list_docker_daemon_images())
                     if db_fullname in docker_images:
@@ -299,7 +299,8 @@ class NodeImageStore(object):
             # 1. nfs mount / unmount
             # 2. unmount images
             # 3. recurse in case something changed during the run
-            # note: step 1 is before step 2 otherwise directories would be locked by the NFS export
+            # note: step 1 is before step 2 otherwise directories would be locked by
+            # the NFS export
             update_wf.insert_steps([
                 self.exports.wf_update_exported_filesystems,
                 self._wf_unmount_images,
@@ -444,7 +445,8 @@ class NodeImageStore(object):
                 self.registry.tag(default_image, ws_image)
                 self.register_image(ws_image)
                 requester.stdout.write(f'Cloned {image_name}, a defaut image for {image_node_models_desc}.\n')
-            # remove from remaining nodes those with a model declared in label "walt.node.models"
+            # remove from remaining nodes those with a model declared in label
+            # "walt.node.models"
             remaining_nodes = []
             for node in nodes:
                 if node.model in image_node_models:

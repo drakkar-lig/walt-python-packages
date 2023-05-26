@@ -76,7 +76,8 @@ class State:
             return option1
         elif len(option1) > len(option2):
             return option2
-        elif optional_value:    # same length, but optional value notation may be more readable
+        elif optional_value:    # same length, but optional value notation may be
+                                # more readable
             return option1
         else:                   # same length, so keep it simple and repeat prefix
             return option2

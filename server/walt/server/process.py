@@ -25,7 +25,8 @@ class EvProcess(Process):
 
     def run(self):
         setproctitle.setproctitle(f'walt-server-daemon:{self.name}')
-        # SIGINT and SIGTERM signals should be sent to the daemon only, not to its subprocesses
+        # SIGINT and SIGTERM signals should be sent to the daemon only, not to
+        # its subprocesses
         signal.signal(signal.SIGINT, signal.SIG_IGN)
         signal.signal(signal.SIGTERM, signal.SIG_IGN)
         # close file descriptors that were opened for other Process objects
@@ -44,7 +45,8 @@ class EvProcess(Process):
             # and start the clean exit procedure
             traceback.print_exc()
             self.failsafe_cleanup()
-            self.pipe_process.send("START_EXIT") # notify manager it should stop other processes
+            # notify manager it should stop other processes
+            self.pipe_process.send("START_EXIT")
 
     def fileno(self):
         return self.pipe_process.fileno()
@@ -57,7 +59,8 @@ class EvProcess(Process):
         raise BreakLoopRequested
 
     def close(self):
-        pass    # prevent a call to base class Process.close() when unregistering from the event loop
+        pass    # prevent a call to base class Process.close() when unregistering from
+                # the event loop
 
     def prepare(self):
         pass    # optionally override in subclass
@@ -286,7 +289,8 @@ class RPCProcessConnector(ProcessConnector):
         self.submitted_tasks[self.last_req_id].exception_cb = cb
     def async_runner(self, remote_req_id, local_service, path, args, kwargs):
         local_req_id = self.send_task(remote_req_id, local_service, path, args, kwargs, False)
-        return self     # return "self" for "<...>.async.func(<args>).then(<cb>)" notation
+        # return "self" for "<...>.async.func(<args>).then(<cb>)" notation
+        return self
     def sync_runner(self, remote_req_id, local_service, path, args, kwargs):
         local_req_id = self.send_task(remote_req_id, local_service, path, args, kwargs, True)
         # resume the event loop until we get the expected result
@@ -309,7 +313,8 @@ class RPCProcessConnector(ProcessConnector):
                     sync_call = sync_call,
                     result_cb = None,
                     exception_cb = None)
-        #print(current_process().name, 'API_CALL', remote_req_id, local_req_id, path, args, kwargs)
+        #print('__DEBUG__', current_process().name,
+        #      'API_CALL', remote_req_id, local_req_id, path, args, kwargs)
         self.write(('API_CALL', remote_req_id, local_req_id, path, args, kwargs))
         return local_req_id
 

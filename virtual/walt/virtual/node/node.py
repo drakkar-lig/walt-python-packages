@@ -34,7 +34,8 @@ elif HOST_CPU == 'aarch64':
     #   possiblity for the userspace to be either 32-bit (thus compatible with raspbian
     #   based walt images) or 64-bit.
     # * old definition for 32-bits mode kernel only (i.e. walt.node.qemu-arm-32) was:
-    #   QEMU_MACHINE_DEF = '-machine virt-6.0 -machine highmem=off -cpu host,aarch64=off'
+    #   QEMU_MACHINE_DEF = '''-machine virt-6.0 -machine highmem=off
+    #                         -cpu host,aarch64=off'''
     # * "sysctl.abi.cp15_barrier=2 sysctl.abi.setend=2" allow to let these obsolete ARM
     #   instructions be run by the CPU with no emulation nor warnings (they are in use
     #   by some 32-bit arm programs)

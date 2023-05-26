@@ -94,8 +94,8 @@ subnet %(subnet_ip)s netmask %(subnet_netmask)s {
         # if the device type is not known (yet)
         if (dev_type = "unknown") {
             set ip_string = binary-to-ascii(10, 8, ".", leased-address);
-            # note: we ensure all 6 bytes of the mac address are left padded with 0 if needed
-            # (binary-to-ascii would not output '0e' but just 'e').
+            # note: we ensure all 6 bytes of the mac address are left padded with 0 if
+            # needed (binary-to-ascii would not output '0e' but just 'e').
             set mac_address_string = concat (
                 suffix (concat ("0", binary-to-ascii (16, 8, "", substring(hardware,1,1))),2), ":",
                 suffix (concat ("0", binary-to-ascii (16, 8, "", substring(hardware,2,1))),2), ":",
@@ -161,7 +161,7 @@ HOST_CONF_PATTERN = """\
     }
 """
 
-# see http://stackoverflow.com/questions/2154249/identify-groups-of-continuous-numbers-in-a-list
+# see https://stackoverflow.com/a/2154437
 def get_contiguous_ranges(ips):
     ips = sorted(ips)
     ranges=[]

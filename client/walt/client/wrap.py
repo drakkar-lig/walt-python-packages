@@ -6,9 +6,9 @@ def wrap_client_command(f):
     def wrapped(*args, **kwargs):
         try:
             # note: plumbum.cli applications end by calling sys.exit(<retcode>).
-            # Here, by convention, when main() function returns False it means "failure",
-            # but sys.exit(False) translates to a return code int(False) which leads to
-            # a call equivalent to sys.exit(0) (i.e. success).
+            # Here, by convention, when main() function returns False it means
+            # "failure", but sys.exit(False) translates to a return code int(False)
+            # which leads to a call equivalent to sys.exit(0) (i.e. success).
             # So we detect this case and replace False by 1.
             # Similarly, we replace True by 0.
             try:

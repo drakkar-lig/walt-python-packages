@@ -280,8 +280,6 @@ def get_app_info(app):
     for name, child in app._subcommands.items():
         subapp = child.subapplication('walt')
         app_info['children'][name] = get_app_info(subapp)
-    #if doc == 'get or set nodes configuration' or doc == 'run a command on a (set of) node(s)':
-    #    import pdb; pdb.set_trace()
     app_info['num_args'], app_info['args'] = get_arg_types(app)
     for name, optinfo in app._switches_by_name.items():
         if len(name) == 1:  # single letter option, ignore

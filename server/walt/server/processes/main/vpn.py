@@ -26,10 +26,10 @@ from walt.common.constants import UNSECURE_ECDSA_KEYPAIR
 # to the server using API function respond_grant_request(), and the device request
 # is unblocked with an appropriate result. Then, "walt vpn monitor" restarts its loop
 # and calls API function wait_grant_request() again, waiting for next device request.
-# However, if the user does not respond immediately to a given request, another device may
-# try to request a grant at this time. Since the "walt vpn monitor" loop is blocked on
-# user input, the server has no pending wait_grant_request(). Because of this,
-# we record the fact a given device request is pending user response. And, for a short
+# However, if the user does not respond immediately to a given request, another device
+# may try to request a grant at this time. Since the "walt vpn monitor" loop is blocked
+# on user input, the server has no pending wait_grant_request(). Because of this, we
+# record the fact a given device request is pending user response. And, for a short
 # period of time, we allow any other device request to wait for "walt vpn monitor" to
 # loop again and respond to this new request.
 
@@ -81,7 +81,8 @@ class VPNManager:
             if not task.is_alive():
                 self.waiting_monitors.remove(task)
 
-    # check if some of the current "walt vpn monitor" commands are waiting for user input.
+    # check if some of the current "walt vpn monitor" commands are waiting for
+    # user input.
     def have_pending_user_responses(self):
         for request_task_info in self.waiting_requests.values():
             if request_task_info['status'] == PENDING_USER_RESPONSE:
@@ -110,7 +111,8 @@ class VPNManager:
                     'timeout': timeout,
         }
 
-    # "walt vpn monitor" calls this function to transmit user's response about a device request.
+    # "walt vpn monitor" calls this function to transmit user's response about a
+    # device request.
     def respond_grant_request(self, device_mac, auth_ok):
         request_task_info = self.waiting_requests.get(device_mac, None)
         if request_task_info is None:

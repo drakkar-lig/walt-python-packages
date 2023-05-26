@@ -127,15 +127,16 @@ class WalTServerSetup(WaltGenericSetup):
 
     def start_walt_services(self):
         print('Restarting WalT services... ', end=''); sys.stdout.flush()
-        # starting socket services and main service is enough to start all, thanks to dependencies
+        # starting socket services and main service is enough to start all, thanks
+        # to dependencies
         self.start_systemd_services(WALT_SOCKET_SERVICES + [WALT_MAIN_SERVICE])
         print('done')
 
     def disable_os_services(self):
         print('Ensuring OS services incompatible with WalT are disabled... ', end=''); sys.stdout.flush()
-        # remove file /etc/systemd/system/isc-dhcp-server.service which was historically added
-        # to fine tune the service better than using the service file auto-generated for the
-        # SYSV service
+        # remove file /etc/systemd/system/isc-dhcp-server.service which was historically
+        # added to fine tune the service better than using the service file
+        # auto-generated for the SYSV service
         dhcp_service = Path('/etc/systemd/system/isc-dhcp-server.service')
         if dhcp_service.exists():
             dhcp_service.unlink()

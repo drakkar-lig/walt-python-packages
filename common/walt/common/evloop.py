@@ -142,7 +142,7 @@ class EventLoop(object):
 
     def loop(self, loop_condition = None):
         self.recursion_depth += 1
-        #print(f'__DEBUG__ {current_process().name} loop() recursion_depth={self.recursion_depth}')
+        #print(f'__DEBUG__ {current_process().name} loop depth={self.recursion_depth}')
         while True:
             # if previous listener callback fulfilled the condition, quit
             if not self.should_continue(loop_condition):
@@ -197,17 +197,20 @@ class EventLoop(object):
             if len(res) == 0:
                 continue    # poll() was stopped because of the timeout
             # Process an event.
-            # We only process one event since we now allow resursive calls to the event loop,
-            # so some of the other events might already be processed when we return here.
-            # After first event is processed, we let poll() recall us for the next one if needed.
+            # We only process one event since we now allow resursive calls to the
+            # event loop, so some of the other events might already be processed
+            # when we return here.
+            # After first event is processed, we let poll() recall us for the next
+            # one if needed.
             fd, ev = res[0]
             listener = self.listeners_per_fd[fd]
             # if error, we will remove the listener below
             should_close = not is_event_ok(ev)
             if not should_close: # no error
-                # unless the listener allows event reordering, we prevent the event loop to process
-                # a future event recursively (while processing listener.handle_event(ts)) on the same
-                # listener by temporarily removing it from the event loop.
+                # unless the listener allows event reordering, we prevent the event loop
+                # to process a future event recursively (while processing
+                # listener.handle_event(ts)) on the same listener by temporarily
+                # removing it from the event loop.
                 allow_reordering = self.reordering_allowed(fd)
                 if not allow_reordering:
                     events = self.events_per_fd[fd]     # save for reuse below
@@ -224,7 +227,7 @@ class EventLoop(object):
                 should_close = (res == False)
             if should_close:
                 self.remove_listener(listener)
-        #print(f'__DEBUG__ {current_process().name} loop() ending recursion_depth={self.recursion_depth}')
+        #print(f'__DEBUG__ {current_process().name} end depth={self.recursion_depth}')
         self.recursion_depth -= 1
 
     def do(self, cmd, callback = None):

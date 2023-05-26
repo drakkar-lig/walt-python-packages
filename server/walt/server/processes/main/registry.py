@@ -27,8 +27,8 @@ def parse_date(created_at):
     # convert to local time
     return str(dt.astimezone().replace(tzinfo=None))
 
-# 'buildah mount' does not mount the overlay filesystem with appropriate options to allow nfs export.
-# let's fix this.
+# 'buildah mount' does not mount the overlay filesystem with appropriate options to
+# allow nfs export. let's fix this.
 def remount_with_nfs_export_option(mountpoint):
     # retrieve mount info
     json_info = findmnt('--json', mountpoint)
@@ -146,7 +146,8 @@ class WalTLocalRegistry:
             return None
     def refresh_names_cache_for_image(self, im):
         for podman_image_name in im.tags:
-            # podman may manage several repos, we do not need it here, discard this repo prefix
+            # podman may manage several repos, we do not need it here, discard
+            # this repo prefix
             fullname = podman_image_name.split('/', 1)[1]
             if not '/' in fullname:
                 continue

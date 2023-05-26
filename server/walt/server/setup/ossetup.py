@@ -34,8 +34,9 @@ deb [arch=amd64 signed-by={DOCKER_KEYRING_FILE}] {DOCKER_REPO_URL} bullseye stab
 # - old versions of buildah, podman and their dependencies which were provided through
 #   a different apt repo on buster
 # - network services for which walt installation changed their configuration files
-#   (walt now uses its own conf files for these services, stored in /var/lib/walt/services,
-#   and does not need anymore to touch the default configuration files of these services)
+#   (walt now uses its own conf files for these services, stored in
+#   /var/lib/walt/services, and does not need anymore to touch the default
+#   configuration files of these services)
 # up-to-date versions of these packages will be reinstalled in a next step.
 APT_OLD_DIST_PACKAGES = """
 docker docker-engine docker.io containerd runc containers-image containers-common buildah podman
@@ -111,7 +112,8 @@ def fix_grub_pc():
     # user. As a result, when upgrading this package dpkg will ask on which device(s)
     # grub-install should be run.
     # here, we try to detect the boot disk and prefill this debconf entry.
-    # first, verify package grub-pc is installed (might not be the case on an UEFI server)
+    # first, verify package grub-pc is installed (might not be the case on an
+    # UEFI server)
     if not package_is_installed('grub-pc'):
         return  # nothing to do
     # check if the debconf entry was not already filled in
@@ -143,7 +145,8 @@ def upgrade_db():
     if num_clusters != 2:
         raise Exception(f"Expected 2 db clusters after os upgrade, but pg_lsclusters lists {num_clusters} cluster(s)!")
     for c_info in clusters_info:
-        if int(c_info['port']) == 5432:  # default postgresql port => walt database cluster
+        if int(c_info['port']) == 5432:  # default postgresql port => walt
+                                         # database cluster
             old_version = c_info['version']
         else:
             new_version = c_info['version']

@@ -116,7 +116,8 @@ class Server(object):
         kwargs.update(**info)
         if name is not None:
             name = self.cleanup_device_name(name)
-            if self.devices.validate_device_name(None, name):   # name seems meaningful...
+            if self.devices.validate_device_name(None, name):
+                # name seems meaningful...
                 kwargs.update(name = name)
         # what is the current status of this device in db?
         db_info = self.db.select_unique('devices', mac = mac)
@@ -125,7 +126,8 @@ class Server(object):
         else:
             status = db_info.type
         # new nodes whose default image is not available yet are first recorded
-        # as simple devices of unknown type because downloading their default image may fail.
+        # as simple devices of unknown type because downloading their default
+        # image may fail.
         if status in ('new', 'unknown') and kwargs['type'] == 'node':
             image_fullname = self.images.store.get_default_image_fullname(info['model'])
             if image_fullname not in self.images.store:

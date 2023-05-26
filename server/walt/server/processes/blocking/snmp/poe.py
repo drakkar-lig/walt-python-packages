@@ -97,7 +97,8 @@ class StandardPoE(Variant):
     @classmethod
     def check_poe_in_use(cls, snmp_proxy, port_mapping, switch_port):
         poe_port = port_mapping[switch_port]
-        return int(snmp_proxy.pethPsePortDetectionStatus[poe_port]) == 3  # 'deliveringPower'
+        # value 3 means 'deliveringPower'
+        return int(snmp_proxy.pethPsePortDetectionStatus[poe_port]) == 3
 
     @classmethod
     def get_poe_port_mapping(cls, snmp_proxy, host):
@@ -149,8 +150,8 @@ class TPLinkPoE(Variant):
     def get_poe_port_mapping(cls, snmp_proxy, host):
         return { int(k): int(k) for k in dict(snmp_proxy.tpPoePortStatus).keys() }
 
-# TP-link should be first, otherwise sending invalid requests when probing other variants
-# seem to cause it to temporarily stop answering all requests (DoS mitigation?)
+# TP-link should be first, otherwise sending invalid requests when probing other
+# variants seem to cause it to temporarily stop answering all requests (DoS mitigation?)
 POE_VARIANTS = VariantsSet('PoE SNMP requests', (TPLinkPoE, StandardPoE, NetgearPoE))
 
 class PoEProxy(VariantProxy):

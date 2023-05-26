@@ -159,8 +159,8 @@ class LoggerBusyIndicator:
         return lambda *args: None
 
 def run_deployment_tasks(info):
-    # since helper was called, we know the job is ready at the site where walt server must be deployed.
-    # start deploying server asap because it will take time.
+    # since helper was called, we know the job is ready at the site where walt server
+    # must be deployed. start deploying server asap because it will take time.
     server_site = info['server']['site']
     analyse_g5k_resources(info, server_site)
     server_node = info['server']['host']

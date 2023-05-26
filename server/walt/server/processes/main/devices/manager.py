@@ -254,7 +254,8 @@ class DevicesManager(object):
             new_equipment = True
         # if new switch or node, insert in relevant table
         # and submit platform logline
-        db_data = self.db.select_unique("devices", mac=args_data['mac'])    # refresh after prev updates
+        # but first, refresh after prev updates
+        db_data = self.db.select_unique("devices", mac=args_data['mac'])
         if new_equipment:
             if newly_identified:
                 ident_log_line = f" (device type previously unknown)"

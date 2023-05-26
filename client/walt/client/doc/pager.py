@@ -110,7 +110,8 @@ class Pager:
                 num_lines = len(lines)
                 # adapt footer help
                 page_height, footer = self.adapt_footer_height(num_lines, topic_links, depth)
-                # if the text is not long enough to fill the pager screen, we add blank lines
+                # if the text is not long enough to fill the pager screen, we
+                # add blank lines
                 if num_lines < page_height:
                     lines += [ ' ' * self.tty.cols ] * (page_height-num_lines)
                     num_lines = page_height
@@ -182,7 +183,8 @@ class Pager:
                 # recursive call
                 should_continue = self.pager_main_loop(selected_topic, depth+1)
                 if should_continue:
-                    # when returning from this selected topic page, we have to render again
+                    # when returning from this selected topic page, we have to
+                    # render again
                     should_render = True
                     continue
                 else:

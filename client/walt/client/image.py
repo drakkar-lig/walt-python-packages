@@ -78,7 +78,8 @@ class WalTImagePublish(WalTApplication):
                     print()
                     print("Please specify the target registry by using option '--registry'.")
                     return False
-                self.registry = registries[0][0] # there is a single registry => 'auto' is OK.
+                # there is a single registry => 'auto' is OK.
+                self.registry = registries[0][0]
             else:
                 if not self.registry in tuple(reg_info[0] for reg_info in registries):
                     print(f"Invalid registry '{self.registry}'.")

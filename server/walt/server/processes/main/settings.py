@@ -83,8 +83,8 @@ class SettingsManager:
         if not self.correct_bool_value(requester, setting_name, setting_value):
             return False
         if setting_value.lower() == 'true':
-            # check that lldp.explore is also true, because for a PoE reboot we need to know where
-            # the node is connected.
+            # check that lldp.explore is also true, because for a PoE reboot we need to
+            # know where the node is connected.
             lldp_explore = all_settings.get('lldp.explore')
             if lldp_explore is not None:
                 if lldp_explore.lower() == 'true':
@@ -108,13 +108,14 @@ class SettingsManager:
         if not self.correct_bool_value(requester, setting_name, setting_value):
             return False
         if setting_value.lower() == 'true':
-            # check that snmp conf is provided by other settings or was configured previously
+            # check that snmp conf is provided by other settings or was
+            # configured previously
             version_ok = 'snmp.version' in all_settings
             community_ok = 'snmp.community' in all_settings
             if version_ok and community_ok:
                 return True
-            # check if these settings were already set previously (whether we can find them in existing conf of
-            # all requested devices).
+            # check if these settings were already set previously (whether we can find
+            # them in existing conf of all requested devices).
             for device_info in device_infos:
                 all_fine = True
                 if version_ok is False:
@@ -292,9 +293,9 @@ class SettingsManager:
             # verify this setting pass all checks
             category = setting_info['category']
             if category == 'switches' and converting_to_switches:
-                # converting_to_switches means we also have a type=switch setting in the command line.
-                # thus we are actually expecting unknown devices, but this will be verified by the
-                # category check of the "type[=switch]" setting.
+                # converting_to_switches means we also have a type=switch setting in the
+                # command line. thus we are actually expecting unknown devices, but this
+                # will be verified by the category check of the "type[=switch]" setting.
                 dev_ok, dev_not_ok = self.all_ok_filter(device_infos)   # ok for us
             else:
                 category_filter = self.category_filters[category]
@@ -332,10 +333,12 @@ class SettingsManager:
             elif setting_name == 'networks':
                 should_reboot_devices = True  # update in DB (below) is enough
             elif setting_name in ('lldp.explore', 'poe.reboots', 'kexec.allow'):
-                setting_value = (setting_value.lower() == 'true')   # convert value to boolean
+                # convert value to boolean
+                setting_value = (setting_value.lower() == 'true')
                 db_settings[setting_name] = setting_value
             elif setting_name == 'mount.persist':
-                setting_value = (setting_value.lower() == 'true')   # convert value to boolean
+                # convert value to boolean
+                setting_value = (setting_value.lower() == 'true')
                 db_settings[setting_name] = setting_value
                 should_reboot_devices = True
                 should_update_tftp = True

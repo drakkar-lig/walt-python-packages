@@ -4,10 +4,10 @@ WALT_SERVER_DAEMON_PORT = 12345
 WALT_SERVER_TCP_PORT = 12347
 WALT_SERVER_NETCONSOLE_PORT = 12342
 
-# Note: these keys are used for internal communication inside the walt experimental testbed,
-# so having them published with the source code is not a problem.
-# The two levels of base64 encoding are just here to make security check up services such as
-# gitguardian quiet.
+# Note: these keys are used for internal communication inside the walt experimental
+# testbed, so having them published with the source code is not a problem.
+# The two levels of base64 encoding are just here to make security check up services
+# such as gitguardian quiet.
 
 UNSECURE_ECDSA_KEYPAIR = {
     "openssh-priv": base64.b64decode(base64.b64decode(

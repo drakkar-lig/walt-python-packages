@@ -2,7 +2,10 @@ import subprocess, os, sys, datetime, apt
 import apt.progress.base
 from pathlib import Path
 
-# see https://raphaelhertzog.com/2010/09/21/debian-conffile-configuration-file-managed-by-dpkg/
+"""
+See
+https://raphaelhertzog.com/2010/09/21/debian-conffile-configuration-file-managed-by-dpkg
+"""
 DPKG_CONF_PATH = Path('/etc/dpkg/dpkg.cfg.d/local')
 DPKG_CONF_CONTENT = """\
 force-confdef

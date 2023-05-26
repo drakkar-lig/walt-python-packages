@@ -89,9 +89,10 @@ class ServerDB(PostgresDB):
                             WHERE n.mac = d.mac;""")
             self.execute("""ALTER TABLE nodes
                             DROP COLUMN netsetup;""")
-            # When migrating to v5, walt image storage management moves from docker to podman.
-            # In order to avoid duplicating many old and unused images to podman storage, we
-            # remove the reference of unused images from database.
+            # When migrating to v5, walt image storage management moves from
+            # docker to podman.
+            # In order to avoid duplicating many old and unused images to podman
+            # storage, we remove the reference of unused images from database.
             self.execute("""DELETE FROM images
                             WHERE fullname NOT IN (
                                 SELECT DISTINCT image FROM nodes
@@ -107,7 +108,8 @@ class ServerDB(PostgresDB):
         # logstreams.sender_mac renamed to logstreams.issuer_mac
         if self.column_exists('logstreams', 'sender_mac'):
             self.execute("""ALTER TABLE logstreams RENAME COLUMN sender_mac TO issuer_mac;""")
-            self.execute("""DROP INDEX logstreams_sender_mac_name_idx;""")  # will be re-created below
+            # the following dropped index will be re-created below
+            self.execute("""DROP INDEX logstreams_sender_mac_name_idx;""")
         # indexes
         self.execute("""CREATE INDEX IF NOT EXISTS logs_timestamp_idx
                          ON logs ( timestamp );""")

@@ -101,7 +101,7 @@ class ParallelProcessSocketListener(object):
                     return False    # issue, this will call self.close()
                 self.update_params()
                 if self.prepare(**self.params) == False:
-                    #print(f'{self.client_sock_file.fileno()}: closing immediately given value of params')
+                    #print(f'{self.client_sock_file.fileno()}: closing due to params')
                     return False    # issue, this will call self.close()
                 self.params['cmd'] = self.get_command(**self.params)
                 # we now have all info to start the child process

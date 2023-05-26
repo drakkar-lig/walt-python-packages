@@ -5,8 +5,8 @@ from subprocess import check_call, DEVNULL
 # (even if there is already one agent running on the system). This agent will
 # be running as long a the subcommand specified is running. Since we actually
 # have several things to do (2 things, see function 'ssh_helper' below), we call
-# this program (i.e. walt-vpn-ssh-helper) recursively, with first arg set to 'ssh-helper',
-# and get to function 'ssh_helper' below.
+# this program (i.e. walt-vpn-ssh-helper) recursively, with first arg set to
+# 'ssh-helper', and get to function 'ssh_helper' below.
 def format_ssh_agent_command(key_path, ssh_command):
     return [ "ssh-agent", sys.argv[0], "ssh-helper-step2", key_path ] + ssh_command
 

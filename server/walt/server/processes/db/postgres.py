@@ -40,7 +40,8 @@ class PostgresDB:
             self.conn = psycopg2.connect(database=WALT_DBNAME, user=WALT_DBUSER)
         except psycopg2.OperationalError:
             self.create_db_and_user()
-            # Do not catch any exception here to let the user know if something happens bad
+            # Do not catch any exception here to let the user know if something
+            # happens bad
             self.conn = psycopg2.connect(database=WALT_DBNAME, user=WALT_DBUSER)
         # allow name-based access to columns
         self.c = self.conn.cursor(cursor_factory = NamedTupleCursor)
