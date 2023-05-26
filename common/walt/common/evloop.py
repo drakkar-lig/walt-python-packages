@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import os, sys, signal
-from multiprocessing import current_process
+from multiprocessing import current_process  # noqa: F401
 from subprocess import Popen, PIPE
 from select import poll, select, POLLIN, POLLPRI, POLLOUT
 from time import time

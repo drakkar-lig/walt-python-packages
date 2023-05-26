@@ -98,6 +98,7 @@ def cache_modules_on_faster_disk():
 # The following prevents plumbum to load modules we will not need.
 DIVERTLIST = [ 'plumbum.machines', 'plumbum.path', 'plumbum.commands', 'plumbum.cmd' ]
 DEBUG = False
+DEBUG_INDENT = 0
 
 real_import = None
 
@@ -156,21 +157,22 @@ def __myimport__(name, globals=None, locals=None, fromlist=(), level=0):
         mod_path = mod_parent_path
     return child_mod
 
+
 def divert_unused_plumbum_modules():
     global real_import
     saved_import = __import__
     builtins.__import__ = __myimport__
     if DEBUG:
-        indent = 0
         from time import time
         def debug_import(*import_args):
-            indent += 2
+            global DEBUG_INDENT
+            DEBUG_INDENT += 2
             t0 = time()
             res = saved_import(*import_args)
             t1 = time()
-            indent -= 2
+            DEBUG_INDENT -= 2
             if t1-t0 > 0.01:
-                print('  '*indent, (import_args[0],) + import_args[3:], f'{t1-t0:.3f}')
+                print('  '*DEBUG_INDENT, (import_args[0],) + import_args[3:], f'{t1-t0:.3f}')
             return res
         real_import = debug_import
     else:

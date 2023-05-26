@@ -14,13 +14,13 @@ def commit(server, cid_or_cname, dest_fullname, tool=podman, opts=()):
         # take care not making previous version of image a dangling image
         image_tempname = get_commit_temp_image()
         args = opts + (cid_or_cname, image_tempname)
-        image_id = tool.commit(*args).strip()
+        tool.commit(*args)
         tool.rm(cid_or_cname)
         podman.rmi('-f', add_image_repo(dest_fullname))
         podman.tag(image_tempname, add_image_repo(dest_fullname))
         podman.rmi(image_tempname)
     else:
         args = opts + (cid_or_cname, add_image_repo(dest_fullname))
-        image_id = tool.commit(*args).strip()
+        tool.commit(*args)
         tool.rm(cid_or_cname)
     update_main_process_about_image(server, dest_fullname)

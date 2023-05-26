@@ -99,6 +99,7 @@ class HyperGraph:
     def construct(self, words):
         self.states = {}
         self.next_transitions = {}
+        prev_state = None
         self.start_state = self.register_state('__START__')
         transition = 0
         for word in words:
@@ -108,6 +109,7 @@ class HyperGraph:
                     self.register_state(state_name)
                 state = self.states[state_name]
                 if state_name != '__START__':
+                    assert prev_state is not None
                     prev_state.routes[transition] = state
                     self.next_transitions[transition-1] = transition
                     state.ref_count += 1

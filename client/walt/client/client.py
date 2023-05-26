@@ -1,15 +1,23 @@
 #!/usr/bin/env python
+# isort: skip_file
 """
 WalT (wireless testbed) control tool.
 """
-from walt.client.plugins import run_hook_if_any
-run_hook_if_any('early_startup')
-import walt.client.speedup
 import sys
-from walt.common.version import __version__
-from walt.client.plugins import add_category, add_all_categories
-from walt.client.application import WalTToolboxApplication
-from walt.client.wrap import wrap_client_command
+
+# run early startup hooks as soon as possible
+from walt.client.plugins import run_hook_if_any
+
+run_hook_if_any('early_startup')
+
+# run speedup code before importing the other modules
+import walt.client.speedup  # noqa: F401 E402
+
+# import remaining modules
+from walt.client.application import WalTToolboxApplication  # noqa: E402
+from walt.client.plugins import add_all_categories, add_category  # noqa: E402
+from walt.client.wrap import wrap_client_command  # noqa: E402
+from walt.common.version import __version__  # noqa: E402
 
 WALT_COMMAND_HELP_PREFIX = f'''\
 
@@ -32,6 +40,7 @@ Categories:
 class WalT(WalTToolboxApplication):
     """WalT platform control tool."""
     def get_help_prefix(self):
+        # for performance, only import this when needed
         from walt.client.logo import try_add_logo
         return try_add_logo(WALT_COMMAND_HELP_PREFIX)
 

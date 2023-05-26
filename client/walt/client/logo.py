@@ -32,7 +32,7 @@ def try_add_logo(left_text):
         return left_text    # failed, cannot add logo
     # verify terminal is large enough
     text_lines = left_text.splitlines()
-    max_text_len = max(len(l) for l in text_lines)
+    max_text_len = max(len(line) for line in text_lines)
     if tty.cols < max_text_len + 3 + LOGO_WIDTH:
         return left_text    # failed, cannot add logo
     # ok, everything seems fine

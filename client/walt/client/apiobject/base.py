@@ -225,9 +225,9 @@ class APIObjectBase:
         else:
             return super().__setattr__(attr, value)
     def __dir__(self):
-        l = super().__dir__()
-        l += list(self.__buffered_get_info__().keys())
-        return l
+        attrs = super().__dir__()
+        attrs += list(self.__buffered_get_info__().keys())
+        return attrs
 
 def api_namedtuple_cls(cls_name, keys):
     from collections import namedtuple
@@ -346,9 +346,9 @@ def APIObjectRegistryClass(d, doc=None, show_size=True):
             # otherwise, it may be a regular attribute
             return super().__getattr__(attr)
         def __dir__(self):
-            l = super().__dir__()
-            l += [ shortcut for k, shortcut in self.__shortcut_names__() ]
-            return l
+            attrs = super().__dir__()
+            attrs += [ shortcut for k, shortcut in self.__shortcut_names__() ]
+            return attrs
     return APIObjectRegistryImpl
 
 def APIObjectRegistry(*args):

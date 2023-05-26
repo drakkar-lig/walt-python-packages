@@ -1,1 +1,1 @@
-__all__= ["netgear"]
+__all__ = ["netgear"]

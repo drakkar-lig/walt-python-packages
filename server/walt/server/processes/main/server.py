@@ -207,9 +207,6 @@ class Server(object):
             if image_name is None:
                 # no 'preferred-name' tag, reuse name of default image
                 image_name = model + '-default'
-                renaming = False
-            else:
-                renaming = True
             user_image_fullname = format_image_fullname(username, image_name)
             if user_image_fullname not in self.images.store:
                 self.registry.tag(default_image_fullname, user_image_fullname)

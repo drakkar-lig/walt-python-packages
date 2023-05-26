@@ -9,7 +9,7 @@ from walt.client.plugins import get_hook
 
 AUTOCOMPLETE_TIMEOUT = 4
 
-def autocomplete_helper():
+def ac_helper():
     debug = (sys.argv[1] == '--debug')
     if debug:
         other_argv = sys.argv[2:]

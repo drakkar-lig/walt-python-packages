@@ -3,7 +3,10 @@ import os, time
 # execo provides this function but it does not work fine
 # with python3 (as of april 6, 2021)
 def oar_datetime_to_unixts(dt):
-    """Convert a naive datetime (no tz attached) in the g5k oar/oargrid timezone Europe/Paris to a unix timestamp."""
+    """Convert a naive g5k datetime to a unix timestamp.
+
+    Input datetime is expected to be naive (no tz attached) and
+    to reflect the time  in the g5k oar/oargrid timezone Europe/Paris."""
     from execo.time_utils import datetime_to_unixts
     # forking code because modifying os.environ["TZ"] and calling
     # time.tzset() is not thread-safe
@@ -33,7 +36,7 @@ def _get_vlans_API(site):
     for equip in equips['items']:
         if 'vlans' in equip and len(equip['vlans']) >2:
             for params in equip['vlans'].values():
-                if type( params ) == type({}) and 'name' in params:
+                if isinstance(params, dict) and 'name' in params:
                     vlans.append(params['name'])
     return vlans
 

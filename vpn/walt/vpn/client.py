@@ -67,7 +67,7 @@ def get_mac_address():
     print("Could not get mac address. Failed.", file=sys.stderr)
     sys.exit()
 
-def setup_credentials(walt_vpn_entrypoint):
+def vpn_setup_credentials(walt_vpn_entrypoint):
     if PRIV_KEY_FILE.exists():
         print('Credentials are already setup.')
         sys.exit()
@@ -173,7 +173,7 @@ class WalTVPNSetupCredentials(LoggedApplication):
     """Establish VPN credentials with walt server"""
     def main(self, walt_vpn_entrypoint):
         self.init_logs()
-        setup_credentials(walt_vpn_entrypoint)
+        vpn_setup_credentials(walt_vpn_entrypoint)
 
-def vpn_setup_credentials():
+def setup_credentials():
     WalTVPNSetupCredentials.run()
