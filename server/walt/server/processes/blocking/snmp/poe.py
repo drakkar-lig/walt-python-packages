@@ -39,7 +39,7 @@ on switch %s. Sorry."""
 ETHERNETCSMACD = 6
 
 def get_poe_port_mapping(snmp_proxy, host):
-    if not host in POE_PORT_MAPPING_CACHE:
+    if host not in POE_PORT_MAPPING_CACHE:
         if b"IF-MIB" not in get_loaded_mibs():
             load_mib(b"IF-MIB")
         iface_port_indexes = list(

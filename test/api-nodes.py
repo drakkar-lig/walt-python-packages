@@ -6,7 +6,7 @@ def get_existing_vnode():
     nodes = api.nodes.get_nodes()
     node_name = test_suite_node()
     if node_name not in nodes:
-        skip_test(f'requires a vnode but create_vnode test did not create it')
+        skip_test('requires a vnode but create_vnode test did not create it')
     return nodes[node_name]
 
 @define_test('api.nodes.create_vnode()')
@@ -96,7 +96,7 @@ def test_api_node_boot():
     image_name = f'{test_suite_image()}-node-boot'
     image = api.images.clone(TEST_IMAGE_URL, force=True, image_name=image_name)
     if image is None or image.name != image_name:
-        skip_test(f'requires an image but cloning fails')
+        skip_test('requires an image but cloning fails')
     node.boot(image.name)   # check boot(<image-name>)
     from walt.client.config import conf
     assert node.owner == conf.walt.username
@@ -154,7 +154,7 @@ def test_api_node_remove():
         if name.startswith(prefix):
             node.remove(force=True)
             if name in nodes:
-                raise Exception(f'Node remove did not work')
+                raise Exception('Node remove did not work')
     images = api.images.get_images()
     prefix = test_suite_image()
     for name, image in tuple(images.items()):

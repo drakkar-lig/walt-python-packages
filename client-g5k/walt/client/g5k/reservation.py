@@ -47,14 +47,14 @@ def get_g5k_sites():
 def filter_vlans_from_planning(planning, vlan_type='kavlan-local'):
     for site in planning:
         vlans = planning[site]['vlans']
-        for vlan_name in tuple(planning[site]['vlans'].keys()):
+        for vlan_name in tuple(vlans.keys()):
             vlan_num = int(vlan_name.split('-')[1])
             if vlan_type == 'kavlan-local':
                 drop_vlan = (vlan_num > 3)
             else: # vlan_type == 'kavlan-global'
                 drop_vlan = (vlan_num < 10)
             if drop_vlan:
-                del planning[site]['vlans'][vlan_name]
+                del vlans[vlan_name]
 
 def analyse_reservation(recipe_info, start_time_margin = DEFAULT_START_TIME_MARGIN_SECS):
     execo_g5k = load_execo_g5k()

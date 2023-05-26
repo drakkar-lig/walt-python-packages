@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import os, sys, re
+import re
 from plumbum import cli
 from walt.common.formatting import columnate
 from walt.client.link import ClientToServerLink
@@ -11,7 +11,6 @@ from walt.client.config import conf
 from walt.client.application import WalTCategoryApplication, WalTApplication
 from walt.client.types import IMAGE, IMAGE_CLONE_URL, \
                               IMAGE_CP_SRC, IMAGE_CP_DST, \
-                              GIT_URL, DIRECTORY, \
                               IMAGE_BUILD_NAME
 
 MSG_WS_IS_EMPTY="""\
@@ -81,7 +80,7 @@ class WalTImagePublish(WalTApplication):
                 # there is a single registry => 'auto' is OK.
                 self.registry = registries[0][0]
             else:
-                if not self.registry in tuple(reg_info[0] for reg_info in registries):
+                if self.registry not in tuple(reg_info[0] for reg_info in registries):
                     print(f"Invalid registry '{self.registry}'.")
                     print('The following registries are available:')
                     print()
@@ -132,7 +131,7 @@ class WalTImageShell(WalTApplication):
         with ClientToServerLink() as server:
             session_info = server.create_image_shell_session(
                             image_name, 'shell session')
-            if session_info == None:
+            if session_info is None:
                 return  # issue already reported
             session_id, image_fullname, container_name, default_new_name = \
                             session_info
@@ -222,7 +221,7 @@ class WalTImageBuild(WalTApplication):
             else:
                 info['url'] = self.src_url
             info = server.create_image_build_session(**info)
-            if info == None:
+            if info is None:
                 return False # issue already reported
             image_overwrite = info.pop('image_overwrite')
             if image_overwrite:
@@ -256,7 +255,7 @@ class WalTImageCp(WalTApplication):
     def main(self, src: IMAGE_CP_SRC, dst: IMAGE_CP_DST):
         with ClientToServerLink() as server:
             info = server.validate_image_cp(src, dst)
-            if info == None:
+            if info is None:
                 return
             if info['status'] == 'NEEDS_CONFIRM':
                 if confirm():
@@ -267,7 +266,7 @@ class WalTImageCp(WalTApplication):
                 return
             session_info = server.create_image_shell_session(
                             info['image_name'], 'file transfer')
-            if session_info == None:
+            if session_info is None:
                 return  # issue already reported
             session_id, image_fullname, container_name, default_new_name = \
                             session_info

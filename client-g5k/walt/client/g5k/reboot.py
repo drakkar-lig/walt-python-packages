@@ -14,7 +14,7 @@ def reboot_nodes(info, node_names, retries=3):
             if len(site_node_names) == 0:
                 continue
             try:
-                run_cmd_on_site(info, site, f'kareboot3 simple --no-wait -l hard -f -'.split(),
+                run_cmd_on_site(info, site, 'kareboot3 simple --no-wait -l hard -f -'.split(),
                                 input='\n'.join(site_node_names))
                 rebooted_node_names += list(site_node_names)
                 site_node_names.clear()

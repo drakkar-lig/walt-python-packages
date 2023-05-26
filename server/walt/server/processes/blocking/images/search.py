@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-import subprocess
 import typing
-from collections import defaultdict
 
 from walt.common.formatting import columnate
 from walt.common.version import __version__
@@ -87,7 +85,7 @@ class Search(object):
                     labels = await docker_daemon.async_get_labels(self.requester, fullname)
                     yield (fullname, 'docker', labels)
         except:
-            self.requester.stderr.write(f"Ignoring images of docker daemon because of a communication failure.\n")
+            self.requester.stderr.write("Ignoring images of docker daemon because of a communication failure.\n")
             return
     async def async_search_hub(self, hub):
         try:
@@ -101,7 +99,7 @@ class Search(object):
             async for record in async_merge_generators(*generators):
                 yield record
         except:
-            self.requester.stderr.write(f"Ignoring hub registry because of a communication failure.\n")
+            self.requester.stderr.write("Ignoring hub registry because of a communication failure.\n")
             return
     async def async_search_hub_user_images(self, hub, user):
         user_metadata = await async_pull_user_metadata(hub, user)

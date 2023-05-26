@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import os, sys, pty, shlex, signal, re, time
+import os, sys, pty, shlex, re, time
 import select, struct, fcntl, termios
 
 TTY_ROWS = 50
@@ -71,10 +71,8 @@ def slave_reinit_autocomplete():
 def test_complete(cmd, expected, num_tabs):
     if num_tabs == 1:
         tabs = b"\t"
-        tabs_text = "<tab>"
     elif num_tabs == 2:
         tabs = b"\t\t"
-        tabs_text = "<tab><tab>"
     # send command and tab or tab-tab
     send(cmd + tabs)
     # typed command is echo-ed

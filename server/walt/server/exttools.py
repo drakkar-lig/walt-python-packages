@@ -65,7 +65,8 @@ class StreamExtTool:
 
     def __call__(self, *args, converter = None):
         if converter is None:
-            converter = lambda line: line
+            def converter(line):
+                return line
         # this function must remain a function and not become
         # an iterator itself.
         # this is because we have to make sure popen is executed when __call__()

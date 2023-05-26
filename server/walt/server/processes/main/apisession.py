@@ -36,7 +36,7 @@ class APISession(object):
 
     def __init__(self, server, remote_ip):
         self.session_objects = []
-        if APISession.SERVER_CONTEXT == None:
+        if APISession.SERVER_CONTEXT is None:
             APISession.SERVER_CONTEXT = SimpleContainer(
                     server = server,
                     images = server.images,

@@ -50,7 +50,7 @@ class LogsHub(object):
             res = handler.log(**kwargs)
             # a handler may request to be deleted
             # by returning False
-            if res == False and handler in self.handlers:
+            if res is False and handler in self.handlers:
                 self.handlers.remove(handler)
 
 class LogsStreamListener(object):
@@ -74,7 +74,7 @@ class LogsStreamListener(object):
     # when the event loop detects an event for us, we
     # know a log line should be read.
     def handle_event(self, ts):
-        if self.stream_id == None:
+        if self.stream_id is None:
             self.stream_id = self.register_stream()
             if self.stream_id is None:
                 return False
@@ -274,7 +274,7 @@ class LogsToSocketHandler(object):
             # done with the history part.
             # we can flush the buffer of realtime logs
             for record in self.realtime_buffer:
-                if self.write_to_client(**record) == False:
+                if self.write_to_client(**record) is False:
                     break
             # notify that next logs can be sent
             # directly to the client
@@ -309,7 +309,7 @@ class LogsToSocketHandler(object):
             if self.sock_file.closed:
                 raise IOError()
             write_pickle(d, self.sock_file)
-        except IOError as e:
+        except IOError:
             # the socket was supposedly closed.
             print("client log connection closing")
             # notify the hub that we should be removed.
@@ -342,7 +342,7 @@ class LogsToSocketHandler(object):
             self.hub.addHandler(self)
     # this is what we do when the event loop detects an event for us
     def handle_event(self, ts):
-        if self.params == None:
+        if self.params is None:
             params = read_pickle(self.sock_file)
             self.handle_params(**params)
         else:
@@ -422,7 +422,7 @@ class LogsManager(object):
         if stream_id is not None:
             return stream_id
         issuer_info = self.db.select_unique('devices', ip = issuer_ip)
-        if issuer_info == None:
+        if issuer_info is None:
             # issuer device is unknown in database,
             # this stream must be ignored
             return None
@@ -475,10 +475,10 @@ class LogsManager(object):
             return (False,)    # client already disconnected, give up
         cp_info = self.db.select_unique(
             'checkpoints', name=cp_name, username=requester.get_username())
-        if expected and cp_info == None:
+        if expected and cp_info is None:
             requester.stderr.write("Failed: no checkpoint with this name '%s'.\n" % cp_name)
             return (False,)
-        if not expected and cp_info != None:
+        if not expected and cp_info is not None:
             requester.stderr.write('Failed: a checkpoint with this name already exists.\n')
             return (False,)
         return (True, cp_info)

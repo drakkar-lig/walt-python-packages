@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import re, pickle
-from snimpy import manager, snmp
+from snimpy import snmp
 from pathlib import Path
 
 VARIANTS_CACHE_FILE = Path('/var/cache/walt/snmp.variants')
@@ -72,7 +72,7 @@ class Variant:
     def try_load(cls, snmp_proxy):
         cls.load()
         try:
-            dummy = cls.test_or_exception(snmp_proxy)
+            cls.test_or_exception(snmp_proxy)
             return True # ok previous line passed with no error
         except (snmp.SNMPException,
                 snmp.SNMPNoSuchObject,

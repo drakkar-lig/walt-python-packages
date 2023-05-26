@@ -1,5 +1,5 @@
 from walt.server.const import WALT_DBNAME, WALT_DBUSER
-from walt.server.tools import to_named_tuple, build_named_tuple_cls, SerializableNT
+from walt.server.tools import build_named_tuple_cls, SerializableNT
 from walt.common.formatting import columnate
 import psycopg2, shlex, uuid
 from psycopg2.extras import NamedTupleCursor

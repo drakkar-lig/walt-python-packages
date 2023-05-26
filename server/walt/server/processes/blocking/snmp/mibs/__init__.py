@@ -13,7 +13,7 @@ def load_mib(mib):
         mib_path = snimpy.mib.path() + ':' + this_dir
         snimpy.mib.path(mib_path)
         PATH_SET = True
-    if not mib in snimpy.manager.loaded:
+    if mib not in snimpy.manager.loaded:
         snimpy.manager.load(mib)
 
 def unload_mib(mib):

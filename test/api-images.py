@@ -39,7 +39,7 @@ def test_api_image_rename():
     images = api.images.get_images()
     images[IMAGE_CLONE_NAME].rename(IMAGE_RENAME_NAME)
     if IMAGE_CLONE_NAME in images or IMAGE_RENAME_NAME not in images:
-        raise Exception(f'Image rename did not work')
+        raise Exception('Image rename did not work')
 
 @define_test('repr(api.images.get_images())')
 def test_repr_get_images():
@@ -126,5 +126,5 @@ def test_api_image_remove():
         if name.startswith(prefix):
             image.remove()
             if name in images:
-                raise Exception(f'Image remove did not work')
+                raise Exception('Image remove did not work')
 

@@ -102,7 +102,7 @@ class APIImagesSubModule(APIObjectBase):
             info['url'] = dir_or_url
         with silent_server_link() as server:
             info = server.create_image_build_session(**info)
-            if info == None:
+            if info is None:
                 return  # issue already reported
             image_overwrite = info.pop('image_overwrite')
             if image_overwrite:

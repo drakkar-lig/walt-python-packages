@@ -38,7 +38,7 @@ def deploy(recipe_info):
         print('Analysing recipe and available resources... ', end='')
         sys.stdout.flush()
         result, info = get_submission_info(recipe_info, deployment_id, start_time_margin)
-        if result == False:
+        if result is False:
             tip = info['tip']
             print('FAILED')
             print('Could not deploy this recipe (required resources are not available).')
@@ -90,7 +90,7 @@ def deploy(recipe_info):
                             print('FAILED')
                         failure = SUBMISSION_MISSING_RESOURCES
                         print(f'Some planned resources are no longer available at {site}.')
-            except Exception as e:
+            except Exception:
                 pass
             if site_job_id is None:
                 if failure is None:

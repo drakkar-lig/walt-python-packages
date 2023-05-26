@@ -53,7 +53,7 @@ def run():
     # - user typed 'walt <missing-category> [...]'
     if len(sys.argv) == 1 or \
        tuple(sys.argv[1:3]) == ('advanced', 'dump-bash-autocomplete') or \
-       add_category(WalT, sys.argv[1]) == False:
+       add_category(WalT, sys.argv[1]) is False:
         add_all_categories(WalT)
     WalT.run()
 

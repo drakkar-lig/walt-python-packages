@@ -1,4 +1,3 @@
-from plumbum import cli
 from plumbum.lib import getdoc
 from inspect import getfullargspec
 from walt.client.doc.md import get_topics, get_described_topics

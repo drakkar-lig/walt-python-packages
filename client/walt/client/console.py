@@ -24,7 +24,7 @@ def console_loop(server, conn, node_info):
         fd = rlist[0]
         if fd == conn_fd:
             record = conn.read_log_record()
-            if record == None:
+            if record is None:
                 break
             chunk = eval(record['line'])
             chunk = re_escape_filter.sub(b'', chunk)
@@ -48,7 +48,7 @@ def console_loop(server, conn, node_info):
                 elif desc_buf == (True, b'd'):
                     break
                 # <ctrl-a> <other-key>: unknown shortcut, ignore
-                elif esc_sequence == True:
+                elif esc_sequence is True:
                     esc_sequence = False
                     continue
                 server.vnode_console_input(node_info['mac'], buf)

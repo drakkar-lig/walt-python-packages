@@ -1,5 +1,4 @@
 from walt.server.process import RPCProcessConnector, RPCService
-from walt.common.apilink import AttrCallRunner, AttrCallAggregator
 
 class BlockingTasksManager(RPCProcessConnector):
     def __init__(self, server):

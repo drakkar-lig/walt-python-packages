@@ -1,13 +1,6 @@
-import os
 import random
-import shlex
 import signal
-import subprocess
-import sys
-from pathlib import Path
-from time import time
 
-from walt.common.tools import do
 from walt.server.popen import BetterPopen
 from walt.server.const import SSH_COMMAND
 from walt.server.processes.main.filesystem import FilesystemsCache
@@ -125,7 +118,7 @@ class NodesManager(object):
     def blink(self, requester, task, node_name, blink_status):
         req = 'BLINK %d' % int(blink_status)
         node = self.get_node_info(requester, node_name)
-        if node == None:
+        if node is None:
             return False # error already reported
         task.set_async()
         cb_kwargs = dict(requester = requester, task = task)
@@ -188,12 +181,12 @@ class NodesManager(object):
         popen = self.vnodes[node_mac][0]
         try:
             popen.stdin.write(buf)
-        except Exception as e:
+        except Exception:
             print('vnode_console_input to {node_mac} failed: {e}')
 
     def get_node_info(self, requester, node_name):
         device_info = self.devices.get_device_info(requester, node_name)
-        if device_info == None:
+        if device_info is None:
             return None # error already reported
         device_type = device_info.type
         if device_type != 'node':
@@ -220,21 +213,21 @@ class NodesManager(object):
 
     def get_node_ip(self, requester, node_name):
         node_info = self.get_node_info(requester, node_name)
-        if node_info == None:
+        if node_info is None:
             return None # error already reported
-        if node_info.ip == None:
+        if node_info.ip is None:
             self.notify_unknown_ip(requester, node_name)
         return node_info.ip
 
     def get_nodes_ip(self, requester, node_set):
         nodes = self.parse_node_set(requester, node_set)
-        if nodes == None:
+        if nodes is None:
             return () # error already reported
         return tuple(node.ip for node in nodes)
 
     def get_nodes_info(self, requester, node_set):
         nodes = self.parse_node_set(requester, node_set)
-        if nodes == None:
+        if nodes is None:
             return () # error already reported
         return nodes
 
@@ -250,7 +243,7 @@ class NodesManager(object):
 
     def reboot_node_set(self, requester, task, node_set, hard_only):
         nodes = self.parse_node_set(requester, node_set)
-        if nodes == None:
+        if nodes is None:
             return None  # error already reported
         task.set_async()
         self.reboot_nodes(requester, task.return_result, nodes, hard_only)
@@ -300,7 +293,7 @@ class NodesManager(object):
         for node_info in nodes:
             if node_info.booted != booted:
                 # update booted flag in db
-                self.db.update('nodes', 'mac', mac = node_info.mac, booted = booted);
+                self.db.update('nodes', 'mac', mac = node_info.mac, booted = booted)
                 self.db.commit()
                 # generate a log line
                 if booted:
@@ -319,7 +312,7 @@ class NodesManager(object):
 
     def develop_node_set(self, requester, node_set):
         nodes = self.parse_node_set(requester, node_set)
-        if nodes == None:
+        if nodes is None:
             return None
         return self.devices.as_device_set(n.name for n in nodes)
 

@@ -1,4 +1,4 @@
-import os, subprocess, sys
+import sys
 from walt.common.version import __version__
 from walt.common.formatting import framed, highlight
 from walt.client.plugins import get_plugin_feature_names
@@ -10,7 +10,6 @@ $ pip3 install --upgrade "%(package)s==%(remote_version)s"
 """
 
 def check_update(server):
-    updated = False
     remote_version = str(server.get_remote_version())
     if remote_version != str(__version__):
         features = get_plugin_feature_names()

@@ -1,4 +1,4 @@
-import sys, os
+import sys
 from multiprocessing import Process, Queue
 from queue import Empty
 

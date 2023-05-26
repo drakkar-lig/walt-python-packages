@@ -1,6 +1,5 @@
 from walt.common.formatting import columnate, framed, highlight
 from walt.client.g5k.recipes.tools import get_total_node_count
-from walt.client.g5k.recipes.const import SCHEDULE_DESC
 
 CHECK_MARK = u"\u2714"
 

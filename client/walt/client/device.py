@@ -1,7 +1,6 @@
 from plumbum import cli
 from walt.client.link import ClientToServerLink
 from walt.client.interactive import run_device_ping, run_device_shell
-from walt.client.tools import confirm
 from walt.client.expose import TCPExposer
 from walt.client.application import WalTCategoryApplication, WalTApplication
 from walt.client.types import DEVICE, SET_OF_DEVICES, \
@@ -55,7 +54,7 @@ class WalTDeviceShell(WalTApplication):
         with ClientToServerLink() as server:
             # check if device is a node
             device_info = server.get_device_info(device_name)
-            if device_info == None:
+            if device_info is None:
                 return False # issue already reported
             if device_info['type'] == 'node':
                 print(MSG_USE_WALT_NODE_SHELL % dict(node = device_name))
@@ -72,7 +71,7 @@ class WalTDeviceExpose(WalTApplication):
         device_ip = None
         with ClientToServerLink() as server:
             device_info = server.get_device_info(device_name)
-            if device_info == None:
+            if device_info is None:
                 return False    # issue already reported
             if not WalTDevice.confirm_devices_not_owned(server, device_name):
                 return False
@@ -126,7 +125,7 @@ class WalTDeviceForget(WalTApplication):
         with ClientToServerLink() as server:
             # check if server knows this device
             device_info = server.get_device_info(device_name)
-            if device_info == None:
+            if device_info is None:
                 return  # issue already reported
             if device_info['type'] == 'node' and device_info['virtual']:
                 print(MSG_USE_WALT_NODE_REMOVE % dict(node = device_name))

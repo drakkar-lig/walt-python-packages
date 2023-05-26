@@ -1,6 +1,5 @@
 import os, sys, copy, yaml, re, json, textwrap
 from pathlib import Path
-from string import Template
 from walt.server.setup.netconf import get_default_netconf, edit_netconf_interactive, \
                                       get_netconf_entry_comments, sanitize_netconf
 from walt.server.setup.regconf import get_default_regconf, edit_regconf_interactive

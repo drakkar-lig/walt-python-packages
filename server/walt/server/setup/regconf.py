@@ -99,9 +99,9 @@ def main_menu_info(context, regconf, valid):
             continue    # configuration of the hub cannot be modified
         options.update({f'edit or remove "{label}" configuration': (select_reg_edit_menu, i, False)})
     if 'hub' in regconf_per_label:
-        options.update({f'disable the docker hub registry': (disable_docker_hub,)})
+        options.update({'disable the docker hub registry': (disable_docker_hub,)})
     else:
-        options.update({f'enable the docker hub registry': (define_docker_hub,)})
+        options.update({'enable the docker hub registry': (define_docker_hub,)})
     options.update({'define a custom docker image registry': (define_custom_reg,)})
     options.update({'display help page about WalT registries': (show_registries_doc,)})
     if context['initial_regconf'] != regconf:

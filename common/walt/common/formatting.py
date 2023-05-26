@@ -50,7 +50,7 @@ def format_sentence_about_nodes(sentence, nodes):
     return format_sentence(sentence, nodes, 'No nodes', 'Node', 'Nodes')
 
 def as_string(item):
-    if item == None:
+    if item is None:
         return ''
     else:
         return str(item)

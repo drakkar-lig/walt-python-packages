@@ -1,4 +1,3 @@
-import weakref, threading, atexit
 
 # This allows to define the 'reusable' decorator.
 # You can try for instance:

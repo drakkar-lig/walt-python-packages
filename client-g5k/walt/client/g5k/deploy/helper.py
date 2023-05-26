@@ -1,13 +1,11 @@
 # this is the code called by tool
 # walt-g5k-deploy-helper
-import requests, subprocess, sys, time, json, traceback
+import requests, sys, time, json, traceback
 from getpass import getuser
-from walt.common.formatting import human_readable_delay
-from walt.client.g5k.tools import Cmd, run_cmd_on_site, oarstat, set_vlan, printed_date_from_ts
+from walt.client.g5k.tools import run_cmd_on_site, oarstat, set_vlan, printed_date_from_ts
 from walt.client.g5k.reboot import reboot_nodes
 from walt.client.g5k.deploy.status import get_deployment_status, log_status_change, \
-                                  record_main_job_startup, record_main_job_ending, \
-                                  save_deployment_status
+                                  record_main_job_startup, record_main_job_ending
 from walt.client.config import conf, save_config
 from walt.client.link import ClientToServerLink
 from urllib3.exceptions import InsecureRequestWarning
@@ -208,7 +206,7 @@ def run_deployment_tasks(info):
     with ClientToServerLink(do_checks=False, busy_indicator=busy_indicator) as server:
         server.set_image('all-nodes', DEFAULT_IMAGE_NAME)
     # -- reboot nodes
-    log_status_change(info, 'nodes.reboot', f'Rebooting walt nodes', verbose = True)
+    log_status_change(info, 'nodes.reboot', 'Rebooting walt nodes', verbose = True)
     all_nodes = sum((list(site_info['nodes']) for site_info in info['sites'].values()), [])
     rebooted_node_names, reboot_errors = reboot_nodes(info, all_nodes)
     if len(reboot_errors) > 0:

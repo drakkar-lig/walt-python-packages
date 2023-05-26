@@ -1,7 +1,6 @@
 from plumbum import cli
 from walt.client.link import ClientToServerLink
 from walt.client.interactive import run_sql_prompt
-from walt.client.config import conf
 from walt.client.application import WalTCategoryApplication, WalTApplication
 
 class WalTAdvanced(WalTCategoryApplication):

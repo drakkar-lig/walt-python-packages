@@ -268,7 +268,6 @@ class APINodesSubModule(APIObjectBase):
         """Create a virtual node"""
         with silent_server_link() as server:
             server.create_vnode(node_name)
-            nodes_info = server.get_nodes_info(node_name)
         __info_cache__.refresh()    # detect the new node
         return APINodeFactory.create(node_name)
 

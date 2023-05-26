@@ -1,4 +1,4 @@
-import os, sys, subprocess
+import sys, subprocess
 from plumbum import cli
 from pathlib import Path
 from walt.common import systemd

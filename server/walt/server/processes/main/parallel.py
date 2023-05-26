@@ -93,14 +93,14 @@ class ParallelProcessSocketListener(object):
     # new input data for us.
     def handle_event(self, ts):
         try:
-            if self.params == None:
+            if self.params is None:
                 # we did not get the parameters yet, let's do it
                 self.params = read_pickle(self.client_sock_file)
-                if self.params == None:
+                if self.params is None:
                     print(f'{self.client_sock_file.fileno()}: malformed params')
                     return False    # issue, this will call self.close()
                 self.update_params()
-                if self.prepare(**self.params) == False:
+                if self.prepare(**self.params) is False:
                     #print(f'{self.client_sock_file.fileno()}: closing due to params')
                     return False    # issue, this will call self.close()
                 self.params['cmd'] = self.get_command(**self.params)

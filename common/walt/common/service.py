@@ -1,4 +1,3 @@
-from walt.common.tools import set_close_on_exec
 
 class ServiceRequests:
     # the request id message may be specified directly as

@@ -35,7 +35,7 @@ def check_conf():
        'ip' not in conf['network']['walt-net'] or \
        not check_ip_network(conf['network']['walt-net']['ip']):
         print(f"Invalid configuration at '{SERVER_CONF}'.", file=sys.stderr)
-        print(f"Run 'walt-server-setup --edit-conf' to fix it.", file=sys.stderr)
+        print("Run 'walt-server-setup --edit-conf' to fix it.", file=sys.stderr)
         raise Exception(f"Invalid configuration at '{SERVER_CONF}'.")
 
 def get_conf():

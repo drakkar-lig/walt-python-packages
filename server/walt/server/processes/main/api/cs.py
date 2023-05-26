@@ -1,6 +1,5 @@
 import datetime, pickle
 
-from walt.common.crypto.dh import DHPeer
 from walt.common.api import api, api_expose_method
 from walt.common.tools import format_image_fullname
 from walt.common.tcp import PICKLE_VERSION
@@ -176,7 +175,7 @@ class CSAPI(APISession):
     def create_image_shell_session(self, context, image_name, task_label):
         session = context.images.create_shell_session(
                     context.requester, image_name, task_label)
-        if session == None:
+        if session is None:
             return None
         session_id = self.register_session_object(session)
         fullname, container_name, default_new_name = session.get_parameters()
@@ -279,7 +278,7 @@ class CSAPI(APISession):
     def create_image_build_session(self, context, **info):
         session = context.images.create_build_session(
                     context.requester, **info)
-        if session == None:
+        if session is None:
             return None
         session_id = self.register_session_object(session)
         session_info = session.get_parameters()

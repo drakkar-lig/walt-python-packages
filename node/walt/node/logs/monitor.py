@@ -53,7 +53,7 @@ def parent_handler(pid, pipe_r, tty_master_fd, args, **kwargs):
             s = fd_copy(tty_master_fd, tty_out, BUFFER_SIZE) or fds.remove(tty_master_fd)
             if s:
                 logline += s
-                if logline_ts == None:
+                if logline_ts is None:
                     logline_ts = ts
                 while b'\n' in logline:
                     complete_logline, logline = logline.split(b'\n', 1)

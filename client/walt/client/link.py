@@ -98,7 +98,8 @@ class InternalClientToServerLink(ServerAPILink):
 class ClientToServerLink:
     num_calls = 0
     def __new__(cls, do_checks=True, busy_indicator=None):
-        get_link = lambda : InternalClientToServerLink(busy_indicator)
+        def get_link():
+            return InternalClientToServerLink(busy_indicator)
         # on 1st call:
         # 1) check config, and once the config is OK
         # 2) check if server version matches

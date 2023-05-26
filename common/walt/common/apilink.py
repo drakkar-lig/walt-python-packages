@@ -3,7 +3,6 @@ import sys, pickle
 from time import time
 from select import select
 from socket import create_connection
-from contextlib import contextmanager
 from walt.common.constants import WALT_SERVER_DAEMON_PORT
 from walt.common.reusable import reusable
 from walt.common.tools import BusyIndicator
@@ -113,9 +112,9 @@ DEFAULT_BUSY_INDICATOR = BusyIndicator('Server is working')
 @reusable
 class ServerAPIConnection(object):
     def __init__(self, server_ip, local_service, target_api, busy_indicator):
-        if local_service == None:
+        if local_service is None:
             local_service = BaseAPIService()
-        if busy_indicator == None:
+        if busy_indicator is None:
             busy_indicator = DEFAULT_BUSY_INDICATOR
         self.target_api = target_api
         self.server_ip = server_ip
@@ -214,7 +213,7 @@ class ServerAPIConnection(object):
             except Exception as e:
                 print(e)
                 event = None
-            if event != None:
+            if event is not None:
                 if event[0] == 'API_CALL':
                     self.handle_api_call(*event[1:])
                     continue

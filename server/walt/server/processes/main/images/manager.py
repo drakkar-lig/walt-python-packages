@@ -101,13 +101,13 @@ class NodeImageManager:
         else:
             image = self.store.get_user_image_from_name(requester, image_name,
                                                         expected = expected)
-            return image != None
+            return image is not None
     def set_image(self, requester, nodes, image_name):
         is_default = (image_name == 'default')
         # if image tag is specified, let's get its fullname
         if not is_default:
             image = self.store.get_user_image_from_name(requester, image_name)
-            if image == None:
+            if image is None:
                 return False
             image_compatible_models = set(image.get_node_models())
             node_models = set(node.model for node in nodes)

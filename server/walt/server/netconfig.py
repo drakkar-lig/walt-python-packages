@@ -1,6 +1,5 @@
 import os
 import os.path
-import random
 import sys
 import time
 

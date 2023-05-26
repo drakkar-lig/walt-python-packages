@@ -54,7 +54,8 @@ class BetterPopen:
         self.close()
     def close(self, cb=None):
         if cb is None:
-            cb = lambda: None
+            def cb():
+                return None
         # call kill function
         if self.poll():
             try:

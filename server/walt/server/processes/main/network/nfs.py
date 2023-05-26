@@ -1,6 +1,5 @@
 from pathlib import Path
 
-from walt.common.tools import do, succeeds
 from walt.server import conf
 from walt.server.processes.main.network.service import ServiceRestarter
 

@@ -2,7 +2,6 @@
 Based on the implementation of Kirby Urner, Oregon Curriculum Network
 """
 
-import string,os
 from binascii import hexlify, unhexlify
 
 class BlowFish(object):

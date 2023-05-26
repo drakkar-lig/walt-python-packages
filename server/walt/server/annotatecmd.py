@@ -30,7 +30,7 @@ def run():
     if len(argv) < 1:
         bad_usage = True
     if mode not in ('line', 'pickle4'):
-        print(f'Error: mode should be "line" or "pickle4".')
+        print('Error: mode should be "line" or "pickle4".')
         bad_usage = True
     if bad_usage:
         print(USAGE)

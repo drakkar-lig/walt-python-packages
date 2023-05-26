@@ -44,7 +44,7 @@ class APISessionManager(object):
     def handle_client_message(self):
         try:
             event = self.read_api_channel()
-            if event == None:
+            if event is None:
                 return False
             # e.g. if you send ('CLOSE',) instead of
             # ('API_CALL','<func>',<args>,<kwargs>) the connection will be closed

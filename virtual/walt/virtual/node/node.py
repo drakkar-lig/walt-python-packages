@@ -1,11 +1,11 @@
 #!/usr/bin/env python
-import os, sys, subprocess, time, random, platform, re, signal, shlex, shutil, atexit
+import os, sys, subprocess, time, random, platform, re, signal, shlex, atexit
 from os import getpid, getenv, truncate
 from contextlib import contextmanager
 from walt.common.apilink import ServerAPILink
 from walt.common.logs import LoggedApplication
 from walt.common.fakeipxe import ipxe_boot
-from walt.common.tools import failsafe_makedirs, get_persistent_random_mac, interrupt_print
+from walt.common.tools import get_persistent_random_mac, interrupt_print
 from walt.common.settings import parse_vnode_disks_value, parse_vnode_networks_value
 from walt.virtual.node.udhcpc import udhcpc_fake_netboot
 from pkg_resources import resource_string
@@ -290,7 +290,7 @@ def node_loop(info):
             print("Starting...")
             env = get_env_start(info)
             ipxe_boot(env)
-        except Exception as e:
+        except Exception:
             print('Exception in node_loop()')
             import traceback; traceback.print_exc()
             time.sleep(2)

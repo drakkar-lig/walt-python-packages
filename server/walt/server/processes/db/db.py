@@ -176,7 +176,7 @@ class ServerDB(PostgresDB):
 
     def handle_planned_event(self, ev_type):
         assert(ev_type == EV_AUTO_COMMIT)
-        if self.timestamp_last_logs != None:
+        if self.timestamp_last_logs is not None:
             self.defragment_last_logs(self.timestamp_last_logs)
             self.timestamp_last_logs = None
         self.commit()

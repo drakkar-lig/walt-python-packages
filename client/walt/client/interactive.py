@@ -105,7 +105,7 @@ class PromptClient(object):
                     break
                 fd = rlist[0].fileno()
                 if fd == self.sock_file.fileno():
-                    if read_and_copy(self.sock_file, out_buffer) == False:
+                    if read_and_copy(self.sock_file, out_buffer) is False:
                         break
                 else:
                     try:

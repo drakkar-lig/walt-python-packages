@@ -6,7 +6,7 @@ class APILogsSubModule(APIObjectBase):
     """API submodule for WALT logs"""
     def get_logs(self, realtime=False, history=None, issuers='my-nodes', timeout=-1):
         """Iterate over historical or realtime logs"""
-        if realtime == False and history is None:
+        if realtime is False and history is None:
             raise Exception('At least one of the options "realtime" and "history" must be specified.')
         with silent_server_link() as server:
             if history is not None:

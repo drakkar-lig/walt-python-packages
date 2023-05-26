@@ -199,10 +199,10 @@ class NodeImageStore(object):
             # default images of node models present on the platform.
             self.get_clones_of_default_images(requester, 'all-nodes')
         found = self.images.get(fullname)
-        if expected == True and found is None:
+        if expected is True and found is None:
             requester.stderr.write(
                 "Error: No such image '%s'. (tip: walt image show)\n" % image_name)
-        if expected == False and found is not None:
+        if expected is False and found is not None:
             requester.stderr.write(
                 "Error: Image '%s' already exists.\n" % image_name)
         return found

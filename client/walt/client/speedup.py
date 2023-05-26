@@ -145,7 +145,7 @@ def __myimport__(name, globals=None, locals=None, fromlist=(), level=0):
     mod_path = name
     child_mod = __get_dummy_module__(mod_path)
     while True:
-        if not '.' in mod_path:
+        if '.' not in mod_path:
             break
         mod_parent_path, mod_name = mod_path.rsplit('.', maxsplit=1)
         found, parent_mod = __get_dummy_module__(mod_parent_path)

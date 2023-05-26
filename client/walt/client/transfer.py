@@ -1,7 +1,7 @@
 from walt.client.link import connect_to_tcp_server
 from walt.client.tools import ProgressMessageThread
 from walt.common.tcp import write_pickle, Requests
-import sys, os, tarfile, socket, select, pickle
+import tarfile, socket, select, pickle
 
 def run_transfer_with_image(client_operand_index, **kwargs):
     if client_operand_index == 0:
@@ -139,7 +139,8 @@ def run_transfer(req_id, client_operand_index, add_archive_member,
                 if read_message is None:
                     read_message = DefaultMessageReader.read_message
                 if on_message is None:
-                    on_message = lambda msg_thd, msg: msg_thd.print_stdout(msg)
+                    def on_message(msg_thd, msg):
+                        return msg_thd.print_stdout(msg)
                 writer = SmartWriter(f, message_thread, read_message, on_message)
                 with tarfile.open(mode='w|', fileobj=writer) as archive:
                     add_archive_member(archive)

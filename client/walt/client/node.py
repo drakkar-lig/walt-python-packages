@@ -1,9 +1,7 @@
-import contextlib
 import time, sys
 from plumbum import cli
 
 from walt.common.tools import SilentBusyIndicator
-from walt.common.formatting import format_sentence_about_nodes
 from walt.client.link import ClientToServerLink
 from walt.client.tools import confirm
 from walt.client.config import conf
@@ -15,7 +13,7 @@ from walt.client.transfer import run_transfer_with_node
 from walt.client.expose import TCPExposer
 from walt.client.application import WalTCategoryApplication, WalTApplication
 from walt.client.timeout import timeout_context, TimeoutException, cli_timeout_switch
-from walt.client.types import NODE, SET_OF_NODES, IMAGE, IMAGE_OR_DEFAULT, \
+from walt.client.types import NODE, SET_OF_NODES, IMAGE_OR_DEFAULT, \
                               NODE_CP_SRC, NODE_CP_DST, NODE_CONFIG_PARAM
 
 WAIT_NODES_BUSY_LABEL='\
@@ -322,7 +320,7 @@ class WalTNodeCp(WalTApplication):
     def main(self, src : NODE_CP_SRC, dst : NODE_CP_DST):
         with ClientToServerLink() as server:
             info = server.validate_node_cp(src, dst)
-            if info == None:
+            if info is None:
                 return
             if info['status'] == 'FAILED':
                 return False

@@ -58,9 +58,9 @@ class Tree(object):
     def print_elem(self, key, label, children, prune,
                         child_pos = None, prefix = '',
                         last_child = False, seen = None, **kwargs):
-        if seen == None:
+        if seen is None:
             seen = set()
-        if key in seen and child_pos == None:
+        if key in seen and child_pos is None:
             # there is not much we can print here
             return ''
         if self.root_node['key'] == key and key not in seen:  # root element
@@ -71,7 +71,7 @@ class Tree(object):
         else:
             if key in seen:
                 label = '~> back to %s' % label
-            if child_pos == None:
+            if child_pos is None:
                 label = "?: %s" % label
                 subtree_offset = 3
             else:

@@ -8,7 +8,7 @@ from walt.server.processes.blocking import snmp
 from walt.server.processes.blocking.snmp import NoSNMPVariantFound
 from walt.server.processes.blocking.devices.grouper import Grouper
 from walt.server.processes.blocking.devices.tree import Tree
-from walt.server.tools import ip_in_walt_network, ip_in_walt_adm_network, to_named_tuple, get_server_ip
+from walt.server.tools import ip_in_walt_network, ip_in_walt_adm_network, get_server_ip
 
 NOTE_EXPLAIN_UNREACHABLE = "devices marked with parentheses were not detected at last scan"
 NOTE_EXPLAIN_UNKNOWN = "type of devices marked with <? ... ?> is unknown"
@@ -130,7 +130,6 @@ class BridgeTopology:
             # switch A, then we know that switch A is closer to device D than switch B.
             candidate_macs_per_port = defaultdict(lambda: defaultdict(set))
             for mac_D, candidate_sw_ports in backbone_candidate_ports_per_mac.items():
-                excluded_candidates = set()
                 for switch_A_port, switch_B_port in itertools.permutations(candidate_sw_ports, 2):
                     mac_A, a = switch_A_port
                     mac_B, b = switch_B_port
@@ -191,7 +190,7 @@ class LinkLayerTopology(object):
     def register_neighbor(self, local_mac, local_port, neighbor_mac):
         mac1, mac2 = sorted((local_mac, neighbor_mac))
         link = self.links.get((mac1, mac2))
-        if link == None:
+        if link is None:
             # first time we see this link
             if local_mac < neighbor_mac:
                 port1, port2 = local_port, None
@@ -211,7 +210,7 @@ class LinkLayerTopology(object):
                        (db_link.port1, db_link.port2, db_link.confirmed)
 
     def save_to_db(self, db):
-        db.delete('topology');
+        db.delete('topology')
         for link_macs, link_info in self.links.items():
             db.insert('topology',   mac1 = link_macs[0],
                                     mac2 = link_macs[1],
@@ -565,7 +564,7 @@ class TopologyManager(object):
             topology.register_neighbor(host_mac, port, mac)
             info = dict(mac = mac, ip = ip, name = sysname.lower())
             db_info = server.devices.get_complete_device_info(mac)
-            if db_info == None:
+            if db_info is None:
                 # new device, call add_or_update_device to add it
                 server.add_or_update_device(**info)
             elif ip != db_info.ip:
@@ -709,7 +708,7 @@ class TopologyManager(object):
             db.record_poe_port_status(switch_info.mac, switch_port, poe_status, reason)
             # confirm success to caller
             return (True,)
-        except SNMPException as e:
+        except SNMPException:
             return False, 'SNMP issue'
         except Exception as e:
             return False, e.__class__.__name__

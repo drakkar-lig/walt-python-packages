@@ -163,7 +163,7 @@ def validate_cp(image_or_node_label, server,
     info.update(**analyse_file_types(  requester, operand_types,
                                 src_path, src_fs,
                                 dst_path, dst_fs))
-    if info.pop('valid') == False:
+    if info.pop("valid") is False:
         return { 'status': 'FAILED' }
     # all seems fine
     info.update(

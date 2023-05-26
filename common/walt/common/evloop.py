@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import os, sys, signal
+import signal
 from multiprocessing import current_process  # noqa: F401
 from subprocess import Popen, PIPE
 from select import poll, select, POLLIN, POLLPRI, POLLOUT
@@ -172,7 +172,7 @@ class EventLoop(object):
             # check it and remove it if result is False
             for fd in tuple(self.fd_of_listeners_with_is_valid_method):
                 listener = self.listeners_per_fd[fd]
-                if listener.is_valid() == False:
+                if listener.is_valid() is False:
                     # some data may have been buffered, we check this.
                     # (if this is the case, then we will delay the
                     # removal of this listener)
@@ -224,7 +224,7 @@ class EventLoop(object):
                     self.register_listener(listener, events)
                 # if False was returned, we will
                 # close this listener.
-                should_close = (res == False)
+                should_close = (res is False)
             if should_close:
                 self.remove_listener(listener)
         #print(f'__DEBUG__ {current_process().name} end depth={self.recursion_depth}')

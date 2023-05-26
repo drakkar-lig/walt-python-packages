@@ -1,7 +1,6 @@
 import shlex, datetime, requests, subprocess, json, sys, gzip, base64, os
 from pathlib import Path
 from pkg_resources import resource_filename
-from walt.common.version import __version__ as WALT_VERSION
 from walt.server.setup.apt import fix_dpkg_options, package_is_installed, get_debconf_selection, \
                                   set_debconf_selection, remove_packages, upgrade_and_install_packages, \
                                   autoremove_packages

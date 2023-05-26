@@ -1,5 +1,4 @@
 import os, sys
-from plumbum import cli
 from walt.client.link import ClientToServerLink, connect_to_tcp_server
 from walt.client.application import WalTCategoryApplication, WalTApplication
 from walt.client.tools import yes_or_no

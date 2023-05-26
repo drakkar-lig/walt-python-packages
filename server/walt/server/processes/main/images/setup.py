@@ -184,7 +184,7 @@ def setup(mount_path):
             update_template(image_bindir + script_name, TEMPLATE_ENV)
     # read image spec file if any
     image_spec = spec.read_image_spec(mount_path)
-    if image_spec != None:
+    if image_spec is not None:
         # update template files specified there
         spec.update_templates(mount_path, image_spec, TEMPLATE_ENV)
         # update features matching those of the server

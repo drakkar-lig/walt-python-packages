@@ -1,7 +1,6 @@
 import tempfile, sys
 from pathlib import Path
 from time import time
-from collections import defaultdict
 from pkg_resources import resource_string
 from walt.common.tools import do
 from walt.common.constants import UNSECURE_ECDSA_KEYPAIR

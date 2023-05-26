@@ -23,11 +23,11 @@ class TCPExposer:
                 break
             sock_r = rlist[0]
             if sock_r == self.local_server_s:
-                if self.event_on_server_s() == False:
+                if self.event_on_server_s() is False:
                     break
             else:
                 paired_sock = self.associations[sock_r]
-                if read_and_copy(sock_r, paired_sock) == False:
+                if read_and_copy(sock_r, paired_sock) is False:
                     for s in (sock_r, paired_sock):
                         s.close()
                     del self.associations[sock_r]
@@ -51,7 +51,7 @@ class TCPExposer:
     def event_on_server_s(self):
         conn_s, addr = self.local_server_s.accept()
         node_channel = self.open_channel_to_node()
-        if node_channel == None:
+        if node_channel is None:
             conn_s.close()
             return
         client_channel = RWSocketFile(conn_s)

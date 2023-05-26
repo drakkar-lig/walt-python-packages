@@ -1,7 +1,5 @@
 import json, sys, time
 from pathlib import Path
-from walt.client.g5k.myexeco import load_execo_g5k
-from walt.client.g5k.tools import run_cmd_on_site
 
 DEPLOYMENT_STATUS_DIRECTORY = Path.home() / '.walt-g5k' / 'deployments'
 LAST_DEPLOYMENT_STATUS_FILE = DEPLOYMENT_STATUS_DIRECTORY / 'last-deployment.json'

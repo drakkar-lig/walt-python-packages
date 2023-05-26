@@ -237,7 +237,7 @@ class DHCPServer(object):
             DHCPD_CONF_FILE.parent.mkdir(parents=True, exist_ok=True)
             DHCPD_CONF_FILE.write_text(conf)
             force = True # perform the restart below
-        if force == True:
+        if force is True:
             self.restarter.restart(cb=cb)
         else:
             if cb is not None:

@@ -1,7 +1,6 @@
 import sys, time
 from walt.client.g5k.deploy.status import get_last_deployment_status, get_expiry_message
 from walt.client.g5k.tools import printed_date_from_ts
-from walt.common.formatting import columnate, framed
 
 GENERAL_INFO_PATHS = {
     ('status',): str,
@@ -51,7 +50,7 @@ def print_info():
             continue
         if ts > now:
             break
-        if prev_ts != None:
+        if prev_ts is not None:
             delay = int(ts - prev_ts)
             print(f'delays.{prev_status}: {delay} second(s)')
         prev_ts, prev_status = ts, status

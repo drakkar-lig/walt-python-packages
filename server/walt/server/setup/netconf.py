@@ -74,7 +74,7 @@ def sanitize_netconf(netconf):
     if netconf is None:
         return
     for netnameconf in netconf.values():
-        if not 'raw-device' in netnameconf:
+        if "raw-device" not in netnameconf:
             netnameconf['raw-device'] = None
         if netnameconf['raw-device'] is None:
             netnameconf.pop('vlan', None)
@@ -208,7 +208,7 @@ def main_menu_info(context, netconf, valid):
         if netname not in ('walt-adm', 'walt-net'):
             continue
         options.update({f'edit {netname} configuration': (select_interface_edit_menu, netname)})
-    if not 'walt-adm' in netconf and not is_virtual_only_netconf(netconf):
+    if "walt-adm" not in netconf and not is_virtual_only_netconf(netconf):
         options.update({'define the optional walt-adm network': (define_walt_adm,)})
     options.update({'display help page about WalT networking': (show_networking_doc,)})
     if not same_netconfs(context['initial_netconf'], netconf):
@@ -270,7 +270,7 @@ def edit_interface_menu_info(context, netconf, netname):
 def define_physical_interface(context, netconf, netname):
     choices = { f'{intf} -- mac address {get_mac_address(intf)}': intf \
                 for intf in context['wired_interfaces'] }
-    if netname == 'walt-net' and not 'walt-adm' in netconf:
+    if netname == 'walt-net' and "walt-adm" not in netconf:
         choices['None -- virtual-only platform, start with this if unsure'] = None
     intf = choose(f'Please select on which interface {netname} should be connected:', choices)
     netconf[netname]['raw-device'] = intf

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import typing
 
 from walt.server.exttools import buildah
 from walt.server.tools import async_gather_tasks

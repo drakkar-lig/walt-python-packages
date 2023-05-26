@@ -88,7 +88,7 @@ class Server(object):
 
     def set_image(self, requester, node_set, image_tag):
         nodes = self.nodes.parse_node_set(requester, node_set)
-        if nodes == None:
+        if nodes is None:
             return False   # error already reported
         return self.images.set_image(requester, nodes, image_tag)
 
@@ -151,7 +151,7 @@ class Server(object):
 
     def device_rescan(self, requester, task, remote_ip, device_set):
         devices = self.devices.parse_device_set(requester, device_set)
-        if devices == None:
+        if devices is None:
             return False   # error already reported
         # the result of the task the hub process submitted to us
         # will not be available right now
@@ -213,7 +213,7 @@ class Server(object):
                 self.images.store.register_image(user_image_fullname)
                 requester.stdout.write(
                     f'Default image for {model} was saved as "{image_name}" in your working set.\n')
-            requester.set_busy_label(f'Registering virtual node')
+            requester.set_busy_label('Registering virtual node')
             self.create_vnode_using_image(name, mac, ip, model, user_image_fullname)
             requester.set_default_busy_label()
             requester.stdout.write(f'Node {name} is now booting your image "{image_name}".\n')
@@ -275,7 +275,8 @@ class Server(object):
     def image_shell_session_save(self, requester, cb_return, session, image_fullname, name_confirmed):
         def cb_handle_return_status(status):
             if status == 'OK_BUT_REBOOT_NODES':
-                cb_reboot = lambda res: cb_return('OK_SAVED')
+                def cb_reboot(res):
+                    return cb_return('OK_SAVED')
                 self.reboot_nodes_after_image_change(requester, cb_reboot, image_fullname)
             else:
                 cb_return(status)
@@ -286,7 +287,8 @@ class Server(object):
         def task_callback(status):
             if status == 'OK_BUT_REBOOT_NODES':
                 image_fullname = format_image_fullname(requester.get_username(), image_name)
-                task_callback_2 = lambda res: task.return_result('OK')
+                def task_callback_2(res):
+                    return task.return_result('OK')
                 self.reboot_nodes_after_image_change(requester, task_callback_2, image_fullname)
             else:
                 task.return_result(status)
@@ -305,7 +307,7 @@ class Server(object):
         fullname, username, image_name = parse_image_fullname(node_info.image)
         session = self.images.create_shell_session(
                                 requester, image_name, 'file transfer')
-        if session == None:
+        if session is None:
             return  # issue already reported
         # ensure session.cleanup() will be called when client disconnects
         api_session.register_session_object(session)

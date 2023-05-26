@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-import socket
 from walt.common.io import read_and_copy
 from walt.common.tcp import read_pickle, Requests, client_sock_file
 
@@ -47,10 +46,10 @@ class NodeExposeSocketListener:
     # handle_event() will be called when the event loop detects
     # new input data for us.
     def handle_event(self, ts):
-        if self.node_ip_and_port == None:
+        if self.node_ip_and_port is None:
             # we did not get the parameters yet, let's do it
             params = read_pickle(self.client_sock_file)
-            if params == None:
+            if params is None:
                 self.close()    # issue
                 return False
             self.node_ip_and_port = (params['node_ip'], params['node_port'])

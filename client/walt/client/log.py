@@ -119,7 +119,7 @@ class WalTLogShowOrWait(WalTApplication):
                     history.append(rel_date)
                 elif validate_checkpoint_name(part):
                     cptime = server.get_pickled_checkpoint_time(part)
-                    if cptime == None:
+                    if cptime is None:
                         return MALFORMED
                     history.append(cptime)
                 else:
@@ -130,7 +130,7 @@ class WalTLogShowOrWait(WalTApplication):
                             'the starting point is newer than the ending point.')
                     return MALFORMED
             return True, tuple(history)
-        except Exception as e:
+        except Exception:
             return MALFORMED
 
     @staticmethod
@@ -159,7 +159,7 @@ class WalTLogShowOrWait(WalTApplication):
         except KeyboardInterrupt:
             print()
             return False
-        except Exception as e:
+        except Exception:
             print('Could not display the log record.')
             print('Verify your format string.')
             return False
@@ -181,7 +181,7 @@ class WalTLogShowOrWait(WalTApplication):
                 # in this case, so we check with timeout_reached().
                 if timeout > 0 and timeout_reached():
                     raise TimeoutException()
-                if record == None:
+                if record is None:
                     break
                 yield record
                 if stop_test is not None and stop_test(**record):
@@ -203,7 +203,7 @@ class WalTLogShow(WalTLogShowOrWait):
                 help= """history range to be retrieved (see walt help show log-history)""")
 
     def main(self, logline_regexp = None):
-        if self.realtime == False and self.history_range == 'none':
+        if self.realtime is False and self.history_range == 'none':
             print('You must specify at least 1 of the options --realtime and --history.')
             print("See 'walt help show log-realtime' and 'walt help show log-history' for more info.")
             return
@@ -212,7 +212,7 @@ class WalTLogShow(WalTLogShowOrWait):
             return
         with ClientToServerLink() as server:
             issuers = self.get_issuers(server)
-            if issuers == None:
+            if issuers is None:
                 return
             range_analysis = WalTLogShowOrWait.analyse_history_range(server, self.history_range)
             if not range_analysis[0]:
@@ -297,7 +297,7 @@ class WalTLogWait(WalTLogShowOrWait):
             return
         with ClientToServerLink() as server:
             issuers = self.get_issuers(server)
-            if issuers == None:
+            if issuers is None:
                 return
             if self.time_margin != 0:
                 history_range = '-%ds:' % self.time_margin

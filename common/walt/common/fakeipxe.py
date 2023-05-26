@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import sys, subprocess, tempfile, shlex, time, os.path, requests, code
+import sys, tempfile, shlex, time, os.path, requests, code
 from urllib.parse import urlparse
 from collections import namedtuple
 from walt.common.tcp import write_pickle, client_sock_file, \
@@ -232,7 +232,6 @@ def execute_line(env, line):
     raise NotImplementedError('[fake-ipxe] Unknown directive "' + words[0] + '". Aborted.')
 
 def ipxe_boot(env):
-    result = False
     print('[fake-ipxe] note: this is not the real iPXE bootloader!')
     print('[fake-ipxe] note: support is limited to a basic command set.')
     env['should-boot'] = False

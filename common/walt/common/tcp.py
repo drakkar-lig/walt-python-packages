@@ -37,7 +37,7 @@ class Requests(ServiceRequests):
 def read_pickle(stream):
     try:
         return pickle.load(stream)
-    except Exception as e:
+    except Exception:
         return None
 
 def write_pickle(obj, stream):

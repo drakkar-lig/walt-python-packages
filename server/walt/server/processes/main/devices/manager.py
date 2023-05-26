@@ -108,7 +108,7 @@ class DevicesManager(object):
         return self.server_mac
 
     def validate_device_name(self, requester, name):
-        if self.get_device_info(requester, name, err_message = None) != None:
+        if self.get_device_info(requester, name, err_message=None) is not None:
             if requester is not None:
                 requester.stderr.write("""Failed: a device with name '%s' already exists.\n""" % name)
             return False
@@ -120,7 +120,7 @@ class DevicesManager(object):
 
     def rename(self, requester, old_name, new_name):
         device_info = self.get_device_info(requester, old_name)
-        if device_info == None:
+        if device_info is None:
             return False
         if not self.validate_device_name(requester, new_name):
             return False
@@ -138,13 +138,13 @@ class DevicesManager(object):
     def get_device_info(self, requester, device_name, \
                         err_message = DEVICE_NAME_NOT_FOUND):
         device_info = self.db.select_unique("devices", name=device_name)
-        if device_info == None and err_message != None and requester is not None:
+        if device_info is None and err_message is not None and requester is not None:
             requester.stderr.write(err_message % device_name)
         return device_info
 
     def get_complete_device_info(self, mac):
         device_info = self.db.select_unique("devices", mac=mac)
-        if device_info == None:
+        if device_info is None:
             return None
         device_type = device_info.type
         if device_type == 'node':
@@ -180,9 +180,9 @@ class DevicesManager(object):
 
     def get_device_ip(self, requester, device_name):
         device_info = self.get_device_info(requester, device_name)
-        if device_info == None:
+        if device_info is None:
             return None # error already reported
-        if device_info.ip == None:
+        if device_info.ip is None:
             self.notify_unknown_ip(requester, device_name)
         return device_info.ip
 
@@ -198,7 +198,7 @@ class DevicesManager(object):
                 else:
                     name = "%s-%d" % (prefix, i)
                 device_info = self.db.select_unique("devices", name=name)
-                if device_info == None:
+                if device_info is None:
                     # ok name does not exist in db yet
                     return name
                 else:
@@ -258,7 +258,7 @@ class DevicesManager(object):
         db_data = self.db.select_unique("devices", mac=args_data['mac'])
         if new_equipment:
             if newly_identified:
-                ident_log_line = f" (device type previously unknown)"
+                ident_log_line = " (device type previously unknown)"
             else:
                 ident_log_line = ""
             if db_data.type == 'switch':
@@ -434,7 +434,7 @@ class DevicesManager(object):
 
     def prepare_ssh_access(self, requester, device_set):
         devices = self.parse_device_set(requester, device_set)
-        if devices == None:
+        if devices is None:
             return
         for device in devices:
             self.prepare_ssh_access_for_ip(device.ip)

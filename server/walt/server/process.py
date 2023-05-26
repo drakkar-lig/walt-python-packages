@@ -1,4 +1,4 @@
-import os, sys, signal, itertools, traceback, setproctitle
+import sys, signal, itertools, traceback, setproctitle
 from collections import defaultdict
 from multiprocessing import Pipe, Process, current_process
 from select import select
@@ -40,7 +40,7 @@ class EvProcess(Process):
             self.ev_loop.loop()
         except BreakLoopRequested:
             return  # end of propagated exit procedure
-        except BaseException as e:
+        except BaseException:
             # we caught the initial exception on this process, display it
             # and start the clean exit procedure
             traceback.print_exc()
@@ -252,7 +252,7 @@ class RPCProcessConnector(ProcessConnector):
                 else:
                     if isinstance(result, Exception):   # exception in async call
                         cb = self.submitted_tasks[local_req_id].exception_cb
-                        if cb != None:
+                        if cb is not None:
                             cb(result)
                         else:
                             # it does not make sense to throw the exception in this
@@ -263,7 +263,7 @@ class RPCProcessConnector(ProcessConnector):
                                   'exception callback was defined.')
                     else:   # result of async call
                         cb = self.submitted_tasks[local_req_id].result_cb
-                        if cb != None:
+                        if cb is not None:
                             cb(result)
                 del self.submitted_tasks[local_req_id]
                 continue
@@ -288,13 +288,14 @@ class RPCProcessConnector(ProcessConnector):
     def on_exception(self, cb): # specify exception callback
         self.submitted_tasks[self.last_req_id].exception_cb = cb
     def async_runner(self, remote_req_id, local_service, path, args, kwargs):
-        local_req_id = self.send_task(remote_req_id, local_service, path, args, kwargs, False)
+        self.send_task(remote_req_id, local_service, path, args, kwargs, False)
         # return "self" for "<...>.async.func(<args>).then(<cb>)" notation
         return self
     def sync_runner(self, remote_req_id, local_service, path, args, kwargs):
         local_req_id = self.send_task(remote_req_id, local_service, path, args, kwargs, True)
         # resume the event loop until we get the expected result
-        loop_condition = lambda : (local_req_id not in self.results)
+        def loop_condition():
+            return local_req_id not in self.results
         current_process().ev_loop.loop(loop_condition)
         result = self.results.pop(local_req_id)
         if isinstance(result, Exception):

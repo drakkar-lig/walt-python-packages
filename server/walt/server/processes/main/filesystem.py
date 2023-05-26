@@ -55,13 +55,13 @@ class Filesystem:
     def get_file_type(self, path):
         # f: regular; d: directory; o: other; m: missing
         self.send_cmd(f'if [ -f "{path}" ]; ' + \
-                      f'then echo "f"; ' + \
+                      'then echo "f"; ' + \
                       f'else if [ -d "{path}" ]; ' + \
-                      f'then echo "d"; ' + \
+                      'then echo "d"; ' + \
                       f'else if [ -e "{path}" ]; ' + \
-                      f'then echo "o"; ' + \
-                      f'else echo "m"; ' + \
-                      f'fi; fi; fi')
+                      'then echo "o"; ' + \
+                      'else echo "m"; ' + \
+                      'fi; fi; fi')
         ftype = self.read_reply_line()
         if ftype == "m":    # missing
             return None

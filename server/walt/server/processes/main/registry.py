@@ -2,7 +2,6 @@ import json
 import os
 import re
 import shutil
-import time
 from datetime import datetime
 from pathlib import Path
 from podman import PodmanClient
@@ -149,7 +148,7 @@ class WalTLocalRegistry:
             # podman may manage several repos, we do not need it here, discard
             # this repo prefix
             fullname = podman_image_name.split('/', 1)[1]
-            if not '/' in fullname:
+            if '/' not in fullname:
                 continue
             self.names_cache[fullname] = im.id
             print(f'found {fullname} -- {im.id}')

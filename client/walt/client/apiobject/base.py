@@ -512,9 +512,9 @@ class APIItemInfoCache:
         for obj in self.valid_listeners():
             obj.__propagate_rename__(item_name, new_item_name)
     def do_refresh(self, server):
-        raise NotImplemented    # should be implemented in sub-class
+        raise NotImplementedError    # should be implemented in sub-class
     def do_remove_item(self, server, item_name):
-        raise NotImplemented    # should be implemented in sub-class
+        raise NotImplementedError    # should be implemented in sub-class
     def do_rename_item(self, server, item_name, new_item_name):
-        raise NotImplemented    # should be implemented in sub-class
+        raise NotImplementedError    # should be implemented in sub-class
 

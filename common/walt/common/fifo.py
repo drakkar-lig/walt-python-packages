@@ -9,7 +9,7 @@ RW_ALL = stat.S_IRUSR | stat.S_IWUSR | \
 BUFFER_SIZE = 1024
 
 def failsafe_mkfifo(path, mode = None):
-    if mode == None:
+    if mode is None:
         mode = RW_ALL
     # check if it does not exist already
     if os.path.exists(path):

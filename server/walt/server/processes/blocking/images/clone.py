@@ -237,7 +237,7 @@ def workflow_exit(**context):
 
 def workflow_if(condition_func, workflow_if_true, workflow_if_false):
     def workflow_if_instance(**context):
-        if condition_func(**context) != False:
+        if condition_func(**context) is not False:
             return workflow_run(workflow_if_true, **context)
         else:
             return workflow_run(workflow_if_false, **context)
@@ -246,7 +246,7 @@ def workflow_if(condition_func, workflow_if_true, workflow_if_false):
 def workflow_run(workflow, **context):
     for f in workflow:
         res = f(**context)
-        if res == False:
+        if res is False:
             return False # issue, stop here
     return True
 

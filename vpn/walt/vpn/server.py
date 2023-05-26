@@ -32,7 +32,7 @@ def on_message(s_serv, msg, ancdata, flags, peer_addr):
     tap_fd = -1
     try:
         # read client hello message
-        assert peer_addr != None     # endpoint must bind its socket
+        assert peer_addr is not None     # endpoint must bind its socket
         assert msg.startswith(b'HELLO')
         # create TAP
         tap, tap_name = createtap()

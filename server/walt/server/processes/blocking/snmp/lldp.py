@@ -77,8 +77,6 @@ class TPLinkLLDP(Variant):
     @staticmethod
     def get_neighbors(snmp_proxy):
 
-        mac_per_port = {}
-        sysname_per_port = {}
         neighbors = {}
 
         # perform SNMP requests

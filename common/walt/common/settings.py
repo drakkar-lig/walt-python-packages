@@ -58,7 +58,7 @@ def parse_vnode_networks_value(setting_value):
             # pass the coma
             setting_value = setting_value[1:]
     if 'walt-net' not in network_names:
-        return False, f"Mandatory network 'walt-net' is missing from specified networks."
+        return False, "Mandatory network 'walt-net' is missing from specified networks."
     if len(set(network_names)) < len(network_names):
-        return False, f"Specifying twice the same network name is not allowed."
+        return False, "Specifying twice the same network name is not allowed."
     return True, networks_info
