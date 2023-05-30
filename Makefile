@@ -52,19 +52,21 @@ clean: $(patsubst %,%.clean,$(ALL_PACKAGES))
 %.pip-package:
 	$(PIP) show "$*" >/dev/null 2>&1 || $(PIP) install "$*"
 
-%.build: build.pip-package
-	$(MAKE) $*.info
+%.build:
+	$(MAKE) build.pip-package
+	$(MAKE) $*.setup
 	cd $*; pwd; rm -rf dist && $(BUILD)
 
-%.info:
-	$(MAKE) $*/walt/$(subst -,/,$*)/info.py
+%.setup:
+	$(MAKE) $*/setup.py
 
-%/info.py: common/walt/common/version.py dev/metadata.py dev/info-updater.py
-	$(MAKE) update-info
+%/setup.py: common/walt/common/version.py dev/metadata.py dev/setup-updater.py
+	$(MAKE) update-setup
 
-update-info:
-	@echo updating info.py files
-	dev/info-updater.py
+update-setup:
+	@echo updating setup.py files
+	$(MAKE) black.pip-package
+	dev/setup-updater.py
 
 clean:
 	find . -name \*.pyc -delete
@@ -77,11 +79,11 @@ upload: keyrings.cryptfile.pip-package wheel.pip-package auditwheel.pip-package
 
 freeze-deps:
 	./dev/requirements-updater.py freeze
-	$(MAKE) update-info
+	$(MAKE) update-setup
 
 unfreeze-deps:
 	./dev/requirements-updater.py unfreeze
-	$(MAKE) update-info
+	$(MAKE) update-setup
 
 test:
 	@./dev/test.sh

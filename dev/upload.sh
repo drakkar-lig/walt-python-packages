@@ -84,8 +84,8 @@ if [ -f server/requirements.txt ]
 then
     sed -i -e 's/^\(walt-.*\)==.*$/\1=='"$new_version"'/g' server/requirements.txt
 fi
-dev/info-updater.py
-echo "info.py, version.py files updated"
+dev/setup-updater.py
+echo "setup.py, version.py files updated"
 
 newTag="$tag_prefix$new_upload"
 git commit -a -m "$newTag (automated by 'make upload')"
