@@ -2,6 +2,7 @@ from walt.common.version import __version__
 from walt.common.tcp import Requests
 from walt.common.apilink import APIChannel, AttrCallAggregator
 from walt.server.process import RPCService
+from socket import IPPROTO_TCP, TCP_NODELAY
 from socket import error as SocketError
 
 class APISessionManager(object):
@@ -21,6 +22,7 @@ class APISessionManager(object):
         self.requester = AttrCallAggregator(self.forward_requester_request)
         local_service = RPCService(requester = self.requester)
         self.rpc_session = self.main.create_session(local_service = local_service)
+        self.sock_file.setsockopt(IPPROTO_TCP, TCP_NODELAY, 1)  # disable Nagle
     def record_task(self, attr, args, kwargs):
         self.sent_tasks = True
         self.rpc_session.do_async.run_task(self.session_id, self.target_api, self.remote_ip,

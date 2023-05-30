@@ -3,6 +3,7 @@ import sys, pickle
 from time import time
 from select import select
 from socket import create_connection
+from socket import IPPROTO_TCP, TCP_NODELAY
 from walt.common.constants import WALT_SERVER_DAEMON_PORT
 from walt.common.reusable import reusable
 from walt.common.tools import BusyIndicator
@@ -149,6 +150,7 @@ class ServerAPIConnection(object):
             # print('ServerAPILink.connect -- creating connection')
             self.sock = create_connection((self.server_ip, WALT_SERVER_DAEMON_PORT),
                                           SERVER_SOCKET_TIMEOUT)
+            self.sock.setsockopt(IPPROTO_TCP, TCP_NODELAY, 1)  # disable Nagle
             sock_file = self.sock.makefile('rwb',0)
             sock_file.write(b'%d\n%s\n' % (Requests.REQ_API_SESSION, self.target_api.encode('UTF-8')))
             self.remote_version = sock_file.readline().strip().decode('UTF-8')
