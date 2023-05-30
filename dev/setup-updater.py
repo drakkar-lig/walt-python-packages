@@ -11,12 +11,11 @@ from dev.metadata import PACKAGE_SPECIFIC_INFO  # noqa: E402
 from dev.tools.pretty import black_format  # noqa: E402
 from dev.version import __version__  # noqa: E402
 
-# generate setup.py in each pypi package directory
 versions_info = dict(upload=__version__)
 
-setup_py_files = []
 
-for package_name, package_specific in PACKAGE_SPECIFIC_INFO.items():
+def format_setup_py(package_name):
+    package_specific = PACKAGE_SPECIFIC_INFO[package_name]
     subdir = Path(package_specific["subdir"])
     # remove obsolete info.py file if it exists
     subdir_as_path = str(subdir).replace("-", "/")  # client-g5k -> client/g5k
@@ -65,5 +64,20 @@ setup_info.update(
 )
 setup(**setup_info)
 """)
-    setup_py_files.append(setup_py)
-black_format(*setup_py_files)
+    return setup_py
+
+
+if __name__ == '__main__':
+    setup_py_files = []
+    if len(sys.argv) == 2:
+        # reformat one setup.py
+        package_name = sys.argv[1]
+        setup_py = format_setup_py(package_name)
+        setup_py_files.append(setup_py)
+    else:
+        # reformat all setup.py files
+        for package_name in PACKAGE_SPECIFIC_INFO.keys():
+            setup_py = format_setup_py(package_name)
+            setup_py_files.append(setup_py)
+    # make setup.py files pretty
+    black_format(*setup_py_files)
