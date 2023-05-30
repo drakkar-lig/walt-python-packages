@@ -13,32 +13,30 @@ SERVER_SOCKET_TIMEOUT = 10.0
 SERVER_SOCKET_REUSE_TIMEOUT = 5.0
 
 class APIChannel(object):
-    MODE_LINE_REPR_EVAL = 0
-    MODE_PICKLE4 = 1
     def __init__(self, sock_file):
         self.sock_file = sock_file
-        self.mode = APIChannel.MODE_LINE_REPR_EVAL     # default mode
+        self.mode = 'line-repr-eval'    # default mode
     def write(self, *args):
         if self.sock_file.closed:
             return
-        if self.mode == APIChannel.MODE_LINE_REPR_EVAL:
+        if self.mode == 'line-repr-eval':
             self.sock_file.write(repr(args).encode('UTF-8') + b'\n')
-        elif self.mode == APIChannel.MODE_PICKLE4:
+        elif self.mode == 'pickle4':
             pickle.dump(args, self.sock_file, protocol=4)
     def read(self):
         if self.sock_file.closed:
             return None
-        if self.mode == APIChannel.MODE_LINE_REPR_EVAL:
+        if self.mode == 'line-repr-eval':
             return eval(self.sock_file.readline().decode('UTF-8'))
-        elif self.mode == APIChannel.MODE_PICKLE4:
+        elif self.mode == 'pickle4':
             return pickle.load(self.sock_file)
     def fileno(self):
         return self.sock_file.fileno()
+    def get_mode(self):
+        return self.mode
     def set_mode(self, mode):
-        if mode == 'pickle4':
-            self.mode = APIChannel.MODE_PICKLE4
-        elif mode == 'line-repr-eval':
-            self.mode = APIChannel.MODE_LINE_REPR_EVAL
+        if mode in ('pickle4', 'line-repr-eval'):
+            self.mode = mode
         else:
             raise Exception(f'Unknown APIChannel mode: {mode}')
 
@@ -142,11 +140,13 @@ class ServerAPIConnection(object):
         if not self.in_use and self.connected:
             if time() - self.idle_start_time > SERVER_SOCKET_REUSE_TIMEOUT:
                 # too old, disconnect
+                # print('ServerAPILink.connect -- too old, disconnect')
                 self.sock.close()
                 self.sock = None
                 self.connected = False
         self.usage_refcount += 1
         if not self.connected:
+            # print('ServerAPILink.connect -- creating connection')
             self.sock = create_connection((self.server_ip, WALT_SERVER_DAEMON_PORT),
                                           SERVER_SOCKET_TIMEOUT)
             sock_file = self.sock.makefile('rwb',0)
@@ -155,8 +155,9 @@ class ServerAPIConnection(object):
             self.api_channel = APIChannel(sock_file)
             self.connected = True
     def set_mode(self, mode):
-        self.api_channel.write('SET_MODE', mode)    # set mode remotely
-        self.api_channel.set_mode(mode)             # set mode locally
+        if self.api_channel.get_mode() != mode:
+            self.api_channel.write('SET_MODE', mode)    # set mode remotely
+            self.api_channel.set_mode(mode)             # set mode locally
     def disconnect(self):
         self.usage_refcount -= 1
         if self.usage_refcount == 0:
@@ -256,9 +257,13 @@ class ServerAPILink(object):
             target_api,
             busy_indicator)
     def __enter__(self):
+        # print('ServerAPILink.__enter__')
         self.conn.connect()
+        # print(f'self.conn: {self.conn}')
+        # print(f'self.conn.sock: {self.conn.sock} <- same object if repeating < 5s')
         return self.conn.client_proxy
     def __exit__(self, type, value, traceback):
+        # print('ServerAPILink.__exit__')
         self.conn.disconnect()
     def set_busy_label(self, label):
         self.conn.set_busy_label(label)
@@ -266,4 +271,3 @@ class ServerAPILink(object):
         self.conn.set_default_busy_label()
     def set_mode(self, mode):
         self.conn.set_mode(mode)
-

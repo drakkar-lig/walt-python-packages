@@ -96,7 +96,9 @@ class InternalClientToServerLink(ServerAPILink):
                 InternalClientToServerLink.service, busy_indicator)
 
 class ClientToServerLink:
-    num_calls = 0
+    init_config_done = False
+    full_init_done = False
+
     def __new__(cls, do_checks=True, busy_indicator=None):
         def get_link():
             return InternalClientToServerLink(busy_indicator)
@@ -105,20 +107,16 @@ class ClientToServerLink:
         # 2) check if server version matches
         # 3) execute connection hook if any
         # 4) set faster pickle4 mode
-        if ClientToServerLink.num_calls == 0:
+        if not ClientToServerLink.init_config_done:
             init_config(get_link)
-            return get_link()
+            ClientToServerLink.init_config_done = True
         link = get_link()
-        if not do_checks:
-            return link
-        if ClientToServerLink.num_calls == 0:
-            with link as server:
-                check_update(server)
-                connection_hook = get_hook('connection_hook')
-                if connection_hook is not None:
-                    connection_hook(link, server)
-                link.set_mode('pickle4')
-        ClientToServerLink.num_calls += 1
+        if not ClientToServerLink.full_init_done:
+            if do_checks:
+                with link as server:
+                    check_update(server)
+            ClientToServerLink.full_init_done = True
+        link.set_mode('pickle4')
         return link
 
 def connect_to_tcp_server():

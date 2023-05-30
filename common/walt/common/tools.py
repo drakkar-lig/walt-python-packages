@@ -4,6 +4,7 @@ import os
 import sys
 from fcntl import fcntl, F_GETFD, F_SETFD, F_GETFL, F_SETFL, FD_CLOEXEC
 from pathlib import Path
+from functools import cache
 
 def get_mac_address(interface):
     return Path("/sys/class/net/" + interface + "/address").read_text().strip()
@@ -100,6 +101,9 @@ def get_kernel_bootarg(in_bootarg):
                 return val
 
 class RealBusyIndicator:
+    @cache
+    def __new__(cls, label):
+        return object.__new__(cls)
     def __init__(self, label):
         self.default_label = label
         self.label = label
@@ -131,6 +135,9 @@ class RealBusyIndicator:
         return self.label
 
 class SilentBusyIndicator:
+    @cache
+    def __new__(cls):
+        return object.__new__(cls)
     def __getattr__(self, attr):
         return lambda *args: None
 
