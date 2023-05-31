@@ -1,13 +1,20 @@
-import json, re
+import json
+import re
 from collections import defaultdict
-from walt.server.tools import ip_in_walt_network
-from walt.server.processes.main.network import tftp
-from walt.server.processes.main.nodes.manager import VNODE_DEFAULT_RAM, VNODE_DEFAULT_CPU_CORES, \
-                                                   VNODE_DEFAULT_DISKS, VNODE_DEFAULT_NETWORKS
+
+from walt.common.formatting import format_sentence
 from walt.common.netsetup import NetSetup
 from walt.common.settings import parse_vnode_disks_value, parse_vnode_networks_value
 from walt.common.tools import do
-from walt.common.formatting import format_sentence
+from walt.server.processes.main.network import tftp
+from walt.server.processes.main.nodes.manager import (
+    VNODE_DEFAULT_CPU_CORES,
+    VNODE_DEFAULT_DISKS,
+    VNODE_DEFAULT_NETWORKS,
+    VNODE_DEFAULT_RAM,
+)
+from walt.server.tools import ip_in_walt_network
+
 
 def uncapitalize(s):
     return s[0].lower() + s[1:]

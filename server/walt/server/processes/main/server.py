@@ -1,30 +1,33 @@
 import re
 from pathlib import Path
-from walt.server import conf
+
 from walt.common.constants import WALT_SERVER_TCP_PORT
 from walt.common.devices.registry import get_device_info_from_mac
-from walt.common.tcp import TCPServer
 from walt.common.formatting import format_sentence
+from walt.common.tcp import TCPServer
 from walt.common.tools import format_image_fullname, parse_image_fullname
+from walt.server import conf
 from walt.server.process import SyncRPCProcessConnector
+from walt.server.processes.main.apisession import APISession
+from walt.server.processes.main.autocomplete import shell_autocomplete
 from walt.server.processes.main.blocking import BlockingTasksManager
+from walt.server.processes.main.devices.manager import DevicesManager
 from walt.server.processes.main.images.manager import NodeImageManager
 from walt.server.processes.main.interactive import InteractionManager
-from walt.server.processes.main.unix import UnixSocketServer
 from walt.server.processes.main.logs import LogsManager
-from walt.server.processes.main.registry import WalTLocalRegistry
+from walt.server.processes.main.network import tftp
 from walt.server.processes.main.network.dhcpd import DHCPServer
 from walt.server.processes.main.nodes.manager import NodesManager
-from walt.server.processes.main.devices.manager import DevicesManager
+from walt.server.processes.main.registry import WalTLocalRegistry
 from walt.server.processes.main.settings import SettingsManager
-from walt.server.processes.main.transfer import TransferManager
-from walt.server.processes.main.apisession import APISession
-from walt.server.processes.main.network import tftp
+from walt.server.processes.main.transfer import (
+    TransferManager,
+    format_node_to_booted_image_transfer_cmd,
+    validate_cp,
+)
+from walt.server.processes.main.unix import UnixSocketServer
 from walt.server.processes.main.vpn import VPNManager
-from walt.server.processes.main.autocomplete import shell_autocomplete
 from walt.server.processes.main.workflow import Workflow
-from walt.server.processes.main.transfer import validate_cp, \
-                    format_node_to_booted_image_transfer_cmd
 
 KVM_DEV_FILE = Path('/dev/kvm')
 

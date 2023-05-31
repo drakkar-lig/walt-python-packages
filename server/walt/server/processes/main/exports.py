@@ -1,7 +1,7 @@
 from walt.common.tools import failsafe_makedirs
-from walt.server.tools import get_walt_subnet
-from walt.server.processes.main.network.nfs import NFSExporter
 from walt.server.processes.main.network import nbfs
+from walt.server.processes.main.network.nfs import NFSExporter
+from walt.server.tools import get_walt_subnet
 
 PERSISTENT_PATH = "/var/lib/walt/nodes/%(node_mac)s/persist_dir"
 

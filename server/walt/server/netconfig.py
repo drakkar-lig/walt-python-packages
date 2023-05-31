@@ -3,8 +3,7 @@ import os.path
 import sys
 import time
 
-from walt.common.tools import do, failsafe_makedirs, succeeds, \
-                              get_persistent_random_mac
+from walt.common.tools import do, failsafe_makedirs, get_persistent_random_mac, succeeds
 from walt.server import conf
 
 WALT_STATUS_DIR  = '/var/lib/walt'

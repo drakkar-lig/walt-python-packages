@@ -1,7 +1,9 @@
-from walt.server.processes.blocking.images.tools import update_main_process_about_image
-from walt.server.exttools import podman
-from walt.server.tools import add_image_repo
 import uuid
+
+from walt.server.exttools import podman
+from walt.server.processes.blocking.images.tools import update_main_process_about_image
+from walt.server.tools import add_image_repo
+
 
 def get_commit_temp_image():
     return 'localhost/walt/commit-temp:' + str(uuid.uuid4()).split('-')[0]

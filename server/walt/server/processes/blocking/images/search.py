@@ -5,13 +5,15 @@ import typing
 
 from walt.common.formatting import columnate
 from walt.common.version import __version__
-from walt.server.processes.blocking.images.metadata import \
-    async_pull_user_metadata
-from walt.server.tools import format_node_models_list, async_merge_generators
-from walt.server.exttools import docker
-from walt.server.processes.blocking.registries import \
-     DockerDaemonClient, DockerHubClient, DockerRegistryV2Client
 from walt.server import conf
+from walt.server.exttools import docker
+from walt.server.processes.blocking.images.metadata import async_pull_user_metadata
+from walt.server.processes.blocking.registries import (
+    DockerDaemonClient,
+    DockerHubClient,
+    DockerRegistryV2Client,
+)
+from walt.server.tools import async_merge_generators, format_node_models_list
 
 if typing.TYPE_CHECKING:
     from walt.server.processes.main.server import Server

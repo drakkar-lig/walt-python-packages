@@ -1,4 +1,5 @@
 import sys
+
 from podman import PodmanClient
 
 PODMAN_API_SOCKET = 'unix:///run/walt/podman/podman.socket'

@@ -1,8 +1,8 @@
 from __future__ import annotations
-from walt.server.processes.main.workflow import Workflow
 
 import typing
 
+from walt.server.processes.main.workflow import Workflow
 
 if typing.TYPE_CHECKING:
     from walt.server.processes.main.images.store import NodeImageStore

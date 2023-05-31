@@ -1,5 +1,6 @@
 import re
 
+
 def parse_vnode_disks_value(disks):
     if disks != "none" and re.match(r'^\d+[GT](,\d+[GT])*$', disks) is None:
         return (False,)

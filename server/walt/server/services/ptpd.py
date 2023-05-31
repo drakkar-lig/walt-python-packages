@@ -1,6 +1,8 @@
 #!/usr/bin/env python
-import os, shlex
+import os
+import shlex
 from pathlib import Path
+
 from walt.server.tools import ensure_text_file_content
 
 # These env variables should be set by systemd service unit file

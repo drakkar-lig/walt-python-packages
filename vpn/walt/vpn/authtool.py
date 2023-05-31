@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 import sys
+
 from walt.common.apilink import ServerAPILink
+
 
 def run():
     if len(sys.argv) < 2:

@@ -1,5 +1,6 @@
 from walt.server.process import RPCProcessConnector, RPCService
 
+
 class BlockingTasksManager(RPCProcessConnector):
     def __init__(self, server):
         super().__init__(default_service = RPCService(server = server),

@@ -4,6 +4,7 @@ Based on the implementation of Kirby Urner, Oregon Curriculum Network
 
 from binascii import hexlify, unhexlify
 
+
 class BlowFish(object):
     def __init__(self, key, bitlength = 448):
         """

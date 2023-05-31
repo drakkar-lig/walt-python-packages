@@ -1,13 +1,13 @@
 import re
 import socket
-import yaml
+from getpass import getpass
+from os.path import expanduser
+from pathlib import Path
 
+import yaml
 from walt.client.plugins import get_hook
 from walt.client.tools import yes_or_no
-from os.path import expanduser
 from walt.common.config import load_conf
-from getpass import getpass
-from pathlib import Path
 
 CONFIG_FILE_TOP_COMMENT = """\
 WalT configuration file

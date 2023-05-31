@@ -1,8 +1,9 @@
 import sys
 from threading import Thread
+
 from walt.common.fifo import open_readable_fifo
-from walt.node.logs.monitor import handle_monitor_request
 from walt.node.logs.cache import LogsConnCache
+from walt.node.logs.monitor import handle_monitor_request
 
 ENCODING = sys.stdout.encoding
 WALT_LOGS_FIFO = '/var/lib/walt/logs.fifo'

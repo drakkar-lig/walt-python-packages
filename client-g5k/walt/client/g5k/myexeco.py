@@ -1,4 +1,6 @@
-import os, time
+import os
+import time
+
 
 # execo provides this function but it does not work fine
 # with python3 (as of april 6, 2021)
@@ -8,6 +10,7 @@ def oar_datetime_to_unixts(dt):
     Input datetime is expected to be naive (no tz attached) and
     to reflect the time  in the g5k oar/oargrid timezone Europe/Paris."""
     from execo.time_utils import datetime_to_unixts
+
     # forking code because modifying os.environ["TZ"] and calling
     # time.tzset() is not thread-safe
     rend, wend = os.pipe()
@@ -42,10 +45,14 @@ def _get_vlans_API(site):
 
 def load_execo_g5k():
     import logging
+
     from execo.log import logger
     logger.setLevel(logging.WARNING)
-    import execo_g5k.planning, execo_g5k.oargrid, \
-           execo_g5k.charter, execo_g5k.api_utils
+    import execo_g5k.api_utils
+    import execo_g5k.charter
+    import execo_g5k.oargrid
+    import execo_g5k.planning
+
     # redirect to our fixed function(s)
     execo_g5k.charter.oar_datetime_to_unixts = oar_datetime_to_unixts
     execo_g5k.planning._get_vlans_API = _get_vlans_API

@@ -1,12 +1,15 @@
-import re, pickle, sys
-from time import time
-from datetime import datetime
+import pickle
+import re
+import sys
 from collections import defaultdict
+from datetime import datetime
+from time import time
+
 from walt.common.constants import WALT_SERVER_NETCONSOLE_PORT
-from walt.common.tcp import read_pickle, write_pickle, \
-                            Requests, PICKLE_VERSION
+from walt.common.tcp import PICKLE_VERSION, Requests, read_pickle, write_pickle
 from walt.common.udp import udp_server_socket
 from walt.server.tools import get_server_ip
+
 
 class LogsToDBHandler(object):
     # Logs cause many inserts in db, so we buffer

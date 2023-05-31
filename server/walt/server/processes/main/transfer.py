@@ -1,9 +1,11 @@
 
+import os
+import random
+
 from walt.common.tcp import Requests
-from walt.server.processes.main.parallel import ParallelProcessSocketListener
 from walt.server.const import SSH_COMMAND
 from walt.server.processes.main.images.setup import script_path
-import os, random
+from walt.server.processes.main.parallel import ParallelProcessSocketListener
 
 TYPE_CLIENT = 0
 TYPE_IMAGE_OR_NODE = 1

@@ -2,17 +2,18 @@ from __future__ import annotations
 
 import os
 import sys
-from fcntl import fcntl, F_GETFD, F_SETFD, F_GETFL, F_SETFL, FD_CLOEXEC
-from pathlib import Path
+from fcntl import F_GETFD, F_GETFL, F_SETFD, F_SETFL, FD_CLOEXEC, fcntl
 from functools import cache
+from pathlib import Path
+
 
 def get_mac_address(interface):
     return Path("/sys/class/net/" + interface + "/address").read_text().strip()
 
 def do(cmd: str | [str], shell=False, stdout=None, stderr=None, text=True):
     """Exec a system command, return the command's returncode."""
-    from subprocess import Popen, PIPE
     from select import select
+    from subprocess import PIPE, Popen
     if not shell and isinstance(cmd, str):
         # Split command-line in an array
         import shlex

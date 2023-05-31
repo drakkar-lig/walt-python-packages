@@ -1,4 +1,8 @@
-import fcntl, os, stat, struct, sys
+import fcntl
+import os
+import stat
+import struct
+import sys
 from pathlib import Path
 
 TUNSETIFF = 0x400454ca

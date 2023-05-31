@@ -1,5 +1,6 @@
-from walt.common.crypto.dh import DHPeer
 from walt.common.crypto.blowfish import BlowFish
+from walt.common.crypto.dh import DHPeer
+
 
 # about password encryption:
 # set comment in walt/common/crypto/__init__.py

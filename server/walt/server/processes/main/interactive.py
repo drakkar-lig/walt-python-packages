@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 from walt.common.tcp import Requests
-from walt.server.processes.main.parallel import ParallelProcessSocketListener
 from walt.server.const import SSH_COMMAND
+from walt.server.processes.main.parallel import ParallelProcessSocketListener
 
 # when running walt image shell, run bash if available, sh otherwise.
 DOCKER_SH_PATTERN = """\

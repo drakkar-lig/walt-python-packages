@@ -1,5 +1,6 @@
 from walt.client.apiobject.base import APIObjectBase
 
+
 class APIRoot:
     def __new__(cls):
         class APIRootImpl(APIObjectBase):

@@ -2,10 +2,11 @@
 WalT client shell autocompletion helper.
 """
 import sys
-from walt.client.link import ClientToServerLink
+
 from walt.client.config import conf
-from walt.client.timeout import start_timeout
+from walt.client.link import ClientToServerLink
 from walt.client.plugins import get_hook
+from walt.client.timeout import start_timeout
 
 AUTOCOMPLETE_TIMEOUT = 4
 

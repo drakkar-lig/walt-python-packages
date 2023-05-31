@@ -1,6 +1,14 @@
 #!/usr/bin/env python3
-import os, sys, pty, shlex, re, time
-import select, struct, fcntl, termios
+import fcntl
+import os
+import pty
+import re
+import select
+import shlex
+import struct
+import sys
+import termios
+import time
 
 TTY_ROWS = 50
 TTY_COLS = 190

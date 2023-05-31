@@ -1,5 +1,6 @@
-from walt.server.processes.main.images.image import validate_image_name
 from walt.common.tools import parse_image_fullname
+from walt.server.processes.main.images.image import validate_image_name
+
 
 def clone(blocking, server, requester, task, image_name, **kwargs):
     if image_name is not None:

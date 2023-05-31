@@ -1,5 +1,5 @@
-from walt.server.processes.blocking.registries import get_registry_clients
 from walt.common.formatting import format_sentence
+from walt.server.processes.blocking.registries import get_registry_clients
 
 
 def pull_image(requester, server, image_fullname):

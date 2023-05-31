@@ -1,14 +1,15 @@
 #!/usr/bin/env python
-import sys, pickle
-from time import time
+import pickle
+import sys
 from select import select
-from socket import create_connection
-from socket import IPPROTO_TCP, TCP_NODELAY
+from socket import IPPROTO_TCP, TCP_NODELAY, create_connection
+from time import time
+
+from walt.common.api import api, api_expose_method
 from walt.common.constants import WALT_SERVER_DAEMON_PORT
 from walt.common.reusable import reusable
-from walt.common.tools import BusyIndicator
 from walt.common.tcp import Requests
-from walt.common.api import api, api_expose_method
+from walt.common.tools import BusyIndicator
 
 SERVER_SOCKET_TIMEOUT = 10.0
 SERVER_SOCKET_REUSE_TIMEOUT = 5.0

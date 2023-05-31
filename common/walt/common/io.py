@@ -1,4 +1,6 @@
-import os, socket
+import os
+import socket
+
 
 # This function allows to disable buffering
 # of a file.

@@ -1,10 +1,16 @@
 #!/usr/bin/env python
-import sys, tempfile, shlex, time, os.path, requests, code
-from urllib.parse import urlparse
+import code
+import os.path
+import shlex
+import sys
+import tempfile
+import time
 from collections import namedtuple
-from walt.common.tcp import write_pickle, client_sock_file, \
-                            Requests
+from urllib.parse import urlparse
+
+import requests
 from walt.common.constants import WALT_SERVER_TCP_PORT
+from walt.common.tcp import Requests, client_sock_file, write_pickle
 
 OS_ENCODING = sys.stdout.encoding
 

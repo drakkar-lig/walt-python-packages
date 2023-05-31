@@ -1,4 +1,5 @@
 from collections import defaultdict
+
 from walt.common.formatting import format_sentence_about_nodes
 
 # note: sending a notification message to a requester or ending a task

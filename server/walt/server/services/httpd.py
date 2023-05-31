@@ -1,11 +1,13 @@
-import bottle, os, socket, pickle
+import os
+import pickle
+import socket
 
-from gevent.pywsgi import WSGIServer
+import bottle
 from gevent.fileobject import FileObject
-
-from walt.server.tools import get_server_ip
-from walt.common.unix import recv_msg_fds, bind_to_random_sockname, Requests
+from gevent.pywsgi import WSGIServer
+from walt.common.unix import Requests, bind_to_random_sockname, recv_msg_fds
 from walt.server.const import UNIX_SERVER_SOCK_PATH
+from walt.server.tools import get_server_ip
 
 WALT_HTTPD_PORT = 80
 

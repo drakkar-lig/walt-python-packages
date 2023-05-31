@@ -1,4 +1,6 @@
-import subprocess, json
+import json
+import subprocess
+
 
 def dev_has_given_child_name(dev_info, child_name):
     if 'children' not in dev_info:

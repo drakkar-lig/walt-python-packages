@@ -1,16 +1,26 @@
 #!/usr/bin/env python
-import os, sys, subprocess, time, random, platform, re, signal, shlex, atexit
-from os import getpid, getenv, truncate
+import atexit
+import os
+import platform
+import random
+import re
+import shlex
+import signal
+import subprocess
+import sys
+import time
 from contextlib import contextmanager
-from walt.common.apilink import ServerAPILink
-from walt.common.logs import LoggedApplication
-from walt.common.fakeipxe import ipxe_boot
-from walt.common.tools import get_persistent_random_mac, interrupt_print
-from walt.common.settings import parse_vnode_disks_value, parse_vnode_networks_value
-from walt.virtual.node.udhcpc import udhcpc_fake_netboot
+from os import getenv, getpid, truncate
+from pathlib import Path
+
 from pkg_resources import resource_string
 from plumbum import cli
-from pathlib import Path
+from walt.common.apilink import ServerAPILink
+from walt.common.fakeipxe import ipxe_boot
+from walt.common.logs import LoggedApplication
+from walt.common.settings import parse_vnode_disks_value, parse_vnode_networks_value
+from walt.common.tools import get_persistent_random_mac, interrupt_print
+from walt.virtual.node.udhcpc import udhcpc_fake_netboot
 
 OS_ENCODING = sys.stdout.encoding
 HOST_CPU = platform.machine()

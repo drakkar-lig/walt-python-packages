@@ -1,14 +1,25 @@
-import sys, subprocess
-from plumbum import cli
+import subprocess
+import sys
 from pathlib import Path
+
+from plumbum import cli
 from walt.common import systemd
 from walt.common.setup import WaltGenericSetup
 from walt.common.tools import verify_root_login_shell
-from walt.server.setup.ossetup import get_os_codename, upgrade_os, install_os, fix_os, \
-                                      fix_conmon, install_os_on_image, \
-                                      cleanup_old_walt_install
-from walt.server.setup.conf import fix_other_conf_files, define_server_conf, \
-                                   update_server_conf
+from walt.server.setup.conf import (
+    define_server_conf,
+    fix_other_conf_files,
+    update_server_conf,
+)
+from walt.server.setup.ossetup import (
+    cleanup_old_walt_install,
+    fix_conmon,
+    fix_os,
+    get_os_codename,
+    install_os,
+    install_os_on_image,
+    upgrade_os,
+)
 
 WALT_SERVICES = [
     "walt-server.service",

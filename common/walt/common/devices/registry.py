@@ -13,6 +13,7 @@ def get_device_info_from_mac(mac):
 def register_all_probe_functions():
     global PROBE_FUNCTIONS
     import inspect
+
     from walt.common.devices import switches
     all_modules = []
     # add all modules in 'switches' subdir

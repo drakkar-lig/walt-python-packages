@@ -1,6 +1,7 @@
 from walt.common.tools import SimpleContainer
 from walt.server.processes.main.task import APISessionTask
 
+
 class APISession(object):
 
     SESSIONS = {}

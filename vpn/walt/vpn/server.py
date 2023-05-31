@@ -1,9 +1,13 @@
-import os, socket, subprocess, traceback
-from shutil import chown
+import os
+import socket
+import subprocess
+import traceback
 from pathlib import Path
+from shutil import chown
+
 from walt.common.unix import send_msg_fds
-from walt.vpn.tools import createtap
 from walt.vpn.const import VPN_SOCK_PATH
+from walt.vpn.tools import createtap
 
 BRIDGE_INTF = "walt-net"
 

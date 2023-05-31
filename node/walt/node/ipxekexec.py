@@ -1,10 +1,13 @@
 #!/usr/bin/env python
-import sys, subprocess, socket
+import socket
+import subprocess
+import sys
 from contextlib import contextmanager
-from walt.common.apilink import ServerAPILink
-from walt.common.fakeipxe import ipxe_boot
 from pathlib import Path
 from shutil import which
+
+from walt.common.apilink import ServerAPILink
+from walt.common.fakeipxe import ipxe_boot
 
 PRODUCT_NAME_FILE = '/sys/devices/virtual/dmi/id/product_name'
 MANUFACTURER_FILE = '/sys/devices/virtual/dmi/id/sys_vendor'

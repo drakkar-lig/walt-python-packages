@@ -1,4 +1,6 @@
-import sys, pickle
+import pickle
+import sys
+
 from walt.common.tools import do
 
 USAGE = '''\

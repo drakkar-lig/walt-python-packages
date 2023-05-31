@@ -1,16 +1,23 @@
 import sys
-from walt.client.application import WalTApplication, \
-        WalTCategoryApplication
+
+from walt.client.application import WalTApplication, WalTCategoryApplication
 from walt.client.g5k.deploy import deploy
-from walt.client.g5k.wait import wait
-from walt.client.g5k.release import release
-from walt.client.g5k.recipes import new_recipe, \
-        propose_save_recipe, get_recipe_info,   \
-        save_recipe, edit_recipe, list_recipes, \
-        print_recipe, remove_recipe
-from walt.client.g5k.printer import print_info
 from walt.client.g5k.deploy.status import exit_if_walt_platform_deployed
+from walt.client.g5k.printer import print_info
+from walt.client.g5k.recipes import (
+    edit_recipe,
+    get_recipe_info,
+    list_recipes,
+    new_recipe,
+    print_recipe,
+    propose_save_recipe,
+    remove_recipe,
+    save_recipe,
+)
+from walt.client.g5k.release import release
 from walt.client.g5k.types import G5K_RECIPE
+from walt.client.g5k.wait import wait
+
 
 # when working with grid'5000, the first thing we
 # want to do is to deploy the WalT platform.

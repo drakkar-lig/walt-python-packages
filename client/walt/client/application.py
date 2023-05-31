@@ -2,6 +2,7 @@
 from plumbum import cli
 from plumbum.lib import getdoc
 
+
 class WalTApplication(cli.Application):
     pass
 

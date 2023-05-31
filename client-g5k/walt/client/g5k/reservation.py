@@ -1,9 +1,12 @@
-import shutil, sys, time
+import shutil
+import sys
+import time
 from datetime import datetime
 from pathlib import Path
+
+from walt.client import __version__
 from walt.client.g5k.myexeco import load_execo_g5k
 from walt.client.g5k.tools import get_local_g5k_site
-from walt.client import __version__
 
 POSSIBLE_CLUSTERS_FOR_SERVER = None
 WALT_SERVER_ENV_FILE = \

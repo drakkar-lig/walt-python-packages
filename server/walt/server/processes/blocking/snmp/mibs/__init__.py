@@ -1,5 +1,8 @@
 #!/usr/bin/env python
-import snimpy.mib, snimpy.manager, os.path
+import os.path
+
+import snimpy.manager
+import snimpy.mib
 from pkg_resources import resource_filename
 
 PATH_SET = False

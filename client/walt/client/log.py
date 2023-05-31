@@ -1,11 +1,20 @@
-import sys, re, datetime, pickle
-from walt.common.tcp import read_pickle, write_pickle, Requests, PICKLE_VERSION
+import datetime
+import pickle
+import re
+import sys
+
 from plumbum import cli
-from walt.client.application import WalTCategoryApplication, WalTApplication
+from walt.client.application import WalTApplication, WalTCategoryApplication
 from walt.client.link import ClientToServerLink, connect_to_tcp_server
+from walt.client.timeout import (
+    TimeoutException,
+    cli_timeout_switch,
+    timeout_context,
+    timeout_reached,
+)
 from walt.client.tools import confirm
-from walt.client.timeout import timeout_context, timeout_reached, cli_timeout_switch, TimeoutException
 from walt.client.types import LOG_CHECKPOINT
+from walt.common.tcp import PICKLE_VERSION, Requests, read_pickle, write_pickle
 
 DATE_FORMAT_STRING= '%Y-%m-%d %H:%M:%S'
 DATE_FORMAT_STRING_HUMAN= '<YYYY>-<MM>-<DD> <hh>:<mm>:<ss>'

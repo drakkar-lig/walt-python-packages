@@ -1,5 +1,7 @@
+import os
+import signal
 from pathlib import Path
-import os, signal
+
 from walt.server.spec import server_has_feature
 
 NBFSD_PID_PATH = Path('/var/lib/nbfs/nbfsd.pid')

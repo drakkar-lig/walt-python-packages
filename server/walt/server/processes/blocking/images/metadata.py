@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import asyncio
+import base64
+import json
 
 from walt.server.exttools import buildah
-from walt.server.tools import async_gather_tasks
 from walt.server.processes.blocking.registries import DockerHubClient
-import json, base64
-import asyncio
+from walt.server.tools import async_gather_tasks
+
 
 def collect_user_metadata(hub, user):
     return asyncio.run(async_collect_user_metadata(hub, user))

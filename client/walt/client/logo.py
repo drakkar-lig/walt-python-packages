@@ -1,5 +1,9 @@
-import base64, bz2, sys, os
+import base64
+import bz2
+import os
+import sys
 from itertools import zip_longest
+
 from walt.common.term import TTYSettings
 
 LOGO_DATA = bz2.decompress(base64.decodebytes(b'''

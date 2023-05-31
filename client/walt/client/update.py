@@ -1,7 +1,8 @@
 import sys
-from walt.common.version import __version__
-from walt.common.formatting import framed, highlight
+
 from walt.client.plugins import get_plugin_feature_names
+from walt.common.formatting import framed, highlight
+from walt.common.version import __version__
 
 MSG_UPDATE = """
 walt-client software does not match server API!

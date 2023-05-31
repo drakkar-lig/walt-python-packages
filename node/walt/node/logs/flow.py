@@ -1,5 +1,6 @@
 import subprocess
 from time import time
+
 from walt.common.tools import remove_non_utf8
 
 WALT_LOG_CAT_BINARY = subprocess.check_output('which walt-log-cat',

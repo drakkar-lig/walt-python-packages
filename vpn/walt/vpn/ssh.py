@@ -1,5 +1,8 @@
-import os, sys, shlex
-from subprocess import check_call, DEVNULL
+import os
+import shlex
+import sys
+from subprocess import DEVNULL, check_call
+
 
 # For easy management of per-command ssh identity, we always start a new ssh-agent
 # (even if there is already one agent running on the system). This agent will

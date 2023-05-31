@@ -1,5 +1,6 @@
-from walt.client.application import WalTCategoryApplication, WalTApplication
+from walt.client.application import WalTApplication, WalTCategoryApplication
 from walt.client.types import HELP_TOPIC
+
 
 class WalTHelp(WalTCategoryApplication):
     """help sub-commands"""

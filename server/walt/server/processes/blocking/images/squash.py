@@ -1,7 +1,9 @@
-from walt.server.processes.blocking.images.commit import commit
-from walt.server.exttools import buildah
-from walt.server.tools import add_image_repo
 from subprocess import CalledProcessError
+
+from walt.server.exttools import buildah
+from walt.server.processes.blocking.images.commit import commit
+from walt.server.tools import add_image_repo
+
 
 def squash_image(server, image_fullname):
     cont_name = 'squash:' + image_fullname

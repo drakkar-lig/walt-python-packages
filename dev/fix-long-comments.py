@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 
-from pathlib import Path
 import sys
 import textwrap
+from pathlib import Path
 
 
 def better_wrap(comment, initial_indent, subsequent_indent):

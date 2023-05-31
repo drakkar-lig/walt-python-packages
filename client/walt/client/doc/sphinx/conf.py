@@ -6,9 +6,11 @@
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-import sphinx_rtd_theme, pypandoc
-from pathlib import Path
 import re
+from pathlib import Path
+
+import pypandoc
+import sphinx_rtd_theme
 
 THIS_DIR = Path(__file__).parent
 print(THIS_DIR)

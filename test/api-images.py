@@ -1,9 +1,14 @@
-from includes.common import define_test, test_suite_image, TEST_IMAGE_URL, \
-                            get_first_items
 import tempfile
 from pathlib import Path
-from walt.common.tools import do
+
+from includes.common import (
+    TEST_IMAGE_URL,
+    define_test,
+    get_first_items,
+    test_suite_image,
+)
 from walt.client import api
+from walt.common.tools import do
 
 IMAGE_BUILD_GIT_URL = "https://github.com/eduble/pc-x86-64-test-suite-mod"
 IMAGE_CLONE_NAME = f'{test_suite_image()}-api-clone'

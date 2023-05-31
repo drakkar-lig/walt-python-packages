@@ -1,8 +1,10 @@
 #!/usr/bin/env python
-import os, time, select
+import os
+import select
+import time
+
 from walt.common.tools import fd_copy, set_non_blocking
-from walt.common.tty import set_tty_size,     \
-                            acquire_controlling_tty, tty_disable_echoctl
+from walt.common.tty import acquire_controlling_tty, set_tty_size, tty_disable_echoctl
 from walt.node.logs.flow import LogsFlowToServer
 
 # See comments in node/sh/walt-monitor.

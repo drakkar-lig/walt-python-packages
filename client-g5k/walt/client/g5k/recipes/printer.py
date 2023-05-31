@@ -1,5 +1,5 @@
-from walt.common.formatting import columnate, framed, highlight
 from walt.client.g5k.recipes.tools import get_total_node_count
+from walt.common.formatting import columnate, framed, highlight
 
 CHECK_MARK = u"\u2714"
 

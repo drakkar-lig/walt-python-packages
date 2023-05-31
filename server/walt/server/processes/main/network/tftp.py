@@ -1,7 +1,10 @@
-import os, shutil, tarfile
-from walt.common.tools import failsafe_makedirs, failsafe_symlink
-from pkg_resources import resource_filename
+import os
+import shutil
+import tarfile
 from pathlib import Path
+
+from pkg_resources import resource_filename
+from walt.common.tools import failsafe_makedirs, failsafe_symlink
 
 TFTP_ROOT = '/var/lib/walt/'
 PXE_PATH = TFTP_ROOT + 'pxe/'

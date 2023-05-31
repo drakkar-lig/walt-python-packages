@@ -1,10 +1,11 @@
 #!/usr/bin/env python
 import signal
+from heapq import heappop, heappush
 from multiprocessing import current_process  # noqa: F401
-from subprocess import Popen, PIPE
-from select import poll, select, POLLIN, POLLPRI, POLLOUT
+from select import POLLIN, POLLOUT, POLLPRI, poll, select
+from subprocess import PIPE, Popen
 from time import time
-from heapq import heappush, heappop
+
 
 class BreakLoopRequested(Exception):
     pass

@@ -1,8 +1,9 @@
 """Server configuration management."""
-import sys, copy
-
-from pathlib import Path
+import copy
+import sys
 from ipaddress import ip_network
+from pathlib import Path
+
 from walt.common.config import load_conf
 
 SERVER_CONF = Path('/etc/walt/server.conf')

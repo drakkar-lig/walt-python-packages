@@ -1,5 +1,6 @@
 from walt.client.apiobject.base import APIObjectBase
 
+
 class APIToolsSubModule(APIObjectBase):
     """Misc API features"""
     def get_server(self):

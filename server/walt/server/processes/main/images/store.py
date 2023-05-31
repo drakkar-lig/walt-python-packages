@@ -1,17 +1,16 @@
 from __future__ import annotations
 
 import os
-import typing
-
 import sys
+import typing
 from time import time
 
 from walt.common.tools import failsafe_makedirs, format_image_fullname
 from walt.server.processes.main.exports import FilesystemsExporter
+from walt.server.processes.main.filesystem import FilesystemsCache
 from walt.server.processes.main.images.image import NodeImage
 from walt.server.processes.main.images.setup import setup
 from walt.server.processes.main.network import tftp
-from walt.server.processes.main.filesystem import FilesystemsCache
 from walt.server.processes.main.workflow import Workflow
 
 if typing.TYPE_CHECKING:

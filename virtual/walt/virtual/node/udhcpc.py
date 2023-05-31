@@ -1,7 +1,11 @@
-import time, sys, os, tempfile, traceback
+import os
+import sys
+import tempfile
+import time
+import traceback
+from contextlib import contextmanager
 from pathlib import Path
 from subprocess import check_call, check_output
-from contextlib import contextmanager
 
 BRIDGE_INTF = "walt-net"
 

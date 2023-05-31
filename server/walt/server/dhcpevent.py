@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import sys
 
+
 def dhcp_commit_event(vci, uci, ip, mac, client_name,
                       mac_is_known, dev_type):
     mac_is_known = int(mac_is_known)

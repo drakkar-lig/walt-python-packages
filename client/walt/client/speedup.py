@@ -1,8 +1,12 @@
 # This file implements a few tricks enabling the walt command
 # to load faster.
 
-import os, builtins, sys, locale
+import builtins
+import locale
+import os
+import sys
 from pathlib import Path
+
 
 # -- 1st workaround --
 # Workaround plumbum i18n module loading pkg_resources, which is slow,

@@ -1,4 +1,5 @@
 from time import time
+
 from walt.node.logs.flow import LogsFlowToServer
 
 # User may issue multiple walt-echo commands, resulting

@@ -1,9 +1,9 @@
-import datetime, pickle
+import datetime
+import pickle
 
 from walt.common.api import api, api_expose_method
-from walt.common.tools import format_image_fullname
 from walt.common.tcp import PICKLE_VERSION
-
+from walt.common.tools import format_image_fullname
 from walt.server.processes.main.apisession import APISession
 from walt.server.processes.main.images.image import validate_image_name
 

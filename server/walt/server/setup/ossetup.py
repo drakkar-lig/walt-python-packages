@@ -1,9 +1,24 @@
-import shlex, datetime, requests, subprocess, json, sys, gzip, base64, os
+import base64
+import datetime
+import gzip
+import json
+import os
+import shlex
+import subprocess
+import sys
 from pathlib import Path
+
+import requests
 from pkg_resources import resource_filename
-from walt.server.setup.apt import fix_dpkg_options, package_is_installed, get_debconf_selection, \
-                                  set_debconf_selection, remove_packages, upgrade_and_install_packages, \
-                                  autoremove_packages
+from walt.server.setup.apt import (
+    autoremove_packages,
+    fix_dpkg_options,
+    get_debconf_selection,
+    package_is_installed,
+    remove_packages,
+    set_debconf_selection,
+    upgrade_and_install_packages,
+)
 from walt.server.setup.grub import get_grub_boot_disk
 
 DOCKER_REPO_URL     = "https://download.docker.com/linux/debian"

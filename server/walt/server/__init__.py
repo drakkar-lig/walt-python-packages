@@ -1,6 +1,7 @@
 import sys
 
-from walt.server.config import get_conf, check_conf
+from walt.server.config import check_conf, get_conf
+
 
 def __getattr__(name):
     # Lazy-loading of the configuration: at setup time, this file

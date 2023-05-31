@@ -1,6 +1,7 @@
 from walt.client.apiobject.base import APIObjectBase
 from walt.client.apitools import silent_server_link
 
+
 class APIServer(APIObjectBase):
     "walt server"
     def __init__(self):

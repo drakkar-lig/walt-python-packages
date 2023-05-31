@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import random
 
+
 class DiffieHellman(object):
     BITSIZE = 2048
 

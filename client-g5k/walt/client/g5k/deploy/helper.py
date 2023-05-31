@@ -1,15 +1,29 @@
 # this is the code called by tool
 # walt-g5k-deploy-helper
-import requests, sys, time, json, traceback
+import json
+import sys
+import time
+import traceback
 from getpass import getuser
-from walt.client.g5k.tools import run_cmd_on_site, oarstat, set_vlan, printed_date_from_ts
-from walt.client.g5k.reboot import reboot_nodes
-from walt.client.g5k.deploy.status import get_deployment_status, log_status_change, \
-                                  record_main_job_startup, record_main_job_ending
-from walt.client.config import conf, save_config
-from walt.client.link import ClientToServerLink
-from urllib3.exceptions import InsecureRequestWarning
+
+import requests
 from pkg_resources import resource_string
+from urllib3.exceptions import InsecureRequestWarning
+from walt.client.config import conf, save_config
+from walt.client.g5k.deploy.status import (
+    get_deployment_status,
+    log_status_change,
+    record_main_job_ending,
+    record_main_job_startup,
+)
+from walt.client.g5k.reboot import reboot_nodes
+from walt.client.g5k.tools import (
+    oarstat,
+    printed_date_from_ts,
+    run_cmd_on_site,
+    set_vlan,
+)
+from walt.client.link import ClientToServerLink
 
 DEFAULT_IMAGE_NAME = 'pc-x86-64-default'
 

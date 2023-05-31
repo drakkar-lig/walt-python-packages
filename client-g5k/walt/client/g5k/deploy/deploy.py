@@ -1,14 +1,22 @@
 # this is the code called by
 # $ walt g5k deploy
-import subprocess, sys, time
+import subprocess
+import sys
+import time
 from datetime import datetime
 from pathlib import Path
-from walt.client.g5k.tools import run_cmd_on_site, printed_date_from_ts
-from walt.client.g5k.reservation import get_submission_info, \
-                                        DEFAULT_START_TIME_MARGIN_SECS
-from walt.client.g5k.deploy.status import init_status_info, log_status_change, \
-                                          save_deployment_status, \
-                                          exit_if_walt_platform_deployed
+
+from walt.client.g5k.deploy.status import (
+    exit_if_walt_platform_deployed,
+    init_status_info,
+    log_status_change,
+    save_deployment_status,
+)
+from walt.client.g5k.reservation import (
+    DEFAULT_START_TIME_MARGIN_SECS,
+    get_submission_info,
+)
+from walt.client.g5k.tools import printed_date_from_ts, run_cmd_on_site
 
 # if the jobs submission took too long, and the scheduled start is
 # too close or already past, jobs may not work properly.

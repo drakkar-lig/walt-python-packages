@@ -1,12 +1,12 @@
 import os
+from collections import defaultdict
 from itertools import groupby
 from operator import itemgetter
 from pathlib import Path
-from collections import defaultdict
 
 from walt.common.netsetup import NetSetup
-from walt.server.tools import ip, get_walt_subnet, get_server_ip, get_dns_servers
 from walt.server.processes.main.network.service import ServiceRestarter
+from walt.server.tools import get_dns_servers, get_server_ip, get_walt_subnet, ip
 
 # STATE_DIRECTORY is set by systemd to the daemon's state directory.  By
 # default, it is /var/lib/walt

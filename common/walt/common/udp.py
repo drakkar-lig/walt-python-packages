@@ -1,5 +1,6 @@
 import socket
-from fcntl import fcntl, F_GETFD, F_SETFD, FD_CLOEXEC
+from fcntl import F_GETFD, F_SETFD, FD_CLOEXEC, fcntl
+
 
 def udp_server_socket(port):
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)

@@ -1,6 +1,7 @@
 from pathlib import Path
-from walt.common.tools import do, chown_tree
+
 from walt.common.constants import UNSECURE_ECDSA_KEYPAIR
+from walt.common.tools import chown_tree, do
 
 WALT_VPN_USER = dict(
     home_dir = Path("/var/lib/walt/vpn"),

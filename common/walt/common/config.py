@@ -1,5 +1,6 @@
 import yaml
 
+
 def parse_yaml_conf(conf_text):
     return yaml.load(conf_text)
 

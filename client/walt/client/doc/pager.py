@@ -1,8 +1,13 @@
 #!/usr/bin/env python
-import re, os, sys, commonmark, traceback
+import os
+import re
+import sys
+import traceback
+
+import commonmark
 from walt.client.doc.color import RE_ESC_COLOR
-from walt.common.term import TTYSettings, alternate_screen_buffer
 from walt.client.doc.markdown import MarkdownRenderer
+from walt.common.term import TTYSettings, alternate_screen_buffer
 
 SCROLL_HELP = '<up>/<down>, <page-up>/<page-down>: scroll'
 TOPICS_HELP = '<tab>/<shift-tab>, <enter>/<backspace>: browse related topics'

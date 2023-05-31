@@ -1,7 +1,11 @@
-import os, sys, socket, re
+import os
+import re
+import socket
+import sys
 from select import select
-from walt.common.term import TTYSettings, clear_screen
+
 from walt.client.log import LogsFlowFromServer
+from walt.common.term import TTYSettings, clear_screen
 
 WELCOME_MESSAGE="""
 This will connect to the virtual node console. You can use <ctrl-a> <d> to quit.

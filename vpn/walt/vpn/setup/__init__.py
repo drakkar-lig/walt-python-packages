@@ -1,5 +1,4 @@
 from plumbum import cli
-
 from walt.common.setup import WaltGenericSetup
 from walt.common.tools import verify_root_login_shell
 from walt.vpn.setup.user import setup_user

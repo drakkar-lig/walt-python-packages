@@ -1,8 +1,15 @@
 #!/usr/bin/env python
-import os, pty, shlex, sys, signal, pickle
+import os
+import pickle
+import pty
+import shlex
+import signal
+import sys
+
 from walt.common.io import read_and_copy
 from walt.common.tcp import read_pickle
-from walt.common.tty import set_tty_size_raw, set_tty_size
+from walt.common.tty import set_tty_size, set_tty_size_raw
+
 
 class ForkPtyProcessListener(object):
     def __init__(self, slave_pid, env):

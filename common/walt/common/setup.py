@@ -4,8 +4,7 @@ from typing import ClassVar
 
 from pkg_resources import resource_stream
 from plumbum import cli
-
-from walt.common import systemd, busybox_init
+from walt.common import busybox_init, systemd
 from walt.common.systemd import SYSTEMD_DEFAULT_DIR
 
 

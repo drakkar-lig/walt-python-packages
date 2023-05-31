@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 from walt.common.io import read_and_copy
-from walt.common.tcp import read_pickle, Requests, client_sock_file
+from walt.common.tcp import Requests, client_sock_file, read_pickle
+
 
 class NodeExposeFeedbackListener:
     def __init__(self, env):

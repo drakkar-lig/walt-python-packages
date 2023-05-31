@@ -1,6 +1,9 @@
-import os, glob
+import glob
+import os
 from pathlib import Path
+
 from walt.common.api import api, api_expose_method
+
 
 @api
 class Filesystem:

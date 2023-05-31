@@ -1,9 +1,15 @@
-import sys, json, re
-from plumbum.cli.terminal import prompt, ask
-from walt.common.formatting import columnate
-from walt.client.g5k.recipes.const import DEFAULT_SCHEDULING, \
-      DEFAULT_WALLTIME, RECIPES_STORAGE_DIR
+import json
+import re
+import sys
+
+from plumbum.cli.terminal import ask, prompt
+from walt.client.g5k.recipes.const import (
+    DEFAULT_SCHEDULING,
+    DEFAULT_WALLTIME,
+    RECIPES_STORAGE_DIR,
+)
 from walt.client.g5k.recipes.editor import edit_recipe
+from walt.common.formatting import columnate
 
 ERROR_BAD_RECIPE_NAME='''\
 Only lowercase letters, digits and dash(-) characters are allowed.

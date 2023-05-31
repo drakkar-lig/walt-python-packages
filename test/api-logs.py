@@ -1,6 +1,7 @@
 from includes.common import define_test, test_create_vnode
 from walt.client import api
 
+
 @define_test('api logs.get_logs()')
 def test_api_logs_get_logs():
     node = test_create_vnode()
@@ -17,8 +18,9 @@ def test_api_logs_get_logs():
     # check the timeout feature
     # note: the node will probably send a few more log lines because of the netconsole,
     # the timeout will be raised only when it gets idle
-    from walt.client.timeout import TimeoutException
     from time import time
+
+    from walt.client.timeout import TimeoutException
     t0 = time()
     while True:
         try:

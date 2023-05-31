@@ -1,6 +1,14 @@
-from includes.common import define_test, test_suite_node, test_suite_image, \
-                            get_first_items, TEST_IMAGE_URL, skip_test, test_create_vnode
+from includes.common import (
+    TEST_IMAGE_URL,
+    define_test,
+    get_first_items,
+    skip_test,
+    test_create_vnode,
+    test_suite_image,
+    test_suite_node,
+)
 from walt.client import api
+
 
 def get_existing_vnode():
     nodes = api.nodes.get_nodes()

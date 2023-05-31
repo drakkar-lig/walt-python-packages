@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import shutil
-from subprocess import run, PIPE, Popen
-import sys
 import asyncio
+import shutil
+import sys
+from subprocess import PIPE, Popen, run
 
 
 class ExtTool:

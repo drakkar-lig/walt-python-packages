@@ -1,6 +1,11 @@
-import subprocess, os, sys, datetime, apt
-import apt.progress.base
+import datetime
+import os
+import subprocess
+import sys
 from pathlib import Path
+
+import apt
+import apt.progress.base
 
 """
 See

@@ -1,6 +1,8 @@
-import socket, pickle
+import pickle
+import socket
+
+from walt.common.service import GenericServer, ServiceRequests
 from walt.common.tools import set_close_on_exec
-from walt.common.service import ServiceRequests, GenericServer
 
 PICKLE_VERSION = 4  # from python 3.4
 

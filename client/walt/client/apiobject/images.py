@@ -1,14 +1,20 @@
-import re, sys
-from pathlib import Path
+import re
+import sys
 from collections import defaultdict
+from pathlib import Path
 
-from walt.common.tools import parse_image_fullname
-from walt.client.apiobject.base import APIObjectBase, APISetOfItemsClassFactory, \
-                                       APIItemClassFactory, APIItemInfoCache
+from walt.client.apiobject.base import (
+    APIItemClassFactory,
+    APIItemInfoCache,
+    APIObjectBase,
+    APISetOfItemsClassFactory,
+)
 from walt.client.apitools import silent_server_link
 from walt.client.config import conf
-from walt.client.transfer import run_transfer_for_image_build
 from walt.client.exceptions import NoSuchImageNameException
+from walt.client.transfer import run_transfer_for_image_build
+from walt.common.tools import parse_image_fullname
+
 
 class APIImageInfoCache(APIItemInfoCache):
     def __init__(self):

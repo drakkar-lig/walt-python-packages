@@ -1,4 +1,6 @@
-import os, shlex, signal
+import os
+import shlex
+import signal
 from time import time
 
 # indicate delays between polls and when to send signals when

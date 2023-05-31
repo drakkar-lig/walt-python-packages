@@ -1,10 +1,11 @@
-import re
 import pickle
-from walt.server import const
-from walt.common.tools import get_mac_address
-from walt.server.tools import get_server_ip
-from walt.server.processes.db.postgres import PostgresDB
+import re
 from time import time
+
+from walt.common.tools import get_mac_address
+from walt.server import const
+from walt.server.processes.db.postgres import PostgresDB
+from walt.server.tools import get_server_ip
 
 EV_AUTO_COMMIT                  = 0
 EV_AUTO_COMMIT_PERIOD           = 2

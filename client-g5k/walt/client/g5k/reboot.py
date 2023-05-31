@@ -1,6 +1,8 @@
+from collections import defaultdict
+
 from walt.client.g5k.deploy.status import get_last_deployment_status
 from walt.client.g5k.tools import run_cmd_on_site
-from collections import defaultdict
+
 
 def reboot_nodes(info, node_names, retries=3):
     node_names_per_site = defaultdict(set)

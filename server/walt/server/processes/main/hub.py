@@ -1,9 +1,10 @@
-from walt.server.processes.main.apisession import APISession
 from walt.server.process import RPCProcessConnector
 from walt.server.processes.main.api.cs import CSAPI
 from walt.server.processes.main.api.ns import NSAPI
-from walt.server.processes.main.api.vs import VSAPI
 from walt.server.processes.main.api.ss import SSAPI
+from walt.server.processes.main.api.vs import VSAPI
+from walt.server.processes.main.apisession import APISession
+
 
 class ServiceToHubProcess(object):
     def __init__(self, hub_rpc, server):

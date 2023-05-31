@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 from walt.server.processes.main.snmp.vlan import PortConfig, SwitchConfig
 
+
 def configure_main_switch_if_needed(snmp_proxy):
     if snmp_proxy.vlan.vlan_exists('walt-out'):
         print('the main switch is already configured')

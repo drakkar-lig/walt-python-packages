@@ -1,14 +1,15 @@
-import time, itertools
-from snimpy.snmp import SNMPException
+import itertools
+import time
 from collections import defaultdict
 
+from snimpy.snmp import SNMPException
 from walt.common.formatting import format_sentence, human_readable_delay
 from walt.server import const
 from walt.server.processes.blocking import snmp
-from walt.server.processes.blocking.snmp import NoSNMPVariantFound
 from walt.server.processes.blocking.devices.grouper import Grouper
 from walt.server.processes.blocking.devices.tree import Tree
-from walt.server.tools import ip_in_walt_network, ip_in_walt_adm_network, get_server_ip
+from walt.server.processes.blocking.snmp import NoSNMPVariantFound
+from walt.server.tools import get_server_ip, ip_in_walt_adm_network, ip_in_walt_network
 
 NOTE_EXPLAIN_UNREACHABLE = "devices marked with parentheses were not detected at last scan"
 NOTE_EXPLAIN_UNKNOWN = "type of devices marked with <? ... ?> is unknown"

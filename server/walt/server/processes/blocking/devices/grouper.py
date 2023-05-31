@@ -1,6 +1,7 @@
 #!/usr/bin/env python
-from itertools import count
 from collections import defaultdict
+from itertools import count
+
 
 class Grouper:
     def __init__(self):

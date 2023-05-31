@@ -1,6 +1,13 @@
 #!/usr/bin/env python
-from socket import SOL_SOCKET, SO_KEEPALIVE, IPPROTO_TCP, TCP_KEEPIDLE, \
-                   TCP_KEEPINTVL, TCP_KEEPCNT
+from socket import (
+    IPPROTO_TCP,
+    SO_KEEPALIVE,
+    SOL_SOCKET,
+    TCP_KEEPCNT,
+    TCP_KEEPIDLE,
+    TCP_KEEPINTVL,
+)
+
 from walt.common.tcp import Requests
 
 # Send a keepalive probe every TCP_KEEPALIVE_IDLE_TIMEOUT seconds

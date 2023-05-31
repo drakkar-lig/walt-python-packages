@@ -1,5 +1,7 @@
-import black
 import sys
+
+import black
+
 
 def black_format(*paths):
     old_argv, old_exit = sys.argv, sys.exit

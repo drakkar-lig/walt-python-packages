@@ -2,6 +2,7 @@ import sys
 from multiprocessing import Process, Queue
 from queue import Empty
 
+
 def yes_or_no(msg, okmsg = 'OK.\n', komsg = 'OK.\n'):
     while True:
         print('%s (y/n):' % msg, end=' ')

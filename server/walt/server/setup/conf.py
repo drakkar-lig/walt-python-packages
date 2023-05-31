@@ -1,9 +1,20 @@
-import os, sys, copy, yaml, re, json, textwrap
+import copy
+import json
+import os
+import re
+import sys
+import textwrap
 from pathlib import Path
-from walt.server.setup.netconf import get_default_netconf, edit_netconf_interactive, \
-                                      get_netconf_entry_comments, sanitize_netconf
-from walt.server.setup.regconf import get_default_regconf, edit_regconf_interactive
+
+import yaml
 from walt.server.config import cleanup_defaults
+from walt.server.setup.netconf import (
+    edit_netconf_interactive,
+    get_default_netconf,
+    get_netconf_entry_comments,
+    sanitize_netconf,
+)
+from walt.server.setup.regconf import edit_regconf_interactive, get_default_regconf
 
 YAML_INDENT = 4
 

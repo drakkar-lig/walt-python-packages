@@ -1,10 +1,15 @@
 from plumbum import cli
-from walt.client.link import ClientToServerLink
-from walt.client.interactive import run_device_ping, run_device_shell
+from walt.client.application import WalTApplication, WalTCategoryApplication
 from walt.client.expose import TCPExposer
-from walt.client.application import WalTCategoryApplication, WalTApplication
-from walt.client.types import DEVICE, SET_OF_DEVICES, \
-                              RESCAN_SET_OF_DEVICES, DEVICE_CONFIG_PARAM
+from walt.client.interactive import run_device_ping, run_device_shell
+from walt.client.link import ClientToServerLink
+from walt.client.types import (
+    DEVICE,
+    DEVICE_CONFIG_PARAM,
+    RESCAN_SET_OF_DEVICES,
+    SET_OF_DEVICES,
+)
+
 
 class WalTDevice(WalTCategoryApplication):
     """management of WalT platform devices"""
@@ -12,6 +17,7 @@ class WalTDevice(WalTCategoryApplication):
     @staticmethod
     def confirm_devices_not_owned(server, device_set):
         from walt.client.node import WalTNode
+
         # if some of the devices are nodes owned by someone else,
         # ask confirmation before proceeding
         return WalTNode.check_nodes_ownership(

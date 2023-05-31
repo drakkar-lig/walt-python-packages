@@ -1,8 +1,16 @@
 #!/usr/bin/env python
 import re
+
+from walt.server.processes.blocking.snmp.base import (
+    Variant,
+    VariantProxy,
+    VariantsSet,
+    decode_ipv4_address,
+    decode_mac_address,
+    enum_label,
+)
 from walt.server.processes.blocking.snmp.mibs import load_mib, unload_mib
-from walt.server.processes.blocking.snmp.base import decode_ipv4_address, \
-                    decode_mac_address, enum_label, Variant, VariantsSet, VariantProxy
+
 
 class StandardLLDP(Variant):
     @staticmethod

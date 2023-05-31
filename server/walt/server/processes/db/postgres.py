@@ -1,10 +1,14 @@
-from walt.server.const import WALT_DBNAME, WALT_DBUSER
-from walt.server.tools import build_named_tuple_cls, SerializableNT
-from walt.common.formatting import columnate
-import psycopg2, shlex, uuid
-from psycopg2.extras import NamedTupleCursor
-from subprocess import Popen, PIPE
+import shlex
+import uuid
+from subprocess import PIPE, Popen
 from sys import stderr
+
+import psycopg2
+from psycopg2.extras import NamedTupleCursor
+from walt.common.formatting import columnate
+from walt.server.const import WALT_DBNAME, WALT_DBUSER
+from walt.server.tools import SerializableNT, build_named_tuple_cls
+
 
 # we wrap database record objects otherwise they cannot be pickled
 class DBRecord(SerializableNT):

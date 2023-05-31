@@ -1,5 +1,7 @@
 import sys
-from walt.client.g5k.deploy.status import get_last_deployment_status, get_expiry_message
+
+from walt.client.g5k.deploy.status import get_expiry_message, get_last_deployment_status
+
 
 def config_missing_server_hook():
     print("No WalT platform is deployed. Use 'walt g5k deploy' first.")

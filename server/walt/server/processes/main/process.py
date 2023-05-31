@@ -1,7 +1,9 @@
 import os
+
 from walt.server.process import EvProcess
-from walt.server.processes.main.server import Server
 from walt.server.processes.main.hub import HubRPCProcessConnector
+from walt.server.processes.main.server import Server
+
 
 class ServerMainProcess(EvProcess):
     def __init__(self, tman, level):

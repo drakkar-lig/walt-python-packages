@@ -1,6 +1,7 @@
 from walt.server.process import EvProcess, RPCProcessConnector
 from walt.server.processes.db.db import ServerDB
 
+
 class ServerDBProcess(EvProcess):
     def __init__(self, tman, level):
         EvProcess.__init__(self, tman, 'server-db', level)

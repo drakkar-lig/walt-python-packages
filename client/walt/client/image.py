@@ -1,17 +1,21 @@
 #!/usr/bin/env python
 import re
+
 from plumbum import cli
-from walt.common.formatting import columnate
+from walt.client.application import WalTApplication, WalTCategoryApplication
+from walt.client.config import conf
+from walt.client.interactive import run_image_shell_prompt
 from walt.client.link import ClientToServerLink
 from walt.client.tools import confirm
-from walt.client.interactive import run_image_shell_prompt
-from walt.client.transfer import run_transfer_with_image, \
-                                 run_transfer_for_image_build
-from walt.client.config import conf
-from walt.client.application import WalTCategoryApplication, WalTApplication
-from walt.client.types import IMAGE, IMAGE_CLONE_URL, \
-                              IMAGE_CP_SRC, IMAGE_CP_DST, \
-                              IMAGE_BUILD_NAME
+from walt.client.transfer import run_transfer_for_image_build, run_transfer_with_image
+from walt.client.types import (
+    IMAGE,
+    IMAGE_BUILD_NAME,
+    IMAGE_CLONE_URL,
+    IMAGE_CP_DST,
+    IMAGE_CP_SRC,
+)
+from walt.common.formatting import columnate
 
 MSG_WS_IS_EMPTY="""\
 Your working set is empty.

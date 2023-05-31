@@ -1,15 +1,18 @@
 #!/usr/bin/env python
-import sys, os
+import os
+import sys
+
+from walt.client.auth import get_encrypted_credentials
 from walt.client.config import conf, init_config
 from walt.client.filesystem import Filesystem
-from walt.common.api import api, api_expose_method, api_expose_attrs
-from walt.common.apilink import ServerAPILink, BaseAPIService
-from walt.common.tcp import client_sock_file
-from walt.common.constants import WALT_SERVER_TCP_PORT
-from walt.common.term import TTYSettings
-from walt.client.update import check_update
 from walt.client.plugins import get_hook
-from walt.client.auth import get_encrypted_credentials
+from walt.client.update import check_update
+from walt.common.api import api, api_expose_attrs, api_expose_method
+from walt.common.apilink import BaseAPIService, ServerAPILink
+from walt.common.constants import WALT_SERVER_TCP_PORT
+from walt.common.tcp import client_sock_file
+from walt.common.term import TTYSettings
+
 
 @api
 class ExposedStream(object):

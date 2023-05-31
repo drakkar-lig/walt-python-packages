@@ -1,7 +1,10 @@
 #!/usr/bin/env python
-import sys, os, time
-from termios import tcflush, TCIOFLUSH
+import os
+import sys
+import time
 from bisect import bisect_right, insort_right
+from termios import TCIOFLUSH, tcflush
+
 from walt.common.evloop import EventLoop
 from walt.common.tools import failsafe_makedirs
 from walt.node.const import SERVER_LOGS_FIFO

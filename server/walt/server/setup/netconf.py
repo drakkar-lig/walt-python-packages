@@ -1,13 +1,17 @@
-import netifaces, sys, random, time
-from pathlib import Path
-from plumbum.cli.terminal import prompt
-from ipaddress import IPv4Network
-from copy import deepcopy
+import random
+import sys
+import time
 from collections import defaultdict
+from copy import deepcopy
+from ipaddress import IPv4Network
+from pathlib import Path
 from textwrap import wrap
-from walt.common.term import alternate_screen_buffer, clear_screen, choose
-from walt.common.formatting import columnate, framed, highlight, format_sentence
+
+import netifaces
+from plumbum.cli.terminal import prompt
 from walt.client.doc.md import display_doc
+from walt.common.formatting import columnate, format_sentence, framed, highlight
+from walt.common.term import alternate_screen_buffer, choose, clear_screen
 
 EDITOR_TOP_MESSAGE = """\
 Please review and validate or edit the proposed network configuration.

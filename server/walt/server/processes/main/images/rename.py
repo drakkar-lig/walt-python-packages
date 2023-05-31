@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import typing
 
-from walt.server.processes.main.images.image import validate_image_name
 from walt.common.tools import format_image_fullname
+from walt.server.processes.main.images.image import validate_image_name
 
 if typing.TYPE_CHECKING:
     from walt.server.processes.main.registry import WalTLocalRegistry

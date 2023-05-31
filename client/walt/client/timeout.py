@@ -1,5 +1,6 @@
-from time import time
 from contextlib import contextmanager
+from time import time
+
 from walt.client.exceptions import TimeoutException
 
 MARGIN = 0.001  # margin when testing if timeout is reached

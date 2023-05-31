@@ -1,6 +1,8 @@
-import socket, errno
-from time import time
+import errno
+import socket
 from collections import defaultdict
+from time import time
+
 from walt.common.evloop import POLL_OPS_READ, POLL_OPS_WRITE
 from walt.server.const import WALT_NODE_NET_SERVICE_PORT
 

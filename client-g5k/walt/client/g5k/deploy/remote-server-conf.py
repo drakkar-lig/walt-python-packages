@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
+import json
+import subprocess
+import sys
+import time
+from ipaddress import ip_address, ip_network
 from pathlib import Path
-from ipaddress import ip_network, ip_address
-import sys, json, subprocess, time
+
 from walt.common.apilink import ServerAPILink
 
 sys.stdout = open('/tmp/server-conf.stdout', 'w')

@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 from select import select
-from walt.common.io import read_and_copy
-from walt.common.tcp import Requests, write_pickle, \
-                            server_socket, RWSocketFile
+
 from walt.client.link import connect_to_tcp_server
+from walt.common.io import read_and_copy
+from walt.common.tcp import Requests, RWSocketFile, server_socket, write_pickle
+
 
 class TCPExposer:
     def __init__(self, local_port, node_ip, node_port):

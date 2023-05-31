@@ -1,7 +1,10 @@
 #!/usr/bin/env python
-import os, stat, select
-from walt.common.tools import failsafe_makedirs, fd_copy
+import os
+import select
+import stat
 from threading import Thread
+
+from walt.common.tools import failsafe_makedirs, fd_copy
 
 RW_ALL = stat.S_IRUSR | stat.S_IWUSR | \
          stat.S_IRGRP | stat.S_IWGRP | \

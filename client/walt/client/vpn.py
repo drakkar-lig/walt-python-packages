@@ -1,8 +1,11 @@
-import os, sys
+import os
+import sys
+
+from walt.client.application import WalTApplication, WalTCategoryApplication
 from walt.client.link import ClientToServerLink, connect_to_tcp_server
-from walt.client.application import WalTCategoryApplication, WalTApplication
 from walt.client.tools import yes_or_no
-from walt.common.tcp import write_pickle, Requests
+from walt.common.tcp import Requests, write_pickle
+
 
 class WalTVPN(WalTCategoryApplication):
     """VPN related sub-commands"""

@@ -1,7 +1,9 @@
 #!/usr/bin/env python
-import os, shlex
+import os
+import shlex
 from pathlib import Path
-from walt.server.tools import get_server_ip, ensure_text_file_content
+
+from walt.server.tools import ensure_text_file_content, get_server_ip
 
 # These env variables should be set by systemd service unit file
 STATE_DIRECTORY = Path(os.getenv("STATE_DIRECTORY", "/var/lib/walt/services/tftpd"))

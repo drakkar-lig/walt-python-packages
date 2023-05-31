@@ -1,5 +1,6 @@
 from walt.common.setup import WaltGenericSetup
 
+
 class WaltNodeSetup(WaltGenericSetup):
     package = __name__
 

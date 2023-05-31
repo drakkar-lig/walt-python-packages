@@ -1,4 +1,8 @@
-import importlib, pkgutil, walt.client.metadata
+import importlib
+import pkgutil
+
+import walt.client.metadata
+
 
 def load_module(name):
     try:

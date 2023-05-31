@@ -1,6 +1,9 @@
-import sys, socket
-from walt.common.apilink import LinkException
+import socket
+import sys
+
 from walt.client.plugins import get_hook
+from walt.common.apilink import LinkException
+
 
 def wrap_client_command(f):
     def wrapped(*args, **kwargs):

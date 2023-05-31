@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 
 from collections import OrderedDict
+
 from walt.server.tools import try_encode
+
 
 # special characters used to display the tree (if possible)
 class UNICODE_CHARSET:

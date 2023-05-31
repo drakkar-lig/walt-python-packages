@@ -1,5 +1,6 @@
 
-import os, sys
+import os
+import sys
 from pathlib import Path
 
 TEST_IMAGE_URL='hub:eduble/pc-x86-64-test-suite'

@@ -5,9 +5,9 @@ import sys
 
 from walt.common.formatting import indicate_progress
 from walt.server import conf
-from walt.server.exttools import podman, skopeo, docker
-from walt.server.tools import async_json_http_get, get_registry_info
+from walt.server.exttools import docker, podman, skopeo
 from walt.server.processes.blocking.images.tools import update_main_process_about_image
+from walt.server.tools import async_json_http_get, get_registry_info
 
 SKOPEO_RETRIES = 10
 REGISTRY = 'docker.io'

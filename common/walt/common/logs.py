@@ -1,5 +1,8 @@
+import re
+import sys
+
 from plumbum import cli
-import sys, re
+
 
 class TeeStream:
     def __init__(self, std_stream, log_file, log_prefix):

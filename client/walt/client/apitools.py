@@ -1,6 +1,7 @@
 
 from contextlib import contextmanager
 
+
 @contextmanager
 def silent_server_link():
     from walt.client.link import ClientToServerLink

@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import typing
 
-from walt.server.processes.blocking.registries import \
-     DockerHubClient, get_custom_registry_client
-from walt.server.processes.blocking.images.metadata import \
-     update_user_metadata_for_image
+from walt.server.processes.blocking.images.metadata import (
+    update_user_metadata_for_image,
+)
+from walt.server.processes.blocking.registries import (
+    DockerHubClient,
+    get_custom_registry_client,
+)
 
 if typing.TYPE_CHECKING:
     from walt.server.processes.main.server import Server

@@ -1,13 +1,17 @@
 import sys
 from datetime import datetime
+
 from plumbum.cli.terminal import prompt
-from walt.common.formatting import highlight
-from walt.common.term import alternate_screen_buffer, clear_screen, choose
-from walt.client.g5k.recipes.tools import get_total_node_count
 from walt.client.g5k.recipes.const import SCHEDULE_DESC
 from walt.client.g5k.recipes.printer import print_recipe
-from walt.client.g5k.reservation import analyse_reservation, \
-            get_g5k_sites, get_g5k_sites_for_walt_server
+from walt.client.g5k.recipes.tools import get_total_node_count
+from walt.client.g5k.reservation import (
+    analyse_reservation,
+    get_g5k_sites,
+    get_g5k_sites_for_walt_server,
+)
+from walt.common.formatting import highlight
+from walt.common.term import alternate_screen_buffer, choose, clear_screen
 
 sites = sorted([ "grenoble", "lille", "nancy", "luxembourg" ])
 

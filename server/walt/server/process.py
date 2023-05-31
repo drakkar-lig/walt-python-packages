@@ -1,11 +1,16 @@
-import sys, signal, itertools, traceback, setproctitle
+import itertools
+import signal
+import sys
+import traceback
 from collections import defaultdict
 from multiprocessing import Pipe, Process, current_process
 from select import select
-from walt.common.evloop import EventLoop, BreakLoopRequested
-from walt.common.tools import AutoCleaner, SimpleContainer
-from walt.common.tools import on_sigterm_throw_exception
+
+import setproctitle
 from walt.common.apilink import AttrCallAggregator, AttrCallRunner
+from walt.common.evloop import BreakLoopRequested, EventLoop
+from walt.common.tools import AutoCleaner, SimpleContainer, on_sigterm_throw_exception
+
 
 class EvProcess(Process):
     def __init__(self, manager, name, level):

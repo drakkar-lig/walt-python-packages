@@ -1,14 +1,18 @@
-import os, os.path, sys, daemon
+import os
+import os.path
+import sys
+from pathlib import Path
+from subprocess import PIPE, Popen, TimeoutExpired, check_call, check_output
+from time import sleep
+
+import daemon
 from daemon.pidfile import PIDLockFile
-from subprocess import check_call, check_output, Popen, PIPE, TimeoutExpired
-from walt.vpn.tools import createtap, enable_debug
-from walt.vpn.ssh import ssh_with_identity
-from walt.vpn.ext._loops.lib import client_transmission_loop
+from plumbum import cli
 from walt.common.constants import UNSECURE_ECDSA_KEYPAIR
 from walt.common.logs import LoggedApplication
-from plumbum import cli
-from pathlib import Path
-from time import sleep
+from walt.vpn.ext._loops.lib import client_transmission_loop
+from walt.vpn.ssh import ssh_with_identity
+from walt.vpn.tools import createtap, enable_debug
 
 DEBUG = False
 

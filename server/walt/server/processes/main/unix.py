@@ -1,5 +1,7 @@
 #!/usr/bin/env python
-import pickle, os.path
+import os.path
+import pickle
+
 from walt.common.unix import Requests, UnixServer, send_msg_fds
 from walt.server.const import UNIX_SERVER_SOCK_PATH
 

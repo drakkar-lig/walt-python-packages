@@ -1,20 +1,25 @@
-import time, sys
-from plumbum import cli
+import sys
+import time
 
-from walt.common.tools import SilentBusyIndicator
-from walt.client.link import ClientToServerLink
-from walt.client.tools import confirm
+from plumbum import cli
+from walt.client.application import WalTApplication, WalTCategoryApplication
 from walt.client.config import conf
-from walt.client.interactive import run_node_cmd, \
-                                    run_device_ping, \
-                                    NODE_SHELL_MESSAGE
 from walt.client.console import run_node_console
-from walt.client.transfer import run_transfer_with_node
 from walt.client.expose import TCPExposer
-from walt.client.application import WalTCategoryApplication, WalTApplication
-from walt.client.timeout import timeout_context, TimeoutException, cli_timeout_switch
-from walt.client.types import NODE, SET_OF_NODES, IMAGE_OR_DEFAULT, \
-                              NODE_CP_SRC, NODE_CP_DST, NODE_CONFIG_PARAM
+from walt.client.interactive import NODE_SHELL_MESSAGE, run_device_ping, run_node_cmd
+from walt.client.link import ClientToServerLink
+from walt.client.timeout import TimeoutException, cli_timeout_switch, timeout_context
+from walt.client.tools import confirm
+from walt.client.transfer import run_transfer_with_node
+from walt.client.types import (
+    IMAGE_OR_DEFAULT,
+    NODE,
+    NODE_CONFIG_PARAM,
+    NODE_CP_DST,
+    NODE_CP_SRC,
+    SET_OF_NODES,
+)
+from walt.common.tools import SilentBusyIndicator
 
 WAIT_NODES_BUSY_LABEL='\
 Node bootup notification still pending (press ctrl-C to proceed anyway)'

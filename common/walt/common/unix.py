@@ -1,7 +1,12 @@
-import socket, pickle, array, secrets
-from walt.common.tools import set_close_on_exec
-from walt.common.service import ServiceRequests, GenericServer
+import array
+import pickle
+import secrets
+import socket
 from pathlib import Path
+
+from walt.common.service import GenericServer, ServiceRequests
+from walt.common.tools import set_close_on_exec
+
 
 def send_msg_fds(sock, msg, fds, peer_addr):
     if len(fds) > 0:

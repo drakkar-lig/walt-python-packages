@@ -1,6 +1,9 @@
-import re, sys
-from pkg_resources import resource_string, resource_listdir
+import re
+import sys
+
+from pkg_resources import resource_listdir, resource_string
 from walt.client.doc.pager import Pager
+
 
 def get_md_content(topic, err_out=False):
     try:

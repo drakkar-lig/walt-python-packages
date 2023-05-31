@@ -102,6 +102,7 @@ def get_method_doc(obj, method):
 
 def get_methods_desc(obj, excluded_attrs):
     import inspect
+
     # we cannot directly use inspect.getmembers(obj, inspect.ismethod)
     # because it would cause evaluation of properties, and evaluation of properties
     # may throw exceptions.

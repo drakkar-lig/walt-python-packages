@@ -1,6 +1,8 @@
 import os
 from os.path import expanduser
+
 from walt.common.version import __version__
+
 
 def early_startup():
     if 'PY_SLOW_DISK_PREFIX' not in os.environ:

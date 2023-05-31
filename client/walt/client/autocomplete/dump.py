@@ -1,6 +1,7 @@
-from plumbum.lib import getdoc
 from inspect import getfullargspec
-from walt.client.doc.md import get_topics, get_described_topics
+
+from plumbum.lib import getdoc
+from walt.client.doc.md import get_described_topics, get_topics
 
 HEADER='''\
 _WALT_COMP_CACHE_VALIDITY_SECS=3

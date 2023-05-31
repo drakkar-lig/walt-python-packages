@@ -1,22 +1,25 @@
 from __future__ import annotations
+
 from functools import lru_cache
 
-from walt.common.crypto.dh import DHPeer
 from walt.common.crypto.blowfish import BlowFish
+from walt.common.crypto.dh import DHPeer
+from walt.server.exttools import docker
 from walt.server.process import EvProcess, RPCProcessConnector, SyncRPCProcessConnector
+from walt.server.processes.blocking.cmd import run_shell_cmd
+from walt.server.processes.blocking.devices.topology import TopologyManager
 from walt.server.processes.blocking.images.clone import clone
-from walt.server.processes.blocking.images.publish import publish
-from walt.server.processes.blocking.images.squash import squash
 from walt.server.processes.blocking.images.commit import commit
 from walt.server.processes.blocking.images.metadata import update_hub_metadata
-from walt.server.processes.blocking.images.search import search
+from walt.server.processes.blocking.images.publish import publish
 from walt.server.processes.blocking.images.pull import pull_image
-from walt.server.processes.blocking.devices.topology import TopologyManager
-from walt.server.processes.blocking.cmd import run_shell_cmd
+from walt.server.processes.blocking.images.search import search
+from walt.server.processes.blocking.images.squash import squash
 from walt.server.processes.blocking.logs import stream_db_logs
-from walt.server.processes.blocking.registries import DockerDaemonClient, \
-                                                      get_registry_client
-from walt.server.exttools import docker
+from walt.server.processes.blocking.registries import (
+    DockerDaemonClient,
+    get_registry_client,
+)
 
 
 class CachingRequester:

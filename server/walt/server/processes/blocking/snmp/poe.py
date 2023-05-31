@@ -1,6 +1,10 @@
 #!/usr/bin/env python
-from walt.server.processes.blocking.snmp.base import Variant, VariantsSet, VariantProxy
-from walt.server.processes.blocking.snmp.mibs import load_mib, unload_mib, get_loaded_mibs
+from walt.server.processes.blocking.snmp.base import Variant, VariantProxy, VariantsSet
+from walt.server.processes.blocking.snmp.mibs import (
+    get_loaded_mibs,
+    load_mib,
+    unload_mib,
+)
 
 POE_PORT_ENABLED=1
 POE_PORT_DISABLED=2

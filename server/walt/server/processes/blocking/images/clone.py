@@ -6,11 +6,13 @@ import typing
 import uuid
 
 from walt.common.formatting import format_sentence
-from walt.server.processes.blocking.images.metadata import \
-    pull_user_metadata
-from walt.server.processes.blocking.registries import \
-     DockerDaemonClient, DockerHubClient, get_custom_registry_client
 from walt.server.exttools import docker
+from walt.server.processes.blocking.images.metadata import pull_user_metadata
+from walt.server.processes.blocking.registries import (
+    DockerDaemonClient,
+    DockerHubClient,
+    get_custom_registry_client,
+)
 from walt.server.tools import get_clone_url_locations
 
 if typing.TYPE_CHECKING:

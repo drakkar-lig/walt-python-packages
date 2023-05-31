@@ -1,4 +1,6 @@
-import json, sys, time
+import json
+import sys
+import time
 from pathlib import Path
 
 DEPLOYMENT_STATUS_DIRECTORY = Path.home() / '.walt-g5k' / 'deployments'

@@ -1,9 +1,15 @@
 # this is the code called by
 # $ walt g5k wait
-import time, sys
+import sys
+import time
+
+from walt.client.g5k.deploy.status import (
+    get_expiry_message,
+    get_last_deployment_status,
+    is_walltime_expired,
+)
 from walt.common.tools import BusyIndicator
-from walt.client.g5k.deploy.status import get_last_deployment_status, \
-            is_walltime_expired, get_expiry_message
+
 
 def wait():
     busy_indicator = BusyIndicator('Analysing data')

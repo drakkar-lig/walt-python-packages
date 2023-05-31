@@ -1,7 +1,10 @@
-import socket, os
+import os
+import socket
+
+from walt.common.unix import bind_to_random_sockname, recv_msg_fds
 from walt.vpn.const import VPN_SOCK_PATH
 from walt.vpn.ext._loops.lib import endpoint_transmission_loop
-from walt.common.unix import recv_msg_fds, bind_to_random_sockname
+
 
 def run():
     # connect to VPN server socket

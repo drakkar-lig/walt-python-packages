@@ -1,6 +1,8 @@
 #!/usr/bin/env python
-import os, shlex
+import os
+import shlex
 from pathlib import Path
+
 from walt.server import conf
 from walt.server.tools import get_server_ip
 

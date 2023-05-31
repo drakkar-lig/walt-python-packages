@@ -1,17 +1,30 @@
 from collections import defaultdict
-from walt.client.timeout import timeout_context
-from walt.client.apiobject.base import APIObjectBase, APISetOfItemsClassFactory, \
-                                       APIItemClassFactory, APIItemInfoCache, \
-                                       APICommentedString
-from walt.client.apiobject.images import APIImageBase, get_image_from_name, \
-                                         update_image_cache, \
-                                         get_image_object_from_fullname
+
+from walt.client.apiobject.base import (
+    APICommentedString,
+    APIItemClassFactory,
+    APIItemInfoCache,
+    APIObjectBase,
+    APISetOfItemsClassFactory,
+)
 from walt.client.apiobject.config import APINodeConfig
-from walt.client.apitools import silent_server_link, get_devices_names
+from walt.client.apiobject.images import (
+    APIImageBase,
+    get_image_from_name,
+    get_image_object_from_fullname,
+    update_image_cache,
+)
+from walt.client.apitools import get_devices_names, silent_server_link
 from walt.client.config import conf
-from walt.client.exceptions import NodeHasLogsException, NodeNotOwnedException, \
-                                   NodeAlreadyOwnedException, OpAppliesNodeOwnedException, \
-                                   ParameterNotAnImageException
+from walt.client.exceptions import (
+    NodeAlreadyOwnedException,
+    NodeHasLogsException,
+    NodeNotOwnedException,
+    OpAppliesNodeOwnedException,
+    ParameterNotAnImageException,
+)
+from walt.client.timeout import timeout_context
+
 
 class APINodeInfoCache(APIItemInfoCache):
     def __init__(self):

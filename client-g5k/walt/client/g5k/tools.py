@@ -1,6 +1,10 @@
-import socket, subprocess, sys, json, time
-from datetime import datetime
+import json
+import socket
+import subprocess
+import sys
+import time
 from contextlib import contextmanager
+from datetime import datetime
 
 KAVLAN_FAILURE_DELAY = 3
 

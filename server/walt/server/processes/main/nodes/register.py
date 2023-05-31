@@ -1,5 +1,7 @@
-from walt.server.processes.main.workflow import Workflow
 import sys
+
+from walt.server.processes.main.workflow import Workflow
+
 
 def decapitalize(msg):
     return msg[0].lower() + msg[1:]

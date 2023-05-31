@@ -1,7 +1,9 @@
 #!/usr/bin/env python
-import re, pickle
-from snimpy import snmp
+import pickle
+import re
 from pathlib import Path
+
+from snimpy import snmp
 
 VARIANTS_CACHE_FILE = Path('/var/cache/walt/snmp.variants')
 

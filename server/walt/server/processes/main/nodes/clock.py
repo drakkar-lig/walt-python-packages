@@ -1,5 +1,6 @@
 from time import time
 
+
 class NodesClockSyncInfo:
     """ Walt nodes bootup synchronization handler.
 

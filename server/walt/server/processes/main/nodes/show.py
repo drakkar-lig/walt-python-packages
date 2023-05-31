@@ -1,5 +1,5 @@
+from walt.common.formatting import columnate, format_paragraph
 from walt.common.netsetup import NetSetup
-from walt.common.formatting import format_paragraph, columnate
 
 NODE_SHOW_QUERY = """
     WITH powersave_macs AS (

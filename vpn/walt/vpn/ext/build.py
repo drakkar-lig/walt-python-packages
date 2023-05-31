@@ -1,4 +1,5 @@
 from cffi import FFI
+
 ffibuilder = FFI()
 
 PROTOTYPES = """

@@ -1,5 +1,6 @@
-from walt.common.config import load_conf
 from pathlib import Path
+
+from walt.common.config import load_conf
 
 SERVER_SPEC_PATH = Path('/etc/walt/server.spec')
 SERVER_SPEC = None

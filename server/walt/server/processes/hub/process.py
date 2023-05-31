@@ -1,8 +1,7 @@
-from walt.server.process import EvProcess
-from walt.common.tcp import TCPServer
-from walt.server.process import RPCProcessConnector
-from walt.server.processes.hub.client import APISessionManager
 from walt.common.constants import WALT_SERVER_DAEMON_PORT
+from walt.common.tcp import TCPServer
+from walt.server.process import EvProcess, RPCProcessConnector
+from walt.server.processes.hub.client import APISessionManager
 
 TCP_LISTENER_CLASSES = ( APISessionManager, )
 

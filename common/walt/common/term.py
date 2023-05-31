@@ -1,6 +1,12 @@
 #!/usr/bin/env python
-import sys, tty, termios, array, fcntl, curses
+import array
+import curses
+import fcntl
+import sys
+import termios
+import tty
 from contextlib import contextmanager
+
 
 class TTYSettings(object):
     def __init__(self):

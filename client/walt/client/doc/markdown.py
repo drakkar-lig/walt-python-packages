@@ -1,12 +1,23 @@
 #!/usr/bin/env python
-import textwrap
-from pygments import highlight
-from pygments.lexers import get_lexer_by_name
-from pygments.formatters import Terminal256Formatter
 import termios
-from walt.client.doc.color import FormatState, FG_COLOR_BLACK, BG_COLOR_WHITE, \
-    FG_COLOR_DARK_YELLOW, BG_COLOR_LIGHT_GREY, FG_COLOR_BLUE, FG_COLOR_DARK_RED, \
-    BG_COLOR_DEFAULT, FG_COLOR_DEFAULT, get_transition_esc_sequence, RE_ESC_COLOR
+import textwrap
+
+from pygments import highlight
+from pygments.formatters import Terminal256Formatter
+from pygments.lexers import get_lexer_by_name
+from walt.client.doc.color import (
+    BG_COLOR_DEFAULT,
+    BG_COLOR_LIGHT_GREY,
+    BG_COLOR_WHITE,
+    FG_COLOR_BLACK,
+    FG_COLOR_BLUE,
+    FG_COLOR_DARK_RED,
+    FG_COLOR_DARK_YELLOW,
+    FG_COLOR_DEFAULT,
+    RE_ESC_COLOR,
+    FormatState,
+    get_transition_esc_sequence,
+)
 from walt.client.doc.mdtable import detect_table, render_table
 from walt.common.term import TTYSettings
 

@@ -1,9 +1,11 @@
-from walt.common.version import __version__
-from walt.common.tcp import Requests
-from walt.common.apilink import APIChannel, AttrCallAggregator
-from walt.server.process import RPCService
 from socket import IPPROTO_TCP, TCP_NODELAY
 from socket import error as SocketError
+
+from walt.common.apilink import APIChannel, AttrCallAggregator
+from walt.common.tcp import Requests
+from walt.common.version import __version__
+from walt.server.process import RPCService
+
 
 class APISessionManager(object):
     REQ_ID = Requests.REQ_API_SESSION

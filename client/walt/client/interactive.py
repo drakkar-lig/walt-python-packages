@@ -1,12 +1,19 @@
 #!/usr/bin/env python
-import os, sys, io, signal, shutil, pickle, socket
-from sys import stdin, stdout
+import io
+import os
+import pickle
+import shutil
+import signal
+import socket
+import sys
 from select import select
 from socket import SHUT_WR
-from walt.common.term import TTYSettings
+from sys import stdin, stdout
+
 from walt.client.link import connect_to_tcp_server
-from walt.common.io import unbuffered, read_and_copy
-from walt.common.tcp import Requests, write_pickle, PICKLE_VERSION
+from walt.common.io import read_and_copy, unbuffered
+from walt.common.tcp import PICKLE_VERSION, Requests, write_pickle
+from walt.common.term import TTYSettings
 
 SQL_SHELL_MESSAGE = """\
 Type \\dt for a list of tables.

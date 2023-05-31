@@ -1,13 +1,16 @@
 #!/usr/bin/env python
-import os, signal
+import os
+import signal
+
 from walt.common.tools import interrupt_print
-from walt.server.tools import set_rlimits, fix_pdb
 from walt.server.process import EvProcessesManager
-from walt.server.processes.main.process import ServerMainProcess
 from walt.server.processes.blocking.process import ServerBlockingProcess
-from walt.server.processes.hub.process import ServerHubProcess
 from walt.server.processes.db.process import ServerDBProcess
+from walt.server.processes.hub.process import ServerHubProcess
+from walt.server.processes.main.process import ServerMainProcess
 from walt.server.spec import reload_server_spec
+from walt.server.tools import fix_pdb, set_rlimits
+
 
 def on_sighup_reload_conf():
     def signal_handler(signal, frame):

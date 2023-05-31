@@ -1,9 +1,11 @@
-import tempfile, sys
+import sys
+import tempfile
 from pathlib import Path
 from time import time
+
 from pkg_resources import resource_string
-from walt.common.tools import do
 from walt.common.constants import UNSECURE_ECDSA_KEYPAIR
+from walt.common.tools import do
 
 # Walt VPN clients should first connect with our unsecure key pair (written below).
 # They will be forcibly directed to "walt-vpn-auth-tool" command.

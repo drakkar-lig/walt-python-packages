@@ -1,5 +1,7 @@
-import sys, time
-from walt.client.g5k.deploy.status import get_last_deployment_status, get_expiry_message
+import sys
+import time
+
+from walt.client.g5k.deploy.status import get_expiry_message, get_last_deployment_status
 from walt.client.g5k.tools import printed_date_from_ts
 
 GENERAL_INFO_PATHS = {
