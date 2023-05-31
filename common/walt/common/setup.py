@@ -30,7 +30,7 @@ class WaltGenericSetup(cli.Application):
             )
             sys.exit(
                 f"Setting up a {self.display_name} {fmt_init} "
-                f"is not implemented. Exiting."
+                "is not implemented. Exiting."
             )
 
     def setup_systemd_services(self, systemd_services):
@@ -66,16 +66,18 @@ class WaltGenericSetup(cli.Application):
 
     def start_systemd_services(self, systemd_services):
         self._assert_init_is({"SYSTEMD", None})
-        assert (
-            self._install_prefix is None
-        ), "Function start_systemd_services() only works when install_prefix is not specified."
+        assert self._install_prefix is None, (
+            "Function start_systemd_services() only works when install_prefix is not"
+            " specified."
+        )
         systemd.start_units(systemd_services)
 
     def stop_systemd_services(self, systemd_services):
         self._assert_init_is({"SYSTEMD", None})
-        assert (
-            self._install_prefix is None
-        ), "Function stop_systemd_services() only works when install_prefix is not specified."
+        assert self._install_prefix is None, (
+            "Function stop_systemd_services() only works when install_prefix is not"
+            " specified."
+        )
         systemd.stop_units(systemd_services)
 
     @cli.switch(

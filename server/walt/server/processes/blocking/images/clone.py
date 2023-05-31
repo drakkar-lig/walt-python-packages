@@ -65,7 +65,8 @@ def fix_image_name(requester, image_name):
     new_name = re.sub("[^a-z0-9:]+", "-", image_name.lower())
     if new_name != image_name:
         requester.stdout.write(
-            f'Image will be recorded as "{new_name}" since original name is not valid in WALT.\n'
+            f'Image will be recorded as "{new_name}" since original name is not valid'
+            " in WALT.\n"
         )
     return new_name
 

@@ -13,8 +13,7 @@ class WalTVPN(WalTCategoryApplication):
     ORDERING = 5
 
 
-WAIT_VPN_BUSY_LABEL = "\
-Waiting for next VPN connection attempt (press ctrl-C to stop)"
+WAIT_VPN_BUSY_LABEL = "Waiting for next VPN connection attempt (press ctrl-C to stop)"
 
 
 @WalTVPN.subcommand("monitor")
@@ -88,7 +87,8 @@ def read_vpn_node_image(entrypoint):
     sock.close()
     print("A file 'rpi3bp-vpn.dd' has been generated in current directory.")
     print(
-        "Flash it (using dd tool or similar) on the SD card of the rpi3b+ board you want to use as a VPN node."
+        "Flash it (using dd tool or similar) on the SD card of the rpi3b+ board you"
+        " want to use as a VPN node."
     )
 
 
@@ -104,7 +104,10 @@ class WalTVPNSetupNode(WalTApplication):
         entrypoint = ""
         while entrypoint == "":
             print(
-                "Please indicate the WalT VPN entrypoint (hostname or IP address) this node will connect to:",
+                (
+                    "Please indicate the WalT VPN entrypoint (hostname or IP address)"
+                    " this node will connect to:"
+                ),
                 end=" ",
             )
             entrypoint = input()

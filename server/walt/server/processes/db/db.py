@@ -23,120 +23,86 @@ class ServerDB(PostgresDB):
         PostgresDB.prepare(self)  # parent method
         # create the db schema
         # tables
-        self.execute(
-            """CREATE TABLE IF NOT EXISTS devices (
+        self.execute("""CREATE TABLE IF NOT EXISTS devices (
                     mac TEXT PRIMARY KEY,
                     ip TEXT,
                     name TEXT,
                     type TEXT,
                     virtual BOOLEAN DEFAULT FALSE,
-                    conf JSONB DEFAULT '{}');"""
-        )
-        self.execute(
-            """CREATE TABLE IF NOT EXISTS topology (
+                    conf JSONB DEFAULT '{}');""")
+        self.execute("""CREATE TABLE IF NOT EXISTS topology (
                     mac1 TEXT REFERENCES devices(mac),
                     port1 INTEGER,
                     mac2 TEXT REFERENCES devices(mac),
                     port2 INTEGER,
-                    confirmed BOOLEAN);"""
-        )
-        self.execute(
-            """CREATE TABLE IF NOT EXISTS images (
-                    fullname TEXT PRIMARY KEY);"""
-        )
-        self.execute(
-            """CREATE TABLE IF NOT EXISTS nodes (
+                    confirmed BOOLEAN);""")
+        self.execute("""CREATE TABLE IF NOT EXISTS images (
+                    fullname TEXT PRIMARY KEY);""")
+        self.execute("""CREATE TABLE IF NOT EXISTS nodes (
                     mac TEXT REFERENCES devices(mac),
                     image TEXT REFERENCES images(fullname),
                     model TEXT,
-                    booted BOOLEAN DEFAULT FALSE);"""
-        )
-        self.execute(
-            """CREATE TABLE IF NOT EXISTS switches (
+                    booted BOOLEAN DEFAULT FALSE);""")
+        self.execute("""CREATE TABLE IF NOT EXISTS switches (
                     mac TEXT REFERENCES devices(mac),
-                    model TEXT);"""
-        )
-        self.execute(
-            """CREATE TABLE IF NOT EXISTS logstreams (
+                    model TEXT);""")
+        self.execute("""CREATE TABLE IF NOT EXISTS logstreams (
                     id SERIAL PRIMARY KEY,
                     issuer_mac TEXT REFERENCES devices(mac),
-                    name TEXT);"""
-        )
-        self.execute(
-            """CREATE TABLE IF NOT EXISTS logs (
+                    name TEXT);""")
+        self.execute("""CREATE TABLE IF NOT EXISTS logs (
                     stream_id INTEGER REFERENCES logstreams(id),
                     timestamp TIMESTAMP,
-                    line TEXT);"""
-        )
-        self.execute(
-            """CREATE TABLE IF NOT EXISTS checkpoints (
+                    line TEXT);""")
+        self.execute("""CREATE TABLE IF NOT EXISTS checkpoints (
                     username TEXT,
                     timestamp TIMESTAMP,
-                    name TEXT);"""
-        )
-        self.execute(
-            """CREATE TABLE IF NOT EXISTS poeoff (
+                    name TEXT);""")
+        self.execute("""CREATE TABLE IF NOT EXISTS poeoff (
                     mac TEXT REFERENCES devices(mac),
                     port INTEGER,
-                    reason TEXT);"""
-        )
+                    reason TEXT);""")
         # migration v4 -> v5
         if not self.column_exists("devices", "conf"):
-            self.execute(
-                """ALTER TABLE devices
-                            ADD COLUMN conf JSONB DEFAULT '{}';"""
-            )
-            self.execute(
-                """UPDATE devices d
+            self.execute("""ALTER TABLE devices
+                            ADD COLUMN conf JSONB DEFAULT '{}';""")
+            self.execute("""UPDATE devices d
                             SET conf = conf || (
                                     '{"lldp.explore":' || s.lldp_explore || ',' ||
                                     ' "poe.reboots":' || s.poe_reboot_nodes || '}'
                                 )::jsonb
                             FROM switches s
-                            WHERE s.mac = d.mac;"""
-            )
-            self.execute(
-                """UPDATE devices d
+                            WHERE s.mac = d.mac;""")
+            self.execute("""UPDATE devices d
                             SET conf = conf || (
                                     '{"snmp.version": ' || (s.snmp_conf::jsonb->'version')::text || ',' ||
                                     ' "snmp.community": ' || (s.snmp_conf::jsonb->'community')::text || '}'
                                 )::jsonb
                             FROM switches s
-                            WHERE s.mac = d.mac AND s.snmp_conf IS NOT NULL;"""
-            )
-            self.execute(
-                """ALTER TABLE switches
+                            WHERE s.mac = d.mac AND s.snmp_conf IS NOT NULL;""")
+            self.execute("""ALTER TABLE switches
                             DROP COLUMN snmp_conf,
                             DROP COLUMN lldp_explore,
-                            DROP COLUMN poe_reboot_nodes;"""
-            )
-            self.execute(
-                """UPDATE devices d
+                            DROP COLUMN poe_reboot_nodes;""")
+            self.execute("""UPDATE devices d
                             SET conf = conf || ('{"netsetup":' || n.netsetup || '}')::jsonb
                             FROM nodes n
-                            WHERE n.mac = d.mac;"""
-            )
-            self.execute(
-                """ALTER TABLE nodes
-                            DROP COLUMN netsetup;"""
-            )
+                            WHERE n.mac = d.mac;""")
+            self.execute("""ALTER TABLE nodes
+                            DROP COLUMN netsetup;""")
             # When migrating to v5, walt image storage management moves from
             # docker to podman.
             # In order to avoid duplicating many old and unused images to podman
             # storage, we remove the reference of unused images from database.
-            self.execute(
-                """DELETE FROM images
+            self.execute("""DELETE FROM images
                             WHERE fullname NOT IN (
                                 SELECT DISTINCT image FROM nodes
-                            );"""
-            )
+                            );""")
         # migration v7 -> v8
         if not self.column_exists("logstreams", "mode"):
             self.execute("""CREATE TYPE logmode AS ENUM ('line', 'chunk');""")
-            self.execute(
-                """ALTER TABLE logstreams
-                            ADD COLUMN mode logmode DEFAULT 'line';"""
-            )
+            self.execute("""ALTER TABLE logstreams
+                            ADD COLUMN mode logmode DEFAULT 'line';""")
         if self.column_exists("images", "ready"):
             self.execute("""DELETE FROM images WHERE ready = false;""")
             self.execute("""ALTER TABLE images DROP COLUMN ready;""")
@@ -148,22 +114,14 @@ class ServerDB(PostgresDB):
             # the following dropped index will be re-created below
             self.execute("""DROP INDEX logstreams_sender_mac_name_idx;""")
         # indexes
-        self.execute(
-            """CREATE INDEX IF NOT EXISTS logs_timestamp_idx
-                         ON logs ( timestamp );"""
-        )
-        self.execute(
-            """CREATE INDEX IF NOT EXISTS logstreams_issuer_mac_name_idx
-                         ON logstreams ( issuer_mac, name );"""
-        )
-        self.execute(
-            """CREATE INDEX IF NOT EXISTS devices_ip_idx
-                         ON devices ( ip );"""
-        )
-        self.execute(
-            """CREATE INDEX IF NOT EXISTS checkpoints_username_idx
-                         ON checkpoints ( username );"""
-        )
+        self.execute("""CREATE INDEX IF NOT EXISTS logs_timestamp_idx
+                         ON logs ( timestamp );""")
+        self.execute("""CREATE INDEX IF NOT EXISTS logstreams_issuer_mac_name_idx
+                         ON logstreams ( issuer_mac, name );""")
+        self.execute("""CREATE INDEX IF NOT EXISTS devices_ip_idx
+                         ON devices ( ip );""")
+        self.execute("""CREATE INDEX IF NOT EXISTS checkpoints_username_idx
+                         ON checkpoints ( username );""")
         # fix server entry
         self.fix_server_device_entry()
         # commit
@@ -275,17 +233,13 @@ class ServerDB(PostgresDB):
         """,
             (timestamp_last_logs,),
         )
-        self.execute(
-            """
+        self.execute("""
             INSERT INTO logs
             SELECT * FROM aggregated_logs;
-        """
-        )
-        self.execute(
-            """
+        """)
+        self.execute("""
             DROP TABLE aggregated_logs;
-        """
-        )
+        """)
 
     def create_server_logs_cursor(self, **kwargs):
         sql, args = self.format_logs_query("l.*", ordering="l.timestamp", **kwargs)
@@ -296,13 +250,10 @@ class ServerDB(PostgresDB):
             return self.select_no_fetch("logstreams")
         else:
             issuer_names = """('%s')""" % "','".join(issuers)
-            sql = (
-                """   SELECT s.*
+            sql = """   SELECT s.*
                         FROM logstreams s, devices d
                         WHERE s.issuer_mac = d.mac
-                          AND d.name IN %s;"""
-                % issuer_names
-            )
+                          AND d.name IN %s;""" % issuer_names
             return self.execute(sql)
 
     def count_logs(

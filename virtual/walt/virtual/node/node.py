@@ -67,20 +67,12 @@ DEFAULT_QEMU_CORES = 4
 DEFAULT_QEMU_DISKS = ()
 DEFAULT_QEMU_NETWORKS = {"walt-net": {}}
 QEMU_ARGS = (
-    QEMU_PROG
-    + " \
-                -enable-kvm "
-    + QEMU_MACHINE_DEF
-    + "\
-                -m %(ram)d \
-                -smp %(cpu-cores)d \
-                %(disks)s \
-                %(networks)s \
-                -name %(name)s \
-                -nographic \
-                -serial mon:stdio \
-                -no-reboot \
-                -kernel %(boot-kernel)s"
+    f"{QEMU_PROG} -enable-kvm"
+    f"            {QEMU_MACHINE_DEF}"
+    "             -m %(ram)d -smp %(cpu-cores)d"
+    "             %(disks)s %(networks)s"
+    "             -name %(name)s -nographic -serial mon:stdio -no-reboot"
+    "             -kernel %(boot-kernel)s"
 )
 STATE = dict(QEMU_PID=None, STOPPING=False, SAVED_STDIN=os.dup(0))
 os.close(0)
@@ -112,7 +104,8 @@ def get_qemu_usb_args():
     model_file = Path("/proc/device-tree/model")
     if not model_file.exists():
         raise Exception(
-            "Do not know how to map USB ports on this host device (no /proc/device-tree/model file)."
+            "Do not know how to map USB ports on this host device"
+            " (no /proc/device-tree/model file)."
         )
     model = model_file.read_text()
     if model.startswith("Raspberry Pi 3 Model B Plus"):
@@ -437,7 +430,8 @@ class WalTVirtualNode(LoggedApplication):
         parsing = parse_vnode_disks_value(disks)
         if parsing[0] is False:
             raise ValueError(
-                'Invalid value for --disks (should be for instance none, 8G or "1T,32G").'
+                "Invalid value for --disks (should be for instance none, 8G or"
+                ' "1T,32G").'
             )
         self._disks = parsing[1]
 

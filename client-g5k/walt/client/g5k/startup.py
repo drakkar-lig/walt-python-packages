@@ -9,6 +9,6 @@ def early_startup():
         os.environ["PY_SLOW_DISK_PREFIX"] = expanduser("~")
     if "PY_CACHE_PREFIX" not in os.environ:
         user = os.getlogin()
-        os.environ[
-            "PY_CACHE_PREFIX"
-        ] = f"/tmp/{user}/walt_client_py_cache/{__version__}"
+        os.environ["PY_CACHE_PREFIX"] = (
+            f"/tmp/{user}/walt_client_py_cache/{__version__}"
+        )

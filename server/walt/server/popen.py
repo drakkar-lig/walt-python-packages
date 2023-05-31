@@ -54,7 +54,8 @@ class BetterPopen:
             os.kill(self.child_pid, sig)
         except OSError:
             print(
-                f"Sending signal {sig} to pid {self.child_pid} failed. Process is probably gone already."
+                f"Sending signal {sig} to pid {self.child_pid} failed. Process is"
+                " probably gone already."
             )
 
     def poll(self):

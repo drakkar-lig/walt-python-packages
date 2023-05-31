@@ -47,7 +47,8 @@ def compute_relative_date(server_time, rel_date):
         )
     except Exception:
         print(
-            "Invalid relative date. Should be: -<int>[dhms] (e.g. '-6h' for 'six hours ago')"
+            "Invalid relative date. Should be: -<int>[dhms]"
+            " (e.g. '-6h' for 'six hours ago')"
         )
         sys.exit(1)
     return pickle.dumps(server_time - delay, protocol=PICKLE_VERSION)
@@ -261,7 +262,8 @@ class WalTLogShow(WalTLogShowOrWait):
                 "You must specify at least 1 of the options --realtime and --history."
             )
             print(
-                "See 'walt help show log-realtime' and 'walt help show log-history' for more info."
+                "See 'walt help show log-realtime' and 'walt help show log-history'"
+                " for more info."
             )
             return
         self.handle_shortcut_options()

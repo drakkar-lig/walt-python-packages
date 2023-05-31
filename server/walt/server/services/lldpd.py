@@ -27,10 +27,11 @@ def run():
     else:
         intf_options = f"-I {phys_intf} -C {phys_intf}"
     management_ip = get_server_ip()
-    cmd = f"{LLDPD_BINARY_NAME} -c -s -e \
-                    -X {SNMPD_AGENTX_SOCKET} \
-                    {intf_options} -m {management_ip} \
-                    -u {socket} -D snmp -p {PID_FILE}"
+    cmd = (
+        f"{LLDPD_BINARY_NAME} -c -s -e -X {SNMPD_AGENTX_SOCKET}"
+        f"    {intf_options} -m {management_ip}"
+        f"    -u {socket} -D snmp -p {PID_FILE}"
+    )
     print(cmd)
     os.execvp(LLDPD_BINARY_NAME, shlex.split(cmd))
 

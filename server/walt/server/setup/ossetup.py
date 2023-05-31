@@ -35,11 +35,7 @@ deb-src http://security.D.org/D-security R-security main contrib non-free
 # see https://www.D.org/doc/manuals/D-reference/ch02.en.html#_updates_and_backports
 deb http://deb.D.org/D/ R-updates main contrib non-free
 deb-src http://deb.D.org/D/ R-updates main contrib non-free
-""".replace(
-    "D", "debian"
-).replace(
-    "R", "bullseye"
-)
+""".replace("D", "debian").replace("R", "bullseye")
 
 APT_DOCKER_LIST_CONTENT = f"""\
 deb [arch=amd64 signed-by={DOCKER_KEYRING_FILE}] {DOCKER_REPO_URL} bullseye stable
@@ -147,7 +143,8 @@ def fix_grub_pc():
     if boot_disk is None:
         # detection failed
         print(
-            "Note: could not detect grub boot disk. Upgrade process will ask when needed."
+            "Note: could not detect grub boot disk. Upgrade process will ask when"
+            " needed."
         )
         return
     set_debconf_selection(
@@ -175,7 +172,8 @@ def upgrade_db():
     num_clusters = len(clusters_info)
     if num_clusters != 2:
         raise Exception(
-            f"Expected 2 db clusters after os upgrade, but pg_lsclusters lists {num_clusters} cluster(s)!"
+            "Expected 2 db clusters after os upgrade, but pg_lsclusters lists"
+            f" {num_clusters} cluster(s)!"
         )
     for c_info in clusters_info:
         if int(c_info["port"]) == 5432:  # default postgresql port => walt

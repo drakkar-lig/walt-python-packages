@@ -59,7 +59,8 @@ class WalTImageClone(WalTApplication):
             )
             if res["status"] == "OK":
                 print(
-                    f'Image "{res["image_name"]}" was cloned successfully (cf. walt image show).'
+                    f'Image "{res["image_name"]}" was cloned successfully'
+                    " (cf. walt image show)."
                 )
                 return True  # success
             else:
@@ -96,7 +97,8 @@ class WalTImagePublish(WalTApplication):
                     print(columnate(registries, ("Registry", "Description")))
                     print()
                     print(
-                        "Please specify the target registry by using option '--registry'."
+                        "Please specify the target registry by using option"
+                        " '--registry'."
                     )
                     return False
                 # there is a single registry => 'auto' is OK.

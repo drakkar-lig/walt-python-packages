@@ -78,7 +78,8 @@ def get_current_conf():
 
 def edit_conf_tty_error():
     print(
-        "Sorry, cannot run server configuration editor because STDOUT is not a terminal."
+        "Sorry, cannot run server configuration editor because STDOUT is not a"
+        " terminal."
     )
     print("Exiting.")
     sys.exit(1)
@@ -198,8 +199,7 @@ def dump_containers_registries_conf(regconf):
             [[registry]]
             prefix = "{reg['prefix']}"
             location = "{reg['location']}"
-            insecure = {json.dumps(reg['insecure'])}"""
-            for reg in containers_registries
+            insecure = {json.dumps(reg['insecure'])}""" for reg in containers_registries
         )
     )
     return "\n\n".join((header, seach_list_text, reg_sections_text)) + "\n"
@@ -220,7 +220,10 @@ def update_server_conf(conf):
         print("done")
     if not same_conf or not CONTAINERS_REGISTRIES_CONF["PATH"].exists():
         print(
-            f'Saving registries configuration at {CONTAINERS_REGISTRIES_CONF["PATH"]}... ',
+            (
+                "Saving registries configuration at"
+                f" {CONTAINERS_REGISTRIES_CONF['PATH']}... "
+            ),
             end="",
         )
         registries_text = dump_containers_registries_conf(conf["registries"])

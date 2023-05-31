@@ -129,13 +129,11 @@ class PowersaveManager:
 
     def restore(self):
         # init attributes considering nodes having their default image
-        for row in self.server.db.execute(
-            """
+        for row in self.server.db.execute("""
                 SELECT mac
                 FROM nodes
                 WHERE image = 'waltplatform/' || model || '-default:latest';
-                """
-        ):
+                """):
             self._mac_of_free_nodes.add(row.mac)
             self._reset_node_mac_poweroff_timeout(row.mac)
         self._plan_check()

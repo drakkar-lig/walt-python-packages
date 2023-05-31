@@ -6,9 +6,7 @@ from itertools import zip_longest
 
 from walt.common.term import TTYSettings
 
-LOGO_DATA = bz2.decompress(
-    base64.decodebytes(
-        b"""
+LOGO_DATA = bz2.decompress(base64.decodebytes(b"""
 QlpoOTFBWSZTWckWUZ8ABrRreQAQAAh/6AAIAAJ/6MD+/4T575AAUANhg9wgYKGp6ICk9TeonqNN
 MmnqABkep6gzyUw1PETSU0AAAAAAAAEmpCjQU2UDQeoaAZNDeqeU0DIYDQAADQAAAAABJpKpHpMQ
 0yYEwjIxMEwTIaTAA0VxqW8+tVOsp/FGHcRVtGo70okIILCYoA9zEjSDlcJeCQI4PW8tsju2u2+s
@@ -21,9 +19,7 @@ Xi8SWnJbl3q2IgYaYRvMBqWItUhJ3cmZGUYUBlGrCICFVJM2mVdsEJuKNUGyTRaTIMFXmJixO+AB
 QACzGYwmkhcly0KyotHBcRVcSsyRVWDjZAUWGNcoWKGIBsH2OOwDzZOtDey7rPV50w6XQJKEJ2ZX
 sKHew6L1Ie9MKydDA3ssxSYerXUM2HXto+VUSXQySLO5A3MswjO6GaZb6nFhmlkPBxqTQhxT8M2b
 qCZIGxA/2VC7GGFVu/rVRz66ODN3m5rRZFkDazLvoPW5sNY8GhB20cza9SS7OTN+jbbF6AunQmCq
-MP41IIgo+0tFAVFn/F3JFOFCQyRZRnw="""
-    )
-).decode()
+MP41IIgo+0tFAVFn/F3JFOFCQyRZRnw=""")).decode()
 LOGO_WIDTH = 32
 
 

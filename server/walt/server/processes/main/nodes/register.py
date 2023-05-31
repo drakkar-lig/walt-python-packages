@@ -39,7 +39,10 @@ def handle_registration_request(
             logs,
         )
         dup_msg(
-            f"Trying to download a default image for '{model}' nodes: {image_fullname}...",
+            (
+                f"Trying to download a default image for '{model}' nodes:"
+                f" {image_fullname}..."
+            ),
             sys.stdout,
             logs,
         )
@@ -67,7 +70,10 @@ def wf_after_pull_image(wf, pull_result, images, image_fullname, model, logs, **
         # is a rather important issue
         dup_msg(failure, sys.stderr, logs)
         dup_msg(
-            f"New {model} nodes will be seen as devices of type 'unknown' until this is solved.",
+            (
+                f"New {model} nodes will be seen as devices of type 'unknown' until"
+                " this is solved."
+            ),
             sys.stderr,
             logs,
         )

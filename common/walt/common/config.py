@@ -26,7 +26,8 @@ def load_conf(path, optional=False):
     except Exception:
         if optional:
             print(
-                f"WARNING: Configuration file at {path} is not valid yaml or json! Ignored."
+                f"WARNING: Configuration file at {path} is not valid yaml or json!"
+                " Ignored."
             )
             return None
         else:

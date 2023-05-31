@@ -163,7 +163,8 @@ class SettingsManager:
                     return True  # OK
                 if lldp_explore.lower() == "false":
                     requester.stderr.write(
-                        "Failed: cannot set 'poe.reboots' to true unless 'lldp.explore' is set to true too.\n"
+                        "Failed: cannot set 'poe.reboots' to true unless 'lldp.explore'"
+                        " is set to true too.\n"
                     )
                     return False
             else:
@@ -173,7 +174,8 @@ class SettingsManager:
                     lldp_explore = device_info.conf.get("lldp.explore")
                     if lldp_explore is None or lldp_explore is False:
                         requester.stderr.write(
-                            "Failed: cannot set 'poe.reboots' to true unless 'lldp.explore' is set to true too.\n"
+                            "Failed: cannot set 'poe.reboots' to true unless"
+                            " 'lldp.explore' is set to true too.\n"
                         )
                         return False
         return True
@@ -200,7 +202,8 @@ class SettingsManager:
                     all_fine = device_info.conf.get("snmp.community") is not None
                 if not all_fine:
                     requester.stderr.write(
-                        "Failed: cannot set 'lldp.explore' to true unless 'snmp.version' and 'snmp.community' are defined too.\n"
+                        "Failed: cannot set 'lldp.explore' to true unless"
+                        " 'snmp.version' and 'snmp.community' are defined too.\n"
                     )
                     return False
         return True
@@ -223,8 +226,8 @@ class SettingsManager:
             return True
         except ValueError:
             requester.stderr.write(
-                "Failed: '%s' is not a valid value for cpu.cores (expecting for instance 1 or 4).\n"
-                % setting_value
+                "Failed: '%s' is not a valid value for cpu.cores (expecting for"
+                " instance 1 or 4).\n" % setting_value
             )
             return False
 
@@ -233,8 +236,8 @@ class SettingsManager:
     ):
         if re.match(r"^\d+[MG]$", setting_value) is None:
             requester.stderr.write(
-                "Failed: '%s' is not a valid value for ram (expecting for instance 512M or 1G).\n"
-                % setting_value
+                "Failed: '%s' is not a valid value for ram (expecting for instance 512M"
+                " or 1G).\n" % setting_value
             )
             return False
         return True
@@ -246,7 +249,8 @@ class SettingsManager:
         if parsing[0] is False:
             requester.stderr.write(
                 f"Failed: '{setting_value}' is not a valid value for option 'disks'.\n"
-                + "        Use for example 'none', or '8G' (1 disk), '32G,1T' (2 disks), etc.\n"
+                "        Use for example 'none', or '8G' (1 disk),"
+                " '32G,1T' (2disks), etc.\n"
             )
             return False
         return True
@@ -295,8 +299,8 @@ class SettingsManager:
         )
         if len(dev_other) > 0 and requester is not None:
             msg = format_sentence(
-                "Failed: %s is(are) not a() WALT server(servers), "
-                "so '" + setting_name + "' setting cannot be applied.\n",
+                "Failed: %s is(are) not a() WALT server(servers),"
+                f" so '{setting_name}' setting cannot be applied.\n",
                 dev_other,
                 None,
                 "Device",
@@ -352,8 +356,8 @@ class SettingsManager:
         )
         if len(not_switches) > 0 and requester is not None:
             msg = format_sentence(
-                "Failed: %s is(are) not a() switch(switches), "
-                "so '" + setting_name + "' setting cannot be applied.\n",
+                "Failed: %s is(are) not a() switch(switches),"
+                f" so '{setting_name}' setting cannot be applied.\n",
                 not_switches,
                 None,
                 "Device",
@@ -486,9 +490,11 @@ class SettingsManager:
                         "iptables %(action)s WALT --source '%(ip)s' --jump ACCEPT"
                         % dict(
                             ip=device_info.ip,
-                            action="--insert"
-                            if new_netsetup_state == NetSetup.NAT
-                            else "--delete",
+                            action=(
+                                "--insert"
+                                if new_netsetup_state == NetSetup.NAT
+                                else "--delete"
+                            ),
                         )
                     )
                 db_settings["netsetup"] = int(new_netsetup_state)

@@ -150,7 +150,8 @@ class WalTServerSetup(WaltGenericSetup):
         if os_codename not in OS_ACTIONS[mode]:
             allowed = ", ".join(OS_ACTIONS[mode].keys())
             print(
-                f"Sorry, {mode} mode of this script only works on the following debian version(s): {allowed}."
+                f"Sorry, {mode} mode of this script only works on the following debian"
+                f" version(s): {allowed}."
             )
             print("Exiting.")
             sys.exit(1)

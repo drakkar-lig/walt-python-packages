@@ -21,7 +21,8 @@ def run():
         node_models = labels["walt.node.models"].split(",")
     if len(node_models) == 0:
         sys.stderr.write(
-            "FAILED: The image is missing a 'LABEL walt.node.models=<models>' to indicate compatibility.\n"
+            "FAILED: The image is missing a 'LABEL walt.node.models=<models>' to"
+            " indicate compatibility.\n"
         )
         sys.exit(1)
     sys.stdout.write("OK\n")

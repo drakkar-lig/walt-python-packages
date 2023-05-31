@@ -20,31 +20,23 @@ MENU_NAVIGATION_TIP = "use arrow keys to browse, <enter> to select"
 
 MESSAGE_NO_INTERFACE = framed(
     "Note",
-    "\n".join(
-        wrap(
-            """\
+    "\n".join(wrap("""\
 No usable wired interface was detected on this machine, so the server will be \
 configured for virtual-only mode. \
 This means only virtual nodes can be registered on this WALT server for now. \
 If in the future a new network adapter is plugged in (or a missing network \
 driver is installed), just restart `walt-server-setup --edit-conf` to update \
-the platform configuration."""
-        )
-    ),
+the platform configuration.""")),
 )
 
 MESSAGE_VIRTUAL_ONLY = framed(
     "Note",
-    "\n".join(
-        wrap(
-            """\
+    "\n".join(wrap("""\
 The selected configuration corresponds to a virtual-only mode (i.e. walt-net \
 is not linked to a physical network interface). \
 This means only virtual nodes can be registered on this WALT server for now. \
 If needed, you can restart `walt-server-setup --edit-conf` later to update \
-this platform configuration."""
-        )
-    ),
+this platform configuration.""")),
 )
 
 # tools
@@ -204,7 +196,10 @@ def print_netconf_status(context, netconf):
     if len(gw_conflicts) > 0:
         # for conciseness we just notify the first conflict.
         phys_intf, vlan = gw_conflicts[0]
-        explain = f"VLAN {vlan} on interface {phys_intf} seems to be used by your OS default gateway."
+        explain = (
+            f"VLAN {vlan} on interface {phys_intf} seems to be used by your OS default"
+            " gateway."
+        )
         print(s + highlight("invalid") + "\n" + explain)
         return False  # invalid
     intf_conflicts = []
@@ -228,7 +223,10 @@ def print_netconf_status(context, netconf):
         # for conciseness we just notify the first conflict.
         phys_intf, netnames = intf_conflicts[0]
         explain = format_sentence(
-            f"%s cannot use the same interface {phys_intf} unless they use different VLANs.",
+            (
+                f"%s cannot use the same interface {phys_intf} unless they use"
+                " different VLANs."
+            ),
             netnames,
             None,
             None,
@@ -290,10 +288,10 @@ def exit_conf(context, netconf):
 
 
 def select_interface_edit_menu(context, netconf, netname):
-    context[
-        "menu_info_function"
-    ] = lambda context, netconf, valid: edit_interface_menu_info(
-        context, netconf, netname
+    context["menu_info_function"] = (
+        lambda context, netconf, valid: edit_interface_menu_info(
+            context, netconf, netname
+        )
     )
 
 
@@ -356,12 +354,14 @@ def change_vlan(context, netconf, netname):
 def edit_ip(context, netconf, netname):
     if netname == "walt-net":
         print(
-            "The walt server fully manages this walt-net network and provides its own DHCP server."
+            "The walt server fully manages this walt-net network and provides its own"
+            " DHCP server."
         )
         print()
         print("The only change allowed here is the IP network subnet.")
         print(
-            "It may be useful to define a larger one if the platform has to grow with many devices."
+            "It may be useful to define a larger one if the platform has to grow with"
+            " many devices."
         )
         print()
         ip_mode = "static"

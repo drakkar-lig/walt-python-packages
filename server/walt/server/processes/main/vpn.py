@@ -120,7 +120,10 @@ class VPNManager:
         if request_task_info is None:
             return (
                 "FAILED",
-                "No such device (it may have been processed by another 'walt vpn monitor' command).",
+                (
+                    "No such device (it may have been processed by another"
+                    " 'walt vpn monitor' command)."
+                ),
             )
         request_task = request_task_info["task"]
         if auth_ok:
@@ -141,7 +144,8 @@ class VPNManager:
                 % dict(comment="walt-vpn@" + device_id, tmpdir=tmpdirname)
             )
             do(
-                "ssh-keygen -s %(vpn_ca_key)s -I '%(device_id)s' -n %(principal)s %(tmpdir)s/key.pub"
+                "ssh-keygen -s %(vpn_ca_key)s -I '%(device_id)s' -n %(principal)s"
+                " %(tmpdir)s/key.pub"
                 % dict(
                     vpn_ca_key=str(VPN_CA_KEY),
                     device_id=device_id,

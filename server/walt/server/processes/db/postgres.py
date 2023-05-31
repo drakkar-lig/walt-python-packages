@@ -68,16 +68,11 @@ class PostgresDB:
         # we must use the postgres admin user for this
         args = shlex.split("su -c psql -l postgres")
         popen = Popen(args, stdin=PIPE, stdout=None, stderr=stderr)
-        popen.stdin.write(
-            (
-                """
+        popen.stdin.write(("""
                 CREATE USER %(user)s;
                 ALTER ROLE %(user)s WITH CREATEDB;
                 CREATE DATABASE %(db)s OWNER %(user)s;
-                """
-                % dict(user=WALT_DBUSER, db=WALT_DBNAME)
-            ).encode("ascii")
-        )
+                """ % dict(user=WALT_DBUSER, db=WALT_DBNAME)).encode("ascii"))
         popen.stdin.close()
         popen.wait()
 
@@ -146,7 +141,7 @@ class PostgresDB:
     # format a where clause with ANDs on the specified constraints
     def get_where_clause_from_constraints(self, constraints):
         if len(constraints) > 0:
-            return "WHERE %s" % (" AND ".join(constraints))
+            return "WHERE %s" % " AND ".join(constraints)
         else:
             return ""
 

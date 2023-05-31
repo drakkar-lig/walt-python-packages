@@ -42,8 +42,7 @@ MSG_WOULD_OVERWRITE_IMAGE = """\
 An image has the same name in your working set.
 This operation would overwrite it%s.
 """
-MSG_WOULD_OVERWRITE_IMAGE_REBOOTED_NODES = "\
- (and reboot %d node(s))"
+MSG_WOULD_OVERWRITE_IMAGE_REBOOTED_NODES = " (and reboot %d node(s))"
 
 MSG_PULLING_FROM_DOCKER = """\
 NOTE: Pulling image %s from docker daemon to podman storage (migration v4->v5)."""
@@ -146,7 +145,10 @@ class NodeImageStore(object):
     # Make sure to rename the image in docker *before* calling this.
     def rename(self, old_fullname, new_fullname):
         self.db.execute(
-            "update images set fullname = %(new_fullname)s where fullname = %(old_fullname)s",
+            (
+                "update images set fullname = %(new_fullname)s"
+                " where fullname = %(old_fullname)s"
+            ),
             dict(old_fullname=old_fullname, new_fullname=new_fullname),
         )
         self.db.commit()
@@ -456,7 +458,8 @@ class NodeImageStore(object):
                 self.registry.tag(default_image, ws_image)
                 self.register_image(ws_image)
                 requester.stdout.write(
-                    f"Cloned {image_name}, a defaut image for {image_node_models_desc}.\n"
+                    f"Cloned {image_name}, a defaut image for"
+                    f" {image_node_models_desc}.\n"
                 )
             # remove from remaining nodes those with a model declared in label
             # "walt.node.models"

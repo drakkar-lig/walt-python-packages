@@ -204,7 +204,8 @@ class NodeImageManager:
         if not image.editable:
             requester.stderr.write(
                 (
-                    "Cannot open image %(image_name)s because it has already reached its max number of layers.\n"
+                    "Cannot open image %(image_name)s because it has already reached"
+                    " its max number of layers.\n"
                     + "(tip: walt image squash %(image_name)s)\n"
                 )
                 % dict(image_name=image_name)

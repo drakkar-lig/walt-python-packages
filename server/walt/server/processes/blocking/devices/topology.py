@@ -19,15 +19,24 @@ NOTE_EXPLAIN_UNKNOWN = "type of devices marked with <? ... ?> is unknown"
 TIP_ADD_FLAG_ALL = "use 'walt device tree --all' to see all devices detected"
 TIP_DEVICE_SHOW = "use 'walt device show' for device details"
 TIP_DEVICE_RESCAN = "use 'walt device rescan' to update"
-TIP_DEVICE_ADMIN_1 = "use 'walt device config <device> type=switch' to let WalT know a given device is a switch"
-TIP_DEVICE_ADMIN_2 = "use 'walt device config ...' (see walt help show device-config) to let WalT explore forbidden switches"
+TIP_DEVICE_ADMIN_1 = (
+    "use 'walt device config <device> type=switch'"
+    " to let WalT know a given device is a switch"
+)
+TIP_DEVICE_ADMIN_2 = (
+    "use 'walt device config ...' (see walt help show device-config)"
+    " to let WalT explore forbidden switches"
+)
 TIPS_MIN = (TIP_DEVICE_SHOW, TIP_DEVICE_ADMIN_2, TIP_DEVICE_RESCAN)
 
-NOTE_LAST_NETWORK_SCAN = "\
-this view comes from last network scan, issued %s ago (use 'walt device rescan' to update)"
+NOTE_LAST_NETWORK_SCAN = (
+    "this view comes from last network scan, issued %s ago"
+    " (use 'walt device rescan' to update)"
+)
 
-NOTE_LAST_NETWORK_SCAN_UNKNOWN = "\
-this view comes from last network scan (use 'walt device rescan' to update)"
+NOTE_LAST_NETWORK_SCAN_UNKNOWN = (
+    "this view comes from last network scan (use 'walt device rescan' to update)"
+)
 
 MSG_NO_NEIGHBORS = """\
 WalT Server did not detect any neighbor!
@@ -877,11 +886,9 @@ class TopologyManager(object):
         return nodes_ok, errors
 
     def restore_poe_on_all_ports(self, server, db):
-        for sw_port_info in db.execute(
-            """SELECT d.*, po.port
+        for sw_port_info in db.execute("""SELECT d.*, po.port
                                    FROM devices d, poeoff po
-                                   WHERE d.mac = po.mac;"""
-        ):
+                                   WHERE d.mac = po.mac;"""):
             result = self.sw_port_set_poe(db, sw_port_info, sw_port_info.port, True)
             if result[0] is False:
                 print(

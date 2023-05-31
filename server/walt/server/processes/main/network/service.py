@@ -45,7 +45,8 @@ class ServiceRestarter:
         else:
             next_service_version = self.config_version
             print(
-                f"{self.short_service_name} restarting with version {next_service_version}."
+                f"{self.short_service_name} restarting with version"
+                f" {next_service_version}."
             )
 
             def callback():

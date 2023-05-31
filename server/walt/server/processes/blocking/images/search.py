@@ -139,7 +139,8 @@ class Search(object):
                 yield record
         except Exception:
             self.requester.stderr.write(
-                f"Ignoring {registry.label} registry because of a communication failure.\n"
+                f"Ignoring {registry.label} registry because of a communication"
+                " failure.\n"
             )
             return
 

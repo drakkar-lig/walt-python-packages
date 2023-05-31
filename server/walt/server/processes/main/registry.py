@@ -249,7 +249,8 @@ class WalTLocalRegistry:
             buildah("from", "--pull-never", "--name", cont_name, image_id)
         except CalledProcessError:
             print(
-                "Note: walt server was probably not stopped properly and container still exists. Going on."
+                "Note: walt server was probably not stopped properly and container"
+                " still exists. Going on."
             )
         dir_name = buildah.mount(cont_name)
         remount_with_nfs_export_option(dir_name)

@@ -90,8 +90,10 @@ WalT also detected the following devices but could not detect their type:"""
 FOOTNOTE_SOME_UNKNOWN_DEVICES = """\
 If one of them is actually a switch, use 'walt device config <name> type=switch' to fix this."""
 
-CMD_ADD_SSH_KNOWN_HOST = "  mkdir -p /root/.ssh && ssh-keygen -F %(ip)s || \
-                            ssh-keyscan -t ecdsa %(ip)s >> /root/.ssh/known_hosts"
+CMD_ADD_SSH_KNOWN_HOST = (
+    "  mkdir -p /root/.ssh && ssh-keygen -F %(ip)s ||                            "
+    " ssh-keyscan -t ecdsa %(ip)s >> /root/.ssh/known_hosts"
+)
 
 
 class DevicesManager(object):
@@ -385,7 +387,8 @@ class DevicesManager(object):
             for d in devices:
                 if d.name not in allowed_dev_names:
                     requester.stderr.write(
-                        f"Invalid value '{device_set}'; allowed devices belong to '{allowed_device_set}'\n"
+                        f"Invalid value '{device_set}'; allowed devices belong to"
+                        f" '{allowed_device_set}'\n"
                     )
                     return None
         if len(devices) == 0 and not allow_empty:
@@ -436,21 +439,19 @@ class DevicesManager(object):
             "--jump ACCEPT"
         )
         # jump to WALT chain for other traffic
-        do("iptables --append FORWARD " "--in-interface walt-net " "--jump WALT")
+        do("iptables --append FORWARD --in-interface walt-net --jump WALT")
         # NAT nodes traffic that is allowed to go outside
         do(
             "iptables --table nat --append POSTROUTING "
             "! --out-interface walt-net --source %s "
-            "--jump MASQUERADE" % str(get_walt_subnet())
+            "--jump MASQUERADE"
+            % str(get_walt_subnet())
         )
         # Set the configuration of all NAT-ed devices
-        for device_info in self.db.execute(
-            """\
+        for device_info in self.db.execute("""\
                 SELECT ip FROM devices
                 WHERE COALESCE((conf->'netsetup')::int, 0) = %d;
-                """
-            % NetSetup.NAT
-        ):
+                """ % NetSetup.NAT):
             do("iptables --insert WALT --source '%s' --jump ACCEPT" % device_info.ip)
 
     def cleanup_netsetup(self):
@@ -458,9 +459,10 @@ class DevicesManager(object):
         do(
             "iptables --table nat --delete POSTROUTING "
             "! --out-interface walt-net --source %s "
-            "--jump MASQUERADE" % str(get_walt_subnet())
+            "--jump MASQUERADE"
+            % str(get_walt_subnet())
         )
-        do("iptables --delete FORWARD " "--in-interface walt-net " "--jump WALT")
+        do("iptables --delete FORWARD --in-interface walt-net --jump WALT")
         do(
             "iptables --delete FORWARD "
             "--out-interface walt-net --match state --state RELATED,ESTABLISHED "

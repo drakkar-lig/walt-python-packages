@@ -112,7 +112,8 @@ def verify_vlan_rights(info):
         users = set(item["uid"] for item in resp["items"])
         if user not in users:
             raise Exception(
-                f"Error: G5K failed to propagate VLAN {vlan_id} access right for user {user} at {site}."
+                f"Error: G5K failed to propagate VLAN {vlan_id} access right for user"
+                f" {user} at {site}."
             )
 
 

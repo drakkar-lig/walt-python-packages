@@ -89,9 +89,9 @@ class APIImageFactory:
                 self.__rename_in_cache__(new_name)
                 if name in __info_cache__:
                     return  # __rename_in_cache__ failed
-                APIImageFactory.__images_per_name__[
-                    new_name
-                ] = APIImageFactory.__images_per_name__.pop(name)
+                APIImageFactory.__images_per_name__[new_name] = (
+                    APIImageFactory.__images_per_name__.pop(name)
+                )
 
         api_image = APIImage()
         APIImageFactory.__images_per_name__[in_image_name] = api_image
@@ -134,7 +134,8 @@ class APIImagesSubModule(APIObjectBase):
         if mode == "dir":
             if not Path(dir_or_url).is_dir():
                 sys.stderr.write(
-                    "Failed: parameter dir_or_url must be a directory or a git repository URL.\n"
+                    "Failed: parameter dir_or_url must be a directory or a git"
+                    " repository URL.\n"
                 )
                 return
             info["src_dir"] = str(dir_or_url)

@@ -32,10 +32,11 @@ def get_conf_file():
 
 def run():
     conf_file = get_conf_file()
-    cmd = f"{SNMPD_BINARY_NAME} -f -LOw -I -smux \
-                -u {SNMPD_USER} -g {SNMPD_GROUP} \
-                -p {PID_FILE} \
-                -C -c {conf_file}"
+    cmd = (
+        f"{SNMPD_BINARY_NAME} -f -LOw -I -smux"
+        f"    -u {SNMPD_USER} -g {SNMPD_GROUP}"
+        f"    -p {PID_FILE} -C -c {conf_file}"
+    )
     print(cmd)
     os.execvp(SNMPD_BINARY_NAME, shlex.split(cmd))
 

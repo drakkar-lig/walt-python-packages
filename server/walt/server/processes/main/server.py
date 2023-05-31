@@ -201,7 +201,8 @@ class Server(object):
     def create_vnode(self, requester, task, name):
         if not KVM_DEV_FILE.exists():
             requester.stderr.write(
-                f"Failed because virtualization is not enabled on server CPU (missing {KVM_DEV_FILE}).\n"
+                "Failed because virtualization is not enabled on server CPU"
+                f" (missing {KVM_DEV_FILE}).\n"
             )
             return False
         if not self.devices.validate_device_name(requester, name):
@@ -225,7 +226,8 @@ class Server(object):
                 self.registry.tag(default_image_fullname, user_image_fullname)
                 self.images.store.register_image(user_image_fullname)
                 requester.stdout.write(
-                    f'Default image for {model} was saved as "{image_name}" in your working set.\n'
+                    f'Default image for {model} was saved as "{image_name}" in your'
+                    " working set.\n"
                 )
             requester.set_busy_label("Registering virtual node")
             self.create_vnode_using_image(name, mac, ip, model, user_image_fullname)

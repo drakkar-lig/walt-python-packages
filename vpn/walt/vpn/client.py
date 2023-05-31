@@ -123,7 +123,8 @@ def do_vpn_client(info, walt_vpn_entrypoint):
     # setup credentials if needed
     if not PRIV_KEY_FILE.exists():
         sys.exit(
-            "Run the following command once, first: 'walt-vpn-setup-credentials <walt-server>'"
+            "Run the following command once, first:"
+            " 'walt-vpn-setup-credentials <walt-server>'"
         )
 
     # Create TAP

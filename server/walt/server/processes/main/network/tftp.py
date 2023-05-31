@@ -82,12 +82,10 @@ def update(db, images):
     # - mac address written <hh>-<hh>-<hh>-<hh>-<hh>-<hh>
     # - ipv4 address (dotted quad notation)
     # - walt node name
-    for db_node in db.execute(
-        """
+    for db_node in db.execute("""
                 SELECT d.mac, d.ip, d.name, d.conf, n.model, n.image
                 FROM devices d, nodes n
-                WHERE d.mac = n.mac"""
-    ):
+                WHERE d.mac = n.mac"""):
         mac = db_node.mac
         model = db_node.model
         mac_dash = mac.replace(":", "-")

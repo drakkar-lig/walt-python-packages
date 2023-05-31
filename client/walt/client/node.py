@@ -21,8 +21,9 @@ from walt.client.types import (
 )
 from walt.common.tools import SilentBusyIndicator
 
-WAIT_NODES_BUSY_LABEL = "\
-Node bootup notification still pending (press ctrl-C to proceed anyway)"
+WAIT_NODES_BUSY_LABEL = (
+    "Node bootup notification still pending (press ctrl-C to proceed anyway)"
+)
 
 
 class WalTNode(WalTCategoryApplication):
@@ -140,7 +141,10 @@ class WalTNode(WalTCategoryApplication):
         if mode == "free-or-not-owned" and len(owned) > 0:
             sys.stderr.write(
                 format_sentence(
-                    "Error: %s is(are) already yours. See `walt help show node-ownership`.",
+                    (
+                        "Error: %s is(are) already yours."
+                        " See `walt help show node-ownership`."
+                    ),
                     owned,
                     "",
                     "Node",

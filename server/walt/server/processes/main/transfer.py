@@ -115,12 +115,14 @@ def validate_cp(image_or_node_label, server, requester, src, dst):
                 operand_type = TYPE_BOOTED_IMAGE
                 if image_or_node_label == "image":
                     requester.stderr.write(
-                        "Keyword 'booted-image' is only available with command 'walt node cp'.\n"
+                        "Keyword 'booted-image' is only available with command"
+                        " 'walt node cp'.\n"
                     )
                     return {"status": "FAILED"}
                 elif index == 0:
                     requester.stderr.write(
-                        "Keyword 'booted-image' can only be used as destination, not source.\n"
+                        "Keyword 'booted-image' can only be used as destination,"
+                        " not source.\n"
                     )
                     return {"status": "FAILED"}
                 elif operand_types[0] != TYPE_IMAGE_OR_NODE:
@@ -314,8 +316,8 @@ class VPNNodeImageDump(ParallelProcessSocketListener):
 
     def get_command(self, **params):
         return (
-            'podman run -q --rm docker.io/waltplatform/rpi3bp-vpn-sd-dump "%(entrypoint)s"'
-            % params
+            "podman run -q --rm docker.io/waltplatform/rpi3bp-vpn-sd-dump"
+            ' "%(entrypoint)s"' % params
         )
 
 

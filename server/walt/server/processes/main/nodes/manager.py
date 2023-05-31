@@ -25,9 +25,11 @@ MSG_NOT_VIRTUAL = "WARNING: %s is not a virtual node. IGNORED.\n"
 
 FS_CMD_PATTERN = SSH_COMMAND + ' root@%(fs_id)s "sh"'  # use node_ip as our fs ID
 
-CMD_START_VNODE = "walt-virtual-node --mac %(mac)s --ip %(ip)s --model %(model)s --hostname %(name)s \
-                               --server-ip %(server_ip)s --cpu-cores %(cpu_cores)d --ram %(ram)s \
-                               --disks %(disks)s --networks %(networks)s"
+CMD_START_VNODE = (
+    "walt-virtual-node --mac %(mac)s --ip %(ip)s --model %(model)s --hostname %(name)s"
+    "                  --server-ip %(server_ip)s --cpu-cores %(cpu_cores)d"
+    "                  --ram %(ram)s --disks %(disks)s --networks %(networks)s"
+)
 
 
 class NodesManager(object):

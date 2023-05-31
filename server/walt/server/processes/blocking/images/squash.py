@@ -13,7 +13,8 @@ def squash_image(server, image_fullname):
         )
     except CalledProcessError:
         print(
-            "Note: walt server was probably not stopped properly and container still exists."
+            "Note: walt server was probably not stopped properly and container still"
+            " exists."
         )
         print("      removing container and restarting command.")
         buildah.rm(cont_name)

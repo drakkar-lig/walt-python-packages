@@ -34,12 +34,12 @@ def get_map_file():
 def run():
     server_ip = get_server_ip()
     map_file = get_map_file()
-    cmd = f"{TFTPD_BINARY_NAME} --listen --user {TFTPD_USER} \
-                                --address {server_ip}:69 \
-                                -v -v --secure \
-                                --map-file {map_file} \
-                                --pidfile {PID_FILE} \
-                                {TFTP_ROOT}"
+    cmd = (
+        f"{TFTPD_BINARY_NAME} --listen --user {TFTPD_USER}"
+        f"    --address {server_ip}:69 -v -v --secure"
+        f"    --map-file {map_file} --pidfile {PID_FILE}"
+        f"    {TFTP_ROOT}"
+    )
     print(cmd)
     os.execvp(TFTPD_BINARY_NAME, shlex.split(cmd))
 

@@ -33,7 +33,10 @@ class ImageBuildSession(object):
         )
 
     def run_image_build_from_url(self, requester, task):
-        cmd = f'walt-image-build-helper --from-url {self.info["url"]} {self.image_fullname}'
+        cmd = (
+            "walt-image-build-helper --from-url"
+            f" {self.info['url']} {self.image_fullname}"
+        )
         task.set_async()
 
         def cb(retcode):

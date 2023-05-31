@@ -232,7 +232,8 @@ def define_reg_property(context, regconf, i, k):
                 value = prompt("Please enter a label for this registry:", type=str)
                 if len(re.sub("[a-z0-9-]", "", value)) > 0:
                     print(
-                        'Sorry, only lowercase chars, digits, and dash ("-") are allowed.'
+                        'Sorry, only lowercase chars, digits, and dash ("-") are'
+                        " allowed."
                     )
                     value = None
                 elif value in ("hub", "walt", "docker"):
@@ -247,7 +248,8 @@ def define_reg_property(context, regconf, i, k):
                     value = None
                 elif len(value) > MAX_DESC_LEN:
                     print(
-                        f"Sorry, the description should not exceed {MAX_DESC_LEN} chars."
+                        "Sorry, the description should not exceed"
+                        f" {MAX_DESC_LEN} chars."
                     )
                     value = None
             elif k == "host":
@@ -267,7 +269,9 @@ def define_reg_property(context, regconf, i, k):
                     {
                         "          https: HTTPS protocol": "https",
                         "           http: HTTP protocol": "http",
-                        "https-no-verify: HTTPS protocol without certificate checks": "https-no-verify",
+                        "https-no-verify: HTTPS protocol without certificate checks": (
+                            "https-no-verify"
+                        ),
                     },
                 )
             elif k == "auth":  # toggle between none and basic
