@@ -204,8 +204,3 @@ def fix_other_conf_files():
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(content)
             print('done')
-
-def setup_default_server_conf():
-    print(f'Writing default conf at {WALT_SERVER_CONF["PATH"]}... ', end=''); sys.stdout.flush()
-    configure_server_conf('virtual')
-    print('done')

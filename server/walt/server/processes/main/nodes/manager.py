@@ -90,20 +90,6 @@ class NodesManager(object):
                 **self.node_register_kwargs
         )
 
-    def connect(self, requester, node_name, hide_issues = False):
-        nodes_ip = self.get_nodes_ip(
-                        requester, node_name)
-        if len(nodes_ip) == 0:
-            return None # error was already reported
-        link = ServerToNodeLink(nodes_ip[0])
-        connect_status = link.connect()
-        if not connect_status[0]:
-            if not hide_issues:
-                requester.stderr.write('Error connecting to %s: %s\n' % \
-                    (node_name, connect_status[1]))
-            return None
-        return link
-
     def blink_callback(self, results, requester, task):
         # we have just one node, so one entry in results
         result_msg = tuple(results.keys())[0]

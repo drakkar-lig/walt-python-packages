@@ -40,5 +40,6 @@ def enable_debug(out = sys.stdout):
 
 def debug(*args):
     if DEBUG_OUT is not None:
+        from time import time
         print(time(), *args, file=DEBUG_OUT)
         DEBUG_OUT.flush()

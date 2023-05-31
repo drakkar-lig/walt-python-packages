@@ -101,7 +101,7 @@ class NodeImage(object):
         return self.metadata['image_id']
     @property
     def created_at(self):
-        return parse_date(self.metadata['created_at'])
+        return self.metadata['created_at']
     @property
     def labels(self):
         return self.metadata['labels']
