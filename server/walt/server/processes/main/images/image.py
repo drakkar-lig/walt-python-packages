@@ -69,14 +69,14 @@ Sorry 'default' is a reserved keyword.
 '''
 
 def check_alnum_dash(token):
-    return re.match('^[a-zA-Z0-9\-]+$', token)
+    return re.match(r'^[a-zA-Z0-9\-]+$', token)
 
 def validate_image_name(requester, image_name):
     if image_name == 'default':
         requester.stderr.write(ERROR_DEFAULT_IMAGE_RESERVED)
         return False
     if image_name.count(':') in (0,1) and \
-        re.match('^[a-z0-9\-]+$', image_name.replace(':', '')):
+        re.match(r'^[a-z0-9\-]+$', image_name.replace(':', '')):
         return True     # ok
     requester.stderr.write(ERROR_BAD_IMAGE_NAME)
     return False

@@ -22,7 +22,7 @@ BG_COLOR_DEFAULT = '49'
 BG_COLOR_WHITE = '107'
 BG_COLOR_LIGHT_GREY = '47'
 
-RE_ESC_COLOR = re.compile("\x1b\[[0-9;]*m")
+RE_ESC_COLOR = re.compile("\x1b"+r"\[[0-9;]*m")
 
 class FormatState(namedtuple('FormatState', FORMAT_ATTRS)):
     def alter(self, **kwargs):

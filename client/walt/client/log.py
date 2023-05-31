@@ -27,7 +27,7 @@ def isatty():
     return sys.stdout.isatty() and sys.stdin.isatty()
 
 def validate_checkpoint_name(name):
-    return re.match('^[a-zA-Z0-9]+[a-zA-Z0-9\-]+$', name)
+    return re.match(r'^[a-zA-Z0-9]+[a-zA-Z0-9\-]+$', name)
 
 def compute_relative_date(server_time, rel_date):
     try:

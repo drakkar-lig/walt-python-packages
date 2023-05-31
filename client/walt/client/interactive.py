@@ -9,7 +9,7 @@ from walt.common.io import unbuffered, read_and_copy
 from walt.common.tcp import Requests, write_pickle, PICKLE_VERSION
 
 SQL_SHELL_MESSAGE = """\
-Type \dt for a list of tables.
+Type \\dt for a list of tables.
 """
 IMAGE_SHELL_MESSAGE = """\
 Notice: this is a limited virtual environment.

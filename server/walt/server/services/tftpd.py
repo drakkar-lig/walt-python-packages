@@ -16,10 +16,10 @@ MAP_FILE_CONTENT = """\
 e .*undionly.*
 # these two lines ensures compatibility of legacy
 # bootloader configurations.
-r boot/rpi-.*\.uboot start.uboot
+r boot/rpi-.*\\.uboot start.uboot
 r boot/pc-x86-64.ipxe start.ipxe
 # generic replacement pattern
-r .* nodes/\i/tftp/\\0
+r .* nodes/\\i/tftp/\\0
 """
 
 def get_map_file():

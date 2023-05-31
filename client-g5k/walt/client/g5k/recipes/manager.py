@@ -34,7 +34,7 @@ def new_recipe():
     return recipe_info
 
 def recipe_name_validator(recipe_name):
-    if not re.match('^[a-z0-9\-]+$', recipe_name):
+    if not re.match(r'^[a-z0-9\-]+$', recipe_name):
         sys.stderr.write(ERROR_BAD_RECIPE_NAME)
         return False
     # check if another recipe already has this name

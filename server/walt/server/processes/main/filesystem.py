@@ -70,8 +70,10 @@ class Filesystem:
     def get_completions(self, partial_path):
         """complete a partial path remotely"""
         # the following process allows to add an ending slash to dir entries
-        self.send_cmd(f'find {partial_path}* -maxdepth 0 "!" -type d -exec echo "{{}}" \;')
-        self.send_cmd(f'find {partial_path}* -maxdepth 0 -type d -exec echo "{{}}/" \;')
+        self.send_cmd(
+            f'find {partial_path}* -maxdepth 0 "!" -type d -exec echo "{{}}" \\;')
+        self.send_cmd(
+            f'find {partial_path}* -maxdepth 0 -type d -exec echo "{{}}/" \\;')
         self.send_cmd('echo')
         possible = []
         while True:
