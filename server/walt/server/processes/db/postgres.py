@@ -207,7 +207,7 @@ class PostgresDB:
             values.append(kwargs[primary_key_name])
             self.c.execute(
                 """
-                UPDATE %s 
+                UPDATE %s
                 SET %s
                 WHERE %s = %%s;"""
                 % (table, ",".join("%s = %%s" % col for col in cols), primary_key_name),
