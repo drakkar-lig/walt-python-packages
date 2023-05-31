@@ -50,7 +50,7 @@ def add_network_info(env):
             env.update(ip=info['ip'], netmask=info['netmask'],
                        gateway=info['gateway'])
             return True
-    except:
+    except Exception:
         print('Issue while trying to get node info from server.')
         return False
 

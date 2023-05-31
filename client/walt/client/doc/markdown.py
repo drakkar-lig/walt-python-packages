@@ -244,7 +244,7 @@ class MarkdownRenderer:
             colored_text = highlight(code_text, lexer, Terminal256Formatter())
             colored_text = self.fix_pygments_default_colors(colored_text,
                                    FG_COLOR_SOURCE_CODE, BG_COLOR_SOURCE_CODE)
-        except:
+        except Exception:
             colored_text = code_text
         for code_line, colored_line in zip(
                     code_text.split('\n'), colored_text.split('\n')):

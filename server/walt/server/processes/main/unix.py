@@ -33,7 +33,7 @@ class FakeTFTPGetFDListener:
         with open(full_path, 'rb', buffering=0) as f:
             try:
                 self.send_ok_plus_fd(s, peer_addr, f.fileno())
-            except:
+            except Exception:
                 print('Failed to send reply to walt-server-httpd (probably down)')
 
 class UnixSocketServer(UnixServer):

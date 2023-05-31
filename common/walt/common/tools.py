@@ -157,7 +157,7 @@ def fd_copy(fd_src, fd_dst, size):
             return None
         os.write(fd_dst, s)
         return s
-    except:
+    except Exception:
         return None
 
 def set_non_blocking(fd):

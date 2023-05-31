@@ -27,7 +27,7 @@ class Requests(ServiceRequests):
     def read_id(stream):
         try:
             return Requests.get_id(stream.readline().decode('ascii').strip())
-        except:
+        except Exception:
             return None
     @staticmethod
     def send_id(stream, req_id):
@@ -83,7 +83,7 @@ def client_sock_file(host, port):
     set_close_on_exec(s, True)
     try:
         s.connect((host, port))
-    except:
+    except Exception:
         s.close()
         raise
     return RWSocketFile(s)

@@ -99,7 +99,7 @@ def unit_exists(unit_name: str,
         # so we have to parse the ending line indicating how many unit files
         # were found.
         return int(p.stdout.splitlines()[-1].split()[0]) > 0
-    except:
+    except Exception:
         return False
 
 def stop_units(unit_names: list[str]):

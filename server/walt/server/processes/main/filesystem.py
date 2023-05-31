@@ -16,7 +16,7 @@ class Filesystem:
             try:
                 if self.popen.poll():
                     return True     # bg process still alive
-            except:
+            except Exception:
                 pass
             # background process stopped
             self.close()

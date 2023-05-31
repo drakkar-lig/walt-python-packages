@@ -26,7 +26,7 @@ def publish(requester, server: Server, registry_label, image_fullname, **kwargs)
         else:
             registry = get_custom_registry_client(registry_label)
             success = registry.push(requester, image_fullname)
-    except:
+    except Exception:
         requester.stderr.write(f'Failed to communicate with {registry_label} registry. Aborted.\n')
         return (False,)
     if success:

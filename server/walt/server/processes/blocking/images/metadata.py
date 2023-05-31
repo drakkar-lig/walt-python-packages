@@ -62,7 +62,7 @@ async def async_pull_user_metadata(hub, user):
                 '%(user)s/walt_metadata:latest' % dict(user = user))
         encoded = labels['metadata']
         return json.loads(base64.b64decode(encoded).decode('UTF-8'))
-    except:     # user did not push metadata yet
+    except Exception:     # user did not push metadata yet
         return { 'walt.user.images': {} }
 
 def update_user_metadata_for_image(requester, hub, image_fullname, labels):

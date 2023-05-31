@@ -42,7 +42,7 @@ class NodeBootupStatusListener:
             if len(c) == 1:
                 # all is fine
                 return True # continue
-        except:
+        except Exception:
             pass
         # If we are here, there was an Exception or an empty read, which means
         # the connection was lost.

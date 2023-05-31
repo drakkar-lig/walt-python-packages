@@ -23,7 +23,7 @@ def analyse_g5k_resources(info, site):
         output = run_cmd_on_site(info, site, [ 'kavlan', '-V' ], True)
         try:
             info['vlan']['vlan_id'] = int(output)
-        except:
+        except Exception:
             raise Exception(f"G5K vlan reservation failed at {site}!")
 
 def yield_enabled_netcards(node_hostname):

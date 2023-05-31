@@ -186,7 +186,7 @@ class WalTNodeBlink(WalTApplication):
     def main(self, node_name : NODE, duration=60):
         try:
             seconds = int(duration)
-        except:
+        except Exception:
             sys.stderr.write(
                 '<duration> must be an integer (number of seconds).\n')
         else:

@@ -44,7 +44,7 @@ def on_message(s_serv, msg, ancdata, flags, peer_addr):
         print('added ' + tap_name + ' to bridge ' + BRIDGE_INTF)
         # send tap filedescriptor to the new client
         send_msg_fds(s_serv, b'HELLO', (tap_fd,), peer_addr)
-    except:
+    except Exception:
         traceback.print_exc()
         print('continuing...')
     finally:

@@ -22,6 +22,6 @@ def get_grub_boot_disk():
         for dev_info in devices_info['blockdevices']:
             if dev_has_given_child_name(dev_info, boot_device_name):
                 return '/dev/' + dev_info['name']
-    except:
+    except Exception:
         pass
     return None

@@ -66,7 +66,7 @@ def http_read(url):
         else:
             print(url, res.reason)
             return None
-    except:
+    except Exception:
         print(url, 'Connection failed')
         return None
 

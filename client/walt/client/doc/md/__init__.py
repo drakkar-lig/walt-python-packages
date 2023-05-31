@@ -5,7 +5,7 @@ from walt.client.doc.pager import Pager
 def get_md_content(topic, err_out=False):
     try:
         return resource_string(__name__, topic + ".md").decode('utf-8')
-    except:
+    except Exception:
         if err_out:
             print('Sorry, no such help topic. (tip: use "walt help list")')
         return

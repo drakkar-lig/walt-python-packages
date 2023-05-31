@@ -34,7 +34,7 @@ def compute_relative_date(server_time, rel_date):
         delay = datetime.timedelta(
                 seconds = int(rel_date[1:-1]) * \
                     SECONDS_PER_UNIT[rel_date[-1]])
-    except:
+    except Exception:
         print("Invalid relative date. Should be: -<int>[dhms] (e.g. '-6h' for 'six hours ago')")
         sys.exit(1)
     return pickle.dumps(server_time - delay, protocol=PICKLE_VERSION)
@@ -140,7 +140,7 @@ class WalTLogShowOrWait(WalTApplication):
                 continue
             try:
                 re.compile(regexp)
-            except:
+            except Exception:
                 print('Invalid regular expression: %s.' % regexp)
                 return False
         return True
@@ -247,7 +247,7 @@ class WalTLogAddCheckpoint(WalTApplication):
                     try:
                         self.date = pickle.dumps(datetime.datetime.strptime(\
                                         self.date, DATE_FORMAT_STRING), protocol=PICKLE_VERSION)
-                    except:
+                    except Exception:
                         print('Could not parse the date specified.')
                         print('Expected format is: %s' % DATE_FORMAT_STRING_HUMAN)
                         print('Example: %s' % DATE_FORMAT_STRING_EXAMPLE)

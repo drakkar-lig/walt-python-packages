@@ -71,14 +71,14 @@ class APISessionManager(object):
                 task.return_result(event[1])
                 return True
             return False
-        except:
+        except Exception:
             return False
     def return_result(self, res):
         # client might already be disconnected (ctrl-C),
         # thus we ignore errors.
         try:
             self.api_channel.write('RESULT', res)
-        except:
+        except Exception:
             self.close()
     def init_session(self):
         try:
@@ -87,7 +87,7 @@ class APISessionManager(object):
             APISessionManager.next_session_id += 1
             self.sock_file.write(b"%s\n" % str(__version__).encode('UTF-8'))
             return True
-        except:
+        except Exception:
             return False
     def close(self):
         for task in reversed(self.stack_of_client_tasks):

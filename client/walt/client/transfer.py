@@ -56,7 +56,7 @@ class PickleMessageReader:
     def read_message(sock_file):
         try:
             return pickle.load(sock_file)
-        except:
+        except Exception:
             return None
 
 class SmartWriter:

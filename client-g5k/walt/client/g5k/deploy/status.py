@@ -95,7 +95,7 @@ def load_status_file(status_file, allow_expired):
         try:
             info = json.loads(LAST_DEPLOYMENT_STATUS_FILE.read_text())
             break
-        except:
+        except Exception:
             time.sleep(1)  # then retry
     if info is None:
         return None

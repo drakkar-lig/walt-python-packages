@@ -64,11 +64,11 @@ class ReadableFifo(object):
         try:
             os.write(self.ctrl_w, 'X')
             os.close(self.ctrl_w)
-        except:
+        except Exception:
             pass
         try:
             self.file_r.close()
-        except:
+        except Exception:
             pass
     def __enter__(self):
         return self.file_r

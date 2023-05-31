@@ -7,10 +7,10 @@ class ServiceRequests:
     def get_id(cls, s):
         try:
             return int(s)
-        except:
+        except Exception:
             try:
                 return getattr(cls, s)
-            except:
+            except Exception:
                 return None
 
 class GenericServer:

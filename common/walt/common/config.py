@@ -7,7 +7,7 @@ def load_conf(path, optional=False):
     """Load a configuration file"""
     try:
         conf_text = path.read_text()
-    except:
+    except Exception:
         if path.exists():
             if optional:
                 print(f'WARNING: Failed to read configuration at {path}')
@@ -21,7 +21,7 @@ def load_conf(path, optional=False):
                 raise Exception(f'Missing configuration file at {path}')
     try:
         conf = yaml.safe_load(conf_text)
-    except:
+    except Exception:
         if optional:
             print(f'WARNING: Configuration file at {path} is not valid yaml or json! Ignored.')
             return None

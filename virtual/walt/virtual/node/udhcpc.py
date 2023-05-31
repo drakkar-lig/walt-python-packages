@@ -91,6 +91,6 @@ def udhcpc_fake_netboot(env):
             # we also need to setup the interface to handle TFTP transfers
             udhcpc_setup_interface(env, pipe[1])
             yield True
-        except:
+        except Exception:
             traceback.print_exc()
             yield False

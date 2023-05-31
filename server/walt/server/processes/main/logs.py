@@ -143,7 +143,7 @@ class FileListener:
             if len(chunk) == 0:
                 self.flush()
                 return False
-        except:
+        except Exception:
             self.flush()
             return False
         self.chunk += chunk

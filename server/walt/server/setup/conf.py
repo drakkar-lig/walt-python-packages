@@ -57,7 +57,7 @@ def get_current_conf():
     try:
         from walt.server import conf
         return conf
-    except:
+    except Exception:
         return None
 
 def edit_conf_tty_error():

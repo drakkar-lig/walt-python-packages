@@ -34,7 +34,7 @@ def ac_helper():
         if result is None:
             sys.exit(1) # error
         print(result)
-    except:
+    except Exception:
         if debug:
             raise
         sys.exit(1) # error

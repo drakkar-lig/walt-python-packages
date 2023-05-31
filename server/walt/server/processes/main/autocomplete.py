@@ -228,7 +228,7 @@ def shell_autocomplete_process(server, requester, username, argv, debug):
     partial_token = argv[-1]
     try:
         possible = shell_autocomplete_switch(server, requester, username, argv)
-    except:
+    except Exception:
         if debug:
             raise
         return None  # autocompletion should not print failure messages

@@ -304,7 +304,7 @@ def perform_clone(requester,
         registry = get_custom_registry_client(remote_location)
         try:
             labels = registry.get_labels(requester, remote_image_fullname)
-        except:
+        except Exception:
             return exit_no_such_image(requester)
     if 'walt.node.models' not in labels:
         return exit_image_without_models(requester)

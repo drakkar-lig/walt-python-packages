@@ -72,7 +72,7 @@ class EvProcess(Process):
         print(f'exit: calling cleanup function for {self.name}')
         try:
             self.cleanup()
-        except:
+        except Exception:
             traceback.print_exc()
 
 class EvProcessesManager(object):

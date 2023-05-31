@@ -24,7 +24,7 @@ DEFAULT_CONF = {
 def check_ip_network(ip_net):
     try:
         ip_network(str(ip_net), strict=False)
-    except:
+    except Exception:
         return False
     return True
 

@@ -83,7 +83,7 @@ def validate_walltime(wt):
             valid = False
         elif elems == (0, 0, 0):
             valid = False
-    except:
+    except Exception:
         valid = False
     if not valid:
         print('Expected format is the one of oarsub command (e.g. 01:00:00 for one hour).')

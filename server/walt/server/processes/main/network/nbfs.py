@@ -26,7 +26,7 @@ def get_nbfsd_pid():
         pid = int(NBFSD_PID_PATH.read_text())
         os.kill(pid, 0)    # signum = 0: check if process still exists
         return pid
-    except:
+    except Exception:
         return None
 
 def update_exports(root_paths, subnet):

@@ -84,7 +84,7 @@ class Search(object):
                 if self.validate_fullname(fullname, 'docker'):
                     labels = await docker_daemon.async_get_labels(self.requester, fullname)
                     yield (fullname, 'docker', labels)
-        except:
+        except Exception:
             self.requester.stderr.write("Ignoring images of docker daemon because of a communication failure.\n")
             return
     async def async_search_hub(self, hub):
@@ -98,7 +98,7 @@ class Search(object):
                     generators += [ self.async_search_hub_user_images(hub, user) ]
             async for record in async_merge_generators(*generators):
                 yield record
-        except:
+        except Exception:
             self.requester.stderr.write("Ignoring hub registry because of a communication failure.\n")
             return
     async def async_search_hub_user_images(self, hub, user):
@@ -113,7 +113,7 @@ class Search(object):
                 generators += [ self.async_get_registry_v2_image_tags(registry, image_name) ]
             async for record in async_merge_generators(*generators):
                 yield record
-        except:
+        except Exception:
             self.requester.stderr.write(f"Ignoring {registry.label} registry because of a communication failure.\n")
             return
     async def async_get_registry_v2_image_tags(self, registry, image_name):
@@ -163,7 +163,7 @@ async def async_format_result(it):
         if min_version is not None:
             try:
                 min_version = int(min_version)
-            except:
+            except Exception:
                 min_version = None
         node_models = labels['walt.node.models'].split(',')
         yield ( user,
