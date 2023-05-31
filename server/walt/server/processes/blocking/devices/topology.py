@@ -11,7 +11,9 @@ from walt.server.processes.blocking.devices.tree import Tree
 from walt.server.processes.blocking.snmp import NoSNMPVariantFound
 from walt.server.tools import get_server_ip, ip_in_walt_adm_network, ip_in_walt_network
 
-NOTE_EXPLAIN_UNREACHABLE = "devices marked with parentheses were not detected at last scan"
+NOTE_EXPLAIN_UNREACHABLE = (
+    "devices marked with parentheses were not detected at last scan"
+)
 NOTE_EXPLAIN_UNKNOWN = "type of devices marked with <? ... ?> is unknown"
 
 TIP_ADD_FLAG_ALL = "use 'walt device tree --all' to see all devices detected"
@@ -40,20 +42,24 @@ NOTE: However, devices connected there may not be re-detected before a little ti
 NOTE: Re-running a scan in 10 minutes may give better results.
 """
 
+
 def format_explanation(item_type, items):
     if len(items) == 0:
-        return ''
+        return ""
     if len(items) == 1:
-        return item_type + ': ' + items[0] + '.\n'
-    return item_type + 's:' + ''.join('\n- ' + item for item in items) + '\n'
+        return item_type + ": " + items[0] + ".\n"
+    return item_type + "s:" + "".join("\n- " + item for item in items) + "\n"
+
 
 def get_unique_value(s):
     return next(iter(s))
+
 
 def two_levels_dict_browse(d):
     for k1, v1 in d.items():
         for k2, v2 in v1.items():
             yield k1, k2, v2
+
 
 class BridgeTopology:
     def __init__(self):
@@ -63,7 +69,7 @@ class BridgeTopology:
     def register_secondary_macs(self, sw_mac, secondary_macs):
         """Register secondary mac addresses of a switch"""
         secondary_macs -= set((sw_mac,))
-        self.secondary_to_main_mac.update({ mac: sw_mac for mac in secondary_macs })
+        self.secondary_to_main_mac.update({mac: sw_mac for mac in secondary_macs})
 
     def register_neighbor(self, local_mac, local_port, neighbor_mac):
         """Register a neighbor of the forwarding table"""
@@ -101,9 +107,11 @@ class BridgeTopology:
         #   the server
         # * compute an 'edge' view reduced to the links between a switch
         #   and an edge device
-        db_types = { dev.mac: dev.type for dev in db.select('devices') }
+        db_types = {dev.mac: dev.type for dev in db.select("devices")}
         db_macs = set(db_types.keys())
-        db_backbone_macs = set(mac for mac, t in db_types.items() if t in ('switch', 'server'))
+        db_backbone_macs = set(
+            mac for mac, t in db_types.items() if t in ("switch", "server")
+        )
         backbone_candidate_macs_per_port = defaultdict(lambda: defaultdict(set))
         edge_candidate_macs_per_port = defaultdict(lambda: defaultdict(set))
         for sw_port_info, macs in self.candidate_macs_per_port.items():
@@ -123,7 +131,9 @@ class BridgeTopology:
             # a given device is possibly connected.
             # (cf. backbone_candidate_ports_per_mac)
             backbone_candidate_ports_per_mac = defaultdict(set)
-            for sw_mac, sw_port, macs in two_levels_dict_browse(backbone_candidate_macs_per_port):
+            for sw_mac, sw_port, macs in two_levels_dict_browse(
+                backbone_candidate_macs_per_port
+            ):
                 for mac in macs:
                     backbone_candidate_ports_per_mac[mac].add((sw_mac, sw_port))
             # let's consider a device D reported both on port a of switch A and on port
@@ -131,7 +141,9 @@ class BridgeTopology:
             # switch A, then we know that switch A is closer to device D than switch B.
             candidate_macs_per_port = defaultdict(lambda: defaultdict(set))
             for mac_D, candidate_sw_ports in backbone_candidate_ports_per_mac.items():
-                for switch_A_port, switch_B_port in itertools.permutations(candidate_sw_ports, 2):
+                for switch_A_port, switch_B_port in itertools.permutations(
+                    candidate_sw_ports, 2
+                ):
                     mac_A, a = switch_A_port
                     mac_B, b = switch_B_port
                     a_prim = None
@@ -139,7 +151,9 @@ class BridgeTopology:
                         if mac == mac_A:
                             a_prim = port
                             if a_prim != a:
-                                backbone_candidate_macs_per_port[mac_B][b] -= set((mac_D,))
+                                backbone_candidate_macs_per_port[mac_B][b] -= set(
+                                    (mac_D,)
+                                )
                                 changed = True
                             break
             if changed:
@@ -148,8 +162,9 @@ class BridgeTopology:
             # then if switch A is reported on any port b of switch B,
             # replace the list of candidates there by switch A only.
             match = False
-            for mac_A, a, candidate_macs in \
-                        two_levels_dict_browse(backbone_candidate_macs_per_port):
+            for mac_A, a, candidate_macs in two_levels_dict_browse(
+                backbone_candidate_macs_per_port
+            ):
                 if len(candidate_macs) == 1:
                     mac_B = get_unique_value(candidate_macs)
                     ports_B = backbone_candidate_macs_per_port.get(mac_B, {})
@@ -166,19 +181,23 @@ class BridgeTopology:
                 backbone_candidate_macs_per_port[mac_B][b] = set((mac_A,))
                 changed = True
             if not changed:
-                break       # nothing changed during last iteration, exit loop
+                break  # nothing changed during last iteration, exit loop
         # We now build ll_topology considering switch ports with only one candidate mac.
         # Edge devices reported on the ports of the backbone are ignored.
         # (We actually process them first so that they are overridden in this case)
         ll_topology = LinkLayerTopology()
-        for candidate_macs_per_port in (edge_candidate_macs_per_port,
-                                        backbone_candidate_macs_per_port):
-            for sw_mac, sw_port, candidate_macs in \
-                            two_levels_dict_browse(candidate_macs_per_port):
+        for candidate_macs_per_port in (
+            edge_candidate_macs_per_port,
+            backbone_candidate_macs_per_port,
+        ):
+            for sw_mac, sw_port, candidate_macs in two_levels_dict_browse(
+                candidate_macs_per_port
+            ):
                 if len(candidate_macs) == 1:
                     mac = get_unique_value(candidate_macs)
                     ll_topology.register_neighbor(sw_mac, sw_port, mac)
         return ll_topology
+
 
 class LinkLayerTopology(object):
     def __init__(self):
@@ -206,18 +225,24 @@ class LinkLayerTopology(object):
                 self.links[(mac1, mac2)] = link[0], local_port, link[2]
 
     def load_from_db(self, db):
-        for db_link in db.select('topology'):
-            self.links[(db_link.mac1, db_link.mac2)] = \
-                       (db_link.port1, db_link.port2, db_link.confirmed)
+        for db_link in db.select("topology"):
+            self.links[(db_link.mac1, db_link.mac2)] = (
+                db_link.port1,
+                db_link.port2,
+                db_link.confirmed,
+            )
 
     def save_to_db(self, db):
-        db.delete('topology')
+        db.delete("topology")
         for link_macs, link_info in self.links.items():
-            db.insert('topology',   mac1 = link_macs[0],
-                                    mac2 = link_macs[1],
-                                    port1 = link_info[0],
-                                    port2 = link_info[1],
-                                    confirmed = link_info[2])
+            db.insert(
+                "topology",
+                mac1=link_macs[0],
+                mac2=link_macs[1],
+                port1=link_info[0],
+                port2=link_info[1],
+                confirmed=link_info[2],
+            )
         db.commit()
 
     def set_confirm_all(self, value):
@@ -244,7 +269,7 @@ class LinkLayerTopology(object):
     def __iter__(self):
         # iterate over links info
         for macs, info in self.links.items():
-            yield macs + info   # concatenate the tuples
+            yield macs + info  # concatenate the tuples
 
     def merge_links_info(self, confirmed, unconfirmed):
         if confirmed[0] is None:
@@ -282,20 +307,20 @@ class LinkLayerTopology(object):
             if port1 is not None:
                 conflicting_mac2 = locations.get((mac1, port1))
                 if conflicting_mac2 is not None:
-                    if confirmed: # this one is confirmed, discard the old one
+                    if confirmed:  # this one is confirmed, discard the old one
                         new_links.pop((mac1, conflicting_mac2), None)
                         locations[(mac1, port1)] = mac2
-                    else:         # this one is not confirmed, discard it
+                    else:  # this one is not confirmed, discard it
                         new_links.pop((mac1, mac2), None)
                 else:
                     locations[(mac1, port1)] = mac2
             if port2 is not None:
                 conflicting_mac1 = locations.get((mac2, port2))
                 if conflicting_mac1 is not None:
-                    if confirmed: # this one is confirmed, discard the old one
+                    if confirmed:  # this one is confirmed, discard the old one
                         new_links.pop((conflicting_mac1, mac2), None)
                         locations[(mac2, port2)] = mac1
-                    else:         # this one is not confirmed, discard it
+                    else:  # this one is not confirmed, discard it
                         new_links.pop((mac1, mac2), None)
                 else:
                     locations[(mac2, port2)] = mac1
@@ -314,7 +339,7 @@ class LinkLayerTopology(object):
                 # strange, should not have a link between two nodes
                 self.links.pop((mac1, mac2), None)
                 continue
-            if is_node[0]:   # dev 1 is a node
+            if is_node[0]:  # dev 1 is a node
                 if mac1 in found_nodes:
                     # node 1 cannot be connected at 2 different places
                     if confirmed:
@@ -325,7 +350,7 @@ class LinkLayerTopology(object):
                 else:
                     found_nodes[mac1] = mac2
                 continue
-            if is_node[1]:   # dev 2 is a node
+            if is_node[1]:  # dev 2 is a node
                 if mac2 in found_nodes:
                     # node 2 cannot be connected at 2 different places
                     if confirmed:
@@ -367,9 +392,9 @@ class LinkLayerTopology(object):
                     # we will process this link
                     remaining_links.remove((mac1, mac2))
                     if accepted_groups.is_same_group(mac1, mac2):
-                        self.links.pop((mac1, mac2))                # 2a: discard
+                        self.links.pop((mac1, mac2))  # 2a: discard
                     else:
-                        accepted_groups.group_items(mac1, mac2)     # 2b: accept
+                        accepted_groups.group_items(mac1, mac2)  # 2b: accept
                         still_moving = True
                         break
             if still_moving:
@@ -382,7 +407,7 @@ class LinkLayerTopology(object):
                 if mac1 in accepted_groups or mac2 in accepted_groups:
                     # we will process this link
                     remaining_links.remove((mac1, mac2))
-                    accepted_groups.group_items(mac1, mac2)         # accept
+                    accepted_groups.group_items(mac1, mac2)  # accept
                     still_moving = True
                     break
             if still_moving:
@@ -398,8 +423,16 @@ class LinkLayerTopology(object):
             if mac2 == mac:
                 yield port2, mac1, port1, confirmed
 
-    def printed_tree(self, last_scan, stdout_encoding, root_mac, device_labels,
-                        device_types, lldp_forbidden, show_all):
+    def printed_tree(
+        self,
+        last_scan,
+        stdout_encoding,
+        root_mac,
+        device_labels,
+        device_types,
+        lldp_forbidden,
+        show_all,
+    ):
         t = Tree(stdout_encoding)
         # compute confirmed / unconfirmed nodes
         confirmed_macs = set()
@@ -413,19 +446,21 @@ class LinkLayerTopology(object):
         # declare nodes
         for mac in all_macs:
             label = device_labels[mac]
-            if device_types[mac] == 'switch':
-                label = '-- %s --' % label
-            elif device_types[mac] == 'unknown':
-                label = '<? %s ?>' % label
+            if device_types[mac] == "switch":
+                label = "-- %s --" % label
+            elif device_types[mac] == "unknown":
+                label = "<? %s ?>" % label
             if mac not in confirmed_macs:
-                label = '(%s)' % label
+                label = "(%s)" % label
             t.add_node(mac, label)
         # declare children
         for mac1, mac2, port1, port2, confirmed in self:
-            for node_mac, parent_mac, parent_port in \
-                    ((mac1, mac2, port2), (mac2, mac1, port1)):
-                if device_types[parent_mac] == 'switch':
-                    if show_all or device_types[node_mac] != 'unknown':
+            for node_mac, parent_mac, parent_port in (
+                (mac1, mac2, port2),
+                (mac2, mac1, port1),
+            ):
+                if device_types[parent_mac] == "switch":
+                    if show_all or device_types[node_mac] != "unknown":
                         t.add_child(parent_mac, parent_port, node_mac)
         # prune parts of the tree
         self.prune(t, root_mac, device_types, lldp_forbidden, show_all)
@@ -444,44 +479,51 @@ class LinkLayerTopology(object):
             notes = notes + (NOTE_EXPLAIN_UNKNOWN,)
         else:
             tips = (TIP_ADD_FLAG_ALL,) + tips
-        footer = format_explanation('note', notes) + '\n' + format_explanation('tip', tips)
+        footer = (
+            format_explanation("note", notes) + "\n" + format_explanation("tip", tips)
+        )
         return "\n%s\n%s" % (t.printed(root=root_mac), footer)
 
     def prune(self, t, root_mac, device_types, lldp_forbidden, show_all):
         if not show_all:
             # prune parts of the tree with no node
             seen = set()
+
             def node_count_prune(mac):
                 seen.add(mac)
-                if device_types[mac] == 'node':
+                if device_types[mac] == "node":
                     count = 1
                 else:
-                    count = sum(node_count_prune(child_mac) for child_mac in t.children(mac) \
-                                       if child_mac not in seen)
+                    count = sum(
+                        node_count_prune(child_mac)
+                        for child_mac in t.children(mac)
+                        if child_mac not in seen
+                    )
                 # In some cases, lldp & bridge table retrieval may be forbidden
                 # on a switch but we may still display the tree appropriately thanks
                 # to information coming from neighboring devices.
                 # In this case, even if queries are forbidden on this specific switch,
                 # we still want to display the subtree rooted there.
                 # All in all, we prune the subtree only if no nodes are found there.
-                if device_types[mac] == 'switch' and count == 0:
+                if device_types[mac] == "switch" and count == 0:
                     if mac in lldp_forbidden:
                         # No nodes there, but let's indicate it is probably because
                         # exploration is forbidden.
-                        t.prune(mac, '[...] ~> forbidden (cf. walt device config)')
+                        t.prune(mac, "[...] ~> forbidden (cf. walt device config)")
                     else:
-                        t.prune(mac, '[...] ~> no nodes there')
+                        t.prune(mac, "[...] ~> no nodes there")
                 return count
+
             node_count_prune(root_mac)
 
-class TopologyManager(object):
 
+class TopologyManager(object):
     def __init__(self):
         self.last_scan = None
 
     def print_message(self, requester, message):
         if requester is not None:
-            requester.stdout.write(message + '\n')
+            requester.stdout.write(message + "\n")
             requester.stdout.flush()
         print(message)
 
@@ -490,70 +532,142 @@ class TopologyManager(object):
         server_mac = server.devices.get_server_mac()
         server_ip = get_server_ip()
         for device in devices:
-            if device.type == 'server':
-                self.collect_connected_devices(requester, server, server_mac, server_ip, lldp_topology,
-                    None, "walt server", server_ip, device.mac, const.SERVER_SNMP_CONF)
-            elif device.type == 'switch':
-                if not device.conf.get('lldp.explore', False):
-                    self.print_message(requester,
-                        'Querying %-25s FORBIDDEN (see: walt help show device-config)' % device.name)
+            if device.type == "server":
+                self.collect_connected_devices(
+                    requester,
+                    server,
+                    server_mac,
+                    server_ip,
+                    lldp_topology,
+                    None,
+                    "walt server",
+                    server_ip,
+                    device.mac,
+                    const.SERVER_SNMP_CONF,
+                )
+            elif device.type == "switch":
+                if not device.conf.get("lldp.explore", False):
+                    self.print_message(
+                        requester,
+                        "Querying %-25s FORBIDDEN (see: walt help show device-config)"
+                        % device.name,
+                    )
                     continue
-                snmp_conf = { 'version': device.conf.get('snmp.version'),
-                              'community': device.conf.get('snmp.community') }
-                self.collect_connected_devices(requester, server, server_mac, server_ip, lldp_topology,
-                    bridge_topology, device.name, device.ip, device.mac, snmp_conf)
+                snmp_conf = {
+                    "version": device.conf.get("snmp.version"),
+                    "community": device.conf.get("snmp.community"),
+                }
+                self.collect_connected_devices(
+                    requester,
+                    server,
+                    server_mac,
+                    server_ip,
+                    lldp_topology,
+                    bridge_topology,
+                    device.name,
+                    device.ip,
+                    device.mac,
+                    snmp_conf,
+                )
             else:
-                self.print_message(requester,
-                    'Querying %-25s INVALID (can only scan switches or the server)' % device.name)
+                self.print_message(
+                    requester,
+                    "Querying %-25s INVALID (can only scan switches or the server)"
+                    % device.name,
+                )
         return lldp_topology, bridge_topology
 
-    def collect_connected_devices(self, requester, server, server_mac, server_ip, lldp_topology,
-                                  bridge_topology, host_name, host_ip, host_mac, host_snmp_conf):
+    def collect_connected_devices(
+        self,
+        requester,
+        server,
+        server_mac,
+        server_ip,
+        lldp_topology,
+        bridge_topology,
+        host_name,
+        host_ip,
+        host_mac,
+        host_snmp_conf,
+    ):
         print("Querying %s..." % host_name)
         if host_ip is None:
-            self.print_message(requester, "Querying %-25s FAILED (unknown management IP!)" % host_name)
+            self.print_message(
+                requester, "Querying %-25s FAILED (unknown management IP!)" % host_name
+            )
             return
         lldp_error = self.get_and_process_lldp_neighbors(
-                                server, server_mac, server_ip, lldp_topology, host_name,
-                                host_ip, host_mac, host_snmp_conf)
+            server,
+            server_mac,
+            server_ip,
+            lldp_topology,
+            host_name,
+            host_ip,
+            host_mac,
+            host_snmp_conf,
+        )
         if bridge_topology is None:
             message = {
-                None:           'OK',
-                'snmp-variant': 'FAILED (LLDP SNMP issue)',
-                'snmp-issue':   'FAILED (LLDP SNMP issue)'
+                None: "OK",
+                "snmp-variant": "FAILED (LLDP SNMP issue)",
+                "snmp-issue": "FAILED (LLDP SNMP issue)",
             }[lldp_error]
         else:
             bridge_error = self.get_and_process_bridge_neighbors(
-                                server, server_mac, server_ip, bridge_topology, host_name,
-                                host_ip, host_mac, host_snmp_conf)
+                server,
+                server_mac,
+                server_ip,
+                bridge_topology,
+                host_name,
+                host_ip,
+                host_mac,
+                host_snmp_conf,
+            )
             message = {
-                (None,           None):           'OK',
-                (None,           'snmp-variant'): 'OK (LLDP-only data)',
-                (None,           'snmp-issue'):   'OK (LLDP-only data)',
-                ('snmp-variant', None):           'OK (BRIDGE-only data)',
-                ('snmp-variant', 'snmp-variant'): 'FAILED (LLDP and BRIDGE SNMP issues)',
-                ('snmp-variant', 'snmp-issue'):   'FAILED (LLDP and BRIDGE SNMP issues)',
-                ('snmp-issue',   None):           'OK (BRIDGE-only data)',
-                ('snmp-issue',   'snmp-variant'): 'FAILED (LLDP and BRIDGE SNMP issues)',
-                ('snmp-issue',   'snmp-issue'):   'FAILED (LLDP and BRIDGE SNMP issues)',
+                (None, None): "OK",
+                (None, "snmp-variant"): "OK (LLDP-only data)",
+                (None, "snmp-issue"): "OK (LLDP-only data)",
+                ("snmp-variant", None): "OK (BRIDGE-only data)",
+                (
+                    "snmp-variant",
+                    "snmp-variant",
+                ): "FAILED (LLDP and BRIDGE SNMP issues)",
+                ("snmp-variant", "snmp-issue"): "FAILED (LLDP and BRIDGE SNMP issues)",
+                ("snmp-issue", None): "OK (BRIDGE-only data)",
+                ("snmp-issue", "snmp-variant"): "FAILED (LLDP and BRIDGE SNMP issues)",
+                ("snmp-issue", "snmp-issue"): "FAILED (LLDP and BRIDGE SNMP issues)",
             }[(lldp_error, bridge_error)]
         self.print_message(requester, ("Querying %-25s " % host_name) + message)
 
-    def get_and_process_lldp_neighbors(self, server, server_mac, server_ip, topology, host_name,
-                                    host_ip, host_mac, host_snmp_conf):
+    def get_and_process_lldp_neighbors(
+        self,
+        server,
+        server_mac,
+        server_ip,
+        topology,
+        host_name,
+        host_ip,
+        host_mac,
+        host_snmp_conf,
+    ):
         try:
             snmp_proxy = snmp.Proxy(host_ip, host_snmp_conf, lldp=True)
         except NoSNMPVariantFound:
-            return 'snmp-variant'
+            return "snmp-variant"
         try:
             neighbors = snmp_proxy.lldp.get_neighbors().items()
         except SNMPException:
-            return 'snmp-issue'
+            return "snmp-issue"
         for port, neighbor_info in neighbors:
-            ip, mac, sysname =  neighbor_info['ip'], neighbor_info['mac'], \
-                                neighbor_info['sysname']
-            print('---- lldp: found on %s %s -- port %d: %s %s %s' % \
-                        (host_name, host_mac, port, ip, mac, sysname))
+            ip, mac, sysname = (
+                neighbor_info["ip"],
+                neighbor_info["mac"],
+                neighbor_info["sysname"],
+            )
+            print(
+                "---- lldp: found on %s %s -- port %d: %s %s %s"
+                % (host_name, host_mac, port, ip, mac, sysname)
+            )
             # The switch connected to the server detects the mac address of the physical
             # network interface, which is different from the mac address of walt-net
             # (the one we use to identify the server in our database).
@@ -563,29 +677,38 @@ class TopologyManager(object):
             if ip == server_ip:
                 mac = server_mac
             topology.register_neighbor(host_mac, port, mac)
-            info = dict(mac = mac, ip = ip, name = sysname.lower())
+            info = dict(mac=mac, ip=ip, name=sysname.lower())
             db_info = server.devices.get_complete_device_info(mac)
             if db_info is None:
                 # new device, call add_or_update_device to add it
                 server.add_or_update_device(**info)
             elif ip != db_info.ip:
                 # call add_or_update_device to update ip
-                info.update(type = db_info.type, name = db_info.name)
+                info.update(type=db_info.type, name=db_info.name)
                 server.add_or_update_device(**info)
         return None  # no error
 
-    def get_and_process_bridge_neighbors(self, server, server_mac, server_ip, topology, host_name,
-                                    host_ip, host_mac, host_snmp_conf):
+    def get_and_process_bridge_neighbors(
+        self,
+        server,
+        server_mac,
+        server_ip,
+        topology,
+        host_name,
+        host_ip,
+        host_mac,
+        host_snmp_conf,
+    ):
         # SNMP communication
         try:
             snmp_proxy = snmp.Proxy(host_ip, host_snmp_conf, bridge=True)
         except NoSNMPVariantFound:
-            return 'snmp-variant'
+            return "snmp-variant"
         try:
             macs_per_port = snmp_proxy.bridge.get_macs_per_port()
             secondary_macs = snmp_proxy.bridge.get_secondary_macs()
         except SNMPException:
-            return 'snmp-issue'
+            return "snmp-issue"
         # Register secondary switch macs
         topology.register_secondary_macs(host_mac, secondary_macs)
         # Register switch neighbors --
@@ -594,8 +717,8 @@ class TopologyManager(object):
         # We don't get neighbor IPs here (unlike LLDP), so we cannot register new
         # devices in db.
         for port, macs in macs_per_port.items():
-            msg = ', '.join(macs)
-            print(f'---- bridge: found on {host_name} {host_mac} -- port {port}: {msg}')
+            msg = ", ".join(macs)
+            print(f"---- bridge: found on {host_name} {host_mac} -- port {port}: {msg}")
             for mac in macs:
                 topology.register_neighbor(host_mac, port, mac)
         return None  # no error
@@ -612,7 +735,9 @@ class TopologyManager(object):
         self.rescan_restore_poe_on_switch_ports(requester, server, db, devices)
 
         # explore the network equipments
-        lldp_topology, bridge_topology = self.collect_devices(requester, server, devices)
+        lldp_topology, bridge_topology = self.collect_devices(
+            requester, server, devices
+        )
 
         # help bridge data analysis by adding lldp confirmed data to bridge topology
         bridge_topology.add_ll_confirmed_data(lldp_topology)
@@ -635,7 +760,7 @@ class TopologyManager(object):
         new_topology.merge_other(db_topology)
 
         # cleanup conflicting data (obsolete vs confirmed)
-        nodes_mac = set(n.mac for n in db.select('nodes'))
+        nodes_mac = set(n.mac for n in db.select("nodes"))
         new_topology.cleanup(nodes_mac)
 
         # commit to db
@@ -651,25 +776,31 @@ class TopologyManager(object):
         #   as a switch
         server_mac = server.devices.get_server_mac()
         unknown_neighbors = []
-        for port, neighbor_mac, neighbor_port, confirmed in \
-                db_topology.get_neighbors(server_mac):
+        for port, neighbor_mac, neighbor_port, confirmed in db_topology.get_neighbors(
+            server_mac
+        ):
             info = server.devices.get_complete_device_info(neighbor_mac)
             if info.ip is None:
                 continue  # ignore this device
             if not (ip_in_walt_network(info.ip) or ip_in_walt_adm_network(info.ip)):
                 continue  # ignore this device
-            if info.type == 'unknown':
+            if info.type == "unknown":
                 unknown_neighbors.append(info.name)
                 continue  # possibly the switch we are looking for
-            if info.type == 'switch':
+            if info.type == "switch":
                 return (True, neighbor_mac)  # Found it!
         # if we are here we did not find what we want
         out = MSG_UNKNOWN_TOPOLOGY
         if len(unknown_neighbors) > 0:
-            out += format_sentence("Note: %s was(were) detected, but its(their) type is unknown.\n" +
-                                   "If it(one of them) is a switch, use:\n" +
-                                   "$ walt device config <device> type=switch\n",
-                                   unknown_neighbors, None, 'device', 'devices')
+            out += format_sentence(
+                "Note: %s was(were) detected, but its(their) type is unknown.\n"
+                + "If it(one of them) is a switch, use:\n"
+                + "$ walt device config <device> type=switch\n",
+                unknown_neighbors,
+                None,
+                "device",
+                "devices",
+            )
         return (False, out)
 
     def tree(self, requester, server, db, show_all):
@@ -679,30 +810,43 @@ class TopologyManager(object):
             return MSG_UNKNOWN_TOPOLOGY
         tree_root_info = self.get_tree_root_mac(server, db_topology)
         if tree_root_info[0] is False:  # failed
-            return tree_root_info[1]    # return error message
+            return tree_root_info[1]  # return error message
         root_mac = tree_root_info[1]
         # compute device mac to label and type associations
-        device_labels = { d.mac: d.name for d in db.select('devices') }
-        device_types = { d.mac: d.type for d in db.select('devices') }
-        lldp_forbidden = set(d.mac for d in db.select('devices', type = 'switch') \
-                             if d.conf.get('lldp.explore', False) is False)
+        device_labels = {d.mac: d.name for d in db.select("devices")}
+        device_types = {d.mac: d.type for d in db.select("devices")}
+        lldp_forbidden = set(
+            d.mac
+            for d in db.select("devices", type="switch")
+            if d.conf.get("lldp.explore", False) is False
+        )
         # compute and return the topology tree
         stdout_encoding = requester.stdout.get_encoding()
-        return db_topology.printed_tree(self.last_scan, stdout_encoding,
-                       root_mac, device_labels, device_types, lldp_forbidden, show_all)
+        return db_topology.printed_tree(
+            self.last_scan,
+            stdout_encoding,
+            root_mac,
+            device_labels,
+            device_types,
+            lldp_forbidden,
+            show_all,
+        )
 
     def sw_port_set_poe(self, db, switch_info, switch_port, poe_status, reason=None):
-        snmp_conf = { 'version': switch_info.conf.get('snmp.version'),
-                      'community': switch_info.conf.get('snmp.community') }
+        snmp_conf = {
+            "version": switch_info.conf.get("snmp.version"),
+            "community": switch_info.conf.get("snmp.community"),
+        }
         try:
             proxy = snmp.Proxy(switch_info.ip, snmp_conf, poe=True)
             # before trying to turn PoE power off, check if this switch port
             # is actually delivering power (the node may be connected to a
             # PoE capable switch, but powered by an alternate source).
             if poe_status is False:
-                if proxy.poe.check_poe_enabled(switch_port) and \
-                        not proxy.poe.check_poe_in_use(switch_port):
-                    return False, 'node seems not PoE-powered'
+                if proxy.poe.check_poe_enabled(
+                    switch_port
+                ) and not proxy.poe.check_poe_in_use(switch_port):
+                    return False, "node seems not PoE-powered"
             # turn poe power on or off
             proxy.poe.set_port(switch_port, poe_status)
             # record the change in database
@@ -710,7 +854,7 @@ class TopologyManager(object):
             # confirm success to caller
             return (True,)
         except SNMPException:
-            return False, 'SNMP issue'
+            return False, "SNMP issue"
         except Exception as e:
             return False, e.__class__.__name__
 
@@ -722,7 +866,9 @@ class TopologyManager(object):
             # we have to know on which PoE switch port the node is
             switch_info, switch_port = server.devices.get_connectivity_info(node.mac)
             # let's request the switch to enable or disable the PoE
-            result = self.sw_port_set_poe(db, switch_info, switch_port, poe_status, reason=reason)
+            result = self.sw_port_set_poe(
+                db, switch_info, switch_port, poe_status, reason=reason
+            )
             if result[0] is True:
                 # validate this node
                 nodes_ok.append(node)
@@ -731,28 +877,36 @@ class TopologyManager(object):
         return nodes_ok, errors
 
     def restore_poe_on_all_ports(self, server, db):
-        for sw_port_info in db.execute('''SELECT d.*, po.port
+        for sw_port_info in db.execute(
+            """SELECT d.*, po.port
                                    FROM devices d, poeoff po
-                                   WHERE d.mac = po.mac;'''):
+                                   WHERE d.mac = po.mac;"""
+        ):
             result = self.sw_port_set_poe(db, sw_port_info, sw_port_info.port, True)
             if result[0] is False:
-                print("WARNING: Failed to restore PoE on switch " +
-                      f"{sw_port_info.name} port {sw_port_info}!\n")
+                print(
+                    "WARNING: Failed to restore PoE on switch "
+                    + f"{sw_port_info.name} port {sw_port_info}!\n"
+                )
 
     def rescan_restore_poe_on_switch_ports(self, requester, server, db, devices):
         first_one = False
         device_macs = tuple(d.mac for d in devices)
-        for sw_port_info in db.execute('''SELECT d.*, po.port
+        for sw_port_info in db.execute(
+            """SELECT d.*, po.port
                                           FROM devices d, poeoff po
                                           WHERE d.mac = po.mac
-                                            AND d.mac IN %s;''',
-                                       (device_macs,)):
+                                            AND d.mac IN %s;""",
+            (device_macs,),
+        ):
             if first_one is False:
                 first_one = True
                 requester.stdout.write(WARNING_DEVICE_RESCAN_POE_OFF)
             result = self.sw_port_set_poe(db, sw_port_info, sw_port_info.port, True)
             if result[0] is False:
-                requester.stderr.write("WARNING: Failed to restore PoE on switch " +
-                                       f"{sw_port_info.name} port {sw_port_info}!\n")
-        if first_one:   # at least one change
-            server.nodes.powersave.handle_event('rescan_restore_poe')
+                requester.stderr.write(
+                    "WARNING: Failed to restore PoE on switch "
+                    + f"{sw_port_info.name} port {sw_port_info}!\n"
+                )
+        if first_one:  # at least one change
+            server.nodes.powersave.handle_event("rescan_restore_poe")

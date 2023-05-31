@@ -1,4 +1,3 @@
-
 # This allows to define the 'reusable' decorator.
 # You can try for instance:
 #
@@ -20,10 +19,12 @@
 # with the same arguments, the same object will be found in
 # cache and returned.
 
+
 class ReusePool(object):
     def __init__(self, cls):
         self.cls = cls
         self.pool = {}
+
     def get(self, *args, **kwargs):
         argdesc = args, tuple(kwargs.items())
         if argdesc in self.pool:
@@ -33,13 +34,14 @@ class ReusePool(object):
             self.pool[argdesc] = obj
         return obj
 
+
 def reusable(cls):
     pool = ReusePool(cls)
+
     # we decorate a class but we return a function:
     # what seems to be a call to the class constructor
     # will actually be a call to this function.
     def func(*args, **kwargs):
         return pool.get(*args, **kwargs)
+
     return func
-
-

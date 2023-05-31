@@ -34,12 +34,13 @@ class CachingRequester:
     def get_registry_credentials(self, registry_label):
         dh_peer = DHPeer()
         credentials = self._remote_requester.get_registry_encrypted_credentials(
-            registry_label, dh_peer.pub_key)
-        dh_peer.establish_session(credentials['client_pub_key'])
+            registry_label, dh_peer.pub_key
+        )
+        dh_peer.establish_session(credentials["client_pub_key"])
         symmetric_key = dh_peer.symmetric_key
         cypher = BlowFish(symmetric_key)
-        password = cypher.decrypt(credentials['encrypted_password'])
-        return credentials['username'], password
+        password = cypher.decrypt(credentials["encrypted_password"])
+        return credentials["username"], password
 
     def ensure_registry_conf_has_credentials(self, registry_label):
         # this is an alias to get_registry_credentials() but we do
@@ -112,7 +113,9 @@ class BlockingTasksContextService:
             return self.docker_daemon.pull(None, self.server, fullname)
 
     def rescan_topology(self, *args, **kwargs):
-        return self.topology.rescan(self.requester, self.server, self.db, *args, **kwargs)
+        return self.topology.rescan(
+            self.requester, self.server, self.db, *args, **kwargs
+        )
 
     def topology_tree(self, *args, **kwargs):
         return self.topology.tree(self.requester, self.server, self.db, *args, **kwargs)
@@ -126,10 +129,11 @@ class BlockingTasksContextService:
     def run_shell_cmd(self, *args, pipe_outstreams=False, **kwargs):
         if pipe_outstreams:
             kwargs.update(
-                stdout = self.requester.stdout,
-                stderr = self.requester.stderr,
+                stdout=self.requester.stdout,
+                stderr=self.requester.stderr,
             )
         return run_shell_cmd(*args, **kwargs)
+
 
 class BlockingTasksService(object):
     def __init__(self):
@@ -137,27 +141,30 @@ class BlockingTasksService(object):
             self.docker_daemon = DockerDaemonClient()
         else:
             self.docker_daemon = None
-        self.db = None      # to be updated shortly
+        self.db = None  # to be updated shortly
         self.topology = TopologyManager()
+
     def __getattr__(self, method_name):
         service = self
+
         def m(context, *args, **kwargs):
             context_service = BlockingTasksContextService(service, context)
             result = getattr(context_service, method_name)(*args, **kwargs)
             return result
+
         return m
 
+
 class ServerBlockingProcess(EvProcess):
-    def __init__(self, tman, level : int):
-        EvProcess.__init__(self, tman, 'server-blocking', level)
+    def __init__(self, tman, level: int):
+        EvProcess.__init__(self, tman, "server-blocking", level)
         service = BlockingTasksService()
-        self.main = RPCProcessConnector(service, label = 'blocking-to-main')
+        self.main = RPCProcessConnector(service, label="blocking-to-main")
         tman.attach_file(self, self.main)
-        self.db = SyncRPCProcessConnector(label = 'blocking-to-db')
+        self.db = SyncRPCProcessConnector(label="blocking-to-db")
         tman.attach_file(self, self.db)
         service.db = self.db
 
     def prepare(self):
         self.register_listener(self.main)
         self.register_listener(self.db)
-

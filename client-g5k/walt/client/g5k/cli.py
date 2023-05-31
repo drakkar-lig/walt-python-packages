@@ -25,13 +25,17 @@ from walt.client.g5k.wait import wait
 # printed first.
 class WalTG5K(WalTCategoryApplication):
     """commands to run WalT on Grid'5000"""
+
     ORDERING = 0
+
 
 @WalTG5K.subcommand("deploy")
 class WalTG5KDeploy(WalTApplication):
     """deploy WalT on Grid'5000 infrastructure"""
+
     ORDERING = 1
-    def main(self, recipe_name : G5K_RECIPE = None):
+
+    def main(self, recipe_name: G5K_RECIPE = None):
         exit_if_walt_platform_deployed()
         if recipe_name is None:
             recipe_info = new_recipe()
@@ -40,38 +44,53 @@ class WalTG5KDeploy(WalTApplication):
             recipe_info = get_recipe_info(recipe_name)
         deploy(recipe_info)
 
+
 @WalTG5K.subcommand("wait")
 class WalTG5KWait(WalTApplication):
     """wait for WalT platform to be deployed"""
+
     ORDERING = 2
+
     def main(self):
         wait()
+
 
 @WalTG5K.subcommand("release")
 class WalTG5KCancel(WalTApplication):
     """release current WalT platform from G5K"""
+
     ORDERING = 3
+
     def main(self):
         release()
+
 
 @WalTG5K.subcommand("info")
 class WalTG5KInfo(WalTApplication):
     """print info about your WalT platform"""
+
     ORDERING = 4
+
     def main(self):
         print_info()
+
 
 @WalTG5K.subcommand("show-recipes")
 class WalTG5KShowRecipes(WalTApplication):
     """list WalT deployment recipes"""
+
     ORDERING = 5
+
     def main(self):
         list_recipes()
+
 
 @WalTG5K.subcommand("create-recipe")
 class WalTG5KCreateRecipe(WalTApplication):
     """create a new WalT deployment recipe"""
+
     ORDERING = 6
+
     def main(self, recipe_name):
         # verify this name is not already taken
         get_recipe_info(recipe_name, expected=False)
@@ -79,29 +98,38 @@ class WalTG5KCreateRecipe(WalTApplication):
         recipe_info = new_recipe()
         save_recipe(recipe_name, recipe_info)
 
+
 @WalTG5K.subcommand("edit-recipe")
 class WalTG5KEditRecipe(WalTApplication):
     """edit a WalT deployment recipe"""
+
     ORDERING = 7
-    def main(self, recipe_name : G5K_RECIPE):
+
+    def main(self, recipe_name: G5K_RECIPE):
         recipe_info = get_recipe_info(recipe_name)
         if edit_recipe(recipe_info):
             save_recipe(recipe_name, recipe_info)
         else:
-            print('Aborted.')
+            print("Aborted.")
             sys.exit(1)
+
 
 @WalTG5K.subcommand("print-recipe")
 class WalTG5KPrintRecipe(WalTApplication):
     """print a WalT deployment recipe"""
+
     ORDERING = 8
-    def main(self, recipe_name : G5K_RECIPE):
+
+    def main(self, recipe_name: G5K_RECIPE):
         recipe_info = get_recipe_info(recipe_name)
         print_recipe(recipe_info)
+
 
 @WalTG5K.subcommand("remove-recipe")
 class WalTG5KRemoveRecipe(WalTApplication):
     """remove a WalT deployment recipe"""
+
     ORDERING = 9
-    def main(self, recipe_name : G5K_RECIPE):
+
+    def main(self, recipe_name: G5K_RECIPE):
         remove_recipe(recipe_name)

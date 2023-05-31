@@ -8,8 +8,9 @@ from pathlib import Path
 BUSYBOX_INIT_DIR = Path("/etc/init.d")
 
 
-def install_service(service_name: str, service_content: io.BytesIO,
-                    install_prefix: Path = None):
+def install_service(
+    service_name: str, service_content: io.BytesIO, install_prefix: Path = None
+):
     """Install a busybox-init service in the filesystem.
 
     :param service_name: Full service name.
@@ -21,7 +22,9 @@ def install_service(service_name: str, service_content: io.BytesIO,
     if install_prefix is None:
         install_dir = BUSYBOX_INIT_DIR
     else:
-        install_dir = install_prefix / BUSYBOX_INIT_DIR.relative_to(BUSYBOX_INIT_DIR.anchor)
+        install_dir = install_prefix / BUSYBOX_INIT_DIR.relative_to(
+            BUSYBOX_INIT_DIR.anchor
+        )
     service_file_path = install_dir / service_name
     if service_file_path.exists():
         raise FileExistsError(service_file_path)

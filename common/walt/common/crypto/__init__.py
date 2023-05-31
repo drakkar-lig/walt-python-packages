@@ -16,4 +16,3 @@
 # 2) an encryption key is agreed using Diffie Hellman process
 # 3) the password is encrypted based on this encryption key
 #    using a pure-python implementation of the blowfish algorithm.
-

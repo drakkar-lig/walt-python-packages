@@ -4,9 +4,7 @@ def publish(store, blocking, requester, task, image_name, **kwargs):
         # issue already reported, return to unblock the client
         return (False,)
     else:
-        task.set_async()    # result will be available later
+        task.set_async()  # result will be available later
         return blocking.publish_image(
-                    requester,
-                    task.return_result,
-                    image_fullname = image.fullname,
-                    **kwargs)
+            requester, task.return_result, image_fullname=image.fullname, **kwargs
+        )

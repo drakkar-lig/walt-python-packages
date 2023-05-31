@@ -4,12 +4,13 @@ from pathlib import Path
 
 from walt.server.spec import server_has_feature
 
-NBFSD_PID_PATH = Path('/var/lib/nbfs/nbfsd.pid')
-NBFS_EXPORTS_PATH = Path('/etc/nbfs/exports.d/walt.exports')
+NBFSD_PID_PATH = Path("/var/lib/nbfs/nbfsd.pid")
+NBFS_EXPORTS_PATH = Path("/etc/nbfs/exports.d/walt.exports")
 
 IMAGE_EXPORT_PATTERN = """\
 %(image_mountpoint)s %(walt_subnet)s(fsid=%(fsid)s)
 """
+
 
 def generate_exports_file_content(root_paths, subnet):
     lines = [
@@ -17,29 +18,31 @@ def generate_exports_file_content(root_paths, subnet):
         "# Root filesystem images\n",
     ]
     for root_path, fsid in sorted(root_paths):
-        lines.append(IMAGE_EXPORT_PATTERN % dict(
-                image_mountpoint=root_path,
-                walt_subnet=subnet,
-                fsid=fsid))
-    return ''.join(lines)
+        lines.append(
+            IMAGE_EXPORT_PATTERN
+            % dict(image_mountpoint=root_path, walt_subnet=subnet, fsid=fsid)
+        )
+    return "".join(lines)
+
 
 def get_nbfsd_pid():
     try:
         pid = int(NBFSD_PID_PATH.read_text())
-        os.kill(pid, 0)    # signum = 0: check if process still exists
+        os.kill(pid, 0)  # signum = 0: check if process still exists
         return pid
     except Exception:
         return None
 
+
 def update_exports(root_paths, subnet):
-    if server_has_feature('nbfs'):
+    if server_has_feature("nbfs"):
         NBFS_EXPORTS_PATH.parent.mkdir(parents=True, exist_ok=True)
         if NBFS_EXPORTS_PATH.exists():
             prev_content = NBFS_EXPORTS_PATH.read_text()
         else:
             prev_content = ""
         content = generate_exports_file_content(root_paths, subnet)
-        if content == prev_content:     # no changes
+        if content == prev_content:  # no changes
             return
         NBFS_EXPORTS_PATH.write_text(content)
         nbfsd_pid = get_nbfsd_pid()

@@ -7,5 +7,5 @@ def udp_server_socket(port):
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     # set close-on-exec flag (subprocesses should not inherit it)
     fcntl(s.fileno(), F_SETFD, fcntl(s.fileno(), F_GETFD) | FD_CLOEXEC)
-    s.bind(('', port))
+    s.bind(("", port))
     return s

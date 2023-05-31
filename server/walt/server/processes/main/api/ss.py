@@ -10,9 +10,9 @@ from walt.server.processes.main.apisession import APISession
 # API versioning is not relevant here. But for clarity we use
 # the same decorators as for the other APIs.
 
+
 @api
 class SSAPI(APISession):
-
     @api_expose_method
     def register_device(self, context, *args):
         context.server.add_or_update_device(*args)

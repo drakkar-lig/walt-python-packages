@@ -35,16 +35,17 @@ from walt.common.tools import do
 # loop again and respond to this new request.
 
 WALT_VPN_USER_HOME = Path("/var/lib/walt/vpn")
-VPN_CA_KEY = WALT_VPN_USER_HOME / '.ssh' / 'vpn-ca-key'
-VPN_CA_KEY_PUB = WALT_VPN_USER_HOME / '.ssh' / 'vpn-ca-key.pub'
+VPN_CA_KEY = WALT_VPN_USER_HOME / ".ssh" / "vpn-ca-key"
+VPN_CA_KEY_PUB = WALT_VPN_USER_HOME / ".ssh" / "vpn-ca-key.pub"
 
-PENDING_USER_RESPONSE_DELAY = 5*60  # seconds
+PENDING_USER_RESPONSE_DELAY = 5 * 60  # seconds
 
 WAITING = 0
 PENDING_USER_RESPONSE = 1
 
-UNSECURE_KEY = UNSECURE_ECDSA_KEYPAIR['openssh-priv'].decode('ascii')
-UNSECURE_KEY_PUB = UNSECURE_ECDSA_KEYPAIR['openssh-pub'].decode('ascii')
+UNSECURE_KEY = UNSECURE_ECDSA_KEYPAIR["openssh-priv"].decode("ascii")
+UNSECURE_KEY_PUB = UNSECURE_ECDSA_KEYPAIR["openssh-pub"].decode("ascii")
+
 
 class VPNManager:
     def __init__(self):
@@ -56,26 +57,26 @@ class VPNManager:
         self.cleanup()
         # check if another device was waiting for this "walt vpn monitor" to loop again.
         for device_mac, request_task_info in self.waiting_requests.items():
-            if request_task_info['status'] == WAITING:
+            if request_task_info["status"] == WAITING:
                 # yes, immediately indicate to "walt vpn monitor" that it should respond
                 # the request of this device (by returning its mac),
                 # and update the device request task status.
-                request_task_info['status'] = PENDING_USER_RESPONSE
-                request_task_info['timeout'] = time() + PENDING_USER_RESPONSE_DELAY
+                request_task_info["status"] = PENDING_USER_RESPONSE
+                request_task_info["timeout"] = time() + PENDING_USER_RESPONSE_DELAY
                 return device_mac
         # otherwise, there is no device request pending
-        task.set_async()   # result will be available later
+        task.set_async()  # result will be available later
         self.waiting_monitors.add(task)
 
     # cleanup disconnected tasks and those which timed out
     def cleanup(self):
         for mac, task_info in self.waiting_requests.copy().items():
-            task = task_info['task']
+            task = task_info["task"]
             if not task.is_alive():
                 del self.waiting_requests[mac]
                 continue
-            if task_info['timeout'] < time():
-                task.return_result(('FAILED', "Timed out waiting for user response!"))
+            if task_info["timeout"] < time():
+                task.return_result(("FAILED", "Timed out waiting for user response!"))
                 del self.waiting_requests[mac]
                 continue
         for task in self.waiting_monitors.copy():
@@ -86,30 +87,30 @@ class VPNManager:
     # user input.
     def have_pending_user_responses(self):
         for request_task_info in self.waiting_requests.values():
-            if request_task_info['status'] == PENDING_USER_RESPONSE:
+            if request_task_info["status"] == PENDING_USER_RESPONSE:
                 return True
         return False
 
     # a device requesting VPN access grant will call this method.
     def request_grant(self, task, device_mac):
-        print('vpn grant request', device_mac)
+        print("vpn grant request", device_mac)
         self.cleanup()
         if len(self.waiting_monitors) == 0 and not self.have_pending_user_responses():
-            return ('FAILED', "No pending 'walt vpn monitor' command.")
-        task.set_async()   # result will be available later
+            return ("FAILED", "No pending 'walt vpn monitor' command.")
+        task.set_async()  # result will be available later
         if len(self.waiting_monitors) > 0:
             task_status = PENDING_USER_RESPONSE
             for monitor_task in self.waiting_monitors:
                 monitor_task.return_result(device_mac)
             self.waiting_monitors = set()
-        else:   # some monitors are there but not connected
-                # (waiting for user response about another device)
+        else:  # some monitors are there but not connected
+            # (waiting for user response about another device)
             task_status = WAITING
         timeout = time() + PENDING_USER_RESPONSE_DELAY
         self.waiting_requests[device_mac] = {
-                    'task': task,
-                    'status': task_status,
-                    'timeout': timeout,
+            "task": task,
+            "status": task_status,
+            "timeout": timeout,
         }
 
     # "walt vpn monitor" calls this function to transmit user's response about a
@@ -117,42 +118,50 @@ class VPNManager:
     def respond_grant_request(self, device_mac, auth_ok):
         request_task_info = self.waiting_requests.get(device_mac, None)
         if request_task_info is None:
-            return ('FAILED', "No such device (it may have been processed by another 'walt vpn monitor' command).")
-        request_task = request_task_info['task']
+            return (
+                "FAILED",
+                "No such device (it may have been processed by another 'walt vpn monitor' command).",
+            )
+        request_task = request_task_info["task"]
         if auth_ok:
             keypair = self.generate_device_keys(device_mac)
-            request_task.return_result(('OK',) + keypair)
-            result = ('OK', 'Device access was granted.')
+            request_task.return_result(("OK",) + keypair)
+            result = ("OK", "Device access was granted.")
         else:
-            request_task.return_result(('FAILED', "Denied!"))
-            result = ('OK', 'Device access was denied.')
+            request_task.return_result(("FAILED", "Denied!"))
+            result = ("OK", "Device access was denied.")
         self.waiting_requests.pop(device_mac)
         return result
 
     def generate_device_keys(self, device_mac):
-        device_id = 'vpn_' + device_mac.replace(':', '')
+        device_id = "vpn_" + device_mac.replace(":", "")
         with tempfile.TemporaryDirectory() as tmpdirname:
-            do("ssh-keygen -C %(comment)s -N '' -t ecdsa -b 384 -f %(tmpdir)s/key" % dict(
-                    comment = 'walt-vpn@' + device_id,
-                    tmpdir = tmpdirname
-            ))
-            do("ssh-keygen -s %(vpn_ca_key)s -I '%(device_id)s' -n %(principal)s %(tmpdir)s/key.pub" % dict(
-                    vpn_ca_key = str(VPN_CA_KEY),
-                    device_id = device_id,
-                    principal = 'walt-vpn',
-                    tmpdir = tmpdirname
-            ))
+            do(
+                "ssh-keygen -C %(comment)s -N '' -t ecdsa -b 384 -f %(tmpdir)s/key"
+                % dict(comment="walt-vpn@" + device_id, tmpdir=tmpdirname)
+            )
+            do(
+                "ssh-keygen -s %(vpn_ca_key)s -I '%(device_id)s' -n %(principal)s %(tmpdir)s/key.pub"
+                % dict(
+                    vpn_ca_key=str(VPN_CA_KEY),
+                    device_id=device_id,
+                    principal="walt-vpn",
+                    tmpdir=tmpdirname,
+                )
+            )
             tmpdir = Path(tmpdirname)
-            priv_key = (tmpdir / 'key').read_text()
-            pub_cert_key = (tmpdir / 'key-cert.pub').read_text()
+            priv_key = (tmpdir / "key").read_text()
+            pub_cert_key = (tmpdir / "key-cert.pub").read_text()
             return (priv_key, pub_cert_key)
 
     def get_unsecure_key_pair(self):
         return (UNSECURE_KEY, UNSECURE_KEY_PUB)
 
     def get_vpn_proxy_setup_script(self):
-        script_content = resource_string(__name__, "vpn-proxy-setup.sh").decode(sys.getdefaultencoding())
+        script_content = resource_string(__name__, "vpn-proxy-setup.sh").decode(
+            sys.getdefaultencoding()
+        )
         return script_content % dict(
-            ca_pub_key = VPN_CA_KEY_PUB.read_text().strip(),
-            unsecure_pub_key = UNSECURE_KEY_PUB
+            ca_pub_key=VPN_CA_KEY_PUB.read_text().strip(),
+            unsecure_pub_key=UNSECURE_KEY_PUB,
         )

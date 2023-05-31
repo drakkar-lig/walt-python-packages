@@ -29,24 +29,20 @@ Run 'walt help show shells' for more info.
 
 
 class PromptClient(object):
-    def __init__(self, req_id, capture_output = False, **params):
+    def __init__(self, req_id, capture_output=False, **params):
         self.capture_output = capture_output
         self.resize_handler_called = False
         if sys.stdout.isatty() and sys.stdin.isatty():
             self.tty_mode = True
             self.tty_settings = TTYSettings()
             # send terminal width and provided parameters
-            params.update(
-                win_size = self.tty_settings.win_size
-            )
-            if 'TERM' in os.environ:
-                params.update(
-                    env = { 'TERM': os.environ['TERM'] }
-                )
+            params.update(win_size=self.tty_settings.win_size)
+            if "TERM" in os.environ:
+                params.update(env={"TERM": os.environ["TERM"]})
         else:
             self.tty_mode = False
         # tell server whether we are on a tty
-        params.update(tty_mode = self.tty_mode)
+        params.update(tty_mode=self.tty_mode)
         # connect
         self.sock_file = connect_to_tcp_server()
         # write request id
@@ -55,16 +51,20 @@ class PromptClient(object):
         self.sock_file.readline()
         write_pickle(params, self.sock_file)
         # make stdin unbuffered
-        self.stdin_reader = unbuffered(stdin, 'rb')
+        self.stdin_reader = unbuffered(stdin, "rb")
 
     def resize_handler(self, signum, frame):
         self.resize_handler_called = True
         if self.tty_mode:
             termsize = shutil.get_terminal_size()
-            buf = pickle.dumps({'evt': 'window_resize',
-                                'lines': termsize.lines,
-                                'columns': termsize.columns },
-                               protocol = PICKLE_VERSION)
+            buf = pickle.dumps(
+                {
+                    "evt": "window_resize",
+                    "lines": termsize.lines,
+                    "columns": termsize.columns,
+                },
+                protocol=PICKLE_VERSION,
+            )
             self.sock_file.write(buf)
             self.sock_file.flush()
 
@@ -78,7 +78,7 @@ class PromptClient(object):
         else:
             out_buffer = stdout.buffer
         # we will wait on 2 file descriptors
-        fds = [ stdin, self.sock_file ]
+        fds = [stdin, self.sock_file]
 
         # this is the main trick when trying to provide a virtual
         # terminal remotely: the client should set its own terminal
@@ -107,7 +107,7 @@ class PromptClient(object):
                 if self.resize_handler_called:
                     # select has been interrupted by the SIGWINCH signal
                     self.resize_handler_called = False  # reset for next time
-                    continue                            # return to select()
+                    continue  # return to select()
                 if len(elist) > 0 and len(rlist) == 0:
                     break
                 fd = rlist[0].fileno()
@@ -117,15 +117,17 @@ class PromptClient(object):
                 else:
                     try:
                         buf = self.stdin_reader.read(4096)
-                        if buf == b'':
+                        if buf == b"":
                             # stdin was probably closed, inform the server input is
                             # ending and continue by reading socket only
                             self.sock_file.shutdown(SHUT_WR)
-                            fds = [ self.sock_file ]
+                            fds = [self.sock_file]
                             continue
                         if self.tty_mode:
-                            buf = pickle.dumps({'evt': 'input_data', 'data': buf},
-                                               protocol = PICKLE_VERSION)
+                            buf = pickle.dumps(
+                                {"evt": "input_data", "data": buf},
+                                protocol=PICKLE_VERSION,
+                            )
                         self.sock_file.write(buf)
                         self.sock_file.flush()
                     except socket.error:
@@ -136,25 +138,34 @@ class PromptClient(object):
         if self.capture_output:
             return captured.getvalue()
 
+
 def run_sql_prompt():
     print(SQL_SHELL_MESSAGE)
     PromptClient(Requests.REQ_SQL_PROMPT).run()
 
+
 def run_image_shell_prompt(image_fullname, container_name):
     print(IMAGE_SHELL_MESSAGE)
-    PromptClient(Requests.REQ_DOCKER_PROMPT,
-                image_fullname = image_fullname,
-                container_name = container_name).run()
+    PromptClient(
+        Requests.REQ_DOCKER_PROMPT,
+        image_fullname=image_fullname,
+        container_name=container_name,
+    ).run()
+
 
 def run_node_cmd(node_ip, cmdargs, ssh_tty, capture_output):
-    return PromptClient(Requests.REQ_NODE_CMD,
-                node_ip=node_ip,
-                cmdargs=tuple(cmdargs),
-                ssh_tty=ssh_tty,
-                capture_output=capture_output).run()
+    return PromptClient(
+        Requests.REQ_NODE_CMD,
+        node_ip=node_ip,
+        cmdargs=tuple(cmdargs),
+        ssh_tty=ssh_tty,
+        capture_output=capture_output,
+    ).run()
+
 
 def run_device_ping(device_ip):
     PromptClient(Requests.REQ_DEVICE_PING, device_ip=device_ip).run()
+
 
 def run_device_shell(device_ip, user):
     PromptClient(Requests.REQ_DEVICE_SHELL, device_ip=device_ip, user=user).run()

@@ -10,8 +10,12 @@ from walt.server.tools import get_dns_servers, get_server_ip, get_walt_subnet, i
 
 # STATE_DIRECTORY is set by systemd to the daemon's state directory.  By
 # default, it is /var/lib/walt
-DHCPD_CONF_FILE = Path(os.getenv("STATE_DIRECTORY", "/var/lib/walt")) / \
-                    'services' / 'dhcpd' / 'dhcpd.conf'
+DHCPD_CONF_FILE = (
+    Path(os.getenv("STATE_DIRECTORY", "/var/lib/walt"))
+    / "services"
+    / "dhcpd"
+    / "dhcpd.conf"
+)
 
 CONF_PATTERN = """
 #
@@ -161,14 +165,16 @@ HOST_CONF_PATTERN = """\
     }
 """
 
+
 # see https://stackoverflow.com/a/2154437
 def get_contiguous_ranges(ips):
     ips = sorted(ips)
-    ranges=[]
-    for k, g in groupby(enumerate(ips), lambda i_x:i_x[0]-int(i_x[1])):
+    ranges = []
+    for k, g in groupby(enumerate(ips), lambda i_x: i_x[0] - int(i_x[1])):
         group = list(map(itemgetter(1), g))
         ranges.append((group[0], group[-1]))
     return ranges
+
 
 def generate_dhcpd_conf(subnet, devices):
     confs_per_category = defaultdict(list)
@@ -177,44 +183,45 @@ def generate_dhcpd_conf(subnet, devices):
     free_ips.discard(ip(server_ip))
     for device_info in devices:
         conf = HOST_CONF_PATTERN % device_info
-        conf_category_list = confs_per_category[(device_info['netsetup'], device_info['type'])]
+        conf_category_list = confs_per_category[
+            (device_info["netsetup"], device_info["type"])
+        ]
         conf_category_list.append(conf)
-        if device_info['ip'] in free_ips:
-            free_ips.discard(device_info['ip'])
+        if device_info["ip"] in free_ips:
+            free_ips.discard(device_info["ip"])
     range_confs = []
     for r in get_contiguous_ranges(free_ips):
         first, last = r
-        range_confs.append(
-            RANGE_CONF_PATTERN % dict(
-                    first=first,
-                    last=last
-        ))
+        range_confs.append(RANGE_CONF_PATTERN % dict(first=first, last=last))
     infos = dict(
         walt_server_ip=server_ip,
         subnet_ip=subnet.network_address,
         subnet_broadcast=subnet.broadcast_address,
         subnet_netmask=subnet.netmask,
         dns_servers=", ".join(map(str, get_dns_servers())),
-        walt_unallocated_ranges_conf='\n'.join(range_confs)
+        walt_unallocated_ranges_conf="\n".join(range_confs),
     )
-    for netsetup, netsetup_label in ((NetSetup.LAN, 'lan'), (NetSetup.NAT, 'nat')):
-        for dev_type in ('node', 'switch', 'unknown'):
+    for netsetup, netsetup_label in ((NetSetup.LAN, "lan"), (NetSetup.NAT, "nat")):
+        for dev_type in ("node", "switch", "unknown"):
             confs = confs_per_category[(netsetup, dev_type)]
-            infos.update({
-                f'walt_registered_{netsetup_label}_{dev_type}_conf': '\n'.join(confs)
-            })
+            infos.update(
+                {f"walt_registered_{netsetup_label}_{dev_type}_conf": "\n".join(confs)}
+            )
     return CONF_PATTERN % infos
 
-QUERY_DEVICES_WITH_IP="""
+
+QUERY_DEVICES_WITH_IP = """
     SELECT devices.mac, ip, name, type, COALESCE((conf->'netsetup')::int, 0) as netsetup
     FROM devices LEFT JOIN nodes ON devices.mac = nodes.mac
     WHERE ip IS NOT NULL ORDER BY devices.mac;
 """
 
+
 class DHCPServer(object):
     def __init__(self, db, ev_loop):
         self.db = db
-        self.restarter = ServiceRestarter(ev_loop, 'dhcpd', 'walt-server-dhcpd.service')
+        self.restarter = ServiceRestarter(ev_loop, "dhcpd", "walt-server-dhcpd.service")
+
     def update(self, force=False, cb=None):
         subnet = get_walt_subnet()
         devices = []
@@ -222,13 +229,16 @@ class DHCPServer(object):
             device_ip = ip(item.ip)
             if device_ip not in subnet:
                 continue
-            if item.type != 'server':
-                devices.append(dict(
-                    type=item.type,
-                    hostname=item.name,
-                    ip=device_ip,
-                    mac=item.mac,
-                    netsetup=item.netsetup))
+            if item.type != "server":
+                devices.append(
+                    dict(
+                        type=item.type,
+                        hostname=item.name,
+                        ip=device_ip,
+                        mac=item.mac,
+                        netsetup=item.netsetup,
+                    )
+                )
         conf = generate_dhcpd_conf(subnet, devices)
         old_conf = ""
         if DHCPD_CONF_FILE.exists():
@@ -236,11 +246,12 @@ class DHCPServer(object):
         if conf != old_conf:
             DHCPD_CONF_FILE.parent.mkdir(parents=True, exist_ok=True)
             DHCPD_CONF_FILE.write_text(conf)
-            force = True # perform the restart below
+            force = True  # perform the restart below
         if force is True:
             self.restarter.restart(cb=cb)
         else:
             if cb is not None:
                 cb()
+
     def wf_update(self, wf, force=False, **env):
         self.update(force=force, cb=wf.next)

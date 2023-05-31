@@ -8,4 +8,3 @@ def run():
     logs_fifo_listener = LogsFifoListener()
     logs_fifo_listener.join_event_loop(ev_loop)
     ev_loop.loop()
-

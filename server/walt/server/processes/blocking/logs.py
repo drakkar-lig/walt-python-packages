@@ -1,4 +1,3 @@
-
 def stream_db_logs(db, logs_handler, **params):
     # ensure all past logs are commited
     db.commit()
@@ -19,4 +18,3 @@ def stream_db_logs(db, logs_handler, **params):
     db.delete_server_cursor(cursor_name)
     # notify history dump is complete
     logs_handler.notify_history_processed()
-

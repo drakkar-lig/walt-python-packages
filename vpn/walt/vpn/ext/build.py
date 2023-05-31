@@ -9,10 +9,11 @@ void endpoint_transmission_loop(int tap_fd);
 
 ffibuilder.cdef(PROTOTYPES)
 
-ffibuilder.set_source("walt.vpn.ext._loops",  # name of the output C extension
+ffibuilder.set_source(
+    "walt.vpn.ext._loops",  # name of the output C extension
     PROTOTYPES,
-    sources=['walt/vpn/ext/loops.c'])   # includes loops.c as additional sources
+    sources=["walt/vpn/ext/loops.c"],
+)  # includes loops.c as additional sources
 
 if __name__ == "__main__":
     ffibuilder.compile(verbose=True)
-

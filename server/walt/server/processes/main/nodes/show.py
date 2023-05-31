@@ -45,37 +45,44 @@ No nodes detected!"""
 MSG_NO_OTHER_NODES = """\
 No other nodes were detected (apart from the ones listed above)."""
 
+
 def short_image_name(image_name):
-    if image_name.endswith(':latest'):
+    if image_name.endswith(":latest"):
         image_name = image_name[:-7]
     return image_name
 
+
 def node_type(mac, virtual):
-    if mac.startswith('52:54:00'):
+    if mac.startswith("52:54:00"):
         if virtual:
-            return 'virtual'
+            return "virtual"
         else:
-            return 'vpn'
+            return "vpn"
     else:
-        return 'physical'
+        return "physical"
+
 
 def get_table_value(record, col_title):
-    if col_title == 'type':
+    if col_title == "type":
         return node_type(record.mac, record.virtual)
-    elif col_title == 'image':
+    elif col_title == "image":
         return short_image_name(record.image_name)
-    elif col_title == 'netsetup':
+    elif col_title == "netsetup":
         return NetSetup(record.netsetup).readable_string()
-    elif col_title == 'clonable_image_link':
-        return 'walt:%s/%s' % (record.image_owner, short_image_name(record.image_name))
+    elif col_title == "clonable_image_link":
+        return "walt:%s/%s" % (record.image_owner, short_image_name(record.image_name))
     else:
         return getattr(record, col_title)
 
+
 def generate_table(title, footnote, records, *col_titles):
-    table = [ tuple(get_table_value(record, col_title) for col_title in col_titles) \
-              for record in records ]
+    table = [
+        tuple(get_table_value(record, col_title) for col_title in col_titles)
+        for record in records
+    ]
     header = list(col_titles)
     return format_paragraph(title, columnate(table, header=header), footnote)
+
 
 def show(db, username, show_all, names_only):
     res_user, res_free, res_other = [], [], []
@@ -83,7 +90,7 @@ def show(db, username, show_all, names_only):
     for record in res:
         if record.image_owner == username:
             res_user.append(record)
-        elif record.image_owner == 'waltplatform':
+        elif record.image_owner == "waltplatform":
             res_free.append(record)
         else:
             res_other.append(record)
@@ -93,7 +100,7 @@ def show(db, username, show_all, names_only):
         else:
             all_records = res_user
         return "\n".join(record.name for record in all_records)
-    result_msg = ''
+    result_msg = ""
     footnotes = ()
     if len(res_user) == 0 and not show_all:
         footnotes += (MSG_USING_NO_NODES, MSG_RERUN_WITH_ALL)
@@ -104,18 +111,48 @@ def show(db, username, show_all, names_only):
             # display nodes of requester
             if not show_all:
                 footnotes += (MSG_RERUN_WITH_ALL,)
-            result_msg += generate_table(TITLE_NODE_SHOW_USER_NODES_PART, None, res_user,
-                            'name', 'type', 'model', 'image', 'ip', 'netsetup', 'booted')
+            result_msg += generate_table(
+                TITLE_NODE_SHOW_USER_NODES_PART,
+                None,
+                res_user,
+                "name",
+                "type",
+                "model",
+                "image",
+                "ip",
+                "netsetup",
+                "booted",
+            )
         if show_all:
             if len(res_free) + len(res_other) == 0:
                 footnotes += (MSG_NO_OTHER_NODES,)
             if len(res_free) > 0:
                 # display free nodes
-                result_msg += generate_table(TITLE_NODE_SHOW_FREE_NODES_PART, None, res_free,
-                                'name', 'type', 'model', 'ip', 'netsetup', 'booted')
+                result_msg += generate_table(
+                    TITLE_NODE_SHOW_FREE_NODES_PART,
+                    None,
+                    res_free,
+                    "name",
+                    "type",
+                    "model",
+                    "ip",
+                    "netsetup",
+                    "booted",
+                )
             if len(res_other) > 0:
                 # display nodes of other users
-                result_msg += generate_table(TITLE_NODE_SHOW_OTHER_NODES_PART, None, res_other,
-                                'name', 'type', 'model', 'image_owner', 'clonable_image_link', 'ip', 'netsetup', 'booted')
+                result_msg += generate_table(
+                    TITLE_NODE_SHOW_OTHER_NODES_PART,
+                    None,
+                    res_other,
+                    "name",
+                    "type",
+                    "model",
+                    "image_owner",
+                    "clonable_image_link",
+                    "ip",
+                    "netsetup",
+                    "booted",
+                )
     footnotes += (MSG_TIP,)
-    return result_msg + '\n'.join(footnotes)
+    return result_msg + "\n".join(footnotes)

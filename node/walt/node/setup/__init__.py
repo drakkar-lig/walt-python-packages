@@ -10,7 +10,7 @@ class WaltNodeSetup(WaltGenericSetup):
 
     def main(self):
         """install WalT node software"""
-        self.setup_systemd_services(['walt-logs.service'])
+        self.setup_systemd_services(["walt-logs.service"])
 
 
 def run():

@@ -18,29 +18,31 @@ from walt.server.tools import get_dns_servers, get_server_ip, update_template
 # List scripts to be installed on the node and indicate
 # if they contain template parameters that should be
 # updated.
-NODE_SCRIPTS = {'walt-env': True,
-                'walt-log-echo': False,
-                'walt-log-cat': False,
-                'walt-log-tee': False,
-                'walt-echo': False,
-                'walt-cat': False,
-                'walt-tee': False,
-                'walt-timeout': False,
-                'walt-rpc': True,
-                'walt-clock-sync': False,
-                'walt-notify-bootup': False,
-                'walt-init': False,
-                'walt-fs-watchdog': False,
-                'walt-net-service': True,
-                'walt-tar-send': False}
+NODE_SCRIPTS = {
+    "walt-env": True,
+    "walt-log-echo": False,
+    "walt-log-cat": False,
+    "walt-log-tee": False,
+    "walt-echo": False,
+    "walt-cat": False,
+    "walt-tee": False,
+    "walt-timeout": False,
+    "walt-rpc": True,
+    "walt-clock-sync": False,
+    "walt-notify-bootup": False,
+    "walt-init": False,
+    "walt-fs-watchdog": False,
+    "walt-net-service": True,
+    "walt-tar-send": False,
+}
 
 TEMPLATE_ENV = dict(
-    server_mac = get_mac_address(WALT_INTF),
-    server_ip = str(get_server_ip()),
-    walt_server_rpc_port = WALT_SERVER_DAEMON_PORT,
-    walt_server_logs_port = WALT_SERVER_TCP_PORT,
-    walt_server_notify_bootup_port = WALT_SERVER_TCP_PORT,
-    walt_node_net_service_port = WALT_NODE_NET_SERVICE_PORT
+    server_mac=get_mac_address(WALT_INTF),
+    server_ip=str(get_server_ip()),
+    walt_server_rpc_port=WALT_SERVER_DAEMON_PORT,
+    walt_server_logs_port=WALT_SERVER_TCP_PORT,
+    walt_server_notify_bootup_port=WALT_SERVER_TCP_PORT,
+    walt_node_net_service_port=WALT_NODE_NET_SERVICE_PORT,
 )
 
 # when using walt, nodes often get new operating system
@@ -61,65 +63,71 @@ TEMPLATE_ENV = dict(
 # $ dropbearconvert openssh dropbear \
 #   /etc/ssh/ssh_host_ecdsa_key /etc/dropbear/dropbear_ecdsa_host_key
 FILES = {
-    '/etc/ssh/ssh_host_ecdsa_key': UNSECURE_ECDSA_KEYPAIR['openssh-priv'],
-    '/etc/ssh/ssh_host_ecdsa_key.pub': UNSECURE_ECDSA_KEYPAIR['openssh-pub'],
-    '/etc/dropbear/dropbear_ecdsa_host_key': UNSECURE_ECDSA_KEYPAIR['dropbear'],
-    '/etc/hosts': b"""\
+    "/etc/ssh/ssh_host_ecdsa_key": UNSECURE_ECDSA_KEYPAIR["openssh-priv"],
+    "/etc/ssh/ssh_host_ecdsa_key.pub": UNSECURE_ECDSA_KEYPAIR["openssh-pub"],
+    "/etc/dropbear/dropbear_ecdsa_host_key": UNSECURE_ECDSA_KEYPAIR["dropbear"],
+    "/etc/hosts": b"""\
 127.0.0.1   localhost
 ::1     localhost ip6-localhost ip6-loopback
 ff02::1     ip6-allnodes
 ff02::2     ip6-allrouters
 """,
-    '/root/.ssh/authorized_keys': None
+    "/root/.ssh/authorized_keys": None,
 }
 
-AUTHORIZED_KEYS_PATH = '/root/.ssh/authorized_keys'
-SERVER_KEY_PATH = '/root/.ssh/id_rsa'
+AUTHORIZED_KEYS_PATH = "/root/.ssh/authorized_keys"
+SERVER_KEY_PATH = "/root/.ssh/id_rsa"
 
-HOSTS_FILE_CONTENT="""\
+HOSTS_FILE_CONTENT = """\
 127.0.0.1   localhost
 ::1     localhost ip6-localhost ip6-loopback
 ff02::1     ip6-allnodes
 ff02::2     ip6-allrouters
 """
 
+
 def script_path(script_name):
     return resource_filename(__name__, script_name)
+
 
 def ensure_root_key_exists():
     if not os.path.isfile(SERVER_KEY_PATH):
         do("ssh-keygen -q -t rsa -f %s -N ''" % SERVER_KEY_PATH)
 
+
 def remove_if_link(path):
     if os.path.islink(path):
         os.remove(path)
 
+
 def fix_ptp(mount_path):
     changed = False
-    if not os.path.exists(mount_path + '/etc/ptpd.conf'):
+    if not os.path.exists(mount_path + "/etc/ptpd.conf"):
         return
-    with open(mount_path + '/etc/ptpd.conf') as ptpfile:
+    with open(mount_path + "/etc/ptpd.conf") as ptpfile:
         ptpconf = ptpfile.read()
-    if 'ptpengine:' not in ptpconf:
+    if "ptpengine:" not in ptpconf:
         return  # probably not the PTP implementation we know
     conf = OrderedDict()
     for confline in ptpconf.splitlines():
-        confname, confval = confline.split('=')
+        confname, confval = confline.split("=")
         conf[confname.strip()] = confval.strip()
-    if 'ptpengine:ip_mode' not in conf or \
-            conf['ptpengine:ip_mode'] != 'hybrid':
-        print('Forcing hybrid ip_mode in ptp configuration.')
-        conf['ptpengine:ip_mode'] = 'hybrid'
+    if "ptpengine:ip_mode" not in conf or conf["ptpengine:ip_mode"] != "hybrid":
+        print("Forcing hybrid ip_mode in ptp configuration.")
+        conf["ptpengine:ip_mode"] = "hybrid"
         changed = True
-    if 'ptpengine:log_delayreq_interval' not in conf or \
-            int(conf['ptpengine:log_delayreq_interval']) < 3:
-        print('Setting delayreq_interval to 8s in ptp configuration.')
-        conf['ptpengine:log_delayreq_interval'] = '3'
+    if (
+        "ptpengine:log_delayreq_interval" not in conf
+        or int(conf["ptpengine:log_delayreq_interval"]) < 3
+    ):
+        print("Setting delayreq_interval to 8s in ptp configuration.")
+        conf["ptpengine:log_delayreq_interval"] = "3"
         changed = True
     if changed:
-        with open(mount_path + '/etc/ptpd.conf', 'w') as ptpfile:
+        with open(mount_path + "/etc/ptpd.conf", "w") as ptpfile:
             for confname, confval in conf.items():
-                ptpfile.write('%s=%s\n' % (confname, confval))
+                ptpfile.write("%s=%s\n" % (confname, confval))
+
 
 # boot files (in directory /boot) are accessed using TFTP,
 # thus the root of absolute symlinks will be the TFTP root
@@ -130,12 +138,13 @@ def fix_ptp(mount_path):
 def fix_if_absolute_symlink(image_root, path):
     if os.path.islink(path):
         target = os.readlink(path)
-        if target.startswith('/'):
-            print(('fixing ' + path + ' target (' + target + ')'))
+        if target.startswith("/"):
+            print(("fixing " + path + " target (" + target + ")"))
             target = image_root + target
-            failsafe_symlink(target, path, force_relative = True)
+            failsafe_symlink(target, path, force_relative=True)
         # recursively fix the target if it is a symlink itself
         fix_if_absolute_symlink(image_root, target)
+
 
 def fix_absolute_symlinks(image_root, dirpath):
     for root, dirs, files in os.walk(dirpath):
@@ -143,43 +152,49 @@ def fix_absolute_symlinks(image_root, dirpath):
             path = os.path.join(root, name)
             fix_if_absolute_symlink(image_root, path)
 
+
 def setup(mount_path):
     # ensure FILES var is completely defined
-    if FILES['/root/.ssh/authorized_keys'] is None:
+    if FILES["/root/.ssh/authorized_keys"] is None:
         # ensure server has a pub key
         ensure_root_key_exists()
         # we will authorize the server to connect to nodes
-        FILES['/root/.ssh/authorized_keys'] = Path(SERVER_KEY_PATH + '.pub').read_bytes()
+        FILES["/root/.ssh/authorized_keys"] = Path(
+            SERVER_KEY_PATH + ".pub"
+        ).read_bytes()
     # /etc/dropbear is a symlink to /var/run/dropbear on some images.
     # * /var/run/dropbear is an absolute path, thus we should mind not
     #   being directed to server files!
     # * in this conf, the content of this directory is cleared at startup,
     #   which is not what we want.
     # We may have the same issues with /etc/ssh.
-    remove_if_link(mount_path + '/etc/ssh')
-    remove_if_link(mount_path + '/etc/dropbear')
+    remove_if_link(mount_path + "/etc/ssh")
+    remove_if_link(mount_path + "/etc/dropbear")
     # copy files listed in variable FILES on the image
     for path, content in FILES.items():
         failsafe_makedirs(mount_path + os.path.dirname(path))
         Path(mount_path + path).write_bytes(content)
     # ensure /etc/hosts has correct rights
-    os.chmod(mount_path + '/etc/hosts', 0o644)
+    os.chmod(mount_path + "/etc/hosts", 0o644)
     # set node DNS servers
-    if os.path.exists(mount_path + '/etc/resolv.conf'):
-        os.rename(mount_path + '/etc/resolv.conf', mount_path + '/etc/resolv.conf.saved')
-    with open(mount_path + '/etc/resolv.conf', 'w') as f:
+    if os.path.exists(mount_path + "/etc/resolv.conf"):
+        os.rename(
+            mount_path + "/etc/resolv.conf", mount_path + "/etc/resolv.conf.saved"
+        )
+    with open(mount_path + "/etc/resolv.conf", "w") as f:
         for resolver in get_dns_servers():
             f.write("nameserver {}\n".format(resolver))
-    if os.path.isfile(mount_path + '/etc/hostname') and \
-            not os.path.islink(mount_path + '/etc/hostname'):
-        os.remove(mount_path + '/etc/hostname')     # probably a residual of image build
+    if os.path.isfile(mount_path + "/etc/hostname") and not os.path.islink(
+        mount_path + "/etc/hostname"
+    ):
+        os.remove(mount_path + "/etc/hostname")  # probably a residual of image build
     # fix absolute symlinks in /boot
-    fix_absolute_symlinks(mount_path, mount_path + '/boot')
+    fix_absolute_symlinks(mount_path, mount_path + "/boot")
     # fix compatbility with old walt-node packages
-    if os.path.exists(mount_path + '/usr/local/bin/walt-echo'):
-        os.remove(mount_path + '/usr/local/bin/walt-echo')
+    if os.path.exists(mount_path + "/usr/local/bin/walt-echo"):
+        os.remove(mount_path + "/usr/local/bin/walt-echo")
     # copy walt scripts in <image>/bin, update template parameters
-    image_bindir = mount_path + '/bin/'
+    image_bindir = mount_path + "/bin/"
     for script_name, template in NODE_SCRIPTS.items():
         shutil.copy(script_path(script_name), image_bindir)
         if template:

@@ -1,2 +1,1 @@
-
-SERVER_LOGS_FIFO            = "/var/lib/walt/logs.fifo"
+SERVER_LOGS_FIFO = "/var/lib/walt/logs.fifo"

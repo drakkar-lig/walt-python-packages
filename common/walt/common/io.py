@@ -20,14 +20,15 @@ def unbuffered(f, mode):
     # to be closed several times
     return os.fdopen(os.dup(f.fileno()), mode, 0)
 
+
 # Copy what's available from a file
 # to an output stream
 def read_and_copy(in_reader, out):
     try:
         buf = in_reader.read(4096)
-        if buf == b'':
-            return False    # close
+        if buf == b"":
+            return False  # close
         out.write(buf)
         out.flush()
     except socket.error:
-        return False    # close
+        return False  # close

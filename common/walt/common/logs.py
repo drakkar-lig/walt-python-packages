@@ -9,29 +9,34 @@ class TeeStream:
         self.start_of_line = True
         self.streams = (std_stream,)
         if log_file is not None:
-            self.streams += (open(log_file, 'w'),)
+            self.streams += (open(log_file, "w"),)
         self.log_prefix = log_prefix
+
     def write_all(self, buf):
         for i, stream in enumerate(self.streams):
             stream.write(buf)
             if i > 0:
                 stream.flush()
+
     def write(self, buf):
         if self.log_prefix is None:
             self.write_all(buf)
         else:
-            for chunk in re.split('([\r\n])', buf):
+            for chunk in re.split("([\r\n])", buf):
                 if len(chunk) > 0:
                     if self.start_of_line:
                         self.write_all("[" + self.log_prefix + "] ")
                         self.start_of_line = False
                     self.write_all(chunk)
-                    if chunk in '\r\n':
+                    if chunk in "\r\n":
                         self.start_of_line = True
+
     def flush(self):
         return self.streams[0].flush()
+
     def fileno(self):
         return self.streams[0].fileno()
+
 
 class LoggedApplication(cli.Application):
     _log_file = None
@@ -51,4 +56,3 @@ class LoggedApplication(cli.Application):
     def set_log_prefix(self, log_prefix):
         """specify prefix to identify logs"""
         self._log_prefix = log_prefix
-

@@ -28,17 +28,19 @@ ptpengine:log_sync_interval=3
 ptpengine:log_announce_interval=3
 """
 
+
 def get_conf_file():
-    conf_file = STATE_DIRECTORY / 'ptpd.conf'
+    conf_file = STATE_DIRECTORY / "ptpd.conf"
     ensure_text_file_content(conf_file, PTPD_CONF_CONTENT)
     return conf_file
 
+
 def run():
     conf_file = get_conf_file()
-    cmd = f'{PTPD_BINARY_NAME} -c {conf_file}'
+    cmd = f"{PTPD_BINARY_NAME} -c {conf_file}"
     print(cmd)
     os.execvp(PTPD_BINARY_NAME, shlex.split(cmd))
 
+
 if __name__ == "__main__":
     run()
-

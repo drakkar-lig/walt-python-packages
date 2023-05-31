@@ -10,7 +10,7 @@ def get_encrypted_credentials(server_pub_key, username, password):
     cypher = BlowFish(client_dh_peer.symmetric_key)
     encrypted_password = cypher.encrypt(password)
     return dict(
-        username = username,
-        encrypted_password = encrypted_password,
-        client_pub_key = client_dh_peer.pub_key
+        username=username,
+        encrypted_password=encrypted_password,
+        client_pub_key=client_dh_peer.pub_key,
     )

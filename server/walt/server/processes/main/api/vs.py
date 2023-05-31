@@ -4,9 +4,9 @@ from walt.server.processes.main.apisession import APISession
 # Virtual component -> Server API (thus the name VSAPI)
 # Provides remote calls performed from a virtual component to the server.
 
+
 @api
 class VSAPI(APISession):
-
     @api_expose_method
     def register_device(self, context, *args):
         context.server.add_or_update_device(*args)

@@ -6,9 +6,9 @@ from walt.server.processes.blocking.snmp.mibs import (
     unload_mib,
 )
 
-POE_PORT_ENABLED=1
-POE_PORT_DISABLED=2
-POE_PORT_SPEEDS=(10**7, 10**8, 10**9)   # 10Mb/s 100Mb/s 1Gb/s
+POE_PORT_ENABLED = 1
+POE_PORT_DISABLED = 2
+POE_PORT_SPEEDS = (10**7, 10**8, 10**9)  # 10Mb/s 100Mb/s 1Gb/s
 
 POE_PORT_MAPPING_CACHE = {}
 
@@ -42,37 +42,44 @@ on switch %s. Sorry."""
 
 ETHERNETCSMACD = 6
 
+
 def get_poe_port_mapping(snmp_proxy, host):
     if host not in POE_PORT_MAPPING_CACHE:
         if b"IF-MIB" not in get_loaded_mibs():
             load_mib(b"IF-MIB")
         iface_port_indexes = list(
-                int(k) for k, v in snmp_proxy.ifSpeed.items()
-                if v in POE_PORT_SPEEDS)
+            int(k) for k, v in snmp_proxy.ifSpeed.items() if v in POE_PORT_SPEEDS
+        )
         iface_type_indexes = list(
-                int(k) for k, v in snmp_proxy.ifType.items()
-                if int(v) == ETHERNETCSMACD)
+            int(k) for k, v in snmp_proxy.ifType.items() if int(v) == ETHERNETCSMACD
+        )
         poe_port_indexes = list(
-                (int(grp_idx), int(grp_port)) \
-                for grp_idx, grp_port in snmp_proxy.pethPsePortAdminEnable.keys())
+            (int(grp_idx), int(grp_port))
+            for grp_idx, grp_port in snmp_proxy.pethPsePortAdminEnable.keys()
+        )
         # check if we have the same number of poe ports and 10/100/1000 ports
         if len(iface_port_indexes) == len(poe_port_indexes):
             # this probably means we can associate iface_port_indexes and
             # poe_port_indexes one by one:
-            iface_to_poe_index = { a: b for a, b in \
-                    zip(iface_port_indexes, poe_port_indexes) }
+            iface_to_poe_index = {
+                a: b for a, b in zip(iface_port_indexes, poe_port_indexes)
+            }
         # otherwise, check if we have a linear range of ethernet ports
         # (i.e. there are no holes in those port indexes)
-        elif max(a-b for a, b in \
-                zip(iface_type_indexes[1:], iface_type_indexes[:-1])) == 1:
+        elif (
+            max(a - b for a, b in zip(iface_type_indexes[1:], iface_type_indexes[:-1]))
+            == 1
+        ):
             # this probably means we can associate iface_type_indexes and
             # poe_port_indexes one by one:
-            iface_to_poe_index = { a: b for a, b in \
-                    zip(iface_type_indexes, poe_port_indexes) }
+            iface_to_poe_index = {
+                a: b for a, b in zip(iface_type_indexes, poe_port_indexes)
+            }
         else:
             raise RuntimeError(MSG_ISSUE_POE_PORT_MAPPING % host)
         POE_PORT_MAPPING_CACHE[host] = iface_to_poe_index
     return POE_PORT_MAPPING_CACHE[host]
+
 
 class StandardPoE(Variant):
     @classmethod
@@ -108,6 +115,7 @@ class StandardPoE(Variant):
     def get_poe_port_mapping(cls, snmp_proxy, host):
         return get_poe_port_mapping(snmp_proxy, host)
 
+
 # Netgear variant is the same as standard one except that the loaded MIB is not the same
 class NetgearPoE(StandardPoE):
     @classmethod
@@ -117,6 +125,7 @@ class NetgearPoE(StandardPoE):
     @classmethod
     def unload(cls):
         unload_mib(b"NETGEAR-POWER-ETHERNET-MIB")
+
 
 # TP-link variant (not standard)
 class TPLinkPoE(Variant):
@@ -152,19 +161,24 @@ class TPLinkPoE(Variant):
 
     @classmethod
     def get_poe_port_mapping(cls, snmp_proxy, host):
-        return { int(k): int(k) for k in dict(snmp_proxy.tpPoePortStatus).keys() }
+        return {int(k): int(k) for k in dict(snmp_proxy.tpPoePortStatus).keys()}
+
 
 # TP-link should be first, otherwise sending invalid requests when probing other
 # variants seem to cause it to temporarily stop answering all requests (DoS mitigation?)
-POE_VARIANTS = VariantsSet('PoE SNMP requests', (TPLinkPoE, StandardPoE, NetgearPoE))
+POE_VARIANTS = VariantsSet("PoE SNMP requests", (TPLinkPoE, StandardPoE, NetgearPoE))
+
 
 class PoEProxy(VariantProxy):
     def __init__(self, snmp_proxy, host):
         VariantProxy.__init__(self, snmp_proxy, host, POE_VARIANTS)
         self.port_mapping = self.variant.get_poe_port_mapping(snmp_proxy, host)
+
     def check_poe_enabled(self, switch_port):
         return self.variant.check_poe_enabled(self.snmp, self.port_mapping, switch_port)
+
     def set_port(self, switch_port, active_or_not):
         self.variant.set_port(self.snmp, self.port_mapping, switch_port, active_or_not)
+
     def check_poe_in_use(self, switch_port):
         return self.variant.check_poe_in_use(self.snmp, self.port_mapping, switch_port)

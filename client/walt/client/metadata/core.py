@@ -1,4 +1,3 @@
-
 CATEGORIES = [
     ("log", "log", "WalTLog"),
     ("help", "myhelp", "WalTHelp"),

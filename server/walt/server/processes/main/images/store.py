@@ -29,20 +29,21 @@ if typing.TYPE_CHECKING:
 # If ever an image is reused before the grace time is expired, then the
 # deadline is removed.
 
-FS_CMD_PATTERN = 'podman run -i --rm -w /root --entrypoint /bin/sh %(fs_id)s'
+FS_CMD_PATTERN = "podman run -i --rm -w /root --entrypoint /bin/sh %(fs_id)s"
 
 MOUNT_GRACE_TIME = 60
 MOUNT_GRACE_TIME_MARGIN = 10
 
-MSG_IMAGE_IS_USED_BUT_NOT_FOUND=\
+MSG_IMAGE_IS_USED_BUT_NOT_FOUND = (
     "WARNING: image %s is not found. Cannot attach it to related nodes.\n"
-CONFIG_ITEM_DEFAULT_IMAGE='default_image'
-MSG_WOULD_OVERWRITE_IMAGE="""\
+)
+CONFIG_ITEM_DEFAULT_IMAGE = "default_image"
+MSG_WOULD_OVERWRITE_IMAGE = """\
 An image has the same name in your working set.
 This operation would overwrite it%s.
 """
-MSG_WOULD_OVERWRITE_IMAGE_REBOOTED_NODES='\
- (and reboot %d node(s))'
+MSG_WOULD_OVERWRITE_IMAGE_REBOOTED_NODES = "\
+ (and reboot %d node(s))"
 
 MSG_PULLING_FROM_DOCKER = """\
 NOTE: Pulling image %s from docker daemon to podman storage (migration v4->v5)."""
@@ -51,10 +52,12 @@ MSG_WOULD_REBOOT_NODES = """\
 This operation would reboot %d node(s) currently using the image.
 """
 
-IMAGE_MOUNT_PATH='/var/lib/walt/images/%s/fs'
+IMAGE_MOUNT_PATH = "/var/lib/walt/images/%s/fs"
+
 
 def get_mount_path(image_id):
     return IMAGE_MOUNT_PATH % image_id
+
 
 class NodeImageStore(object):
     def __init__(self, server: Server):
@@ -72,15 +75,14 @@ class NodeImageStore(object):
 
     def resync_from_db(self):
         "Synchronization function called on daemon startup."
-        db_images = set(db_img.fullname \
-                        for db_img in self.db.select('images'))
+        db_images = set(db_img.fullname for db_img in self.db.select("images"))
         # gather local images
         podman_images = set(self.registry.get_images())
         docker_images = None  # Loaded on-demand thereafter
         # import new images from podman into the database
         for fullname in podman_images:
             if fullname not in db_images:
-                self.db.insert('images', fullname=fullname)
+                self.db.insert("images", fullname=fullname)
                 db_images.add(fullname)
         # update images listed in db and add missing ones to this store
         for db_fullname in db_images:
@@ -94,22 +96,26 @@ class NodeImageStore(object):
                     # images check if we should pull images from docker daemon to podman
                     # storage (migration v4->v5)
                     if docker_images is None:  # Loaded on-demand
-                        docker_images = set(self.blocking.sync_list_docker_daemon_images())
+                        docker_images = set(
+                            self.blocking.sync_list_docker_daemon_images()
+                        )
                     if db_fullname in docker_images:
                         print(MSG_PULLING_FROM_DOCKER % db_fullname)
                         self.blocking.sync_pull_docker_daemon_image(db_fullname)
                         self.images[db_fullname] = NodeImage(self, db_fullname)
                         continue
                     # Ready, but not found anywhere
-                    print("Unable to find image %s. Hope it is not used and remove it." % \
-                          db_fullname, file=sys.stderr)
-                    self.db.delete('images', fullname=db_fullname)
+                    print(
+                        "Unable to find image %s. Hope it is not used and remove it."
+                        % db_fullname,
+                        file=sys.stderr,
+                    )
+                    self.db.delete("images", fullname=db_fullname)
                     self.db.commit()
 
-    def resync_from_registry(self, rescan = False):
+    def resync_from_registry(self, rescan=False):
         "Resync function podman repo -> this image store"
-        db_images = set(db_img.fullname \
-                        for db_img in self.db.select('images'))
+        db_images = set(db_img.fullname for db_img in self.db.select("images"))
         # gather local images
         if rescan:
             self.registry.scan()
@@ -117,7 +123,7 @@ class NodeImageStore(object):
         # import new images from podman into this store (and into the database)
         for fullname in podman_images:
             if fullname not in db_images:
-                self.db.insert('images', fullname=fullname)
+                self.db.insert("images", fullname=fullname)
                 self.db.commit()
                 db_images.add(fullname)  # for the next loop below
             if fullname not in self.images:
@@ -130,17 +136,19 @@ class NodeImageStore(object):
                 self.remove(fullname)
 
     def get_labels(self):
-        return { fullname: image.labels for fullname, image in self.images.items() }
+        return {fullname: image.labels for fullname, image in self.images.items()}
 
     def register_image(self, image_fullname):
-        self.db.insert('images', fullname=image_fullname)
+        self.db.insert("images", fullname=image_fullname)
         self.db.commit()
         self.images[image_fullname] = NodeImage(self, image_fullname)
 
     # Make sure to rename the image in docker *before* calling this.
     def rename(self, old_fullname, new_fullname):
-        self.db.execute('update images set fullname = %(new_fullname)s where fullname = %(old_fullname)s',
-                            dict(old_fullname = old_fullname, new_fullname = new_fullname))
+        self.db.execute(
+            "update images set fullname = %(new_fullname)s where fullname = %(old_fullname)s",
+            dict(old_fullname=old_fullname, new_fullname=new_fullname),
+        )
         self.db.commit()
         img = self.images[old_fullname]
         img.rename(new_fullname)
@@ -149,7 +157,7 @@ class NodeImageStore(object):
 
     # Make sure to remove the image from docker *before* calling this.
     def remove(self, image_fullname):
-        self.db.delete('images', fullname=image_fullname)
+        self.db.delete("images", fullname=image_fullname)
         self.db.commit()
         del self.images[image_fullname]
 
@@ -176,8 +184,9 @@ class NodeImageStore(object):
     def values(self):
         return self.images.values()
 
-    def get_user_image_from_name(self, requester, image_name,
-                                 expected: bool | None = True):
+    def get_user_image_from_name(
+        self, requester, image_name, expected: bool | None = True
+    ):
         """Look for an image belonging to the requester.
 
         :param expected: specify if we expect a matching result (True), no
@@ -188,7 +197,7 @@ class NodeImageStore(object):
         found = None
         username = requester.get_username()
         if not username:
-            return None    # client already disconnected, give up
+            return None  # client already disconnected, give up
         fullname = format_image_fullname(username, image_name)
         for image in self.images.values():
             if image.fullname == fullname:
@@ -196,14 +205,14 @@ class NodeImageStore(object):
         if fullname not in self.images and self.count_images_of_user(username) == 0:
             # new user, try to make his life easier by cloning
             # default images of node models present on the platform.
-            self.get_clones_of_default_images(requester, 'all-nodes')
+            self.get_clones_of_default_images(requester, "all-nodes")
         found = self.images.get(fullname)
         if expected is True and found is None:
             requester.stderr.write(
-                "Error: No such image '%s'. (tip: walt image show)\n" % image_name)
+                "Error: No such image '%s'. (tip: walt image show)\n" % image_name
+            )
         if expected is False and found is not None:
-            requester.stderr.write(
-                "Error: Image '%s' already exists.\n" % image_name)
+            requester.stderr.write("Error: Image '%s' already exists.\n" % image_name)
         return found
 
     def count_images_of_user(self, username):
@@ -211,9 +220,11 @@ class NodeImageStore(object):
 
     def get_user_unused_image_from_name(self, requester, image_name):
         image = self.get_user_image_from_name(requester, image_name)
-        if image:   # otherwise issue is already reported
+        if image:  # otherwise issue is already reported
             if image.in_use():
-                requester.stderr.write('Sorry, cannot proceed because the image is in use.\n')
+                requester.stderr.write(
+                    "Sorry, cannot proceed because the image is in use.\n"
+                )
                 return None
         return image
 
@@ -228,19 +239,17 @@ class NodeImageStore(object):
     def _plan_next_update_wf(self):
         if self._planned_update_wf is None and len(self.deadlines) > 0:
             self._planned_update_wf = Workflow(
-                [self.wf_update_image_mounts,
-                 self._wf_after_plan_next_update_wf]
+                [self.wf_update_image_mounts, self._wf_after_plan_next_update_wf]
             )
             next_time = min(self.deadlines.values()) + MOUNT_GRACE_TIME_MARGIN
-            self.server.ev_loop.plan_event(ts=next_time,
-                                           callback=self._planned_update_wf.next)
+            self.server.ev_loop.plan_event(
+                ts=next_time, callback=self._planned_update_wf.next
+            )
 
     def wf_update_image_mounts(self, wf, **env):
         # if there is not already an update workflow in progress, create it
         if self._update_wf is None:
-            self._update_wf = Workflow(
-                [self._wf_update_image_mounts]
-            )
+            self._update_wf = Workflow([self._wf_update_image_mounts])
             self._update_wf.run()
         # if no change was detected, self._update_wf.run() may be already completed
         # and the value of self._update_wf may have been set back to None.
@@ -284,11 +293,12 @@ class NodeImageStore(object):
                     changes = True
                     to_be_unmounted.add(image_id)
                 else:
-                    all_mounts.add(image_id) # deadline not reached yet
+                    all_mounts.add(image_id)  # deadline not reached yet
         if changes:
             # retrieve info for next steps
-            images_info = set((image_id, self.get_mount_path(image_id)) \
-                             for image_id in all_mounts)
+            images_info = set(
+                (image_id, self.get_mount_path(image_id)) for image_id in all_mounts
+            )
             nodes = self.db.select("nodes")
             # release filesystem interpreters before unmounting images
             for image_id in to_be_unmounted:
@@ -300,15 +310,15 @@ class NodeImageStore(object):
             # 3. recurse in case something changed during the run
             # note: step 1 is before step 2 otherwise directories would be locked by
             # the NFS export
-            update_wf.insert_steps([
-                self.exports.wf_update_exported_filesystems,
-                self._wf_unmount_images,
-                self._wf_update_image_mounts
-            ])
+            update_wf.insert_steps(
+                [
+                    self.exports.wf_update_exported_filesystems,
+                    self._wf_unmount_images,
+                    self._wf_update_image_mounts,
+                ]
+            )
             update_wf.update_env(
-                to_be_unmounted = to_be_unmounted,
-                images_info = images_info,
-                nodes = nodes
+                to_be_unmounted=to_be_unmounted, images_info=images_info, nodes=nodes
             )
         else:
             # finalize this update
@@ -331,8 +341,9 @@ class NodeImageStore(object):
         self.filesystems.cleanup()
         if len(self.mounts) > 0:
             # release nfs mounts and unmount images
-            wf = Workflow([self.exports.wf_update_exported_filesystems],
-                          images_info = [], nodes = [])
+            wf = Workflow(
+                [self.exports.wf_update_exported_filesystems], images_info=[], nodes=[]
+            )
             wf.run()
             # Since we are cleaning up, we cannot use a callback
             # because the event loop will be stopped.
@@ -342,12 +353,13 @@ class NodeImageStore(object):
                 self.unmount(image_id)
 
     def get_images_in_use(self):
-        res = set([ item.image for item in \
-            self.db.execute("SELECT DISTINCT image FROM nodes") ])
+        res = set(
+            [item.image for item in self.db.execute("SELECT DISTINCT image FROM nodes")]
+        )
         return res
 
     def get_default_image_fullname(self, node_model):
-        return 'waltplatform/%s-default:latest' % node_model
+        return "waltplatform/%s-default:latest" % node_model
 
     def image_is_used(self, fullname):
         return self.num_nodes_using_image(fullname) > 0
@@ -358,21 +370,21 @@ class NodeImageStore(object):
     def get_image_overwrite_warning(self, image_fullname):
         num_nodes = self.num_nodes_using_image(image_fullname)
         if num_nodes == 0:
-            reboot_message = ''
+            reboot_message = ""
         else:
             reboot_message = MSG_WOULD_OVERWRITE_IMAGE_REBOOTED_NODES % num_nodes
         return MSG_WOULD_OVERWRITE_IMAGE % reboot_message
 
     def warn_if_would_reboot_nodes(self, requester, image_name):
-        if '/' in image_name:
+        if "/" in image_name:
             image_fullname = image_name
         else:
             image_fullname = format_image_fullname(requester.get_username(), image_name)
         num_nodes = self.num_nodes_using_image(image_fullname)
         if num_nodes == 0:
-            return False    # no node would reboot
+            return False  # no node would reboot
         requester.stderr.write(MSG_WOULD_REBOOT_NODES % num_nodes)
-        return True     # yes it would reboot some nodes
+        return True  # yes it would reboot some nodes
 
     def image_is_mounted(self, image_id):
         return image_id in self.mounts
@@ -386,28 +398,28 @@ class NodeImageStore(object):
     def get_filesystem(self, image_id):
         return self.filesystems[image_id]
 
-    def mount(self, image_id, fullname = None):
+    def mount(self, image_id, fullname=None):
         if image_id in self.mounts:
             return  # already mounted
         self.mounts.add(image_id)
         desc = fullname if fullname else image_id
-        print('Mounting %s...' % desc)
+        print("Mounting %s..." % desc)
         mount_path = get_mount_path(image_id)
         failsafe_makedirs(mount_path)
         self.registry.image_mount(image_id, mount_path)
         setup(mount_path)
-        print('Mounting %s... done' % desc)
+        print("Mounting %s... done" % desc)
 
-    def unmount(self, image_id, fullname = None):
+    def unmount(self, image_id, fullname=None):
         if image_id not in self.mounts:
             return  # not mounted
         self.mounts.remove(image_id)
         desc = fullname if fullname else image_id
-        print('Un-mounting %s...' % desc, end=' ')
+        print("Un-mounting %s..." % desc, end=" ")
         mount_path = get_mount_path(image_id)
         self.registry.image_umount(image_id, mount_path)
         os.rmdir(mount_path)
-        print('done')
+        print("done")
 
     def __del__(self):
         self.cleanup()
@@ -419,9 +431,9 @@ class NodeImageStore(object):
         # 3: a dictionary indicating the defaut image name for each input node name
         username = requester.get_username()
         if not username:
-            return False, False, {}     # client already disconnected, give up
+            return False, False, {}  # client already disconnected, give up
         nodes = self.server.nodes.parse_node_set(requester, node_set)
-        if nodes is None:   # issue already reported
+        if nodes is None:  # issue already reported
             return False, False, {}
         real_update = False
         image_per_node_name = {}
@@ -430,20 +442,22 @@ class NodeImageStore(object):
             default_image = self.get_default_image_fullname(model)
             # if default image has a 'preferred-name' tag, clone it with that name
             image_labels = self.images[default_image].labels
-            image_name = image_labels.get('walt.image.preferred-name')
+            image_name = image_labels.get("walt.image.preferred-name")
             if image_name is None:
                 # no 'preferred-name' tag, reuse name of default image
-                image_name = default_image.split('/')[1]
+                image_name = default_image.split("/")[1]
             image_node_models = self.images[default_image].node_models
             image_node_models_desc = self.images[default_image].node_models_desc
-            ws_image = username + '/' + image_name
+            ws_image = username + "/" + image_name
             if ws_image not in self.images:
                 if real_update is False:
                     real_update = True
-                    requester.set_busy_label('Cloning default images')
+                    requester.set_busy_label("Cloning default images")
                 self.registry.tag(default_image, ws_image)
                 self.register_image(ws_image)
-                requester.stdout.write(f'Cloned {image_name}, a defaut image for {image_node_models_desc}.\n')
+                requester.stdout.write(
+                    f"Cloned {image_name}, a defaut image for {image_node_models_desc}.\n"
+                )
             # remove from remaining nodes those with a model declared in label
             # "walt.node.models"
             remaining_nodes = []

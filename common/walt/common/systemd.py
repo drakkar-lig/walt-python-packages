@@ -10,9 +10,8 @@ from walt.common.tools import failsafe_symlink
 
 SYSTEMD_DEFAULT_DIR = Path("/etc/systemd/system")
 
-def get_unit_file_path(unit_name: str,
-                       install_prefix: Path,
-                       systemd_dir: Path):
+
+def get_unit_file_path(unit_name: str, install_prefix: Path, systemd_dir: Path):
     """Return the file path of a systemd unit.
 
     :param unit_name: Full unit name (with extension).
@@ -27,8 +26,13 @@ def get_unit_file_path(unit_name: str,
         install_dir = install_prefix / systemd_dir.relative_to(systemd_dir.anchor)
     return install_dir / unit_name
 
-def install_unit(unit_name: str, unit_content: bytes,
-                 install_prefix: Path = None, systemd_dir: Path = SYSTEMD_DEFAULT_DIR):
+
+def install_unit(
+    unit_name: str,
+    unit_content: bytes,
+    install_prefix: Path = None,
+    systemd_dir: Path = SYSTEMD_DEFAULT_DIR,
+):
     """Install a systemd unit in the filesystem.
 
     :param unit_name: Full unit name (with extension).
@@ -46,15 +50,16 @@ def install_unit(unit_name: str, unit_content: bytes,
     # install symlink(s) if unit file as 'WantedBy=...' patterns
     # (this will enable the unit)
     for line in unit_content.splitlines():
-        if line.startswith(b'WantedBy'):
-            w_by = line.decode('ascii').replace('=', ' ').split()[1]
-            wants_path = install_dir / (w_by + '.wants') / unit_name
+        if line.startswith(b"WantedBy"):
+            w_by = line.decode("ascii").replace("=", " ").split()[1]
+            wants_path = install_dir / (w_by + ".wants") / unit_name
             wants_path.parent.mkdir(parents=True, exist_ok=True)
             failsafe_symlink(str(link_target), str(wants_path))
 
-def disable_unit(unit_name: str,
-                 install_prefix: Path = None,
-                 systemd_dir: Path = SYSTEMD_DEFAULT_DIR):
+
+def disable_unit(
+    unit_name: str, install_prefix: Path = None, systemd_dir: Path = SYSTEMD_DEFAULT_DIR
+):
     """Disable a systemd unit in the filesystem.
 
     :param unit_name: Full unit name (with extension).
@@ -68,32 +73,42 @@ def disable_unit(unit_name: str,
     # system directly, instead of communicating with the systemd
     # daemon; thus this code should work in a Dockerfile RUN step too.
     if install_prefix is None:
-        install_prefix = '/'
-    subprocess.run(shlex.split(
-        f'systemctl --root={install_prefix} disable {unit_name}'),
-        check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        install_prefix = "/"
+    subprocess.run(
+        shlex.split(f"systemctl --root={install_prefix} disable {unit_name}"),
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
     # if the unit we just disabled was in a failed state, reset this state.
     # Note: --root option is not available in this case, so we run the
     # command without the check=True option. If we are in a Dockerfile,
     # no systemd daemon is running, so this would fail, but without
     # a daemon we do not have a running state for units anyway.
-    subprocess.run(shlex.split(
-        f'systemctl reset-failed {unit_name}'),
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    subprocess.run(
+        shlex.split(f"systemctl reset-failed {unit_name}"),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
 
-def unit_exists(unit_name: str,
-                install_prefix: Path = None):
+
+def unit_exists(unit_name: str, install_prefix: Path = None):
     """Check if a systemd unit with given name exists.
 
     :param unit_name: Full unit name (with extension).
     :param install_prefix: The root of the OS.
     """
     if install_prefix is None:
-        install_prefix = '/'
+        install_prefix = "/"
     try:
-        p = subprocess.run(shlex.split(
-            f'systemctl --root={install_prefix} list-unit-files {unit_name}'),
-            check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        p = subprocess.run(
+            shlex.split(
+                f"systemctl --root={install_prefix} list-unit-files {unit_name}"
+            ),
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
         # unfortunately older versions of systemctl (on buster) return a status
         # of zero (i.e. success) even if no unit files are found.
         # so we have to parse the ending line indicating how many unit files
@@ -102,15 +117,20 @@ def unit_exists(unit_name: str,
     except Exception:
         return False
 
+
 def stop_units(unit_names: list[str]):
     """Stop systemd units.
 
     :param unit_names: List of full unit names (with extension).
     """
     for unit_name in unit_names:
-        subprocess.run(shlex.split(
-            f'systemctl stop {unit_name}'),
-            check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        subprocess.run(
+            shlex.split(f"systemctl stop {unit_name}"),
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+
 
 def start_units(unit_names: list[str]):
     """Start systemd units.
@@ -118,9 +138,13 @@ def start_units(unit_names: list[str]):
     :param unit_names: List of full unit names (with extension).
     """
     for unit_name in unit_names:
-        subprocess.run(shlex.split(
-            f'systemctl start {unit_name}'),
-            check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        subprocess.run(
+            shlex.split(f"systemctl start {unit_name}"),
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+
 
 def reload():
-    subprocess.run(shlex.split('systemctl daemon-reload'), check=True)
+    subprocess.run(shlex.split("systemctl daemon-reload"), check=True)

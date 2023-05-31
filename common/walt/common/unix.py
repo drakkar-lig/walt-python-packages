@@ -10,31 +10,38 @@ from walt.common.tools import set_close_on_exec
 
 def send_msg_fds(sock, msg, fds, peer_addr):
     if len(fds) > 0:
-        ancdata = [ (socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array("i", fds)) ]
+        ancdata = [(socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array("i", fds))]
     else:
         ancdata = []
-    return sock.sendmsg([ msg ], ancdata, 0, peer_addr)
+    return sock.sendmsg([msg], ancdata, 0, peer_addr)
+
 
 # Function from https://docs.python.org/3/library/socket.html#socket.socket.recvmsg
 def recv_msg_fds(sock, msglen, maxfds):
-    fds = array.array("i")   # Array of ints
-    msg, ancdata, flags, emitter_addr = sock.recvmsg(msglen, socket.CMSG_LEN(maxfds * fds.itemsize))
+    fds = array.array("i")  # Array of ints
+    msg, ancdata, flags, emitter_addr = sock.recvmsg(
+        msglen, socket.CMSG_LEN(maxfds * fds.itemsize)
+    )
     for cmsg_level, cmsg_type, cmsg_data in ancdata:
-        if (cmsg_level == socket.SOL_SOCKET and cmsg_type == socket.SCM_RIGHTS):
+        if cmsg_level == socket.SOL_SOCKET and cmsg_type == socket.SCM_RIGHTS:
             # Append data, ignoring any truncated integers at the end.
-            fds.frombytes(cmsg_data[:len(cmsg_data) - (len(cmsg_data) % fds.itemsize)])
+            fds.frombytes(cmsg_data[: len(cmsg_data) - (len(cmsg_data) % fds.itemsize)])
     return msg, list(fds)
 
+
 def bind_to_random_sockname(s):
-    random_abstract_sockname = ('\0' + secrets.token_hex(4)).encode('ASCII')
+    random_abstract_sockname = ("\0" + secrets.token_hex(4)).encode("ASCII")
     s.bind(random_abstract_sockname)
+
 
 class Requests(ServiceRequests):
     REQ_FAKE_TFTP_GET_FD = 0
 
+
 # since we are on a UNIX socket, we know the client is on the same
 # machine thus it has the same walt software version, so no need
 # to keep backward compatibility as in tcp.py.
+
 
 class UnixServer(GenericServer):
     def __init__(self, sock_path):

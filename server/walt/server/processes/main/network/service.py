@@ -15,6 +15,7 @@ from time import time
 # the config was updated again in the meanwhile; if yes, we loop again.
 MIN_DELAY_BETWEEN_SERVICE_RESTARTS = 5
 
+
 class ServiceRestarter:
     def __init__(self, ev_loop, short_service_name, systemd_service_name):
         self.ev_loop = ev_loop
@@ -24,14 +25,18 @@ class ServiceRestarter:
         self.config_version = 0
         self.restarting = False
         self.callbacks = {}
+
     def restart(self, cb=None):
         self.config_version += 1
-        print(f'{self.short_service_name} conf updated (version {self.config_version}).')
+        print(
+            f"{self.short_service_name} conf updated (version {self.config_version})."
+        )
         if cb is not None:
             self.callbacks[self.config_version] = cb
         if not self.restarting:
             self.restarting = True
             self.restart_service_loop()
+
     def restart_service_loop(self):
         if self.config_version == self.service_version:
             # ok done
@@ -39,10 +44,13 @@ class ServiceRestarter:
             return
         else:
             next_service_version = self.config_version
-            print(f'{self.short_service_name} restarting with version {next_service_version}.')
+            print(
+                f"{self.short_service_name} restarting with version {next_service_version}."
+            )
+
             def callback():
                 # call user provided callbacks
-                for v in range(self.service_version +1, next_service_version +1):
+                for v in range(self.service_version + 1, next_service_version + 1):
                     cb = self.callbacks.get(v, None)
                     if cb is not None:
                         del self.callbacks[v]
@@ -53,7 +61,7 @@ class ServiceRestarter:
                 target_ts = time() + MIN_DELAY_BETWEEN_SERVICE_RESTARTS
                 # plan event to be recalled at this time
                 self.ev_loop.plan_event(
-                    ts = target_ts,
-                    callback = self.restart_service_loop
+                    ts=target_ts, callback=self.restart_service_loop
                 )
-            self.ev_loop.do(f'systemctl restart {self.systemd_service_name}', callback)
+
+            self.ev_loop.do(f"systemctl restart {self.systemd_service_name}", callback)

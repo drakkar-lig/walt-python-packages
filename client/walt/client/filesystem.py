@@ -12,10 +12,11 @@ class Filesystem:
         if not os.path.exists(path):
             return None
         if os.path.isfile(path):
-            return 'f'
+            return "f"
         if os.path.isdir(path):
-            return 'd'
-        return 'o'
+            return "d"
+        return "o"
+
     @api_expose_method
     def get_completions(self, partial_path):
         """complete a partial path"""
@@ -25,6 +26,6 @@ class Filesystem:
         for path in paths:
             p = Path(path)
             if p.is_dir():
-                path += '/'
+                path += "/"
             fixed_paths.append(path)
         return tuple(fixed_paths)

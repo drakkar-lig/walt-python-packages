@@ -3,7 +3,6 @@ from walt.server.processes.main.task import APISessionTask
 
 
 class APISession(object):
-
     SESSIONS = {}
     TARGET_APIS = {}
     SERVER_CONTEXT = None
@@ -16,11 +15,11 @@ class APISession(object):
     def create(server, session_id, target_api, remote_ip):
         cls = APISession.TARGET_APIS[target_api]
         APISession.SESSIONS[session_id] = cls(server, remote_ip)
-        print('session %d: connected' % session_id)
+        print("session %d: connected" % session_id)
 
     @staticmethod
     def destroy(session_id):
-        print('session %d: disconnected' % session_id)
+        print("session %d: disconnected" % session_id)
         APISession.SESSIONS[session_id].cleanup()
         del APISession.SESSIONS[session_id]
 
@@ -39,15 +38,15 @@ class APISession(object):
         self.session_objects = []
         if APISession.SERVER_CONTEXT is None:
             APISession.SERVER_CONTEXT = SimpleContainer(
-                    server = server,
-                    images = server.images,
-                    devices = server.devices,
-                    blocking = server.blocking,
-                    nodes = server.nodes,
-                    logs = server.logs
+                server=server,
+                images=server.images,
+                devices=server.devices,
+                blocking=server.blocking,
+                nodes=server.nodes,
+                logs=server.logs,
             )
         self.context = APISession.SERVER_CONTEXT.copy().update(
-            remote_ip = remote_ip,
+            remote_ip=remote_ip,
         )
 
     def run_task(self, rpc_context, attr, args, kwargs):
@@ -64,6 +63,5 @@ class APISession(object):
 
     def cleanup(self):
         for obj in self.session_objects:
-            if hasattr(obj, 'cleanup'):
+            if hasattr(obj, "cleanup"):
                 obj.cleanup()
-

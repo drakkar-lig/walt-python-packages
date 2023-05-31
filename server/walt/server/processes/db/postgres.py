@@ -14,23 +14,30 @@ from walt.server.tools import SerializableNT, build_named_tuple_cls
 class DBRecord(SerializableNT):
     pass
 
+
 class DBRecordSet:
     def __init__(self, records=None):
         self.records = records
+
     def __getstate__(self):
-        return [ row._asdict() for row in self.records ]
+        return [row._asdict() for row in self.records]
+
     def __setstate__(self, dict_records):
         if len(dict_records) == 0:
             self.records = []
         else:
             nt_cls = build_named_tuple_cls(dict_records[0])
-            self.records = [ nt_cls(**row) for row in dict_records ]
+            self.records = [nt_cls(**row) for row in dict_records]
+
     def __iter__(self):
         return iter(self.records)
+
     def __len__(self):
         return len(self.records)
+
     def __getitem__(self, i):
         return self.records[i]
+
 
 class PostgresDB:
     def __init__(self):
@@ -48,7 +55,7 @@ class PostgresDB:
             # happens bad
             self.conn = psycopg2.connect(database=WALT_DBNAME, user=WALT_DBUSER)
         # allow name-based access to columns
-        self.c = self.conn.cursor(cursor_factory = NamedTupleCursor)
+        self.c = self.conn.cursor(cursor_factory=NamedTupleCursor)
 
     def __del__(self):
         if self.conn is not None:
@@ -59,20 +66,25 @@ class PostgresDB:
 
     def create_db_and_user(self):
         # we must use the postgres admin user for this
-        args = shlex.split('su -c psql -l postgres')
+        args = shlex.split("su -c psql -l postgres")
         popen = Popen(args, stdin=PIPE, stdout=None, stderr=stderr)
-        popen.stdin.write(('''
+        popen.stdin.write(
+            (
+                """
                 CREATE USER %(user)s;
                 ALTER ROLE %(user)s WITH CREATEDB;
                 CREATE DATABASE %(db)s OWNER %(user)s;
-                ''' % dict(user=WALT_DBUSER, db=WALT_DBNAME)).encode('ascii'))
+                """
+                % dict(user=WALT_DBUSER, db=WALT_DBNAME)
+            ).encode("ascii")
+        )
         popen.stdin.close()
         popen.wait()
 
     def commit(self):
         self.conn.commit()
 
-    def execute(self, query, query_args = None):
+    def execute(self, query, query_args=None):
         self.c.execute(query, query_args)
         if self.c.description is None:  # it was not a select query
             return None
@@ -84,9 +96,9 @@ class PostgresDB:
         # we share a database connection, thus we have to create a cursor
         # WITH HOLD, otherwise any other process issuing a commit would
         # cause the cursor to be discarded.
-        cursor = self.conn.cursor(name = name,
-                                  cursor_factory = NamedTupleCursor,
-                                  withhold = True)
+        cursor = self.conn.cursor(
+            name=name, cursor_factory=NamedTupleCursor, withhold=True
+        )
         cursor.execute(sql, args)
         self.server_cursors[name] = cursor
         return name
@@ -114,11 +126,11 @@ class PostgresDB:
     # we want to filter-out keys that are not column names,
     # and return ([<col_name>, ...], [<value>, ...]).
     def get_cols_and_values(self, table, dictionary):
-        # retrieve fields names for this table 
+        # retrieve fields names for this table
         col_names = set(self.get_column_names(table))
         res = {}
         for k in dictionary:
-            # filter-out keys of dictionary that are not 
+            # filter-out keys of dictionary that are not
             # a column name
             if k not in col_names:
                 continue
@@ -126,22 +138,21 @@ class PostgresDB:
             res[k] = dictionary[k]
         # we prefer a tuple ([k,...],[v,...]) instead of
         # a dictionary, because in an insert query,
-        # we need a list of keys and a list of values 
+        # we need a list of keys and a list of values
         # with the same ordering.
         items = list(res.items())
-        return (list(t[0] for t in items),
-                list(t[1] for t in items))
+        return (list(t[0] for t in items), list(t[1] for t in items))
 
     # format a where clause with ANDs on the specified constraints
     def get_where_clause_from_constraints(self, constraints):
         if len(constraints) > 0:
-            return "WHERE %s" % (' AND '.join(constraints))
+            return "WHERE %s" % (" AND ".join(constraints))
         else:
             return ""
 
     # format a where clause with ANDs on the specified columns
     def get_where_clause_pattern(self, cols):
-        constraints = [ "%s=%%s" % col for col in cols ]
+        constraints = ["%s=%%s" % col for col in cols]
         return self.get_where_clause_from_constraints(constraints)
 
     def get_insert_cols_and_values(self, table, rows_kwargs):
@@ -149,10 +160,10 @@ class PostgresDB:
         all_values = []
         for kwargs in rows_kwargs:
             cols, values = self.get_cols_and_values(table, kwargs)
-            values_format = '(' + ','.join(['%s'] * len(values)) + ')'
+            values_format = "(" + ",".join(["%s"] * len(values)) + ")"
             values_formats.append(values_format)
             all_values.extend(values)
-        return ','.join(cols), ','.join(values_formats), tuple(all_values)
+        return ",".join(cols), ",".join(values_formats), tuple(all_values)
 
     # allow statements like:
     # db.insert("network", ip=ip, switch_ip=swip)
@@ -160,16 +171,21 @@ class PostgresDB:
         return self.insert_multiple(table, [kwargs], returning=returning)
 
     # insert multiple rows at once
-    def insert_multiple(self, table, rows_kwargs, returning=None,
-                              bypass_conflicting=False):
+    def insert_multiple(
+        self, table, rows_kwargs, returning=None, bypass_conflicting=False
+    ):
         cols, formats, values = self.get_insert_cols_and_values(table, rows_kwargs)
         sql = """INSERT INTO %s(%s)
-                VALUES %s""" % (table, cols, formats)
+                VALUES %s""" % (
+            table,
+            cols,
+            formats,
+        )
         if bypass_conflicting:
             sql += " ON CONFLICT DO NOTHING"
         if returning:
             sql += " RETURNING %s" % returning
-        self.c.execute(sql + ';', values)
+        self.c.execute(sql + ";", values)
         if returning:
             return self.c.fetchone()[0]
 
@@ -187,16 +203,16 @@ class PostgresDB:
     # db.update("topology", "mac", switch_mac=swmac, switch_port=swport)
     def update(self, table, primary_key_name, **kwargs):
         cols, values = self.get_cols_and_values(table, kwargs)
-        if len(cols) > 1:   # if updating at least one field (pk counts as 1 in cols)
+        if len(cols) > 1:  # if updating at least one field (pk counts as 1 in cols)
             values.append(kwargs[primary_key_name])
-            self.c.execute("""
+            self.c.execute(
+                """
                 UPDATE %s 
                 SET %s
-                WHERE %s = %%s;""" % (
-                    table,
-                    ','.join("%s = %%s" % col for col in cols),
-                    primary_key_name),
-                    values)
+                WHERE %s = %%s;"""
+                % (table, ",".join("%s = %%s" % col for col in cols), primary_key_name),
+                values,
+            )
             return self.c.rowcount  # number of rows updated
         else:
             return 0
@@ -239,5 +255,7 @@ class PostgresDB:
 
     def pretty_printed_resultset(self, res):
         if len(res) == 0:
-            raise Exception('pretty_printed_resultset() does not work if resultset is empty!')
+            raise Exception(
+                "pretty_printed_resultset() does not work if resultset is empty!"
+            )
         return columnate(res, header=res[0]._fields)

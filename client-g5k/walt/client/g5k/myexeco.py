@@ -19,7 +19,7 @@ def oar_datetime_to_unixts(dt):
         os.environ["TZ"] = "Europe/Paris"
         time.tzset()
         ts = datetime_to_unixts(dt)
-        os.write(wend, str(ts).encode('ascii'))
+        os.write(wend, str(ts).encode("ascii"))
         os._exit(0)
     else:
         os.close(wend)
@@ -29,24 +29,28 @@ def oar_datetime_to_unixts(dt):
         os.waitpid(pid, 0)
         return ts
 
+
 # execo provides this function but it filters out local vlans,
 # and in our case we need them.
 def _get_vlans_API(site):
     """Retrieve the list of VLAN of a site from the 3.0 Grid'5000 API"""
     from execo_g5k.api_utils import get_resource_attributes
-    equips = get_resource_attributes('/sites/'+site+'/network_equipments/')
+
+    equips = get_resource_attributes("/sites/" + site + "/network_equipments/")
     vlans = []
-    for equip in equips['items']:
-        if 'vlans' in equip and len(equip['vlans']) >2:
-            for params in equip['vlans'].values():
-                if isinstance(params, dict) and 'name' in params:
-                    vlans.append(params['name'])
+    for equip in equips["items"]:
+        if "vlans" in equip and len(equip["vlans"]) > 2:
+            for params in equip["vlans"].values():
+                if isinstance(params, dict) and "name" in params:
+                    vlans.append(params["name"])
     return vlans
+
 
 def load_execo_g5k():
     import logging
 
     from execo.log import logger
+
     logger.setLevel(logging.WARNING)
     import execo_g5k.api_utils
     import execo_g5k.charter

@@ -3,17 +3,16 @@ from walt.server.process import RPCProcessConnector, RPCService
 
 class BlockingTasksManager(RPCProcessConnector):
     def __init__(self, server):
-        super().__init__(default_service = RPCService(server = server),
-                         local_context = False,
-                         label = 'main-to-blocking')
+        super().__init__(
+            default_service=RPCService(server=server),
+            local_context=False,
+            label="main-to-blocking",
+        )
         self.server = server
 
     def session(self, requester):
-        local_service = RPCService(
-                requester = requester,
-                server = self.server
-        )
-        return self.create_session(local_service = local_service)
+        local_service = RPCService(requester=requester, server=self.server)
+        return self.create_session(local_service=local_service)
 
     def clone_image(self, requester, result_cb, *args, **kwargs):
         self.session(requester).do_async.clone_image(*args, **kwargs).then(result_cb)
@@ -31,26 +30,29 @@ class BlockingTasksManager(RPCProcessConnector):
         self.session(requester).do_async.commit_image(*args, **kwargs).then(result_cb)
 
     def update_hub_metadata(self, requester, result_cb, *args, **kwargs):
-        self.session(requester).do_async.update_hub_metadata(*args, **kwargs).then(result_cb)
+        self.session(requester).do_async.update_hub_metadata(*args, **kwargs).then(
+            result_cb
+        )
 
     def pull_image(self, requester, image_fullname, result_cb):
         if requester is None:
-            self.do_async.pull_image(
-                    image_fullname, anonymous=True).then(result_cb)
+            self.do_async.pull_image(image_fullname, anonymous=True).then(result_cb)
         else:
             self.session(requester).do_async.pull_image(
-                    image_fullname, anonymous=False).then(result_cb)
+                image_fullname, anonymous=False
+            ).then(result_cb)
 
     def registry_login(self, requester, result_cb, *args, **kwargs):
         self.session(requester).do_async.registry_login(*args, **kwargs).then(result_cb)
 
     def stream_db_logs(self, logs_handler):
         # request the blocking task to stream db logs
-        self.session(logs_handler).do_async.stream_db_logs(
-                            **logs_handler.params)
+        self.session(logs_handler).do_async.stream_db_logs(**logs_handler.params)
 
     def rescan_topology(self, requester, result_cb, *args, **kwargs):
-        self.session(requester).do_async.rescan_topology(*args, **kwargs).then(result_cb)
+        self.session(requester).do_async.rescan_topology(*args, **kwargs).then(
+            result_cb
+        )
 
     def topology_tree(self, requester, result_cb, *args, **kwargs):
         self.session(requester).do_async.topology_tree(*args, **kwargs).then(result_cb)
@@ -71,4 +73,3 @@ class BlockingTasksManager(RPCProcessConnector):
 
     def sync_pull_docker_daemon_image(self, fullname):
         return self.session(None).do_sync.pull_docker_daemon_image(fullname)
-

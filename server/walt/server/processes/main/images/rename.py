@@ -18,11 +18,12 @@ def do_rename(images, registry: WalTLocalRegistry, image, new_name):
     # update the store
     images.rename(image.fullname, new_fullname)
 
+
 def rename(images, registry: WalTLocalRegistry, requester, image_name, new_name):
     if not validate_image_name(requester, new_name):
         return False
     image = images.get_user_unused_image_from_name(requester, image_name)
-    if image:   # otherwise issue is already reported
+    if image:  # otherwise issue is already reported
         if not images.get_user_image_from_name(requester, new_name, expected=False):
             do_rename(images, registry, image, new_name)
             return True

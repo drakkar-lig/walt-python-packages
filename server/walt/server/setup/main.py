@@ -38,55 +38,96 @@ WALT_SERVICES = [
 # Since in their default configuration they would conflict with these
 # walt services, we have to disable them.
 UNCOMPATIBLE_OS_SERVICES = [
-    'tftpd-hpa.service', 'isc-dhcp-server.service', 'snmpd.service',
-    'lldpd.service', 'ptpd.service'
+    "tftpd-hpa.service",
+    "isc-dhcp-server.service",
+    "snmpd.service",
+    "lldpd.service",
+    "ptpd.service",
 ]
 
-WALT_SOCKET_SERVICES = ['walt-server-podman.socket']
-WALT_MAIN_SERVICE = 'walt-server.service'
+WALT_SOCKET_SERVICES = ["walt-server-podman.socket"]
+WALT_MAIN_SERVICE = "walt-server.service"
 
 OS_ACTIONS = {
-    'image-install': {
-        'bullseye': ('define_server_conf', 'install_os_on_image', 'fix_conmon',
-                     'disable_os_services', 'setup_command_symlinks',
-                     'setup_walt_services', 'fix_other_conf_files',
-                     'update_server_conf', 'update_completion'),
+    "image-install": {
+        "bullseye": (
+            "define_server_conf",
+            "install_os_on_image",
+            "fix_conmon",
+            "disable_os_services",
+            "setup_command_symlinks",
+            "setup_walt_services",
+            "fix_other_conf_files",
+            "update_server_conf",
+            "update_completion",
+        ),
     },
-    'install': {
-        'bullseye': ('define_server_conf', 'install_os', 'fix_conmon',
-                     'stop_services', 'disable_os_services',
-                     'setup_command_symlinks', 'setup_walt_services',
-                     'fix_other_conf_files', 'update_server_conf', 'systemd_reload',
-                     'start_walt_services', 'update_completion', 'msg_ready'),
+    "install": {
+        "bullseye": (
+            "define_server_conf",
+            "install_os",
+            "fix_conmon",
+            "stop_services",
+            "disable_os_services",
+            "setup_command_symlinks",
+            "setup_walt_services",
+            "fix_other_conf_files",
+            "update_server_conf",
+            "systemd_reload",
+            "start_walt_services",
+            "update_completion",
+            "msg_ready",
+        ),
     },
-    'upgrade': {
-        'buster': ('define_server_conf', 'stop_services', 'upgrade_os', 'fix_conmon',
-                   'disable_os_services', 'cleanup_old_walt_install',
-                   'setup_command_symlinks', 'setup_walt_services',
-                   'fix_other_conf_files', 'update_server_conf', 'update_completion',
-                   'msg_reboot'),
-        'bullseye': ('define_server_conf', 'stop_services', 'fix_os', 'fix_conmon',
-                     'disable_os_services', 'cleanup_old_walt_install',
-                     'setup_command_symlinks', 'setup_walt_services',
-                     'fix_other_conf_files', 'update_server_conf', 'systemd_reload',
-                     'start_walt_services', 'update_completion', 'msg_ready'),
-    }
+    "upgrade": {
+        "buster": (
+            "define_server_conf",
+            "stop_services",
+            "upgrade_os",
+            "fix_conmon",
+            "disable_os_services",
+            "cleanup_old_walt_install",
+            "setup_command_symlinks",
+            "setup_walt_services",
+            "fix_other_conf_files",
+            "update_server_conf",
+            "update_completion",
+            "msg_reboot",
+        ),
+        "bullseye": (
+            "define_server_conf",
+            "stop_services",
+            "fix_os",
+            "fix_conmon",
+            "disable_os_services",
+            "cleanup_old_walt_install",
+            "setup_command_symlinks",
+            "setup_walt_services",
+            "fix_other_conf_files",
+            "update_server_conf",
+            "systemd_reload",
+            "start_walt_services",
+            "update_completion",
+            "msg_ready",
+        ),
+    },
 }
 
-WALT_BASH_COMPLETION_PATH = Path('/etc/bash_completion.d/walt')
+WALT_BASH_COMPLETION_PATH = Path("/etc/bash_completion.d/walt")
+
 
 class WalTServerSetup(WaltGenericSetup):
     package = __name__
     mode = cli.SwitchAttr(
-                "--mode",
-                cli.Set("AUTO", "INSTALL", "UPGRADE", "IMAGE-INSTALL", case_sensitive=False),
-                argname = 'SETUP_MODE',
-                default = 'auto',
-                help= """specify mode (if unsure, leave unspecified!)""")
+        "--mode",
+        cli.Set("AUTO", "INSTALL", "UPGRADE", "IMAGE-INSTALL", case_sensitive=False),
+        argname="SETUP_MODE",
+        default="auto",
+        help="""specify mode (if unsure, leave unspecified!)""",
+    )
     opt_edit_conf = cli.Flag(
-                "--edit-conf",
-                default = False,
-                help= """edit server configuration""")
+        "--edit-conf", default=False, help="""edit server configuration"""
+    )
 
     @property
     def display_name(self):
@@ -94,21 +135,24 @@ class WalTServerSetup(WaltGenericSetup):
 
     def main(self):
         """setup WalT server"""
-        assert (Path(sys.prefix) / 'bin' / 'activate').exists(), \
-            "walt-server seems not installed in a virtual environment"
+        assert (
+            Path(sys.prefix) / "bin" / "activate"
+        ).exists(), "walt-server seems not installed in a virtual environment"
         verify_root_login_shell()
         os_codename = get_os_codename()
-        if self.mode.lower() == 'auto':
-            if self.systemd_unit_exists('walt-server.service'):
-                mode = 'upgrade'
+        if self.mode.lower() == "auto":
+            if self.systemd_unit_exists("walt-server.service"):
+                mode = "upgrade"
             else:
-                mode = 'install'
+                mode = "install"
         else:
             mode = self.mode.lower()
         if os_codename not in OS_ACTIONS[mode]:
-            allowed = ', '.join(OS_ACTIONS[mode].keys())
-            print(f'Sorry, {mode} mode of this script only works on the following debian version(s): {allowed}.')
-            print('Exiting.')
+            allowed = ", ".join(OS_ACTIONS[mode].keys())
+            print(
+                f"Sorry, {mode} mode of this script only works on the following debian version(s): {allowed}."
+            )
+            print("Exiting.")
             sys.exit(1)
         self.resolved_mode = mode
         for action in OS_ACTIONS[mode][os_codename]:
@@ -116,46 +160,52 @@ class WalTServerSetup(WaltGenericSetup):
             method()
 
     def msg_reboot(self):
-        print('** You must now reboot the machine. **')
+        print("** You must now reboot the machine. **")
 
     def msg_ready(self):
-        print('** Your WalT server is ready. **')
+        print("** Your WalT server is ready. **")
 
     def systemd_reload(self):
-        print('Reloading systemd... ', end=''); sys.stdout.flush()
+        print("Reloading systemd... ", end="")
+        sys.stdout.flush()
         systemd.reload()
-        print('done')
+        print("done")
 
     def stop_services(self):
-        print('Ensuring OS services related to WalT are stopped... ', end=''); sys.stdout.flush()
+        print("Ensuring OS services related to WalT are stopped... ", end="")
+        sys.stdout.flush()
         to_be_stopped = list(UNCOMPATIBLE_OS_SERVICES)
         # previous versions of walt had fewer walt services
         for walt_unit in WALT_SERVICES:
             if self.systemd_unit_exists(walt_unit):
                 to_be_stopped.append(walt_unit)
         self.stop_systemd_services(to_be_stopped)
-        print('done')
+        print("done")
 
     def start_walt_services(self):
-        print('Restarting WalT services... ', end=''); sys.stdout.flush()
+        print("Restarting WalT services... ", end="")
+        sys.stdout.flush()
         # starting socket services and main service is enough to start all, thanks
         # to dependencies
         self.start_systemd_services(WALT_SOCKET_SERVICES + [WALT_MAIN_SERVICE])
-        print('done')
+        print("done")
 
     def disable_os_services(self):
-        print('Ensuring OS services incompatible with WalT are disabled... ', end=''); sys.stdout.flush()
+        print("Ensuring OS services incompatible with WalT are disabled... ", end="")
+        sys.stdout.flush()
         # remove file /etc/systemd/system/isc-dhcp-server.service which was historically
         # added to fine tune the service better than using the service file
         # auto-generated for the SYSV service
-        dhcp_service = Path('/etc/systemd/system/isc-dhcp-server.service')
+        dhcp_service = Path("/etc/systemd/system/isc-dhcp-server.service")
         if dhcp_service.exists():
             dhcp_service.unlink()
-            dhcp_service_symlink = Path('/etc/systemd/system/multi-user.wants/isc-dhcp-server.service')
+            dhcp_service_symlink = Path(
+                "/etc/systemd/system/multi-user.wants/isc-dhcp-server.service"
+            )
             if dhcp_service_symlink.exists():
                 dhcp_service_symlink.unlink()
         self.disable_systemd_services(UNCOMPATIBLE_OS_SERVICES)
-        print('done')
+        print("done")
 
     def upgrade_os(self):
         upgrade_os()
@@ -173,27 +223,32 @@ class WalTServerSetup(WaltGenericSetup):
         install_os_on_image()
 
     def setup_walt_services(self):
-        print('Ensuring WalT services are properly registered on the OS... ', end=''); sys.stdout.flush()
+        print("Ensuring WalT services are properly registered on the OS... ", end="")
+        sys.stdout.flush()
         self.setup_systemd_services(WALT_SERVICES)
-        subprocess.run('walt-vpn-setup --type SERVER'.split(), check=True,
-                       stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        print('done')
+        subprocess.run(
+            "walt-vpn-setup --type SERVER".split(),
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+        print("done")
 
     def cleanup_old_walt_install(self):
         cleanup_old_walt_install()
 
     def setup_command_symlinks(self):
-        os_bin = Path('/usr/local/bin')
-        venv_bin = Path(sys.prefix) / 'bin'
-        print(f'Updating symlinks {venv_bin}/walt-* -> {os_bin}... ', end='')
+        os_bin = Path("/usr/local/bin")
+        venv_bin = Path(sys.prefix) / "bin"
+        print(f"Updating symlinks {venv_bin}/walt-* -> {os_bin}... ", end="")
         sys.stdout.flush()
         for venv_entry in venv_bin.iterdir():
-            if venv_entry.name.startswith('walt'):
+            if venv_entry.name.startswith("walt"):
                 os_entry = os_bin / venv_entry.name
                 if os_entry.exists():
                     os_entry.unlink()
                 os_entry.symlink_to(str(venv_entry.absolute()))
-        print('done')
+        print("done")
 
     def fix_other_conf_files(self):
         fix_other_conf_files()
@@ -209,12 +264,16 @@ class WalTServerSetup(WaltGenericSetup):
         update_server_conf(self.server_conf)
 
     def update_completion(self):
-        print('Updating bash completion for walt tool... ', end=''); sys.stdout.flush()
-        p = subprocess.run('walt advanced dump-bash-autocomplete'.split(),
-                           check=True, stdout=subprocess.PIPE)
+        print("Updating bash completion for walt tool... ", end="")
+        sys.stdout.flush()
+        p = subprocess.run(
+            "walt advanced dump-bash-autocomplete".split(),
+            check=True,
+            stdout=subprocess.PIPE,
+        )
         WALT_BASH_COMPLETION_PATH.parent.mkdir(parents=True, exist_ok=True)
         WALT_BASH_COMPLETION_PATH.write_bytes(p.stdout)
-        print('done')
+        print("done")
 
 
 def run():

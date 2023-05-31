@@ -20,7 +20,7 @@ again, your new entry would pass an appropriate validity check, and this file
 would be generated again accordingly.
 """
 
-CONFIG_CODED_ITEMS = ('password', )
+CONFIG_CODED_ITEMS = ("password",)
 
 # This is not secure at all, we will just make passwords unreadable for someone spying
 # your screen. The security is actually based on the access rights of the conf file
@@ -36,30 +36,30 @@ def xor(password):
 
 
 def ask_config_item(key, coded=False):
-    msg = '%s: ' % key
+    msg = "%s: " % key
     while True:
         if coded:
             value = getpass(msg)
         else:
             value = input(msg)
-        if value.strip() == '':
+        if value.strip() == "":
             continue
         break
     return value
 
 
 def encode(value):
-    return xor(value.encode('UTF-8')).hex()
+    return xor(value.encode("UTF-8")).hex()
 
 
 def decode(coded_value):
-    return xor(bytes.fromhex(coded_value)).decode('UTF-8')
+    return xor(bytes.fromhex(coded_value)).decode("UTF-8")
 
 
 def get_config_file():
-    p = Path(expanduser('~/.walt/config'))
+    p = Path(expanduser("~/.walt/config"))
     if not p.exists():
-        legacy_p = Path(expanduser('~/.waltrc'))
+        legacy_p = Path(expanduser("~/.waltrc"))
         if legacy_p.exists():
             p.parent.mkdir(exist_ok=True)
             legacy_p.rename(p)
@@ -69,17 +69,17 @@ def get_config_file():
 
 def ensure_group_path(conf_dict, *path):
     group_name, path = path[0], path[1:]
-    if group_name not in conf_dict or not isinstance(conf_dict[group_name],
-                                                     dict):
+    if group_name not in conf_dict or not isinstance(conf_dict[group_name], dict):
         conf_dict[group_name] = {}
     if len(path) > 0:
         ensure_group_path(conf_dict[group_name], *path)
 
 
 def cleanup_empty_groups(conf_dict):
-    for item_type, item_path, parent_group, item_name, item_value in \
-            reversed(list(iter_conf_items(conf_dict, iter_groups=False))):
-        if item_type == 'group' and len(item_value) == 0:
+    for item_type, item_path, parent_group, item_name, item_value in reversed(
+        list(iter_conf_items(conf_dict, iter_groups=False))
+    ):
+        if item_type == "group" and len(item_value) == 0:
             parent_group.pop(item_name)
 
 
@@ -96,28 +96,28 @@ def get_config_from_file():
         return {}, False
     # handle legacy conf items
     updated = False
-    ensure_group_path(conf_dict, 'walt')
-    ensure_group_path(conf_dict, 'registries')
-    if 'hub' in conf_dict:
-        conf_dict['registries']['hub'] = conf_dict.pop('hub')
+    ensure_group_path(conf_dict, "walt")
+    ensure_group_path(conf_dict, "registries")
+    if "hub" in conf_dict:
+        conf_dict["registries"]["hub"] = conf_dict.pop("hub")
         updated = True
-    ensure_group_path(conf_dict, 'registries', 'hub')
-    if 'server' in conf_dict:
-        conf_dict['walt']['server'] = conf_dict.pop('server')
+    ensure_group_path(conf_dict, "registries", "hub")
+    if "server" in conf_dict:
+        conf_dict["walt"]["server"] = conf_dict.pop("server")
         updated = True
-    if 'username' in conf_dict:
-        conf_dict['walt']['username'] = conf_dict.pop('username')
+    if "username" in conf_dict:
+        conf_dict["walt"]["username"] = conf_dict.pop("username")
         # walt and hub usernames were previously always the same
-        conf_dict['registries']['hub']['username'] = conf_dict['walt'][
-            'username']
+        conf_dict["registries"]["hub"]["username"] = conf_dict["walt"]["username"]
         updated = True
-    if 'password' in conf_dict:
-        conf_dict['registries']['hub']['password'] = conf_dict.pop('password')
+    if "password" in conf_dict:
+        conf_dict["registries"]["hub"]["password"] = conf_dict.pop("password")
         updated = True
     cleanup_empty_groups(conf_dict)
     # decode coded items
-    for item_type, item_path, parent_group, item_name, item_value in \
-            iter_conf_items(conf_dict, iter_groups=False):
+    for item_type, item_path, parent_group, item_name, item_value in iter_conf_items(
+        conf_dict, iter_groups=False
+    ):
         if item_name in CONFIG_CODED_ITEMS:
             parent_group[item_name] = decode(parent_group[item_name])
     return conf_dict, updated
@@ -125,33 +125,32 @@ def get_config_from_file():
 
 def iter_conf_items(conf_dict, path=(), iter_leaves=True, iter_groups=True):
     for item_name, item_conf in conf_dict.items():
-        new_path = path + (item_name, )
+        new_path = path + (item_name,)
         if isinstance(item_conf, dict):
             if iter_groups:
-                yield 'group', new_path, conf_dict, item_name, item_conf
+                yield "group", new_path, conf_dict, item_name, item_conf
             yield from iter_conf_items(item_conf, new_path)
         else:
             if iter_leaves:
-                yield 'leaf', new_path, conf_dict, item_name, item_conf
+                yield "leaf", new_path, conf_dict, item_name, item_conf
 
 
 class ConfigFileSaver:
-
     def __init__(self):
         self.item_groups = []
         self.static_comments = {
-            ('walt', ): 'WalT platform',
-            ('walt', 'server'): 'IP or hostname of WalT server',
-            ('walt', 'username'): 'WalT user name used to identify your work',
-            ('registries', ): 'Credentials for container registries',
+            ("walt",): "WalT platform",
+            ("walt", "server"): "IP or hostname of WalT server",
+            ("walt", "username"): "WalT user name used to identify your work",
+            ("registries",): "Credentials for container registries",
         }
 
     def get_comment(self, path):
         if path in self.static_comments:
             return self.static_comments[path]
-        if len(path) == 2 and path[0] == 'registries':
-            if path[1] == 'hub':
-                return 'Docker Hub credentials'
+        if len(path) == 2 and path[0] == "registries":
+            if path[1] == "hub":
+                return "Docker Hub credentials"
             else:
                 return f'Credentials for registry "{path[1]}"'
 
@@ -161,36 +160,41 @@ class ConfigFileSaver:
         config_file.parent.mkdir(exist_ok=True)
         config_file.write_text(self.printed())
         config_file.chmod(0o600)
-        print('\nConfiguration was updated in %s.\n' % config_file)
+        print("\nConfiguration was updated in %s.\n" % config_file)
 
     def comment_section(self, lines, section, indent=0):
         return lines.extend(
-            self.indent_lines(self.comment_lines(section.splitlines()),
-                              indent))
+            self.indent_lines(self.comment_lines(section.splitlines()), indent)
+        )
 
     def comment_lines(self, lines):
-        return ['# ' + line for line in lines]
+        return ["# " + line for line in lines]
 
     def indent_lines(self, lines, indent):
-        return [(' ' * indent) + line for line in lines]
+        return [(" " * indent) + line for line in lines]
 
     def underline(self, line):
-        dashes = re.sub('.', '-', line)
-        return f'{line}\n{dashes}'
+        dashes = re.sub(".", "-", line)
+        return f"{line}\n{dashes}"
 
     def printed(self):
-        lines = ['']
+        lines = [""]
         self.comment_section(lines, CONFIG_FILE_TOP_COMMENT)
-        lines.append('')
-        for item_type, item_path, parent_group, item_name, item_value in \
-                iter_conf_items(conf_dict):
+        lines.append("")
+        for (
+            item_type,
+            item_path,
+            parent_group,
+            item_name,
+            item_value,
+        ) in iter_conf_items(conf_dict):
             comment = self.get_comment(item_path)
-            indent = (len(item_path)-1) * 4
-            if item_type == 'group':
+            indent = (len(item_path) - 1) * 4
+            if item_type == "group":
                 # add group-level comment
                 if comment is not None:
                     if indent == 0:
-                        lines.append('')
+                        lines.append("")
                         comment = self.underline(comment)
                     self.comment_section(lines, comment, indent)
                 # add group name
@@ -198,9 +202,10 @@ class ConfigFileSaver:
             else:
                 # add leaves
                 if item_name in CONFIG_CODED_ITEMS:
-                    new_comment = '(%s value is encoded.)' % item_name
-                    comment = new_comment if comment is None \
-                        else f'{comment} {new_comment}'
+                    new_comment = "(%s value is encoded.)" % item_name
+                    comment = (
+                        new_comment if comment is None else f"{comment} {new_comment}"
+                    )
                     item_value = encode(item_value)
                 if comment is not None:
                     self.comment_section(lines, comment, indent)
@@ -208,7 +213,7 @@ class ConfigFileSaver:
                 # (by creating a temporary dictionary with just this item)
                 item_and_value = yaml.dump({item_name: item_value}).strip()
                 lines.append(f'{" "*indent}{item_and_value}')
-        return '\n'.join(lines) + '\n\n'
+        return "\n".join(lines) + "\n\n"
 
 
 def save_config():
@@ -229,67 +234,71 @@ def reload_conf():
 
 
 def resolve_new_user():
-    server_check = 'server' not in conf_dict['walt']
+    server_check = "server" not in conf_dict["walt"]
     if server_check:
-        hook = get_hook('config_missing_server')
+        hook = get_hook("config_missing_server")
         if hook is not None:
             server_check = hook()
     print(
-        'You are a new user of this WalT platform, ' +
-        'and this command requires a few configuration items.'
+        "You are a new user of this WalT platform, "
+        + "and this command requires a few configuration items."
     )
     while True:
-        server_update = 'server' not in conf_dict['walt']
-        username_update = 'username' not in conf_dict['walt']
+        server_update = "server" not in conf_dict["walt"]
+        username_update = "username" not in conf_dict["walt"]
         if server_update:
-            conf_dict['walt']['server'] = ask_config_item(
-                'IP or hostname of WalT server')
+            conf_dict["walt"]["server"] = ask_config_item(
+                "IP or hostname of WalT server"
+            )
         if username_update:
             use_hub = yes_or_no(
-                'Do you intend to push or pull images to/from the docker hub?',
+                "Do you intend to push or pull images to/from the docker hub?",
                 okmsg=None,
-                komsg=None)
+                komsg=None,
+            )
             if use_hub:
-                ensure_group_path(conf_dict, 'registries', 'hub')
+                ensure_group_path(conf_dict, "registries", "hub")
                 print(
-                    'Please get an account at hub.docker.com if not done yet, ' +
-                    'then specify credentials here.'
+                    "Please get an account at hub.docker.com if not done yet, "
+                    + "then specify credentials here."
                 )
-                conf_dict['registries']['hub'].update(
-                    username=ask_config_item('username'),
-                    password=ask_config_item('password', coded=True))
-                conf_dict['walt']['username'] = conf_dict['registries']['hub'][
-                    'username']
+                conf_dict["registries"]["hub"].update(
+                    username=ask_config_item("username"),
+                    password=ask_config_item("password", coded=True),
+                )
+                conf_dict["walt"]["username"] = conf_dict["registries"]["hub"][
+                    "username"
+                ]
             else:
-                conf_dict['walt']['username'] = ask_config_item(
-                    'Please choose a username for this walt platform')
-        test_registry_name = 'hub' if use_hub else None
+                conf_dict["walt"]["username"] = ask_config_item(
+                    "Please choose a username for this walt platform"
+                )
+        test_registry_name = "hub" if use_hub else None
         server_error, registry_error = test_config(test_registry_name)
         if not any((server_error, registry_error)):
             break  # OK done
         if registry_error:
             # walt username was copied from hub username, but hub credentials are wrong
             # so forget it
-            del conf_dict['walt']['username']
+            del conf_dict["walt"]["username"]
         continue  # prompt again to user
     if use_hub:
-        username = conf_dict['walt']['username']
-        print(
-            f'Note: {username} will also be your username on the WalT platform.'
-        )
+        username = conf_dict["walt"]["username"]
+        print(f"Note: {username} will also be your username on the WalT platform.")
 
 
 def resolve_registry_creds(reg_name):
-    if reg_name == 'hub':
-        creds_name = 'Docker hub credentials'
+    if reg_name == "hub":
+        creds_name = "Docker hub credentials"
     else:
         creds_name = f'Credentials for access to "{reg_name}" registry'
-    print(f'{creds_name} are missing or invalid. Please enter them below.')
-    ensure_group_path(conf_dict, 'registries', reg_name)
+    print(f"{creds_name} are missing or invalid. Please enter them below.")
+    ensure_group_path(conf_dict, "registries", reg_name)
     while True:
-        conf_dict['registries'][reg_name].update(
-            username=ask_config_item('username'),
-            password=ask_config_item('password', coded=True))
+        conf_dict["registries"][reg_name].update(
+            username=ask_config_item("username"),
+            password=ask_config_item("password", coded=True),
+        )
         errors = test_config(reg_name)
         if not any(errors):
             break
@@ -300,7 +309,6 @@ class ConfSpecNode:
 
 
 class ConfSpecRegistryNode:
-
     def __init__(self, reg_name):
         self.username = ConfSpecNode()
         self.username.resolve = lambda: resolve_registry_creds(reg_name)
@@ -309,9 +317,8 @@ class ConfSpecRegistryNode:
 
 
 class ConfSpecRegistriesNode:
-
     def __getattr__(self, reg_name):
-        if reg_name == 'resolve':
+        if reg_name == "resolve":
             raise AttributeError
         setattr(self, reg_name, ConfSpecRegistryNode(reg_name))
         return self.reg_name
@@ -338,28 +345,27 @@ def test_config(registry_name=None):
     # whether a server connection or a hub credentials error
     # occured.
     print()
-    print('Testing provided configuration...')
+    print("Testing provided configuration...")
     if server_link_cls is None:
-        raise Exception(
-            'test_config() called but server_link_cls not known yet.')
+        raise Exception("test_config() called but server_link_cls not known yet.")
     try:
         with server_link_cls() as server:
             if registry_name is not None:
-                with server.set_busy_label('Authenticating to the registry'):
+                with server.set_busy_label("Authenticating to the registry"):
                     if not server.registry_login(registry_name):
                         print()
-                        del conf_dict['registries'][registry_name]['username']
-                        del conf_dict['registries'][registry_name]['password']
+                        del conf_dict["registries"][registry_name]["username"]
+                        del conf_dict["registries"][registry_name]["password"]
                         return False, True
     except socket.error:
         print(
-            'FAILED. The value of \'walt.server\' you entered seems invalid ' +
-            '(or the server is down?).'
+            "FAILED. The value of 'walt.server' you entered seems invalid "
+            + "(or the server is down?)."
         )
         print()
-        del conf_dict['walt']['server']
+        del conf_dict["walt"]["server"]
         return True, False
-    print('OK.')
+    print("OK.")
     print()
     return False, False
 
@@ -369,12 +375,11 @@ conf_dict = None
 
 
 class Conf:
-
     def __init__(self, path=()):
         self._path = path
 
     def __repr__(self):
-        return '<Configuration: ' + repr(self._analyse_path(self._path)) + '>'
+        return "<Configuration: " + repr(self._analyse_path(self._path)) + ">"
 
     def _do_lazyload(self):
         if conf_dict is None:
@@ -384,55 +389,55 @@ class Conf:
         self._do_lazyload()
         conf_spec, conf_obj, cur_path = ConfSpec, conf_dict, ()
         for attr in path:
-            cur_path += (attr, )
+            cur_path += (attr,)
             conf_spec = getattr(conf_spec, attr, None)
             if conf_spec is None:
-                conf_item_str = 'conf.' + '.'.join(cur_path)
-                raise Exception(f'Unexpected conf item: {conf_item_str}')
-            if hasattr(conf_spec, 'resolve'):
+                conf_item_str = "conf." + ".".join(cur_path)
+                raise Exception(f"Unexpected conf item: {conf_item_str}")
+            if hasattr(conf_spec, "resolve"):
                 # leaf value
                 if attr in conf_obj:
-                    return {'type': 'present-leaf', 'value': conf_obj[attr]}
+                    return {"type": "present-leaf", "value": conf_obj[attr]}
                 else:
 
                     def resolve():
                         conf_spec.resolve()
                         save_config()
 
-                    return {'type': 'missing-leaf', 'resolve': resolve}
+                    return {"type": "missing-leaf", "resolve": resolve}
             else:
                 # category node
                 if attr not in conf_obj:
                     conf_obj[attr] = {}
             conf_obj = conf_obj[attr]
-        return {'type': 'category', 'value': conf_obj}
+        return {"type": "category", "value": conf_obj}
 
     # we use point-based notation (e.g., conf.walt.server)
     def __getattr__(self, attr):
-        path = self._path + (attr, )
+        path = self._path + (attr,)
         path_info = self._analyse_path(path)
-        if path_info['type'] == 'present-leaf':
-            return path_info['value']
-        elif path_info['type'] == 'missing-leaf':
-            path_info['resolve']()
+        if path_info["type"] == "present-leaf":
+            return path_info["value"]
+        elif path_info["type"] == "missing-leaf":
+            path_info["resolve"]()
             return self.__getattr__(attr)  # redo
         else:  # category
             return Conf(path)
 
     def __hasattr__(self, attr):
-        path = self._path + (attr, )
+        path = self._path + (attr,)
         path_info = self._analyse_path(path)
-        return path_info['type'] != 'missing-leaf'
+        return path_info["type"] != "missing-leaf"
 
     def __setattr__(self, attr, v):
-        if attr in ('_path', ):
+        if attr in ("_path",):
             self.__dict__[attr] = v
             return
         cat_path_info = self._analyse_path(self._path)
-        item_path_info = self._analyse_path(self._path + (attr, ))
-        assert cat_path_info['type'] == 'category'
-        assert item_path_info['type'] in ('present-leaf', 'missing-leaf')
-        cat_path_info['value'][attr] = v
+        item_path_info = self._analyse_path(self._path + (attr,))
+        assert cat_path_info["type"] == "category"
+        assert item_path_info["type"] in ("present-leaf", "missing-leaf")
+        cat_path_info["value"][attr] = v
 
 
 conf = Conf()
