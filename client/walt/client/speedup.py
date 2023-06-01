@@ -1,14 +1,44 @@
 # This file implements a few tricks enabling the walt command
-# to load faster.
+# to run faster.
 
+import atexit
 import builtins
 import locale
 import os
 import sys
 from pathlib import Path
 
+# -- 1st hack --
+# register a faster exit function.
+# Note: atexit executes function in the reverse order these functions
+# were registered. Thus we must ensure _fastexit is the first handler
+# registered with atexit.register(), otherwise shortcuting the exit
+# procedure would affect previously registered handlers.
+exit_code = None
+orig_exit = sys.exit
 
-# -- 1st workaround --
+
+def _exit_code_recorder(code):
+    global exit_code
+    exit_code = code
+    orig_exit(code)
+
+
+def _fastexit():
+    if not isinstance(exit_code, int):
+        return  # continue with normal exit procedure
+    # fast exit
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(exit_code)
+
+
+def register_faster_exit():
+    sys.exit = _exit_code_recorder
+    atexit.register(_fastexit)
+
+
+# -- 2nd hack --
 # Workaround plumbum i18n module loading pkg_resources, which is slow,
 # unless locale starts with 'en'. We cannot blindly call setlocale()
 # because we do not know which locales are available on the OS where
@@ -17,7 +47,7 @@ def fix_plumbum_locale():
     locale.getlocale = lambda *args: ("en_US", "UTF-8")
 
 
-# -- 2nd workaround --
+# -- 3rd hack --
 # When the walt client is installed on a slow filesystem (such as a
 # virtualenv on an NFS-mounted home directory), it can be significantly
 # less reactive. If environment variables PY_SLOW_DISK_PREFIX and
@@ -104,12 +134,10 @@ def cache_modules_on_faster_disk():
             # activate the cache
             sys.path = new_path
             # update the cache before the tool exits
-            import atexit
-
             atexit.register(cache_modules)
 
 
-# -- 3rd workaround --
+# -- 4th hack --
 # The following prevents plumbum to load modules we will not need.
 DIVERTLIST = ["plumbum.machines", "plumbum.path", "plumbum.commands", "plumbum.cmd"]
 DEBUG = False
@@ -213,6 +241,7 @@ def divert_unused_plumbum_modules():
 # -- Run exerything --
 # --------------------
 def run():
+    register_faster_exit()
     fix_plumbum_locale()
     cache_modules_on_faster_disk()
     divert_unused_plumbum_modules()
