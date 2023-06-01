@@ -133,8 +133,6 @@ class ClientToServerLink:
         # on 1st call:
         # 1) check config, and once the config is OK
         # 2) check if server version matches
-        # 3) execute connection hook if any
-        # 4) set faster pickle4 mode
         if not ClientToServerLink.init_config_done:
             init_config(get_link)
             ClientToServerLink.init_config_done = True
@@ -144,7 +142,6 @@ class ClientToServerLink:
                 with link as server:
                     check_update(server)
             ClientToServerLink.full_init_done = True
-        link.set_mode("pickle4")
         return link
 
 

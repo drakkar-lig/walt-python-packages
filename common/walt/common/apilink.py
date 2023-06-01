@@ -15,6 +15,9 @@ SERVER_SOCKET_TIMEOUT = 10.0
 SERVER_SOCKET_REUSE_TIMEOUT = 5.0
 
 
+# This class is used both on the client and on the server.
+# It should be backward-compatible with the "line-repr-eval"
+# mode, in order to communicate with legacy code using it.
 class APIChannel(object):
     def __init__(self, sock_file):
         self.sock_file = sock_file
@@ -179,12 +182,21 @@ class ServerAPIConnection(object):
             )
             self.remote_version = sock_file.readline().strip().decode("UTF-8")
             self.api_channel = APIChannel(sock_file)
+            # pickle4 is a faster mode for large transfers because line-repr-eval
+            # uses readline() on the receiving side, which means reading chars one
+            # by one up to the end of line. If the server is up-to-date, use it.
+            if self.remote_has_pickle4_mode():
+                self.api_channel.write("SET_MODE", 'pickle4')  # set mode remotely
+                self.api_channel.set_mode('pickle4')           # set mode locally
             self.connected = True
 
-    def set_mode(self, mode):
-        if self.api_channel.get_mode() != mode:
-            self.api_channel.write("SET_MODE", mode)  # set mode remotely
-            self.api_channel.set_mode(mode)  # set mode locally
+    def remote_has_pickle4_mode(self):
+        if self.remote_version.startswith('0.'):  # dev version
+            return True
+        elif int(self.remote_version) >= 8:       # prod version
+            return True
+        else:
+            return False
 
     def disconnect(self):
         self.usage_refcount -= 1
@@ -315,6 +327,3 @@ class ServerAPILink(object):
 
     def set_default_busy_label(self):
         self.conn.set_default_busy_label()
-
-    def set_mode(self, mode):
-        self.conn.set_mode(mode)
