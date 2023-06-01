@@ -8,7 +8,8 @@ NODE_SYMLINKS_EXPORT_PATTERN = """\
 /var/lib/walt/nodes %(walt_subnet)s(ro,sync,no_root_squash,no_subtree_check)
 """
 IMAGE_EXPORT_PATTERN = """\
-%(image_mountpoint)s %(walt_subnet)s(fsid=%(fsid)s,ro,sync,no_root_squash,no_subtree_check)
+%(image_mountpoint)s %(walt_subnet)s\
+(fsid=%(fsid)s,ro,sync,no_root_squash,no_subtree_check)
 """
 PERSISTENT_EXPORT_PATTERN = """\
 %(persist_mountpoint)s %(walt_subnet)s(rw,sync,no_root_squash,no_subtree_check)

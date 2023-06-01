@@ -128,7 +128,8 @@ FOOTER = """\
             'option-with-value')
                 token_type='value-of-option'
                 ;;
-            'command'|'option-without-value'|'value-of-option'|'positional'|'start-of-positional')
+            'command'|'option-without-value'|'value-of-option'| \\
+                    'positional'|'start-of-positional')
                 if [ $positional_started -eq 1 ]
                 then
                     let positional_idx+=1
@@ -166,7 +167,8 @@ FOOTER = """\
             then
                 possible="$(compgen -d -- "$partial_token")"
             else
-                possible="$(walt-autocomplete-helper "$valued_option_type" "${words[@]}")"
+                possible="$(walt-autocomplete-helper \
+                    "$valued_option_type" "${words[@]}")"
                 if [ "$?" -ne 0 ]
                 then    # issue (it is important not to store this result in cache)
                     return 1
@@ -190,7 +192,8 @@ FOOTER = """\
 __described_help_topics__"
             elif [ "$positional_arg_type" != "" ]
             then
-                possible="$(walt-autocomplete-helper "$positional_arg_type" "${words[@]}")"
+                possible="$(walt-autocomplete-helper \
+                    "$positional_arg_type" "${words[@]}")"
                 if [ "$?" -ne 0 ]
                 then    # issue (it is important not to store this result in cache)
                     return 1

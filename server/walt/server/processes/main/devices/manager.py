@@ -88,7 +88,8 @@ TITLE_SOME_UNKNOWN_DEVICES = """\
 WalT also detected the following devices but could not detect their type:"""
 
 FOOTNOTE_SOME_UNKNOWN_DEVICES = """\
-If one of them is actually a switch, use 'walt device config <name> type=switch' to fix this."""
+If one of them is actually a switch,\
+ use 'walt device config <name> type=switch' to fix this."""
 
 CMD_ADD_SSH_KNOWN_HOST = (
     "  mkdir -p /root/.ssh && ssh-keygen -F %(ip)s ||                            "
@@ -212,7 +213,7 @@ class DevicesManager(object):
                     i += 1
 
     def add_or_update(self, requester=None, **args_data):
-        """Return True if a new equipment (node, switch) was identified, False otherwise"""
+        """Returns whether a new equipment (node, switch) was identified"""
         if "type" not in args_data:
             args_data["type"] = "unknown"
         new_equipment = False

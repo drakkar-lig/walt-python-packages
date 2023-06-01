@@ -57,10 +57,10 @@ if (vci = "PXEClient:Arch:00000:UNDI:002001") {
         # This script specifies itself the script to boot from TFTP, so
         # no filename is given here.
     }
-    elsif ((binary-to-ascii(16,8,":",substring(hardware, 1, 3)) = "b8:27:eb") or
-           (binary-to-ascii(16,8,":",substring(hardware, 1, 3)) = "28:cd:c1") or
-           (binary-to-ascii(16,8,":",substring(hardware, 1, 3)) = "dc:a6:32") or
-           (binary-to-ascii(16,8,":",substring(hardware, 1, 3)) = "e4:5f:01")) {
+    elsif ((b2a(16,8,":",substring(hardware, 1, 3)) = "b8:27:eb") or
+           (b2a(16,8,":",substring(hardware, 1, 3)) = "28:cd:c1") or
+           (b2a(16,8,":",substring(hardware, 1, 3)) = "dc:a6:32") or
+           (b2a(16,8,":",substring(hardware, 1, 3)) = "e4:5f:01")) {
         # native rpi3b+ network boot
         option vendor-class-identifier "PXEClient";
         option vendor-encapsulated-options "Raspberry Pi Boot";
@@ -97,20 +97,21 @@ subnet %(subnet_ip)s netmask %(subnet_netmask)s {
         }
         # if the device type is not known (yet)
         if (dev_type = "unknown") {
-            set ip_string = binary-to-ascii(10, 8, ".", leased-address);
+            set ip_string = b2a(10, 8, ".", leased-address);
             # note: we ensure all 6 bytes of the mac address are left padded with 0 if
-            # needed (binary-to-ascii would not output '0e' but just 'e').
+            # needed (b2a would not output '0e' but just 'e').
             set mac_address_string = concat (
-                suffix (concat ("0", binary-to-ascii (16, 8, "", substring(hardware,1,1))),2), ":",
-                suffix (concat ("0", binary-to-ascii (16, 8, "", substring(hardware,2,1))),2), ":",
-                suffix (concat ("0", binary-to-ascii (16, 8, "", substring(hardware,3,1))),2), ":",
-                suffix (concat ("0", binary-to-ascii (16, 8, "", substring(hardware,4,1))),2), ":",
-                suffix (concat ("0", binary-to-ascii (16, 8, "", substring(hardware,5,1))),2), ":",
-                suffix (concat ("0", binary-to-ascii (16, 8, "", substring(hardware,6,1))),2)
+                suffix(concat("0", b2a(16, 8, "", substring(hardware,1,1))),2), ":",
+                suffix(concat("0", b2a(16, 8, "", substring(hardware,2,1))),2), ":",
+                suffix(concat("0", b2a(16, 8, "", substring(hardware,3,1))),2), ":",
+                suffix(concat("0", b2a(16, 8, "", substring(hardware,4,1))),2), ":",
+                suffix(concat("0", b2a(16, 8, "", substring(hardware,5,1))),2), ":",
+                suffix(concat("0", b2a(16, 8, "", substring(hardware,6,1))),2)
             );
-            set client_name = pick-first-value(option host-name, config-option host-name, client-name, "");
-            execute("walt-dhcp-event", "commit", vci, uci, ip_string, mac_address_string,
-                    client_name, is_known, dev_type);
+            set client_name = pick-first-value(
+                option host-name, config-option host-name, client-name, "");
+            execute("walt-dhcp-event", "commit", vci, uci, ip_string,
+                mac_address_string, client_name, is_known, dev_type);
         }
     }
 }
@@ -152,7 +153,7 @@ group {
 
 %(walt_registered_lan_unknown_conf)s
 }
-"""
+""".replace("b2a", "binary-to-ascii")
 
 RANGE_CONF_PATTERN = "    range %(first)s %(last)s;"
 

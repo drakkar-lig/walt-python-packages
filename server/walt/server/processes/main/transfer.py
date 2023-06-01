@@ -20,8 +20,10 @@ or
 $ walt node cp <node>:<file_path> booted-image
 
 Regular files as well as directories are accepted.
-The 3rd form (with keyword 'booted-image') allows to transfer files directly from the selected node
-to the image it has booted. It is a shortcut to using 'walt node cp' and 'walt image cp' in sequence.
+The 3rd form (with keyword 'booted-image') allows\
+ to transfer files directly from the selected node
+to the image it has booted. It is a shortcut to using\
+ 'walt node cp' and 'walt image cp' in sequence.
 
 """,
     image="""\

@@ -42,7 +42,8 @@ MSG_NO_NEIGHBORS = """\
 WalT Server did not detect any neighbor!
 """
 MSG_UNKNOWN_TOPOLOGY = """\
-Sorry, topology is unknown. Ensure a switch is connected to server (on walt-net interface) and run "walt device rescan".
+Sorry, topology is unknown. Ensure a switch is connected to server \
+(on walt-net interface) and run "walt device rescan".
 """
 WARNING_DEVICE_RESCAN_POE_OFF = """\
 NOTE: WALT previously turned off PoE on some switch ports for automatic powersaving.

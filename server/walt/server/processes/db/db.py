@@ -75,8 +75,10 @@ class ServerDB(PostgresDB):
                             WHERE s.mac = d.mac;""")
             self.execute("""UPDATE devices d
                             SET conf = conf || (
-                                    '{"snmp.version": ' || (s.snmp_conf::jsonb->'version')::text || ',' ||
-                                    ' "snmp.community": ' || (s.snmp_conf::jsonb->'community')::text || '}'
+                                    '{"snmp.version": ' ||
+                                        (s.snmp_conf::jsonb->'version')::text || ',' ||
+                                    ' "snmp.community": ' ||
+                                        (s.snmp_conf::jsonb->'community')::text || '}'
                                 )::jsonb
                             FROM switches s
                             WHERE s.mac = d.mac AND s.snmp_conf IS NOT NULL;""")
@@ -85,7 +87,8 @@ class ServerDB(PostgresDB):
                             DROP COLUMN lldp_explore,
                             DROP COLUMN poe_reboot_nodes;""")
             self.execute("""UPDATE devices d
-                            SET conf = conf || ('{"netsetup":' || n.netsetup || '}')::jsonb
+                            SET conf = conf || \
+                                    ('{"netsetup":' || n.netsetup || '}')::jsonb
                             FROM nodes n
                             WHERE n.mac = d.mac;""")
             self.execute("""ALTER TABLE nodes
@@ -205,7 +208,9 @@ class ServerDB(PostgresDB):
         self.execute(
             """
             WITH q1 AS (
-                    SELECT l.*, EXTRACT(EPOCH FROM(timestamp - (lag(timestamp, 1) OVER w))) > %s AS high_delay
+                    SELECT l.*,
+                      EXTRACT(EPOCH FROM(timestamp - (lag(timestamp, 1) OVER w))) > %s \
+                        AS high_delay
                     FROM logs l, logstreams s
                     WHERE l.stream_id = s.id
                       AND s.mode = 'chunk'
@@ -216,7 +221,8 @@ class ServerDB(PostgresDB):
                     FROM q1
                     WINDOW w AS (PARTITION BY stream_id ORDER BY timestamp ASC))
             SELECT stream_id, min(timestamp) AS timestamp,
-                   replace(string_agg(line, '+' ORDER BY timestamp), '''+b''', '') AS line
+                   replace(string_agg(line, '+' ORDER BY timestamp), '''+b''', '') \
+                     AS line
             INTO TEMPORARY TABLE aggregated_logs
             FROM q2
             GROUP BY stream_id, group_id;
@@ -333,7 +339,8 @@ class ServerDB(PostgresDB):
             """
             DELETE FROM logs l USING devices d, logstreams s
                 WHERE d.name = %s AND s.issuer_mac = d.mac AND l.stream_id = s.id;
-            DELETE FROM logstreams s USING devices d WHERE d.name = %s AND s.issuer_mac = d.mac;
+            DELETE FROM logstreams s USING devices d
+                WHERE d.name = %s AND s.issuer_mac = d.mac;
             DELETE FROM nodes n USING devices d WHERE d.name = %s AND d.mac = n.mac;
             DELETE FROM switches s USING devices d WHERE d.name = %s AND d.mac = s.mac;
             DELETE FROM topology t USING devices d WHERE d.name = %s AND d.mac = t.mac1;

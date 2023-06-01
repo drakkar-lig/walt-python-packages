@@ -53,8 +53,8 @@ deb [arch=amd64 signed-by={DOCKER_KEYRING_FILE}] {DOCKER_REPO_URL} bullseye stab
 #   configuration files of these services)
 # up-to-date versions of these packages will be reinstalled in a next step.
 APT_OLD_DIST_PACKAGES = """
-docker docker-engine docker.io containerd runc containers-image containers-common buildah podman
-containernetworking-plugins conmon podman-plugins slirp4netns crun
+docker docker-engine docker.io containerd runc containers-image containers-common
+buildah podman containernetworking-plugins conmon podman-plugins slirp4netns crun
 isc-dhcp-server tftpd-hpa ptpd lldpd snmpd
 """.split()
 

@@ -522,7 +522,8 @@ class APISetOfItemsClassFactory:
 
             def __dynamic_method_doc__(self, method):
                 if method.__name__ == "filter":
-                    return f"""Return the subset of {item_cls_label}s matching the given attributes"""
+                    return (f"Return the subset of {item_cls_label}s"
+                            " matching the given attributes")
 
             def filter(self, **kwargs):
                 new_set = item_set_factory.create(set())

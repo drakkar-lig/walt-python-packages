@@ -129,7 +129,8 @@ def get_qemu_usb_args():
 
 
 USAGE = """\
-Usage: %(prog)s [--attach-usb] --mac <node_mac> --ip <node_ip> --model <node_model> --hostname <node_name> --server-ip <server_ip>
+Usage: %(prog)s [--attach-usb] --mac <node_mac> --ip <node_ip> --model <node_model>\
+ --hostname <node_name> --server-ip <server_ip>
        %(prog)s [--attach-usb] --net-conf-udhcpc --mac <node_mac> --model <node_model>\
 """
 

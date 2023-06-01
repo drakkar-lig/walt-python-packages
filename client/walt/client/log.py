@@ -278,7 +278,8 @@ class WalTLogShow(WalTLogShowOrWait):
             )
             if not range_analysis[0]:
                 print(
-                    """Invalid HISTORY_RANGE. See 'walt help show log-history' for more info."""
+                    "Invalid HISTORY_RANGE."
+                    " See 'walt help show log-history' for more info."
                 )
                 return
             history_range = range_analysis[1]

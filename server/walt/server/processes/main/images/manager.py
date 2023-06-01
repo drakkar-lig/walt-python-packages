@@ -25,7 +25,8 @@ if typing.TYPE_CHECKING:
 
 # About terminology: See comment about it in image.py.
 MSG_BOOT_DEFAULT_IMAGE = """\
-%s will now boot its(their) default image (other users will see it(they) is(are) 'free')."""
+%s will now boot its(their) default image \
+(other users will see it(they) is(are) 'free')."""
 MSG_INCOMPATIBLE_MODELS = """\
 Sorry, this image is not compatible with %s.
 """

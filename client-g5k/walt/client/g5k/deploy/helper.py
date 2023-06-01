@@ -98,7 +98,10 @@ def analyse_g5k_nodes(info, site):
 def get_node_info(node_hostname):
     node_nodomain, site = node_hostname.split(".")[:2]
     node_cluster = node_nodomain.rsplit("-", maxsplit=1)[0]
-    node_api = f"https://api.grid5000.fr/sid/sites/{site}/clusters/{node_cluster}/nodes/{node_nodomain}.json"
+    node_api = (
+            f"https://api.grid5000.fr/sid/sites/{site}/"
+            f"clusters/{node_cluster}/nodes/{node_nodomain}.json"
+    )
     resp = requests.get(node_api, verify=False)
     return resp.json()
 
@@ -143,10 +146,11 @@ def configure_server(info, walt_netcard_name):
         input=script_content.decode("UTF-8"),
     )
     # execute conf script
+    cmd = f"ssh root@{server_node} python3 /tmp/remote-server-conf.py /tmp/g5k.json"
     run_cmd_on_site(
         info,
         server_site,
-        f"ssh root@{server_node} python3 /tmp/remote-server-conf.py /tmp/g5k.json".split(),
+        cmd.split(),
     )
 
 
