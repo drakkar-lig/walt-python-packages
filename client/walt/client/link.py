@@ -2,7 +2,6 @@
 import os
 import sys
 
-from walt.client.auth import get_encrypted_credentials
 from walt.client.config import conf, init_config
 from walt.client.filesystem import Filesystem
 from walt.client.plugins import get_hook
@@ -11,7 +10,6 @@ from walt.common.api import api, api_expose_attrs, api_expose_method
 from walt.common.apilink import BaseAPIService, ServerAPILink
 from walt.common.constants import WALT_SERVER_TCP_PORT
 from walt.common.tcp import client_sock_file
-from walt.common.term import TTYSettings
 
 
 @api
@@ -68,6 +66,7 @@ class WaltClientService(BaseAPIService):
 
     @api_expose_method
     def get_win_size(self):
+        from walt.common.term import TTYSettings
         tty = TTYSettings()
         return {"cols": tty.cols, "rows": tty.rows}
 
@@ -94,6 +93,7 @@ class WaltClientService(BaseAPIService):
     @api_expose_method
     def get_registry_encrypted_credentials(self, registry_label, server_pub_key):
         reg_conf = getattr(conf.registries, registry_label)
+        from walt.client.auth import get_encrypted_credentials
         return get_encrypted_credentials(
             server_pub_key, reg_conf.username, reg_conf.password
         )

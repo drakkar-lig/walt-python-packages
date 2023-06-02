@@ -4,10 +4,8 @@ import re
 from plumbum import cli
 from walt.client.application import WalTApplication, WalTCategoryApplication
 from walt.client.config import conf
-from walt.client.interactive import run_image_shell_prompt
 from walt.client.link import ClientToServerLink
 from walt.client.tools import confirm
-from walt.client.transfer import run_transfer_for_image_build, run_transfer_with_image
 from walt.client.types import (
     IMAGE,
     IMAGE_BUILD_NAME,
@@ -15,7 +13,6 @@ from walt.client.types import (
     IMAGE_CP_DST,
     IMAGE_CP_SRC,
 )
-from walt.common.formatting import columnate
 
 MSG_WS_IS_EMPTY = """\
 Your working set is empty.
@@ -86,6 +83,7 @@ class WalTImagePublish(WalTApplication):
 
     def main(self, image_name: IMAGE):
         with ClientToServerLink() as server_link:
+            from walt.common.formatting import columnate
             registries = server_link.get_registries()
             if len(registries) == 0:
                 print("Sorry, no image registry is configured on this platform.")
@@ -144,6 +142,7 @@ class WalTImageShow(WalTApplication):
                     re.sub(r"([^:]*):.*", r"\1", f).capitalize().replace("_", "-")
                     for f in fields
                 )
+                from walt.common.formatting import columnate
                 print(columnate(tabular_data, header))
 
     @cli.autoswitch(help="resync image list from podman storage")
@@ -169,6 +168,7 @@ class WalTImageShell(WalTApplication):
             if session_info is None:
                 return  # issue already reported
             session_id, image_fullname, container_name, default_new_name = session_info
+            from walt.client.interactive import run_image_shell_prompt
             run_image_shell_prompt(image_fullname, container_name)
             try:
                 while True:
@@ -281,6 +281,7 @@ class WalTImageBuild(WalTApplication):
                     return False
             session_id = info.pop("session_id")
             if mode == "dir":
+                from walt.client.transfer import run_transfer_for_image_build
                 try:
                     if not run_transfer_for_image_build(**info):
                         print("See 'walt help show image-build' for help.")
@@ -326,6 +327,7 @@ class WalTImageCp(WalTApplication):
                 return  # issue already reported
             session_id, image_fullname, container_name, default_new_name = session_info
             info.update(image_fullname=image_fullname, container_name=container_name)
+            from walt.client.transfer import run_transfer_with_image
             try:
                 run_transfer_with_image(**info)
                 if info["client_operand_index"] == 0:

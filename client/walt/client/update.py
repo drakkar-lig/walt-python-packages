@@ -1,7 +1,5 @@
 import sys
 
-from walt.client.plugins import get_plugin_feature_names
-from walt.common.formatting import framed, highlight
 from walt.common.version import __version__
 
 MSG_UPDATE = """
@@ -14,6 +12,8 @@ $ pip3 install --upgrade "%(package)s==%(remote_version)s"
 def check_update(server):
     remote_version = str(server.get_remote_version())
     if remote_version != str(__version__):
+        from walt.client.plugins import get_plugin_feature_names
+        from walt.common.formatting import framed, highlight
         features = get_plugin_feature_names()
         if len(features) > 0:
             package = "walt-client[" + ",".join(features) + "]"

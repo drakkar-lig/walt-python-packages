@@ -171,9 +171,14 @@ class ServerAPIConnection(object):
         self.usage_refcount += 1
         if not self.connected:
             # print('ServerAPILink.connect -- creating connection')
-            self.sock = create_connection(
-                (self.server_ip, WALT_SERVER_DAEMON_PORT), SERVER_SOCKET_TIMEOUT
-            )
+            try:
+                # if the server hostname (or ip) contains only ASCII chars
+                # we can prevent the socket.create_connection() function
+                # from loading the IDNA encoding module and save a few milliseconds.
+                server_ip = self.server_ip.encode('ascii')
+                self.sock = self.create_connection(server_ip)
+            except Exception:
+                self.sock = self.create_connection(self.server_ip)
             self.sock.setsockopt(IPPROTO_TCP, TCP_NODELAY, 1)  # disable Nagle
             sock_file = self.sock.makefile("rwb", 0)
             sock_file.write(
@@ -189,6 +194,12 @@ class ServerAPIConnection(object):
                 self.api_channel.write("SET_MODE", 'pickle4')  # set mode remotely
                 self.api_channel.set_mode('pickle4')           # set mode locally
             self.connected = True
+
+    def create_connection(self, server_ip):
+        return create_connection(
+                (server_ip, WALT_SERVER_DAEMON_PORT),
+                SERVER_SOCKET_TIMEOUT
+        )
 
     def remote_has_pickle4_mode(self):
         if self.remote_version.startswith('0.'):  # dev version

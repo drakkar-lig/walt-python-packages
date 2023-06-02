@@ -1,7 +1,4 @@
-import os
 import re
-
-from dateutil.relativedelta import relativedelta
 
 COLUMNATE_SPACING = 2
 
@@ -163,6 +160,7 @@ attrs = ["years", "months", "days", "hours", "minutes", "seconds"]
 
 
 def human_readable_delay(seconds):
+    from dateutil.relativedelta import relativedelta
     if seconds < 1:
         seconds = 1
     delta = relativedelta(seconds=seconds)
@@ -199,6 +197,7 @@ BOX_CHARS = {
 
 
 def framed(title, section):
+    import os
     box_c = BOX_CHARS[os.isatty(1)]
     lines = [""] + section.splitlines()
     lengths = [char_len(line) for line in lines]
@@ -230,6 +229,7 @@ def framed(title, section):
 
 
 def highlight(text):
+    import os
     if not os.isatty(1):
         return text
     lines = text.strip().splitlines()
