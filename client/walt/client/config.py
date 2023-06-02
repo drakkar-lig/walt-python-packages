@@ -4,7 +4,6 @@ from getpass import getpass
 from os.path import expanduser
 from pathlib import Path
 
-import yaml
 from walt.client.plugins import get_hook
 from walt.client.tools import yes_or_no
 from walt.common.config import load_conf
@@ -86,7 +85,7 @@ def cleanup_empty_groups(conf_dict):
 def get_config_from_file():
     config_file = get_config_file()
     try:
-        conf_dict = load_conf(config_file, optional=True)
+        conf_dict = load_conf(config_file, optional=True, fast_load_mode=True)
         if conf_dict is None:
             return {}, False
     except Exception:
@@ -178,6 +177,7 @@ class ConfigFileSaver:
         return f"{line}\n{dashes}"
 
     def printed(self):
+        import yaml
         lines = [""]
         self.comment_section(lines, CONFIG_FILE_TOP_COMMENT)
         lines.append("")
