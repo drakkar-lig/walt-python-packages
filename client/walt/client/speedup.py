@@ -1,5 +1,8 @@
 # This file implements a few tricks enabling the walt command
 # to run faster.
+# One can also define env variable PROFILE_IMPORTS in order
+# to get a treemap view of module import delays, e.g.:
+# $ PROFILE_IMPORTS=1 walt node show
 
 import atexit
 import builtins
@@ -140,8 +143,7 @@ def cache_modules_on_faster_disk():
 # -- 4th hack --
 # The following prevents plumbum to load modules we will not need.
 DIVERTLIST = ["plumbum.machines", "plumbum.path", "plumbum.commands", "plumbum.cmd"]
-DEBUG = False
-DEBUG_INDENT = 0
+PROFILE_IMPORTS = ('PROFILE_IMPORTS' in os.environ)
 
 real_import = None
 
@@ -211,31 +213,92 @@ def __myimport__(name, globals=None, locals=None, fromlist=(), level=0):
     return child_mod
 
 
+import_children = []
+
+
 def divert_unused_plumbum_modules():
     global real_import
     saved_import = __import__
-    builtins.__import__ = __myimport__
-    if DEBUG:
+    if PROFILE_IMPORTS:
         from time import time
 
+        min_import_delay_us = os.environ.get('PROFILE_IMPORTS_MIN_DELAY_US', 500)
+        min_import_delay_s = min_import_delay_us / 1000000
+
         def debug_import(*import_args):
-            global DEBUG_INDENT
-            DEBUG_INDENT += 2
+            global import_children
+            name = import_args[0]
+            args = import_args[3:]
+            children = []
+            prev_import_children = import_children
+            import_children = children
             t0 = time()
             res = saved_import(*import_args)
             t1 = time()
-            DEBUG_INDENT -= 2
-            if t1 - t0 > 0.01:
-                print(
-                    "  " * DEBUG_INDENT,
-                    (import_args[0],) + import_args[3:],
-                    f"{t1-t0:.3f}",
-                )
+            import_children = prev_import_children
+            import_children.append((t1-t0, name, args, children))
             return res
 
+        def treemap_data(parent_name, import_children, found_names):
+            data = []
+            for import_child in import_children:
+                delay, name, args, children = import_child
+                if name in found_names:
+                    continue
+                else:
+                    found_names.add(name)
+                # children_overall_time = sum((c[0] for c in children))
+                # time_outside_children = delay - children_overall_time
+                # data.append((name, parent_name, time_outside_children))
+                data.append((name, parent_name, delay))
+                data += treemap_data(name, children, found_names)
+            return data
+
+        def abbrev_name(name):
+            if len(name) > 17:
+                return f'{name[0]}..{name[-15:]}'
+            else:
+                return name
+
+        def print_debug_imports():
+            global real_import
+            # restore real import
+            real_import = saved_import
+            print()
+            print("PROFILE_IMPORTS mode:")
+            print("Generating treemap image file imports.pdf")
+            try:
+                import plotly.graph_objects as go
+            except Exception:
+                print('Sorry, PROFILE_IMPORTS mode requires more modules:')
+                print('pip install plotly pandas kaleido')
+                return
+            data = treemap_data("", import_children, set())
+            data = [(f"{abbrev_name(name)} {v*1000:.1f}ms",
+                     name, parent, v)
+                    for name, parent, v in data if v >= min_import_delay_s]
+            data = list(zip(*data))
+            fig = go.Figure(go.Treemap(
+                    labels=data[0],
+                    ids=data[1],
+                    parents=data[2],
+                    values=data[3],
+                    branchvalues="total",
+                    root_color="lightgrey",
+                    # color_discrete_map={'(?)': 'lightgrey'},
+                )
+            )
+            fig.update_traces(
+                    marker_colorscale=['lightgrey']*len(data[0]),
+            )
+            fig.write_image("imports.pdf")
+            print("File imports.pdf successfully generated.")
+
         real_import = debug_import
+        atexit.register(print_debug_imports)
     else:
         real_import = saved_import
+    builtins.__import__ = __myimport__
 
 
 # -- Run exerything --
