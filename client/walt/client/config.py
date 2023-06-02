@@ -1,11 +1,5 @@
-import re
 import socket
-from getpass import getpass
-from os.path import expanduser
-from pathlib import Path
 
-from walt.client.plugins import get_hook
-from walt.client.tools import yes_or_no
 from walt.common.config import load_conf
 
 CONFIG_FILE_TOP_COMMENT = """\
@@ -38,6 +32,7 @@ def ask_config_item(key, coded=False):
     msg = "%s: " % key
     while True:
         if coded:
+            from getpass import getpass
             value = getpass(msg)
         else:
             value = input(msg)
@@ -56,6 +51,8 @@ def decode(coded_value):
 
 
 def get_config_file():
+    from os.path import expanduser
+    from pathlib import Path
     p = Path(expanduser("~/.walt/config"))
     if not p.exists():
         legacy_p = Path(expanduser("~/.waltrc"))
@@ -173,6 +170,7 @@ class ConfigFileSaver:
         return [(" " * indent) + line for line in lines]
 
     def underline(self, line):
+        import re
         dashes = re.sub(".", "-", line)
         return f"{line}\n{dashes}"
 
@@ -236,6 +234,7 @@ def reload_conf():
 def resolve_new_user():
     server_check = "server" not in conf_dict["walt"]
     if server_check:
+        from walt.client.plugins import get_hook
         hook = get_hook("config_missing_server")
         if hook is not None:
             server_check = hook()
@@ -252,6 +251,7 @@ def resolve_new_user():
                 "IP or hostname of WalT server"
             )
         if username_update:
+            from walt.client.tools import yes_or_no
             use_hub = yes_or_no(
                 "Do you intend to push or pull images to/from the docker hub?",
                 okmsg=None,

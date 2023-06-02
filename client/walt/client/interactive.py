@@ -2,7 +2,6 @@
 import io
 import os
 import pickle
-import shutil
 import signal
 import socket
 import sys
@@ -13,7 +12,6 @@ from sys import stdin, stdout
 from walt.client.link import connect_to_tcp_server
 from walt.common.io import read_and_copy, unbuffered
 from walt.common.tcp import PICKLE_VERSION, Requests, write_pickle
-from walt.common.term import TTYSettings
 
 SQL_SHELL_MESSAGE = """\
 Type \\dt for a list of tables.
@@ -34,6 +32,12 @@ class PromptClient(object):
         self.resize_handler_called = False
         if sys.stdout.isatty() and sys.stdin.isatty():
             self.tty_mode = True
+            # importing a module in the resize_handler() is dangerous
+            # because two signals could be raised in a short interval,
+            # and the import of the first call could be interrupted.
+            # so let's do it now.
+            import shutil
+            from walt.common.term import TTYSettings
             self.tty_settings = TTYSettings()
             # send terminal width and provided parameters
             params.update(win_size=self.tty_settings.win_size)
@@ -56,6 +60,7 @@ class PromptClient(object):
     def resize_handler(self, signum, frame):
         self.resize_handler_called = True
         if self.tty_mode:
+            import shutil
             termsize = shutil.get_terminal_size()
             buf = pickle.dumps(
                 {

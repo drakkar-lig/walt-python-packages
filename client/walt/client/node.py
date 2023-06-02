@@ -4,13 +4,9 @@ import time
 from plumbum import cli
 from walt.client.application import WalTApplication, WalTCategoryApplication
 from walt.client.config import conf
-from walt.client.console import run_node_console
-from walt.client.expose import TCPExposer
-from walt.client.interactive import NODE_SHELL_MESSAGE, run_device_ping, run_node_cmd
 from walt.client.link import ClientToServerLink
 from walt.client.timeout import TimeoutException, cli_timeout_switch, timeout_context
 from walt.client.tools import confirm
-from walt.client.transfer import run_transfer_with_node
 from walt.client.types import (
     IMAGE_OR_DEFAULT,
     NODE,
@@ -77,6 +73,7 @@ class WalTNode(WalTCategoryApplication):
             for ip in nodes_ip:
                 if startup_msg:
                     print(startup_msg)
+                from walt.client.interactive import run_node_cmd
                 res = run_node_cmd(ip, cmdargs, tty, capture_output)
                 if capture_output:
                     return res
@@ -97,6 +94,7 @@ class WalTNode(WalTCategoryApplication):
             if node_info["virtual"] is False:
                 sys.stderr.write("Error: console is only available on virtual nodes.\n")
                 return
+            from walt.client.console import run_node_console
             run_node_console(server, node_info)
 
     @staticmethod
@@ -362,6 +360,7 @@ class WalTNodePing(WalTApplication):
         with ClientToServerLink() as server:
             node_ip = server.get_node_ip(node_name)
         if node_ip:
+            from walt.client.interactive import run_device_ping
             run_device_ping(node_ip)
 
 
@@ -382,6 +381,7 @@ class WalTNodeShell(WalTApplication):
     ORDERING = 5
 
     def main(self, node_name: NODE):
+        from walt.client.interactive import NODE_SHELL_MESSAGE
         WalTNode.run_cmd(node_name, False, [], startup_msg=NODE_SHELL_MESSAGE, tty=True)
 
 
@@ -437,6 +437,7 @@ class WalTNodeCp(WalTApplication):
                 )
                 server.node_cp_to_booted_image(node_name, **path_info)
             else:
+                from walt.client.transfer import run_transfer_with_node
                 try:
                     run_transfer_with_node(**info)
                 except (KeyboardInterrupt, EOFError):
@@ -479,6 +480,7 @@ class WalTNodeExpose(WalTApplication):
                 "Listening on TCP port %d and redirecting connections to %s:%d."
                 % (local_port, node_name, node_port)
             )
+            from walt.client.expose import TCPExposer
             exposer = TCPExposer(local_port, node_ip, node_port)
             exposer.run()
 

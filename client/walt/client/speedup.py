@@ -144,6 +144,8 @@ def cache_modules_on_faster_disk():
 # The following prevents plumbum to load modules we will not need.
 DIVERTLIST = ["plumbum.machines", "plumbum.path", "plumbum.commands", "plumbum.cmd"]
 PROFILE_IMPORTS = ('PROFILE_IMPORTS' in os.environ)
+DEBUG_IMPORTS = ('DEBUG_IMPORTS' in os.environ)
+DEBUG_NAMES = []
 
 real_import = None
 
@@ -167,10 +169,17 @@ def diverted(name):
 
 
 def __myimport__(name, globals=None, locals=None, fromlist=(), level=0):
-    import_args = name, globals, locals, fromlist, level
+    global DEBUG_NAMES
     # print((import_args[0],) + import_args[3:])
     if fromlist is None:
         fromlist = ()
+    if name in sys.modules and len(fromlist) == 0:
+        return sys.modules[name]   # fast path
+    import_args = name, globals, locals, fromlist, level
+    if DEBUG_IMPORTS:
+        DEBUG_NAMES += [name]
+        print(DEBUG_NAMES, end='\r\n')
+    result = None
     if level > 0:
         caller_mod_path = tuple(sys._current_frames().values())[0].f_back.f_globals[
             "__name__"
@@ -178,39 +187,41 @@ def __myimport__(name, globals=None, locals=None, fromlist=(), level=0):
         for item in fromlist:
             item_path = f"{caller_mod_path}.{item}"
             if diverted(item_path):
-                package = __myimport__(f"{caller_mod_path}.{item}", globals, locals)
+                result = __myimport__(f"{caller_mod_path}.{item}", globals, locals)
             else:
-                package = real_import(name, globals, locals, (item,), level)
-        return package
-    if (
+                result = real_import(name, globals, locals, (item,), level)
+    if result is None and (
         "*" in fromlist
-        or (name in sys.modules and len(fromlist) == 0)
         or not diverted(name)
     ):
-        return real_import(*import_args)
+        result = real_import(*import_args)
     # see https://docs.python.org/3/library/functions.html#import__
-    if len(fromlist) > 0:
+    if result is None and len(fromlist) > 0:
         found, o = __get_dummy_module__(name)
         for attr_name in fromlist:
             attr_o = Dummy()
             setattr(o, attr_name, attr_o)
         if not found:
             sys.modules[name] = o
-        return o
-    mod_path = name
-    child_mod = __get_dummy_module__(mod_path)
-    while True:
-        if "." not in mod_path:
-            break
-        mod_parent_path, mod_name = mod_path.rsplit(".", maxsplit=1)
-        found, parent_mod = __get_dummy_module__(mod_parent_path)
-        setattr(parent_mod, mod_name, child_mod)
-        if not found:
-            sys.modules[mod_parent_path] = parent_mod
-        # prepare next loop
-        child_mod = parent_mod
-        mod_path = mod_parent_path
-    return child_mod
+        result = o
+    if result is None:
+        mod_path = name
+        child_mod = __get_dummy_module__(mod_path)
+        while True:
+            if "." not in mod_path:
+                break
+            mod_parent_path, mod_name = mod_path.rsplit(".", maxsplit=1)
+            found, parent_mod = __get_dummy_module__(mod_parent_path)
+            setattr(parent_mod, mod_name, child_mod)
+            if not found:
+                sys.modules[mod_parent_path] = parent_mod
+            # prepare next loop
+            child_mod = parent_mod
+            mod_path = mod_parent_path
+        result = child_mod
+    if DEBUG_IMPORTS:
+        DEBUG_NAMES = DEBUG_NAMES[:-1]
+    return result
 
 
 import_children = []
