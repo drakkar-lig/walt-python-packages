@@ -4,7 +4,7 @@ import socket
 import tarfile
 
 from walt.client.link import connect_to_tcp_server
-from walt.client.tools import ProgressMessageThread
+from walt.client.progress import ProgressMessageProcess
 from walt.common.tcp import Requests, write_pickle
 
 
@@ -164,7 +164,7 @@ def run_transfer(
     write_pickle(params, f)
     # handle client-side archiving / unarchiving
     try:
-        with ProgressMessageThread(progress_message) as message_thread:
+        with ProgressMessageProcess(progress_message) as message_thread:
             if client_operand_index == 0:
                 # client is sending
                 # ensure we know how to handle incoming messages
