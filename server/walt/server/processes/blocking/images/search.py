@@ -168,6 +168,12 @@ def clonable_link(location, user, image_name, min_version=None):
     return "%s:%s/%s" % (location, user, short_image_name(image_name))
 
 
+async def async_filter_walt_images(it):
+    async for fullname, location, labels in it:
+        if "walt.node.models" in labels:
+            yield fullname, location, labels
+
+
 async def async_parse_fullnames(it):
     async for fullname, location, labels in it:
         parts = fullname.split("/")
@@ -219,6 +225,7 @@ async def async_perform_search(image_store, requester, keyword, tty_mode):
     # search
     search = Search(image_store, requester, validate)
     it = search.async_search()
+    it = async_filter_walt_images(it)
     it = async_parse_fullnames(it)
     it = async_discard_images_in_ws(it, username)
     it = async_format_result(it)
