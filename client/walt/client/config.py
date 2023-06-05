@@ -243,6 +243,7 @@ def resolve_new_user():
         "You are a new user of this WalT platform, "
         + "and this command requires a few configuration items."
     )
+    use_hub = False
     while True:
         server_update = "server" not in conf_dict["walt"]
         username_update = "username" not in conf_dict["walt"]
