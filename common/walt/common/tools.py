@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import sys
 from fcntl import F_GETFD, F_GETFL, F_SETFD, F_SETFL, FD_CLOEXEC, fcntl
-from functools import cache
+from functools import lru_cache   # note: python3.7 has no functools.cache decorator
 from pathlib import Path
 
 
@@ -119,7 +119,7 @@ def get_kernel_bootarg(in_bootarg):
 
 
 class RealBusyIndicator:
-    @cache
+    @lru_cache(maxsize=None)
     def __new__(cls, label):
         return object.__new__(cls)
 
@@ -164,7 +164,7 @@ class RealBusyIndicator:
 
 
 class SilentBusyIndicator:
-    @cache
+    @lru_cache(maxsize=None)
     def __new__(cls):
         return object.__new__(cls)
 
