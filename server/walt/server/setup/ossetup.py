@@ -11,7 +11,6 @@ from pathlib import Path
 import requests
 from pkg_resources import resource_filename
 from walt.server.setup.apt import (
-    autoremove_packages,
     fix_dpkg_options,
     get_debconf_selection,
     package_is_installed,
@@ -159,8 +158,6 @@ def fix_packets(upgrade_dist=False, upgrade_packets=False):
     upgrade_and_install_packages(
         APT_WALT_DEPENDENCIES_PACKAGES, upgrade_packets=upgrade_packets
     )
-    if upgrade_dist:
-        autoremove_packages()
 
 
 def upgrade_db():

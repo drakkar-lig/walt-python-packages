@@ -11,6 +11,7 @@ from walt.server.setup.conf import (
     fix_other_conf_files,
     update_server_conf,
 )
+from walt.server.setup.apt import autoremove_packages
 from walt.server.setup.ossetup import (
     cleanup_old_walt_install,
     fix_conmon,
@@ -87,6 +88,8 @@ OS_ACTIONS = {
             "fix_conmon",
             "disable_os_services",
             "cleanup_old_walt_install",
+            "upgrade_venv",
+            "autoremove_packages",
             "setup_command_symlinks",
             "setup_walt_services",
             "fix_other_conf_files",
@@ -219,6 +222,21 @@ class WalTServerSetup(WaltGenericSetup):
 
     def fix_conmon(self):
         fix_conmon()
+
+    def upgrade_venv(self):
+        print(f"Upgrading {sys.prefix} with the new python version... ", end="")
+        subprocess.run(
+            f"/usr/bin/python3 -m venv --upgrade {sys.prefix}".split(),
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+        print("done")
+
+    def autoremove_packages(self):
+        print(f"Removing obsolete packages from previous OS version... ", end="")
+        autoremove_packages()
+        print("done")
 
     def install_os_on_image(self):
         install_os_on_image()
