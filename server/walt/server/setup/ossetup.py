@@ -10,6 +10,7 @@ from pathlib import Path
 
 import requests
 from pkg_resources import resource_filename
+from walt.common.version import __version__
 from walt.server.setup.apt import (
     autoremove_packages,
     fix_dpkg_options,
@@ -210,7 +211,7 @@ def upgrade_os():
     fix_packets(upgrade_dist=True, upgrade_packets=True)
     upgrade_db()
     # the virtualenv was built from an older version of python3,
-    # upgrade it
+    # upgrade it, and reinstall the packages in lib/python3.<new>/site-packages/
     print("Upgrading virtual env (python was updated by OS upgrade)... ", end="")
     sys.stdout.flush()
     subprocess.run(
@@ -218,11 +219,21 @@ def upgrade_os():
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
     )
-    print("done")
-    print("Upgrading python-apt to match the new OS release... ", end="")
-    sys.stdout.flush()
+    pip_install = f"{sys.prefix}/bin/pip"
     subprocess.run(
-        "python3 -m pip install --upgrade python-apt-binary".split(),
+        f"{pip_install} --upgrade pip".split(),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    if __version__.startswith("0."):
+        # dev version, published on testpypi
+        repo_opts = ("--index-url https://pypi.org/simple"
+                     " --extra-index-url https://test.pypi.org/simple")
+    else:
+        repo_opts = ""
+    subprocess.run(
+        (f"{pip_install} {repo_opts}"
+         f" walt-server=={__version__} walt-client=={__version__}").split(),
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
     )
