@@ -203,7 +203,7 @@ class WalTServerSetup(WaltGenericSetup):
             dhcp_service_symlink = Path(
                 "/etc/systemd/system/multi-user.wants/isc-dhcp-server.service"
             )
-            if dhcp_service_symlink.exists():
+            if dhcp_service_symlink.is_symlink():
                 dhcp_service_symlink.unlink()
         self.disable_systemd_services(UNCOMPATIBLE_OS_SERVICES)
         print("done")
@@ -246,7 +246,8 @@ class WalTServerSetup(WaltGenericSetup):
         for venv_entry in venv_bin.iterdir():
             if venv_entry.name.startswith("walt"):
                 os_entry = os_bin / venv_entry.name
-                if os_entry.exists():
+                # match broken symlinks too (exists() returns False in this case)
+                if os_entry.exists() or os_entry.is_symlink():
                     os_entry.unlink()
                 os_entry.symlink_to(str(venv_entry.absolute()))
         print("done")
