@@ -26,20 +26,29 @@ build_subpackages() {
     done
 }
 
+no_final_comment() {
+    echo -n    # nothing to do
+}
+
+textpypi_final_comment() {
+    echo """\
+Packages were uploaded to testpypi. At installation use:
+$ pip install --index-url https://pypi.org/simple --extra-index-url https://test.pypi.org/simple \
+walt-server==$1 walt-client==$1
+"""
+}
+
 branch=$(git branch | grep '*' | awk '{print $2}')
 case "$branch" in
     master) tag_prefix='upload_'
             repo_option=''
             version_prefix=''
-            final_comment=''
+            final_comment="no_final_comment"
             ;;
     *)      tag_prefix='testupload_'
             repo_option='--repository-url https://test.pypi.org/legacy/'
             version_prefix='0.'
-            final_comment="""\
-Packages were uploaded to testpypi. At installation use:
-$ pip install --index-url https://test.pypi.org/simple --extra-index-url https://pypi.org/simple
-"""
+            final_comment="textpypi_final_comment"
             ;;
 esac
 
@@ -100,8 +109,4 @@ build_subpackages
 twine upload $repo_option */dist/*
 
 # display final comment if any
-if [ ! -z "$final_comment" ]
-then
-    echo
-    echo "$final_comment"
-fi
+$final_comment "$new_version"
