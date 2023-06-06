@@ -6,7 +6,7 @@
 We provide instructions to setup walt server software and dependencies on a freshly installed
 debian 11 (bullseye) operating system.
 
-Note that walt server software interacts with various network daemons (lldpd, snmpd, dhcpd, ptpd, ntpd,
+Note that walt server software starts various network daemons (lldpd, snmpd, dhcpd, ptpd, ntpd,
 tftpd, nfsd), thus you should not run other software related to network management on this walt server
 machine.
 
@@ -41,12 +41,6 @@ $ apt install -y gcc python3-venv python3-dev libsmi2-dev curl git make
 
 ## 2- Install and configure walt software
 
-Here you have two options:
-- Install the last official version of walt (recommended)
-- Install the development version of walt (with last features and access to source code versioning,
-  but less thoroughly tested)
-
-If you want the official version:
 ```
 $ python3 -m venv /opt/walt-8
 $ /opt/walt-8/bin/pip install --upgrade pip
@@ -54,16 +48,7 @@ $ /opt/walt-8/bin/pip install walt-server walt-client
 $ /opt/walt-8/bin/walt-server-setup
 ```
 
-If you want to setup the development version instead:
-```
-$ cd /root
-$ git clone https://github.com/drakkar-lig/walt-python-packages
-$ cd walt-python-packages
-$ git checkout -b dev origin/dev
-$ make install
-```
-
-Note: in any case, interactive configuration interfaces for network and image registries will be displayed.
+Note: `walt-server-setup` will display interactive configuration interfaces for network and image registries.
 For more information about WalT network concepts and configuration, see [`walt help show networking`](networking.md).
 For more information about WalT image registries, see [`walt help show registries`](registries.md).
 
@@ -79,7 +64,7 @@ $ walt node shell vnode1
 
 After a few minutes (download of the default image + node bootup) you should be connected on the virtual node.
 
-Then, connect physical nodes and check that you can reach them (see [`walt help show node-install`](node-install.md)).
+Then, connect a switch, physical nodes and check that you can reach them (see [`walt help show node-install`](node-install.md)).
 Caution: do not connect a node directly to the server (with no intermediate switch). It will NOT work.
 (See [`walt help show networking`](networking.md) and [`walt help show switch-install`](switch-install.md).)
 

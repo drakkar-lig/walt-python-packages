@@ -100,11 +100,13 @@ RUN apt install -y ...
 [...]
 ```
 
-And then create the image with `docker build`.
+And then create the image with `walt image build`.
+See [`walt help show image-build`](image-build.md).
 
-The WalT server is equipped with the docker command, thus users can do this kind of
-work there (non-root users must be added in the `docker` group beforehand).
 
-When using `walt image search`, WalT will list these images managed by the `docker`
-daemon with a clone URL starting with `docker:`. It is therefore obvious to import
-them into WalT internal repository by using `walt image clone <url>`.
+Since the WalT server is also equipped with the docker command, users
+can also use a plain `docker build` there to create an image.
+Non-root users must be added to the `docker` group beforehand.
+In this case the resulting image will be owned by the `docker` daemon, not directly by WalT.
+When using `walt image search`, WalT will indicate a clone URL starting with `docker:`,
+and then using `walt image clone <url>` it is easy to import it into WalT internal repository.

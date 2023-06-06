@@ -19,26 +19,12 @@ For upgrading an older installation, contact us at `walt-contact at univ-grenobl
 
 ## Upgrade procedure
 
-The upgrade depends whether you are using the development mode
-or the production mode.
-If directory `/root/walt-python-packages` directory exists on your server, you are in
-development mode, otherwise in production mode.
-
-Production mode:
 ```
 $ apt update; apt install -y python3-venv
 $ python3 -m venv /opt/walt-8
 $ /opt/walt-8/bin/pip install --upgrade pip
 $ /opt/walt-8/bin/pip install walt-server walt-client
 $ /opt/walt-8/bin/walt-server-setup
-```
-
-Development mode:
-```
-$ cd /root/walt-python-packages
-$ git checkout dev
-$ git pull --ff-only
-$ make install
 ```
 
 Your server is now upgraded to current version.
