@@ -115,7 +115,7 @@ class ServerDB(PostgresDB):
                 """ALTER TABLE logstreams RENAME COLUMN sender_mac TO issuer_mac;"""
             )
             # the following dropped index will be re-created below
-            self.execute("""DROP INDEX logstreams_sender_mac_name_idx;""")
+            self.execute("""DROP INDEX IF EXISTS logstreams_sender_mac_name_idx;""")
         # indexes
         self.execute("""CREATE INDEX IF NOT EXISTS logs_timestamp_idx
                          ON logs ( timestamp );""")
