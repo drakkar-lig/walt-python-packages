@@ -39,10 +39,10 @@ class PowersaveManager:
         off_macs = self.server.db.get_poe_off_macs()
         now = time()
         it = self._poweroff_timeouts_per_mac.copy().items()
-        print(
-            f"_check off_macs={off_macs}",
-            f"poweroff_timeouts={self._poweroff_timeouts_per_mac}",
-        )
+        # print(
+        #     f"_check off_macs={off_macs}",
+        #     f"poweroff_timeouts={self._poweroff_timeouts_per_mac}",
+        # )
         self._poweroff_timeouts_per_mac = {}
         macs_to_be_turned_off = []
         for mac, ts in it:

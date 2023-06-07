@@ -15,11 +15,11 @@ class APISession(object):
     def create(server, session_id, target_api, remote_ip):
         cls = APISession.TARGET_APIS[target_api]
         APISession.SESSIONS[session_id] = cls(server, remote_ip)
-        print("session %d: connected" % session_id)
+        # print("session %d: connected" % session_id)
 
     @staticmethod
     def destroy(session_id):
-        print("session %d: disconnected" % session_id)
+        # print("session %d: disconnected" % session_id)
         APISession.SESSIONS[session_id].cleanup()
         del APISession.SESSIONS[session_id]
 
