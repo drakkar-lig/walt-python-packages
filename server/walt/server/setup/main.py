@@ -238,18 +238,29 @@ class WalTServerSetup(WaltGenericSetup):
     def cleanup_old_walt_install(self):
         cleanup_old_walt_install()
 
+    def force_update_symlink(self, src, dst):
+        # match broken symlinks too (exists() returns False in this case)
+        if src.exists() or src.is_symlink():
+            src.unlink()
+        src.symlink_to(str(dst.absolute()))
+
     def setup_command_symlinks(self):
         os_bin = Path("/usr/local/bin")
         venv_bin = Path(sys.prefix) / "bin"
         print(f"Updating symlinks {venv_bin}/walt-* -> {os_bin}... ", end="")
         sys.stdout.flush()
+        # create command walt-python3 which starts the python interpreter
+        # of the current venv (even if called outside).
+        walt_python3 = venv_bin / 'walt-python3'
+        walt_python3.write_text(
+            "#!/bin/sh\n"
+            f'exec {str(venv_bin.absolute())}/python3 "$@"\n')
+        walt_python3.chmod(0o755)
+        # create symlinks /usr/local/bin/walt-* -> <venv>/bin/walt-*
         for venv_entry in venv_bin.iterdir():
             if venv_entry.name.startswith("walt"):
                 os_entry = os_bin / venv_entry.name
-                # match broken symlinks too (exists() returns False in this case)
-                if os_entry.exists() or os_entry.is_symlink():
-                    os_entry.unlink()
-                os_entry.symlink_to(str(venv_entry.absolute()))
+                self.force_update_symlink(os_entry, venv_entry)
         print("done")
 
     def fix_other_conf_files(self):

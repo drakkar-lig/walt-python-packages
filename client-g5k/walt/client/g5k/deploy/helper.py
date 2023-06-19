@@ -146,7 +146,8 @@ def configure_server(info, walt_netcard_name):
         input=script_content.decode("UTF-8"),
     )
     # execute conf script
-    cmd = f"ssh root@{server_node} python3 /tmp/remote-server-conf.py /tmp/g5k.json"
+    cmd = (f"ssh root@{server_node}"
+           " walt-python3 /tmp/remote-server-conf.py /tmp/g5k.json")
     run_cmd_on_site(
         info,
         server_site,

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env walt-python3
 import json
 import subprocess
 import sys
