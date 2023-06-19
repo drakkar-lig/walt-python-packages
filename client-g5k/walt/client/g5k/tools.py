@@ -66,7 +66,10 @@ class Cmd:
             except GeneratorExit:
                 while True:
                     try:
-                        popen.wait(timeout=1)
+                        retcode = popen.wait(timeout=1)
+                        if retcode != 0:
+                            raise Exception(
+                                f'Command returned exit code {retcode}')
                         break
                     except subprocess.TimeoutExpired:
                         popen.terminate()
