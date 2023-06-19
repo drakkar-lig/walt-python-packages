@@ -174,7 +174,8 @@ def __myimport__(name, globals=None, locals=None, fromlist=(), level=0):
     if fromlist is None:
         fromlist = ()
     if name in sys.modules and len(fromlist) == 0:
-        return sys.modules[name]   # fast path
+        top_level_name = name.split('.', maxsplit=1)[0]
+        return sys.modules[top_level_name]   # fast path
     import_args = name, globals, locals, fromlist, level
     if DEBUG_IMPORTS:
         DEBUG_NAMES += [name]
@@ -187,9 +188,8 @@ def __myimport__(name, globals=None, locals=None, fromlist=(), level=0):
         for item in fromlist:
             item_path = f"{caller_mod_path}.{item}"
             if diverted(item_path):
-                result = __myimport__(f"{caller_mod_path}.{item}", globals, locals)
-            else:
-                result = real_import(name, globals, locals, (item,), level)
+                __myimport__(f"{caller_mod_path}.{item}", globals, locals)
+            result = real_import(name, globals, locals, (item,), level)
     if result is None and (
         "*" in fromlist
         or not diverted(name)
