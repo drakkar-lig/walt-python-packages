@@ -72,6 +72,17 @@ You are now ready to use WalT with the G5K plugin:
 eduble@fgrenoble:~$ walt
 ```
 
+Optionally, you can also set up bash autocompletion for the `walt` tool:
+
+```
+eduble@fgrenoble:~$ mkdir -p $HOME/.local/share/bash-completion/completions
+eduble@fgrenoble:~$ walt advanced dump-bash-autocomplete > \
+                    $HOME/.local/share/bash-completion/completions/walt
+```
+
+Then you have to log out and log in again to reload these completion settings.
+
+
 ## Usage
 
 The G5K plugin adds a set of sub-commands to `walt` grouped in the `g5k` category.

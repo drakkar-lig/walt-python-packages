@@ -2,8 +2,12 @@
 # Shell completion setup (bash)
 
 Command `walt advanced dump-bash-autocomplete` can generate a bash auto-completion script.
+This command is now automatically called on server setup or upgrade.
 
-To enable completion for all users, run as root:
+However, if you use the walt client tool on another machine, the following tips are still
+useful.
+
+To enable completion for all users of this client machine, run as root:
 ```
 $ walt advanced dump-bash-autocomplete > /etc/bash_completion.d/walt
 ```
