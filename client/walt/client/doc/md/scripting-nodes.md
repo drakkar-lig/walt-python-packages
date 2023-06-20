@@ -3,7 +3,7 @@
 Scripting features for node management are available at `walt.client.api.nodes`:
 
 ```
-root@clipperton:~# python3
+(.venv) ~/experiment$ python3
 >>> from walt.client import api
 >>> api.nodes
 < -- API submodule for WALT nodes --

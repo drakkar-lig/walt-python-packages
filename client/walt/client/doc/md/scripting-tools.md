@@ -3,7 +3,7 @@
 `walt.client.api.tools` lists miscellaneous methods not available in other modules.
 
 ```
-root@clipperton:~# python3
+(.venv) ~/experiment$ python3
 >>> from walt.client import api
 >>> api.tools
 < -- Misc API features --

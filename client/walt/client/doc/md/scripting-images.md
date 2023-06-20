@@ -3,7 +3,7 @@
 Scripting features for image management are available at `walt.client.api.images`:
 
 ```
-root@clipperton:~# python3
+(.venv) ~/experiment$ python3
 >>> from walt.client import api
 >>> api.images
 < -- API submodule for WALT images --

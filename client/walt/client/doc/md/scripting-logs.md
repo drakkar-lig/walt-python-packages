@@ -3,7 +3,7 @@
 Scripting features for logs management are available at `walt.client.api.logs`:
 
 ```
-root@clipperton:~# python3
+(.venv) ~/experiment$ python3
 >>> from walt.client import api
 >>> api.logs
 < -- API submodule for WALT logs --
@@ -39,7 +39,7 @@ Log(timestamp=datetime.datetime(2023, 4, 21, 11, 30, 30, 746634), line='another 
 Note that the log lines displayed above were generated from the following parallel terminal session:
 
 ```
-root@clipperton:~# walt node shell vn23
+(.venv) ~/experiment$ walt node shell vn23
 Caution: changes outside /persist will be lost on next node reboot.
 Run 'walt help show shells' for more info.
 [...]
