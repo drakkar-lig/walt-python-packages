@@ -10,8 +10,8 @@ if sys.version_info[0] == 2:
 
 setup_info = {
     "name": "walt-node",
-    "version": "0.39",
-    "install_requires": ["walt-common==0.39"],
+    "version": "0.40",
+    "install_requires": ["walt-common==0.40"],
     "author": "WalT developers",
     "author_email": "walt-contact@univ-grenoble-alpes.fr",
     "keywords": "WalT testbed",
