@@ -28,7 +28,7 @@ PoE means Power over Ethernet. It consists of using the same ethernet cable for 
 PoE corresponds to a standard protocol, named 802.3af (or 802.3at for PoE+) which the devices at both ends must comply with.
 Thus, in the case of WalT, we recommend to buy PoE compliant switches, and to power the nodes with PoE when possible.
 For instance, raspberry pi boards 3B+ and 4B can be powered by a "PoE HAT" designed by the raspberry pi foundation.
-Older models can rely on an external PoE splitter such as the Tp-Link TL-POE10R.
+Other boards can rely on an external PoE splitter.
 
 Having one cable per node instead of two obviously simplifies platform deployment.
 If a switch provides SNMP, LLDP and PoE features, WalT also implements the more interesting features described below.
