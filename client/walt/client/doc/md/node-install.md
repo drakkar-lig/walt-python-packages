@@ -20,16 +20,21 @@ Then, last section will explain how walt users can start to use such a new node.
 
 ## PC nodes
 
-Download image `pc-usb.dd.gz` at https://github.com/drakkar-lig/walt-project/releases/latest.
+Any PC can be turned into a walt node.
+
+If the PC supports PXE booting, the procedure is obvious:
+1. Connect the PC to the WALT network.
+2. Select "PXE booting" as the first boot option (by using the BIOS/firmware screen).
+
+If not, download image `pc-usb.dd.gz` at https://github.com/drakkar-lig/walt-project/releases/latest.
 Flash it to a USB flash drive (a small one is enough, the image just needs a few tens of megabytes),
-using unix tool `dd` or similar.
+using unix tool `dd` or similar. Then:
+1. Plug the USB flash drive to the PC.
+2. Connect the PC to the WALT network.
+3. Boot on the USB flash drive (by using the BIOS/firmware screen).
 
-Then, any PC can be turned into a walt node:
-* connect the PC to the WALT network
-* boot on this USB flash drive (by setting BIOS/firmware options appropriately)
-
-It should be compatible with most BIOS-based and UEFI-based machines, and old 32-bits PCs, provided
-the network bootloader can handle the network card.
+The USB image should be compatible with most BIOS-based and UEFI-based machines, and old 32-bits PCs,
+provided the network bootloader can handle the network card.
 
 
 ## Virtual nodes
