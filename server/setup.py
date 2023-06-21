@@ -49,7 +49,7 @@ setup_info = {
         "requests==2.30.0",
         "sdnotify==0.3.2",
         "setproctitle==1.3.2",
-        "setuptools==44.1.1",
+        "setuptools==65.5.1",
         "six==1.16.0",
         "snimpy==1.0.0",
         "tomli==2.0.1",
