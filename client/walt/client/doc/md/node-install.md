@@ -58,9 +58,17 @@ $ walt node remove <node-name>
 
 ### Hardware tips
 
-WalT supports raspberry pi models B, B+, 2B, 3B, 3B+, and 4B.
+WalT supports raspberry pi models B, B+, 2B, 3B, 3B+, 4B, and Pi-400.
 
-We recommend raspberry pi model 3B+ or 4B, with the official PoE HAT addon board of the raspberry pi foundation.
+We recommend raspberry pi model 3B+ or 4B.
+
+PoE support is usually provided by the official PoE HAT addon board of the raspberry pi foundation.
+
+As an alternative, we have also tested compact external PoE splitters (YuanLey brand) which are cheaper,
+more silent (no fan), and work fine.
+Take care on puchasing the right model for powering your board:
+- rpi 4B boards need a splitter model with a USB-C connector,
+- rpi 3B+ boards need a splitter model with a USB micro-B connector.
 
 You will also need at least one SD card for the first bootup (see below). You may use the same SD card to
 perform this first bootup of each node.
@@ -118,6 +126,7 @@ $ tar xfz /tmp/coral-devb-boot.tar.gz
 ```
 
 You can now connect the board to a WALT network and it will boot as a WALT node.
+For PoE, we recommend the compact PoE splitter with a USB-C connector (cf. hardware tips about raspberry pi boards above).
 
 
 ## How to identify and use the new node
