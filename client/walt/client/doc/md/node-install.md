@@ -106,7 +106,7 @@ First, follow the standard startup procedure at https://coral.ai/docs/dev-board/
 Then run the following on the board (with a proper internet access):
 ```
 $ cd /tmp
-$ wget https://github.com/drakkar-lig/walt-project/releases/latest/coral-devb-boot.tar.gz
+$ wget https://github.com/drakkar-lig/walt-project/releases/latest/download/coral-devb-boot.tar.gz
 $ cd /boot
 $ mv boot.scr boot.scr.orig
 $ tar xfz /tmp/coral-devb-boot.tar.gz
