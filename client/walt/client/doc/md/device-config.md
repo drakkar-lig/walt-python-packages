@@ -36,9 +36,11 @@ Here is the set of settings currently allowed:
 | cpu.cores      | e.g. 1 or 4             | virtual nodes       |       |
 | disks          | e.g. '8G' or '32G,1T'   | virtual nodes       |       |
 | networks       | e.g. 'walt-net,ext-net' | virtual nodes       | (4)   |
+| kexec.allow    | true or false           | nodes               | (5)   |
 
 Notes:
 1. See [`walt help show switch-install`](switch-install.md)
 2. Only allowed when changing device type from 'unknown' to 'switch'
 3. See [`walt help show device-netsetup`](device-netsetup.md)
 4. See [`walt help show vnode-networks`](vnode-networks.md)
+5. Default is true: allow kexec-rebooting if the optional script `[walt-image]:/bin/walt-reboot` implements it.
