@@ -26,31 +26,17 @@ build_subpackages() {
     done
 }
 
-no_final_comment() {
-    echo -n    # nothing to do
-}
-
-textpypi_final_comment() {
-    echo """\
-Packages were uploaded to testpypi. At installation use:
-$ pip install --index-url https://pypi.org/simple --extra-index-url https://test.pypi.org/simple \
-walt-server==$1 walt-client==$1
-"""
-}
-
 branch=$(git branch | grep '*' | awk '{print $2}')
 case "$branch" in
     master) tag_prefix='upload_'
             repo_option=''
             version_prefix=''
             version_suffix='.0'
-            final_comment="no_final_comment"
             ;;
     *)      tag_prefix='testupload_'
             repo_option='--repository-url https://test.pypi.org/legacy/'
             version_prefix='0.'
             version_suffix=''
-            final_comment="textpypi_final_comment"
             ;;
 esac
 
@@ -108,7 +94,27 @@ git push --tag $remote $branch
 build_subpackages
 
 # upload: upload packages
-twine upload $repo_option */dist/*
-
-# display final comment if any
-$final_comment "$new_version"
+if [ "$repo_option" = "" ]
+then
+    # Real PyPI: let the user test wheel packages and upload them if ok
+    echo
+    echo "Wheel packages were generated successfully:"
+    ls -1 */dist/*.whl
+    echo
+    echo "You can test them and then perform the real upload to PyPI using:"
+    echo "$ twine upload $repo_option */dist/*"
+    echo
+    echo "In case of issue, revert the git commit and tag using:"
+    echo "$ git tag -d $newTag"
+    echo "$ git push --delete origin $newTag"
+    echo "$ git reset --hard HEAD~1"
+    echo "$ git push -f $remote $branch"
+else
+    # TestPyPI: do the upload
+    twine upload $repo_option */dist/*
+    echo """\
+Packages were uploaded to testpypi. At installation use:
+$ pip install --index-url https://pypi.org/simple --extra-index-url https://test.pypi.org/simple \
+walt-server==$new_version walt-client==$new_version
+"""
+fi
