@@ -10,7 +10,7 @@ if sys.version_info[0] == 2:
 
 setup_info = {
     "name": "walt-server",
-    "version": "0.40",
+    "version": "0.41",
     "install_requires": [
         "PyYAML==6.0",
         "Pygments==2.15.1",
@@ -54,10 +54,10 @@ setup_info = {
         "snimpy==1.0.0",
         "tomli==2.0.1",
         "urllib3==1.26.15",
-        "walt-client==0.40",
-        "walt-common==0.40",
-        "walt-virtual==0.40",
-        "walt-vpn==0.40",
+        "walt-client==0.41",
+        "walt-common==0.41",
+        "walt-virtual==0.41",
+        "walt-vpn==0.41",
         "yarl==1.9.2",
         "zope.event==4.6",
         "zope.interface==6.0",

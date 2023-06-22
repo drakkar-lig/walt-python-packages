@@ -10,8 +10,8 @@ if sys.version_info[0] == 2:
 
 setup_info = {
     "name": "walt-vpn",
-    "version": "0.40",
-    "install_requires": ["walt-common==0.40", "python-daemon<3", "cffi>=1.0.0"],
+    "version": "0.41",
+    "install_requires": ["walt-common==0.41", "python-daemon<3", "cffi>=1.0.0"],
     "author": "WalT developers",
     "author_email": "walt-contact@univ-grenoble-alpes.fr",
     "keywords": "WalT testbed",
