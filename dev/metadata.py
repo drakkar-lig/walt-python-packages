@@ -64,7 +64,6 @@ PACKAGE_SPECIFIC_INFO = {
     "walt-server": dict(
         subdir="server",
         requires=[
-            "setuptools<60",  # "<60" for compatibility with python-apt
             "python-apt-binary",  # https://github.com/drakkar-lig/python-apt-binary
             "plumbum>=1.7.2",
             "snimpy>=0.8.3",
