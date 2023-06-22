@@ -23,7 +23,6 @@ setup_info = {
     "keywords": "WalT testbed",
     "license": "3-Clause BSD",
     "url": "https://walt-project.liglab.fr",
-    "data_files": [("/etc/bash_completion.d", ["bash_completion/walt"])],
     "description": "WalT control tool.",
     "entry_points": {
         "console_scripts": [
