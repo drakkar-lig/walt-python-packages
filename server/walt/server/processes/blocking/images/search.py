@@ -161,10 +161,12 @@ def short_image_name(image_name):
 
 def clonable_link(location, user, image_name, min_version=None):
     try:
-        if min_version is not None and min_version > int(__version__):
-            return "[Need server upgrade, version>=%d]" % min_version
-    except ValueError:  # non-integer dev version
-        pass
+        if (min_version is not None and
+            float(__version__) >= 1.0 and   # bypass the check if dev version
+            float(min_version) > float(__version__)):
+            return f"[Need server upgrade, version>={min_version}]"
+    except Exception:
+        print("Ignoring invalid image label 'walt.server.minversion'")
     return "%s:%s/%s" % (location, user, short_image_name(image_name))
 
 

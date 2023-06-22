@@ -14,10 +14,10 @@ PACKAGE_SPECIFIC_INFO = {
             "plumbum>=1.7.2",
             "commonmark>=0.7.5",
             "pygments>=2.2.0",
-            "walt-common==%(upload)s",
+            "walt-common==%(walt_version)s",
         ],
-        extras_require={"g5k": ["walt-client-g5k==%(upload)s"]},
-        version_str="%(upload)s",
+        extras_require={"g5k": ["walt-client-g5k==%(walt_version)s"]},
+        version_str="%(walt_version)s",
         setup=dict(
             description="WalT control tool.",
             entry_points={
@@ -31,8 +31,8 @@ PACKAGE_SPECIFIC_INFO = {
     ),
     "walt-client-g5k": dict(
         subdir="client-g5k",
-        requires=["execo>=2.6.5", "walt-client==%(upload)s"],
-        version_str="%(upload)s",
+        requires=["execo>=2.6.5", "walt-client==%(walt_version)s"],
+        version_str="%(walt_version)s",
         setup=dict(
             description="WalT control tool -- Grid'5000 plugin.",
             entry_points={
@@ -44,8 +44,8 @@ PACKAGE_SPECIFIC_INFO = {
     ),
     "walt-node": dict(
         subdir="node",
-        requires=["walt-common==%(upload)s"],
-        version_str="%(upload)s",
+        requires=["walt-common==%(walt_version)s"],
+        version_str="%(walt_version)s",
         setup=dict(
             description="WalT optional software embedded in images.",
             entry_points={
@@ -81,12 +81,12 @@ PACKAGE_SPECIFIC_INFO = {
             "urllib3<2",  # for compatibility with podman
             "podman>=4.2.0",
             "setproctitle>=1.3.2",
-            "walt-client==%(upload)s",
-            "walt-common==%(upload)s",
-            "walt-virtual==%(upload)s",
-            "walt-vpn==%(upload)s",
+            "walt-client==%(walt_version)s",
+            "walt-common==%(walt_version)s",
+            "walt-virtual==%(walt_version)s",
+            "walt-vpn==%(walt_version)s",
         ],
-        version_str="%(upload)s",
+        version_str="%(walt_version)s",
         setup=dict(
             description="WalT server components.",
             entry_points={
@@ -110,8 +110,8 @@ PACKAGE_SPECIFIC_INFO = {
     ),
     "walt-virtual": dict(
         subdir="virtual",
-        requires=["walt-common==%(upload)s"],
-        version_str="%(upload)s",
+        requires=["walt-common==%(walt_version)s"],
+        version_str="%(walt_version)s",
         setup=dict(
             description="WalT components related to virtualization.",
             entry_points={
@@ -126,11 +126,11 @@ PACKAGE_SPECIFIC_INFO = {
     "walt-vpn": dict(
         subdir="vpn",
         requires=[
-            "walt-common==%(upload)s",
+            "walt-common==%(walt_version)s",
             "python-daemon<3",  # for compatibility with setuptools<60 (see server)
             "cffi>=1.0.0",
         ],
-        version_str="%(upload)s",
+        version_str="%(walt_version)s",
         setup=dict(
             description="WalT VPN components.",
             entry_points={
@@ -157,7 +157,7 @@ PACKAGE_SPECIFIC_INFO = {
             "python-dateutil>=2.8.1",
             "pyyaml>=5.3.1",
         ],
-        version_str="%(upload)s",
+        version_str="%(walt_version)s",
         setup=dict(description="WalT common python modules."),
     ),
 }

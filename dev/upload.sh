@@ -43,11 +43,13 @@ case "$branch" in
     master) tag_prefix='upload_'
             repo_option=''
             version_prefix=''
+            version_suffix='.0'
             final_comment="no_final_comment"
             ;;
     *)      tag_prefix='testupload_'
             repo_option='--repository-url https://test.pypi.org/legacy/'
             version_prefix='0.'
+            version_suffix=''
             final_comment="textpypi_final_comment"
             ;;
 esac
@@ -87,7 +89,7 @@ last_upload_in_git=$(git tag | grep "^$tag_prefix" | tr '_' ' ' | awk '{print $2
 new_upload=$((last_upload_in_git+1))
 
 # update files containing version number
-new_version="${version_prefix}${new_upload}"
+new_version="${version_prefix}${new_upload}${version_suffix}"
 echo "__version__ = '${new_version}'" > common/walt/common/version.py
 if [ -f server/requirements.txt ]
 then

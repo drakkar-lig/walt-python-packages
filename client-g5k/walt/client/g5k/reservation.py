@@ -10,7 +10,7 @@ from walt.client.g5k.tools import get_local_g5k_site
 
 POSSIBLE_CLUSTERS_FOR_SERVER = None
 WALT_SERVER_ENV_FILE = (
-    f"http://public.grenoble.grid5000.fr/~eduble/walt-server-{__version__}-new.yaml"
+    f"http://public.grenoble.grid5000.fr/~eduble/walt-server-{__version__}.yaml"
 )
 DEBUG_MODE = False
 # default planning start time is 1 minute from now

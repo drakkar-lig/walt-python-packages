@@ -204,7 +204,7 @@ class ServerAPIConnection(object):
     def remote_has_pickle4_mode(self):
         if self.remote_version.startswith('0.'):  # dev version
             return True
-        elif int(self.remote_version) >= 8:       # prod version
+        elif float(self.remote_version) >= 8.0:       # prod version
             return True
         else:
             return False

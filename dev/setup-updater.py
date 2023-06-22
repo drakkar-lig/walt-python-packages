@@ -11,7 +11,7 @@ from dev.metadata import PACKAGE_SPECIFIC_INFO  # noqa: E402
 from dev.tools.pretty import black_format  # noqa: E402
 from dev.version import __version__  # noqa: E402
 
-versions_info = dict(upload=__version__)
+versions_info = dict(walt_version=__version__)
 
 
 def format_setup_py(package_name):
