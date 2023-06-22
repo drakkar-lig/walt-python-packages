@@ -80,11 +80,11 @@ clean:
 upload: keyrings.cryptfile.pip-package wheel.pip-package auditwheel.pip-package
 	./dev/upload.sh $(ALL_PACKAGES)
 
-freeze-deps:
+freeze-deps: black.pip-package
 	./dev/requirements-updater.py freeze
 	dev/setup-updater.py "walt-server"
 
-unfreeze-deps:
+unfreeze-deps: black.pip-package
 	./dev/requirements-updater.py unfreeze
 	dev/setup-updater.py "walt-server"
 
