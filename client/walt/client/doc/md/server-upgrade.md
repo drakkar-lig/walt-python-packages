@@ -20,7 +20,7 @@ For upgrading an older installation, contact us at `walt-contact at univ-grenobl
 ## Upgrade procedure
 
 ```
-$ apt update; apt install -y python3-venv
+$ apt update; apt install -y python3-venv debian-archive-keyring
 $ python3 -m venv /opt/walt-8
 $ /opt/walt-8/bin/pip install --upgrade pip
 $ /opt/walt-8/bin/pip install walt-server walt-client
