@@ -10,8 +10,8 @@ if sys.version_info[0] == 2:
 
 setup_info = {
     "name": "walt-client-g5k",
-    "version": "8.0",
-    "install_requires": ["execo>=2.6.5", "walt-client==8.0"],
+    "version": "0.43",
+    "install_requires": ["execo>=2.6.5", "walt-client==0.43"],
     "author": "WalT developers",
     "author_email": "walt-contact@univ-grenoble-alpes.fr",
     "keywords": "WalT testbed",
