@@ -26,20 +26,6 @@ build_subpackages() {
     done
 }
 
-branch=$(git branch | grep '*' | awk '{print $2}')
-case "$branch" in
-    master) tag_prefix='upload_'
-            repo_option=''
-            version_prefix=''
-            version_suffix='.0'
-            ;;
-    *)      tag_prefix='testupload_'
-            repo_option='--repository-url https://test.pypi.org/legacy/'
-            version_prefix='0.'
-            version_suffix=''
-            ;;
-esac
-
 remote=$(git remote -v | grep fetch | grep "$URL_REGEXP" | awk '{print $1}')
 
 if [ "$remote" = "" ]; then
@@ -64,18 +50,34 @@ if [ $stat_ahead = 1 ]; then
     exit
 fi
 
+branch=$(git branch | grep '*' | awk '{print $2}')
+case "$branch" in
+    master) repo_option=''
+            if [ ! -z "$NEW_VERSION" ]
+            then
+                new_version="$NEW_VERSION"
+                new_tag="upload_$NEW_VERSION"
+            else
+                echo "Env variable NEW_VERSION is missing. Aborting."
+                exit 1
+            fi
+            ;;
+    *)      repo_option='--repository-url https://test.pypi.org/legacy/'
+            # increment the last upload
+            git fetch $remote 'refs/tags/*:refs/tags/*'
+            last_upload_in_git=$(git tag | grep "^$tag_prefix" | tr '_' ' ' | awk '{print $2}' | sort -n | tail -n 1)
+            new_upload=$((last_upload_in_git+1))
+            new_version="0.${new_upload}"
+            new_tag="testupload_${new_upload}"
+            ;;
+esac
+
 # build and check that packages are fine
 build_subpackages
 
 # everything seems fine, let's start the real work
 
-# increment the last upload
-git fetch $remote 'refs/tags/*:refs/tags/*'
-last_upload_in_git=$(git tag | grep "^$tag_prefix" | tr '_' ' ' | awk '{print $2}' | sort -n | tail -n 1)
-new_upload=$((last_upload_in_git+1))
-
 # update files containing version number
-new_version="${version_prefix}${new_upload}${version_suffix}"
 echo "__version__ = '${new_version}'" > common/walt/common/version.py
 if [ -f server/requirements.txt ]
 then
@@ -84,10 +86,9 @@ fi
 dev/setup-updater.py
 echo "setup.py, version.py files updated"
 
-newTag="$tag_prefix$new_upload"
-git commit -a -m "$newTag (automated by 'make upload')"
+git commit -a -m "$new_tag (automated by 'make upload')"
 
-git tag -m "$newTag (automated by 'make upload')" -a $newTag
+git tag -m "$new_tag (automated by 'make upload')" -a $new_tag
 git push --tag $remote $branch
 
 # rebuild updated packages
@@ -105,8 +106,8 @@ then
     echo "$ twine upload $repo_option */dist/*"
     echo
     echo "In case of issue, revert the git commit and tag using:"
-    echo "$ git tag -d $newTag"
-    echo "$ git push --delete origin $newTag"
+    echo "$ git tag -d $new_tag"
+    echo "$ git push --delete origin $new_tag"
     echo "$ git reset --hard HEAD~1"
     echo "$ git push -f $remote $branch"
 else
