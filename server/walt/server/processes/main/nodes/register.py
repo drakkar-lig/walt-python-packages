@@ -25,6 +25,7 @@ def handle_registration_request(
         image_fullname=image_fullname,
         model=model,
         logs=logs,
+        blocking=blocking,
         **kwargs,
     )
     wf_steps = []
@@ -56,10 +57,9 @@ def wf_pull_image(wf, blocking, image_fullname, **env):
     blocking.pull_image(None, image_fullname, wf.next)
 
 
-def wf_after_pull_image(wf, pull_result, images, image_fullname, model, logs, **env):
+def wf_after_pull_image(wf, pull_result, image_fullname, model, logs, **env):
     if pull_result[0]:
         # ok
-        images.register_image(image_fullname)
         dup_msg(
             f"Image {image_fullname} was downloaded successfully.", sys.stdout, logs
         )
