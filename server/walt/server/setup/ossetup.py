@@ -4,6 +4,7 @@ import gzip
 import json
 import os
 import shlex
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -301,7 +302,8 @@ def fix_conmon():
 # We now install walt python packages in a virtual environment
 # (at least for the server).
 # Previously they were installed in the base python environment of the OS.
-# This procedure cleans up any walt python package found there.
+# This procedure cleans up any walt python package found there,
+# and any obsolete vitrual environment.
 def cleanup_old_walt_install():
     # we temporarily remove the venv prefix from the PATH variable,
     # to target the python executable of the base environment of the OS.
@@ -339,3 +341,10 @@ def cleanup_old_walt_install():
             print("done")
     # restore the PATH variable
     os.environ["PATH"] = saved_path
+    # clear old /opt/walt-<version> directories
+    for opt_entry in Path('/opt').iterdir():
+        if opt_entry.name.startswith('walt-') and opt_entry != Path(sys.prefix):
+            print(f"Removing obsolete {opt_entry}... ", end="")
+            sys.stdout.flush()
+            shutil.rmtree(str(opt_entry))
+            print("done")
