@@ -15,13 +15,13 @@ This design choice has important implications:
 * Compared to a public platform, a private WalT platform can better fit some use cases, including industrial testbeds, because of the possible industrial secrets involved.
 
 
-# Single-experiment platforms
+## Single-experiment platforms
 
 The concept of private platform also applies well to experiments sensible to interference.
 If you consider concurrent experiment of other users could affect your results, you can build an isolated platform which will just serve your own specific experiment.
 
 
-# Experiment reproducibility
+## Experiment reproducibility
 
 The concept of WalT platform was described in a research paper called [WalT: A Reproducible Testbed for Reproducible Network Experiments](https://hal.science/hal-01287566).
 
