@@ -48,6 +48,13 @@ def _get_vlans_API(site):
 
 def load_execo_g5k():
     import logging
+    # execo has two methods for loading the planning: API or OAR database.
+    # it uses the OAR database if it is able to import the module psycopg2,
+    # and the API otherwise. The above trick to allow local vlans only
+    # applies to the API access, and hacking the database access would require
+    # more code, so we prevent the loading of psycopg2 to force the API method.
+    import sys
+    sys.modules['psycopg2'] = None
 
     from execo.log import logger
 

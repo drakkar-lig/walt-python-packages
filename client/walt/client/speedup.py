@@ -174,8 +174,12 @@ def __myimport__(name, globals=None, locals=None, fromlist=(), level=0):
     if fromlist is None:
         fromlist = ()
     if name in sys.modules and len(fromlist) == 0:
+        # fast path
         top_level_name = name.split('.', maxsplit=1)[0]
-        return sys.modules[top_level_name]   # fast path
+        mod = sys.modules[top_level_name]
+        if mod is None:
+            raise ImportError
+        return mod
     import_args = name, globals, locals, fromlist, level
     if DEBUG_IMPORTS:
         DEBUG_NAMES += [name]
