@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from collections import defaultdict
 from walt.server.processes.blocking.snmp.base import Variant, VariantProxy, VariantsSet
 from walt.server.processes.blocking.snmp.mibs import (
     get_loaded_mibs,
@@ -57,6 +58,7 @@ def get_poe_port_mapping(snmp_proxy, host):
             (int(grp_idx), int(grp_port))
             for grp_idx, grp_port in snmp_proxy.pethPsePortAdminEnable.keys()
         )
+        iface_to_poe_index = None
         # check if we have the same number of poe ports and 10/100/1000 ports
         if len(iface_port_indexes) == len(poe_port_indexes):
             # this probably means we can associate iface_port_indexes and
@@ -66,7 +68,7 @@ def get_poe_port_mapping(snmp_proxy, host):
             }
         # otherwise, check if we have a linear range of ethernet ports
         # (i.e. there are no holes in those port indexes)
-        elif (
+        if iface_to_poe_index is None and (
             max(a - b for a, b in zip(iface_type_indexes[1:], iface_type_indexes[:-1]))
             == 1
         ):
@@ -75,7 +77,57 @@ def get_poe_port_mapping(snmp_proxy, host):
             iface_to_poe_index = {
                 a: b for a, b in zip(iface_type_indexes, poe_port_indexes)
             }
-        else:
+        # otherwise, we observe the holes in the range of interfaces and
+        # try to see if we can map each poe group to a continuous sub-range
+        # of interfaces
+        if iface_to_poe_index is None:
+            poe_ports_per_group = defaultdict(list)
+            for grp_idx, grp_port in poe_port_indexes:
+                poe_ports_per_group[grp_idx].append(grp_port)
+            poe_group_lengths = set(len(grp_ports)
+                                    for grp_ports in poe_ports_per_group.values())
+            # check all poe groups have the same number of ports
+            if len(poe_group_lengths) == 1:
+                poe_group_len = list(poe_group_lengths)[0]
+                # there is probably a jump in interface numbers between each group
+                holes = (0,) + tuple(c+1 for a, b, c in zip(
+                                iface_port_indexes[:-1],
+                                iface_port_indexes[1:],
+                                range(len(iface_port_indexes))) if b-a > 1)
+                iface_to_poe_index = {}
+                poe_idx = 0
+                hole_idx = 0
+                failed = False
+                while poe_idx < len(poe_port_indexes):
+                    poe_range = poe_port_indexes[ poe_idx :
+                                                  poe_idx + poe_group_len ]
+                    while True:
+                        if hole_idx >= len(holes):
+                            failed = True
+                            break
+                        iface_idx = holes[hole_idx]
+                        hole_idx += 1
+                        if iface_idx + poe_group_len > len(iface_port_indexes):
+                            failed = True
+                            break
+                        iface_range = iface_port_indexes[ iface_idx :
+                                                          iface_idx + poe_group_len ]
+                        # check iface_range is contiguous
+                        if iface_range[-1] - iface_range[0] + 1 == poe_group_len:
+                            # ok
+                            iface_to_poe_index.update({
+                                a: b for a, b in zip(iface_range, poe_range)
+                            })
+                            break
+                        # otherwise try next hole
+                    if failed:
+                        break
+                    else:
+                        poe_idx += poe_group_len
+                if failed:
+                    iface_to_poe_index = None
+        # otherwise, sorry, no more ideas...
+        if iface_to_poe_index is None:
             raise RuntimeError(MSG_ISSUE_POE_PORT_MAPPING % host)
         POE_PORT_MAPPING_CACHE[host] = iface_to_poe_index
     return POE_PORT_MAPPING_CACHE[host]
