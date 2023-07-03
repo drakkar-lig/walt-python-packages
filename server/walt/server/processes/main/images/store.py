@@ -448,6 +448,8 @@ class NodeImageStore(object):
             if image_name is None:
                 # no 'preferred-name' tag, reuse name of default image
                 image_name = default_image.split("/")[1]
+            if ':' not in image_name:
+                image_name = image_name + ':latest'
             image_node_models = self.images[default_image].node_models
             image_node_models_desc = self.images[default_image].node_models_desc
             ws_image = username + "/" + image_name
