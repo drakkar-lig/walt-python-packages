@@ -16,12 +16,24 @@ METADATA_CACHE_FILE = Path("/var/cache/walt/images.metadata")
 IMAGE_LAYERS_DIR = "/var/lib/containers/storage/overlay"
 PODMAN_API_SOCKET = "unix:///run/walt/podman/podman.socket"
 
-
+# parse_date() handles the following example formats:
+# - "2023-07-04T13:58:03.480332+02:00"
+# - "2023-07-04T13:58:03.480332667+02:00"
+# - "2023-07-04T13:58:03.480332667Z"
+# - "2023-07-04 13:58:03.480332 +0000 UTC"
+# - "2023-07-04 13:58:03.480332 +0000"
+# - "2023-07-04 13:58:03.480332 +00:00"
 def parse_date(created_at):
+    # add a space before the ending timezone offset
+    created_at = re.sub(r"([+-][0-9][0-9:.]*)$", r" \1",  created_at)
+    # interpret 'T' and 'Z'
+    created_at = created_at.replace("T", " ").replace("Z", " +0000")
+    # keep only the first 3 words (timezone is sometimes repeated as text)
+    created_at = " ".join(created_at.split()[:3])
     # strptime does not support parsing nanosecond precision
     # remove last 3 decimals of this number
     created_at = re.sub(r"([0-9]{6})[0-9]*", r"\1", created_at)
-    dt = datetime.strptime(created_at, "%Y-%m-%d %H:%M:%S.%f %z %Z")
+    dt = datetime.strptime(created_at, "%Y-%m-%d %H:%M:%S.%f %z")
     # remove subsecond precision (not needed)
     dt = dt.replace(microsecond=0)
     # convert to local time
@@ -131,9 +143,7 @@ class WalTLocalRegistry:
         labels = data.attrs["Labels"]
         if labels is None:
             labels = {}
-        created_at_ts = (
-            data.attrs["Created"].replace("T", " ").replace("Z", " +0000 UTC")
-        )
+        created_at_ts = data.attrs["Created"]
         if "walt.node.models" in labels:
             node_models = labels["walt.node.models"].split(",")
             node_models_desc = format_node_models_list(node_models)
