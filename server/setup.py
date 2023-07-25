@@ -20,7 +20,7 @@ setup_info = {
         "async-timeout==4.0.2",
         "attrs==23.1.0",
         "bottle==0.12.25",
-        "certifi==2023.5.7",
+        "certifi==2023.7.22",
         "cffi==1.15.1",
         "charset-normalizer==3.1.0",
         "commonmark==0.9.1",
