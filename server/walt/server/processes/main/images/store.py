@@ -267,6 +267,10 @@ class NodeImageStore(object):
         changes = False
         # ensure all needed images are mounted
         for fullname in self.get_images_in_use():
+            # if a parallel operation (e.g., clone) is running,
+            # the image may not be available yet; pass for now.
+            if not self.registry.image_exists(fullname):
+                continue
             if fullname in self.images:
                 img = self.images[fullname]
                 if not img.mounted:
