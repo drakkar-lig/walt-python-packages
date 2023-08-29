@@ -93,6 +93,11 @@ class SettingsManager:
                 "default": True,
                 "pretty_print": pprint_bool,
             },
+            "expose": {
+                "category": "walt-net-devices",
+                "value-check": self.correct_expose_value,
+                "default": "none",
+            },
         }
         self.category_filters = {
             "devices": self.filter_devices,
@@ -277,6 +282,16 @@ class SettingsManager:
         except ValueError:
             requester.stderr.write("Failed: netsetup value should be 'NAT' or 'LAN'.\n")
             return False
+
+    def correct_expose_value(
+        self, requester, device_infos, setting_name, setting_value, all_settings
+    ):
+        if len(device_infos) > 1:
+            requester.stderr.write(
+                  "Failed: cannot expose the same server port for several devices.\n")
+            return False
+        return self.server.expose.check_expose_setting_value(
+                    requester, device_infos[0].ip, setting_value)
 
     def simple_filter(self, device_infos, func, ok_as_names=True, not_ok_as_names=True):
         ok, not_ok = [], []
@@ -532,6 +547,10 @@ class SettingsManager:
                 # 'type' is a column of table 'devices', so this setting should not
                 # be recorded in 'devices.conf' column
                 del db_settings["type"]
+            elif setting_name == "expose":
+                for device_info in device_infos:
+                    self.server.expose.apply(
+                            requester, device_info.ip, setting_value)
 
         # save in db
         new_vals = json.dumps(db_settings)

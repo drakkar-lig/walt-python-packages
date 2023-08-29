@@ -20,6 +20,7 @@ from walt.server.processes.main.network.dhcpd import DHCPServer
 from walt.server.processes.main.nodes.manager import NodesManager
 from walt.server.processes.main.registry import WalTLocalRegistry
 from walt.server.processes.main.settings import SettingsManager
+from walt.server.processes.main.devices.expose import ExposeManager
 from walt.server.processes.main.transfer import (
     TransferManager,
     format_node_to_booted_image_transfer_cmd,
@@ -49,6 +50,7 @@ class Server(object):
         self.nodes = NodesManager(self)
         self.settings = SettingsManager(server=self)
         self.vpn = VPNManager()
+        self.expose = ExposeManager(server=self)
 
     def prepare(self):
         self.logs.prepare()
@@ -74,6 +76,8 @@ class Server(object):
         self.blocking.restore_poe_on_all_ports()
         # restores nodes setup
         self.nodes.restore()
+        # restore permanent expose sockets
+        self.expose.restore()
 
     def cleanup(self):
         APISession.cleanup_all()
