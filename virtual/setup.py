@@ -10,8 +10,8 @@ if sys.version_info[0] == 2:
 
 setup_info = {
     "name": "walt-virtual",
-    "version": "8.1",
-    "install_requires": ["walt-common==8.1"],
+    "version": "8.2",
+    "install_requires": ["walt-common==8.2"],
     "author": "WalT developers",
     "author_email": "walt-contact@univ-grenoble-alpes.fr",
     "keywords": "WalT testbed",

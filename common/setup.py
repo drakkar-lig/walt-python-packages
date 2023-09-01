@@ -10,7 +10,7 @@ if sys.version_info[0] == 2:
 
 setup_info = {
     "name": "walt-common",
-    "version": "8.1",
+    "version": "8.2",
     "install_requires": [
         "plumbum>=1.7.2",
         "requests>=2.21.0",
