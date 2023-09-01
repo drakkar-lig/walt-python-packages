@@ -21,10 +21,10 @@ For upgrading an older installation, contact us at `walt-contact at univ-grenobl
 
 ```
 $ apt update; apt install -y python3-venv debian-archive-keyring
-$ python3 -m venv /opt/walt-8.1
-$ /opt/walt-8.1/bin/pip install --upgrade pip
-$ /opt/walt-8.1/bin/pip install walt-server walt-client
-$ /opt/walt-8.1/bin/walt-server-setup
+$ python3 -m venv /opt/walt-8.2
+$ /opt/walt-8.2/bin/pip install --upgrade pip
+$ /opt/walt-8.2/bin/pip install walt-server walt-client
+$ /opt/walt-8.2/bin/walt-server-setup
 ```
 
 Your server is now upgraded to current version.

@@ -42,10 +42,10 @@ $ apt install -y gcc python3-venv python3-dev libsmi2-dev curl git make
 ## 2- Install and configure walt software
 
 ```
-$ python3 -m venv /opt/walt-8.1
-$ /opt/walt-8.1/bin/pip install --upgrade pip
-$ /opt/walt-8.1/bin/pip install walt-server walt-client
-$ /opt/walt-8.1/bin/walt-server-setup
+$ python3 -m venv /opt/walt-8.2
+$ /opt/walt-8.2/bin/pip install --upgrade pip
+$ /opt/walt-8.2/bin/pip install walt-server walt-client
+$ /opt/walt-8.2/bin/walt-server-setup
 ```
 
 Note: `walt-server-setup` will display interactive configuration interfaces for network and image registries.
