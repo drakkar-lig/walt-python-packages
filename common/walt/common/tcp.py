@@ -5,6 +5,7 @@ from walt.common.service import GenericServer, ServiceRequests
 from walt.common.tools import set_close_on_exec
 
 PICKLE_VERSION = 4  # from python 3.4
+LISTEN_BACKLOG = 256
 
 
 class Requests(ServiceRequests):
@@ -122,7 +123,7 @@ def server_socket(port):
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     s.bind(("", port))
-    s.listen(1)
+    s.listen(LISTEN_BACKLOG)
     # set close-on-exec flag (subprocesses should not inherit it)
     set_close_on_exec(s, True)
     return ServerSocketWrapper(s)
