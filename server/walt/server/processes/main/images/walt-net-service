@@ -6,10 +6,6 @@ MSG_WALT_REBOOT_NO_EXEC='/bin/walt-reboot is not executable on image'
 
 final_root="$1"
 
-# Uncomment this for debug log in /persist
-#set -x
-#exec >> "$final_root/persist/walt-net-service.log"
-#exec 2>&1
 
 on_exit()
 {
