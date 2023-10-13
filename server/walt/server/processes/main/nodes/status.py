@@ -34,6 +34,7 @@ class NodeBootupStatusListener:
         )
         self.set_keepalive()
         self.sock_files_per_ip[self.node_ip] = self.sock_file
+        self.sock_file.write(b'OK\n')
 
     def set_keepalive(self):
         self.sock_file.setsockopt(SOL_SOCKET, SO_KEEPALIVE, 1)

@@ -3,7 +3,7 @@
 RETRY_DELAY_SECONDS=5
 RETRY_COUNT=2
 NC_STOP="/tmp/nc-$$.fifo"
-CONNECT_MAX_DELAY=5
+RLWT_CAPTURE="/tmp/rlwt-capture"
 DELAY_BEFORE_REBOOT=10
 
 # we need variables walt_server_ip and walt_server_notify_bootup_port
@@ -34,6 +34,15 @@ wait_for_ssh() {
     done
 }
 
+read_line_with_timeout() {
+    t=$1
+    shift
+    rm -f $RLWT_CAPTURE
+    /bin/walt-timeout $t \
+        busybox sh -c 'read line && echo -n $line' > $RLWT_CAPTURE && \
+        cat $RLWT_CAPTURE
+}
+
 call_image_bootup_script() {
     if [ -f "mnt/fs_union/bin/on-bootup" ]
     then
@@ -52,28 +61,44 @@ remove_nologin() {
 
 run_permanent_connection() {
     rm -f $NC_STOP
-	{
-		echo REQ_NOTIFY_BOOTUP_STATUS
+    {
+        echo REQ_NOTIFY_BOOTUP_STATUS
         # It is important to keep nc stdin open until we detect a disconnection
         # otherwise nc stops immediately.
         # Some versions of busybox nc also fail to stop when the remote end
         # is closed. We send EOL chars periodically to detect this.
-		while [ ! -f $NC_STOP ]
+        while [ ! -f $NC_STOP ]
         do
             echo
             sleep 20
         done
-	} | {
-        busybox nc $walt_server_ip $walt_server_notify_bootup_port
-        echo
     } | {
-		read empty_read   # detect disconnection or failed connection
-		echo > $NC_STOP
-	}
-}
-
-timestamp() {
-    busybox date +%s
+        busybox nc $walt_server_ip $walt_server_notify_bootup_port
+        echo END
+    } | {
+        connected=0
+        # read OK from server within 3 seconds
+        if msg_ok=$(read_line_with_timeout 3)
+        then
+            if [ "$msg_ok" = "OK" ]
+            then
+                connected=1
+                # Correct response obtained from server.
+                # We can now wait indefinitely on connection, buf if busybox nc
+                # stops, this will terminate the read below
+                read msg_end
+            fi
+        fi
+        # let the caller know what happened
+        if [ $connected -eq 1 ]
+        then
+            echo DISCONNECTED
+        else
+            echo CONNECT_FAILED
+        fi
+        # connection failure or disconnection, stop the loop above
+        echo > $NC_STOP
+    }
 }
 
 # We consider the node is ready when its
@@ -97,18 +122,10 @@ remove_nologin
 retries=$RETRY_COUNT
 while true
 do
-    t0=$(timestamp)
-    run_permanent_connection
-    t1=$(timestamp)
-    delay=$((t1 - t0))
+    status=$(run_permanent_connection)
     # in rare cases a TCP connection may fail, so we must try
     # a few times.
-    # however it is quite hard for us to distinguish a failed
-    # connection attempt from a succeeded connection which ends
-    # much later because of a server-side issue.
-    # we guess the right cause by measuring the time between t0
-    # and t1.
-    if [ $delay -le $CONNECT_MAX_DELAY -a $retries -gt 0 ]
+    if [ "$status" = "CONNECT_FAILED" -a $retries -gt 0 ]
     then
         retries=$((retries - 1))
         echo "[bg] walt-notify-bootup: reconnecting attempt after ${RETRY_DELAY_SECONDS} seconds"
