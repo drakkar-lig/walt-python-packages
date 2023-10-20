@@ -66,6 +66,7 @@ DEFAULT_QEMU_RAM = 512
 DEFAULT_QEMU_CORES = 4
 DEFAULT_QEMU_DISKS = ()
 DEFAULT_QEMU_NETWORKS = {"walt-net": {}}
+DEFAULT_BOOT_DELAY = "random"
 QEMU_ARGS = (
     f"{QEMU_PROG} -enable-kvm"
     f"            {QEMU_MACHINE_DEF}"
@@ -324,16 +325,18 @@ def node_loop(info):
     save_screen_session(info)
     while not STATE["STOPPING"]:
         try:
-            # wait randomly to mitigate simultaneous load of various
-            # virtual nodes
-            random_wait()
+            if info._boot_delay == "random":
+                # default is to wait randomly to mitigate
+                # simultaneous load of various virtual nodes
+                random_wait()
+            elif info._boot_delay > 0:
+                time.sleep(info._boot_delay)
             print("Starting...")
             env = get_env_start(info)
             ipxe_boot(env)
         except Exception:
             print("Exception in node_loop()")
             import traceback
-
             traceback.print_exc()
             time.sleep(2)
 
@@ -350,6 +353,7 @@ class WalTVirtualNode(LoggedApplication):
     _ram = DEFAULT_QEMU_RAM
     _disks = DEFAULT_QEMU_DISKS
     _networks = DEFAULT_QEMU_NETWORKS
+    _boot_delay = DEFAULT_BOOT_DELAY
 
     """run a virtual node"""
 
@@ -453,6 +457,20 @@ class WalTVirtualNode(LoggedApplication):
     def set_reboot_command(self, shell_command):
         """define a command to be called if virtual machine reboots"""
         self._reboot_command = shell_command
+
+    @cli.switch("--boot-delay", str)
+    def set_boot_delay(self, delay):
+        """define a delay before the VM [re]boots (number of seconds or "random")"""
+        if delay != "random":
+            try:
+                delay = int(delay)
+            except ValueError:
+                raise ValueError(
+                        f'Invalid value for --boot-delay (use int value or "random")')
+            if delay < 0:
+                raise ValueError(
+                        f"Invalid value for --boot-delay (use a positive value)")
+        self._boot_delay = delay
 
 
 def kill_vm():

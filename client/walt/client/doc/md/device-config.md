@@ -40,6 +40,7 @@ Here is the set of settings currently allowed:
 | ram            | e.g. '384M' or '1G'     | virtual nodes       |       |
 | cpu.cores      | e.g. 1 or 4             | virtual nodes       |       |
 | disks          | e.g. '8G' or '32G,1T'   | virtual nodes       |       |
+| boot.delay     | e.g. 2 or 'random'      | virtual nodes       |       |
 | networks       | e.g. 'walt-net,ext-net' | virtual nodes       | (4)   |
 | kexec.allow    | true or false           | nodes               | (5)   |
 | expose         | e.g. '80:8080,443:8443' | devices of walt-net | (6)   |

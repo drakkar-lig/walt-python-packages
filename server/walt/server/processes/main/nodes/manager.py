@@ -20,6 +20,7 @@ VNODE_DEFAULT_RAM = "512M"
 VNODE_DEFAULT_CPU_CORES = 4
 VNODE_DEFAULT_DISKS = "none"
 VNODE_DEFAULT_NETWORKS = "walt-net"
+VNODE_DEFAULT_BOOT_DELAY = "random"
 
 MSG_NOT_VIRTUAL = "WARNING: %s is not a virtual node. IGNORED.\n"
 
@@ -29,6 +30,7 @@ CMD_START_VNODE = (
     "walt-virtual-node --mac %(mac)s --ip %(ip)s --model %(model)s --hostname %(name)s"
     "                  --server-ip %(server_ip)s --cpu-cores %(cpu_cores)d"
     "                  --ram %(ram)s --disks %(disks)s --networks %(networks)s"
+    "                  --boot-delay %(boot_delay)s"
 )
 
 
@@ -153,6 +155,7 @@ class NodesManager(object):
             ram=node.conf.get("ram", VNODE_DEFAULT_RAM),
             disks=node.conf.get("disks", VNODE_DEFAULT_DISKS),
             networks=node.conf.get("networks", VNODE_DEFAULT_NETWORKS),
+            boot_delay=node.conf.get("boot.delay", VNODE_DEFAULT_BOOT_DELAY),
         )
         print(cmd)
         popen = BetterPopen(

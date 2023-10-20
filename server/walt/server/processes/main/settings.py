@@ -12,6 +12,7 @@ from walt.server.processes.main.nodes.manager import (
     VNODE_DEFAULT_DISKS,
     VNODE_DEFAULT_NETWORKS,
     VNODE_DEFAULT_RAM,
+    VNODE_DEFAULT_BOOT_DELAY,
 )
 from walt.server.tools import ip_in_walt_network
 
@@ -48,6 +49,11 @@ class SettingsManager:
                 "category": "virtual-nodes",
                 "value-check": self.correct_disks_value,
                 "default": VNODE_DEFAULT_DISKS,
+            },
+            "boot.delay": {
+                "category": "virtual-nodes",
+                "value-check": self.correct_boot_delay,
+                "default": VNODE_DEFAULT_BOOT_DELAY,
             },
             "networks": {
                 "category": "virtual-nodes",
@@ -259,6 +265,24 @@ class SettingsManager:
             )
             return False
         return True
+
+    def correct_boot_delay(
+        self, requester, device_infos, setting_name, setting_value, all_settings
+    ):
+        if (setting_value == 'random'):
+            return True
+        try:
+            setting_value = int(setting_value)
+            if setting_value >= 0:
+                return True
+        except ValueError:
+            pass
+        requester.stderr.write(
+            f"Failed: '{setting_value}' is not a valid value for option 'boot.delay'.\n"
+            "        Use for example '2' for 2s, '0' to disable, "
+            "'random' for a random delay between 1 and 10s.\n"
+        )
+        return False
 
     def correct_networks_value(
         self, requester, device_infos, setting_name, setting_value, all_settings
@@ -520,6 +544,8 @@ class SettingsManager:
             elif setting_name == "ram":
                 should_reboot_devices = True  # update in DB (below) is enough
             elif setting_name == "disks":
+                should_reboot_devices = True  # update in DB (below) is enough
+            elif setting_name == "boot.delay":
                 should_reboot_devices = True  # update in DB (below) is enough
             elif setting_name == "networks":
                 should_reboot_devices = True  # update in DB (below) is enough
