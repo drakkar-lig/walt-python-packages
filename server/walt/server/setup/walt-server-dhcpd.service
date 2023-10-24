@@ -20,7 +20,7 @@ ExecStart=/usr/sbin/dhcpd -f -4 -q walt-net \
             -lf ${STATE_DIRECTORY}/dhcpd.leases
 AmbientCapabilities=CAP_NET_BIND_SERVICE CAP_NET_RAW
 ProtectSystem=full
-ProtectHome=on
+ProtectHome=read-only
 
 [Install]
 WantedBy=walt-server-netconfig.service
