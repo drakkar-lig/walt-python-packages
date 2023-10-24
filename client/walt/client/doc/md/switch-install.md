@@ -26,22 +26,35 @@ In order to enable those features, the switches you connect to `walt-net` must p
 * LLDP support (Link Layer Discovery Protocol)
 * SNMP remote administration, with support for standard MIBs (POWER-OVER-ETHERNET.mib, IF.mib and LLDP.mib)
 
+If LLDP.mib is missing, WALT will try to analyse the forwarding tables instead (BRIDGE.mib or Q-BRIDGE.mib);
+These alternate MIBs should suffice as long as you connect and configure these switches on WALT one at a time.
+
 See [`walt help show optional-features`](optional-features.md) for more info.
 
 
 ## Hardware recommendation
 
-We recommend the switch netgear gs110tp. It is a cost-effective switch, with useful features in the context of
+We recommend the switch Netgear GS110TP. It is a cost-effective switch, with useful features in the context of
 a WalT platform:
 * 8 PoE ports
 * LLDP support (Link Layer Discovery Protocol)
 * remote administration using SNMP
 * (and, if you ever need it in a particular setup, 802.1q support (VLANs))
 
-This switch works well with its default settings.
+This switch works well with its default settings; it comes with a default SNMPv2 community named 'private'
+with read-write rights.
 
-Alternatively, WalT also works with switch TP-Link T1500G-10PS. You just have to configure it to request
-its management IP through DHCP. Other default settings are OK.
+The switch Netgear GS324TP works equally well with WALT; It provides 24 PoE+ ports and has very similar
+network management features. However, it has no default SNMPv2 community configured, so you will have
+to connect to its web interface (http://<switch-ip>) to define an SNMPv2 community with read-write rights
+to be used by WALT.
+
+Alternatively, WalT was also tested with the switch TP-Link T1500G-10PS. You just have to configure it to
+request its management IP through DHCP. Other default settings are OK.
+
+At LIG, WalT also communicates with switches of the building network, which are Avaya 4850GTS-PWR+
+switches (48 PoE ports).
+These switches provide all optional remote management features useful for WALT too.
 
 Note: if you test another switch model, we would be happy to get the results of your test.
 
@@ -105,7 +118,7 @@ This setting also activates automatic power savings.
 Note that you cannot enable `poe.reboots` without enabling `lldp.explore` (since WalT needs to know on which PoE
 switch port a node is connected in order to hard-reboot it or power it off).
 
-For instance, on the netgear gs110tp in its default configuration, one may run:
+For instance, on the Netgear GS110TP in its default configuration, one may run:
 ```
 $ walt device config <switch-name> snmp.version=2 snmp.community='private' lldp.explore=true poe.reboots=true
 ```
