@@ -46,7 +46,7 @@ with read-write rights.
 
 The switch Netgear GS324TP works equally well with WALT; It provides 24 PoE+ ports and has very similar
 network management features. However, it has no default SNMPv2 community configured, so you will have
-to connect to its web interface (http://<switch-ip>) to define an SNMPv2 community with read-write rights
+to connect to its web interface (`http://<switch-ip>`) to define an SNMPv2 community with read-write rights
 to be used by WALT.
 
 Alternatively, WalT was also tested with the switch TP-Link T1500G-10PS. You just have to configure it to
