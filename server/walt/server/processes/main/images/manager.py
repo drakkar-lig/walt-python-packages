@@ -38,6 +38,7 @@ class NodeImageManager:
         self.db = server.db
         self.blocking = server.blocking
         self.dhcpd = server.dhcpd
+        self.named = server.named
         self.registry = server.registry
         self.store = NodeImageStore(server)
 
@@ -178,7 +179,8 @@ class NodeImageManager:
                     "set_image", node_mac, is_default
                 )
             self.db.commit()
-            wf = Workflow([self.store.wf_update_image_mounts, self.dhcpd.wf_update])
+            wf = Workflow([self.store.wf_update_image_mounts,
+                           self.dhcpd.wf_update, self.named.wf_update])
             wf.run()
             # inform requester
             if is_default:

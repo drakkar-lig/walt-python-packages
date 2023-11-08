@@ -44,14 +44,21 @@ class WaltGenericSetup(cli.Application):
                 systemd_dir=self._systemd_dir,
             )
 
+    def filter_out_missing_units(self, systemd_services):
+        return [unit for unit in systemd_services
+                if self.systemd_unit_exists(unit)]
+
     def disable_systemd_services(self, systemd_services):
         self._assert_init_is({"SYSTEMD", None})
+        systemd_services = self.filter_out_missing_units(systemd_services)
         for service in systemd_services:
             systemd.disable_unit(
                 service,
                 install_prefix=self._install_prefix,
                 systemd_dir=self._systemd_dir,
             )
+        if self._install_prefix is None:
+            systemd.stop_units(systemd_services)
 
     def systemd_unit_exists(self, unit_name):
         return systemd.unit_exists(unit_name, install_prefix=self._install_prefix)
@@ -78,6 +85,7 @@ class WaltGenericSetup(cli.Application):
             "Function stop_systemd_services() only works when install_prefix is not"
             " specified."
         )
+        systemd_services = self.filter_out_missing_units(systemd_services)
         systemd.stop_units(systemd_services)
 
     def force_update_symlink(self, src, dst):

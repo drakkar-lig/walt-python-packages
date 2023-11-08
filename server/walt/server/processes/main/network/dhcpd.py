@@ -6,7 +6,7 @@ from pathlib import Path
 
 from walt.common.netsetup import NetSetup
 from walt.server.processes.main.network.service import ServiceRestarter
-from walt.server.tools import get_dns_servers, get_server_ip, get_walt_subnet, ip
+from walt.server.tools import get_server_ip, get_walt_subnet, ip
 
 # STATE_DIRECTORY is set by systemd to the daemon's state directory.  By
 # default, it is /var/lib/walt
@@ -33,6 +33,9 @@ next-server %(walt_server_ip)s;
 option tftp-server-name "%(walt_server_ip)s";
 option ntp-servers %(walt_server_ip)s;
 option broadcast-address %(subnet_broadcast)s;
+option domain-name "walt";
+option domain-search "walt";
+option domain-name-servers %(walt_server_ip)s;
 
 # get the vendor class identifier if available
 if exists vendor-class-identifier {
@@ -123,7 +126,6 @@ subnet %(subnet_ip)s netmask %(subnet_netmask)s {
 
 group {
     option routers %(walt_server_ip)s;
-    option domain-name-servers %(dns_servers)s;
 
     # switches
 
@@ -199,7 +201,6 @@ def generate_dhcpd_conf(subnet, devices):
         subnet_ip=subnet.network_address,
         subnet_broadcast=subnet.broadcast_address,
         subnet_netmask=subnet.netmask,
-        dns_servers=", ".join(map(str, get_dns_servers())),
         walt_unallocated_ranges_conf="\n".join(range_confs),
     )
     for netsetup, netsetup_label in ((NetSetup.LAN, "lan"), (NetSetup.NAT, "nat")):

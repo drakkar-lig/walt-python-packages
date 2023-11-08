@@ -25,6 +25,7 @@ WALT_SERVICES = [
     "walt-server.service",
     "walt-server-netconfig.service",
     "walt-server-dhcpd.service",
+    "walt-server-named.service",
     "walt-server-tftpd.service",
     "walt-server-snmpd.service",
     "walt-server-lldpd.service",
@@ -40,6 +41,7 @@ WALT_SERVICES = [
 UNCOMPATIBLE_OS_SERVICES = [
     "tftpd-hpa.service",
     "isc-dhcp-server.service",
+    "named.service",
     "snmpd.service",
     "lldpd.service",
     "ptpd.service",

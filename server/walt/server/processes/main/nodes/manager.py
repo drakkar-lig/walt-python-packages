@@ -49,7 +49,8 @@ class NodesManager(object):
         self.vnodes = {}
         self.powersave = PowersaveManager(server)
         self.node_register_kwargs = dict(
-            images=server.images.store, dhcpd=server.dhcpd, registry=server.registry
+            images=server.images.store, dhcpd=server.dhcpd,
+            named=server.named, registry=server.registry
         )
 
     def prepare(self):

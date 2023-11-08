@@ -17,6 +17,7 @@ from walt.server.processes.main.interactive import InteractionManager
 from walt.server.processes.main.logs import LogsManager
 from walt.server.processes.main.network import tftp
 from walt.server.processes.main.network.dhcpd import DHCPServer
+from walt.server.processes.main.network.named import DNSServer
 from walt.server.processes.main.nodes.manager import NodesManager
 from walt.server.processes.main.registry import WalTLocalRegistry
 from walt.server.processes.main.settings import SettingsManager
@@ -43,6 +44,7 @@ class Server(object):
         self.logs = LogsManager(self.db, self.tcp_server, self.blocking, self.ev_loop)
         self.devices = DevicesManager(self)
         self.dhcpd = DHCPServer(self.db, self.ev_loop)
+        self.named = DNSServer(self.db, self.ev_loop)
         self.images = NodeImageManager(self)
         self.interaction = InteractionManager(self.tcp_server, self.ev_loop)
         self.unix_server = UnixSocketServer()
@@ -65,6 +67,7 @@ class Server(object):
         # to communicate with them when trying to update
         # the topology.
         self.dhcpd.update(force=True)
+        self.named.update(force=True)
         self.images.prepare()
         self.devices.prepare()
         self.nodes.prepare()
@@ -142,7 +145,12 @@ class Server(object):
         if status in ("new", "unknown") and info["type"] == "node":
             # register the walt node or convert the unknown device to a walt node
             self.nodes.register_node(mac=mac, model=info.get("model"))
-        self.dhcpd.update()
+        else:
+            # note: if registering a node (other if case, just above),
+            # self.nodes.register_node() takes care of updating dhcpd and named
+            # at the end of its procedure.
+            self.dhcpd.update()
+            self.named.update()
 
     def get_device_info(self, device_mac):
         return dict(self.devices.get_complete_device_info(device_mac)._asdict())
@@ -151,6 +159,7 @@ class Server(object):
         result = self.devices.rename(requester, old_name, new_name)
         if result is True:
             self.dhcpd.update()
+            self.named.update()
             tftp.update(self.db, self.images.store)
         return result
 
@@ -165,6 +174,7 @@ class Server(object):
         # function that will be called when blocking process has done the job
         def cb(res):
             self.dhcpd.update()
+            self.named.update()
             tftp.update(self.db, self.images.store)
             task.return_result(res)
 
@@ -196,6 +206,7 @@ class Server(object):
         self.logs.forget_device(device)
         self.db.forget_device(device.name)
         self.dhcpd.update()
+        self.named.update()
         wf.next()
 
     def wf_unblock_client(self, wf, task, **env):

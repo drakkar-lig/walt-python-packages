@@ -17,12 +17,17 @@ MIN_DELAY_BETWEEN_SERVICE_RESTARTS = 5
 
 
 class ServiceRestarter:
-    def __init__(self, ev_loop, short_service_name, systemd_service_name):
+    def __init__(self, ev_loop, short_service_name, systemd_service_name,
+                 allow_reload=False):
         self.ev_loop = ev_loop
         self.short_service_name = short_service_name
         self.systemd_service_name = systemd_service_name
         self.service_version = 0
         self.config_version = 0
+        if allow_reload:
+            self.systemd_op = "reload-or-restart"
+        else:
+            self.systemd_op = "restart"
         self.restarting = False
         self.callbacks = {}
 
@@ -65,4 +70,6 @@ class ServiceRestarter:
                     ts=target_ts, callback=self.restart_service_loop
                 )
 
-            self.ev_loop.do(f"systemctl restart {self.systemd_service_name}", callback)
+            self.ev_loop.do(
+                    f"systemctl {self.systemd_op} {self.systemd_service_name}",
+                    callback)

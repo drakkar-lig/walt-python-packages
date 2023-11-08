@@ -48,7 +48,7 @@ def handle_registration_request(
             logs,
         )
         wf_steps += [wf_pull_image, wf_after_pull_image]
-    wf_steps += [wf_update_device_in_db, images.wf_update_image_mounts, wf_dhcpd_update]
+    wf_steps += [wf_update_device_in_db, images.wf_update_image_mounts, wf_dhcpd_named_update]
     wf = Workflow(wf_steps, **full_kwargs)
     wf.run()
 
@@ -85,7 +85,8 @@ def wf_update_device_in_db(wf, devices, mac, model, image_fullname, **env):
     wf.next()
 
 
-def wf_dhcpd_update(wf, dhcpd, **env):
-    # refresh the dhcpd conf
+def wf_dhcpd_named_update(wf, dhcpd, named, **env):
+    # refresh the dhcpd and named (DNS) conf
     dhcpd.update()
+    named.update()
     wf.next()

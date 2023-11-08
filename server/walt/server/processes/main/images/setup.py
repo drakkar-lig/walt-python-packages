@@ -13,7 +13,7 @@ from walt.common.constants import (
 from walt.common.tools import do, failsafe_makedirs, failsafe_symlink, get_mac_address
 from walt.server.const import WALT_INTF, WALT_NODE_NET_SERVICE_PORT
 from walt.server.processes.main.images import spec
-from walt.server.tools import get_dns_servers, get_server_ip, update_template
+from walt.server.tools import get_server_ip, update_template
 
 # List scripts to be installed on the node and indicate
 # if they contain template parameters that should be
@@ -44,6 +44,12 @@ TEMPLATE_ENV = dict(
     walt_server_notify_bootup_port=WALT_SERVER_TCP_PORT,
     walt_node_net_service_port=WALT_NODE_NET_SERVICE_PORT,
 )
+
+RESOLV_CONF = """
+domain walt
+search walt.
+nameserver %(nameserver)s
+"""
 
 # when using walt, nodes often get new operating system
 # images, and usually each of these images has a new
@@ -176,14 +182,11 @@ def setup(mount_path):
         Path(mount_path + path).write_bytes(content)
     # ensure /etc/hosts has correct rights
     os.chmod(mount_path + "/etc/hosts", 0o644)
-    # set node DNS servers
-    if os.path.exists(mount_path + "/etc/resolv.conf"):
-        os.rename(
-            mount_path + "/etc/resolv.conf", mount_path + "/etc/resolv.conf.saved"
-        )
-    with open(mount_path + "/etc/resolv.conf", "w") as f:
-        for resolver in get_dns_servers():
-            f.write("nameserver {}\n".format(resolver))
+    # update /etc/resolv.conf
+    resolv_conf = Path(mount_path + "/etc/resolv.conf")
+    if resolv_conf.exists():
+        resolv_conf.rename(resolv_conf.parent / "resolv.conf.saved")
+    resolv_conf.write_text(RESOLV_CONF % dict(nameserver=get_server_ip()))
     if os.path.isfile(mount_path + "/etc/hostname") and not os.path.islink(
         mount_path + "/etc/hostname"
     ):
