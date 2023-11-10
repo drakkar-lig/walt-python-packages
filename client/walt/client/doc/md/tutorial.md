@@ -141,7 +141,7 @@ The following nodes are running one of your images:
 
 name           type  image            ip             reachable
 -------------  ----  ---------------  -------------  ---------
-rpi-D314-1     rpi   rpi-jessie       192.168.12.16  yes
+rpi-D314-1     rpi   rpi-debian       192.168.12.16  yes
 rpi-D314-jtag  rpi   rpi-jtag-target  192.168.12.2   yes
 [...]
 
@@ -177,8 +177,8 @@ $ walt help show node-ownership
 
 ## The images
 
-In the previous section we’ve seen that a Raspberry Pi was running an image named `rpi-jessie`. Let’s have a little explanation.
-An image is the operating system a device is running. For example `rpi-jessie` is a lightweight Debian Jessie built for Raspberry Pi.
+In the previous section we’ve seen that a Raspberry Pi was running an image named `rpi-debian`. Let’s have a little explanation.
+An image is the operating system a node is running. For example `rpi-debian` is a lightweight Debian OS built for Raspberry Pi.
 
 You can have a look at “your” images with the command:
 
@@ -188,8 +188,8 @@ Name             Mounted  Created              Ready
 ---------------  -------  -------------------  -----
 rpi-default      False    2016-02-25 17:57:56  True
 rpi-default-2    False    2016-04-11 11:01:03  True
-rpi-jessie-test  True     2016-02-25 17:57:56  True
-rpi-jessie       True     2016-02-29 10:35:02  True
+rpi-debian-test  True     2016-02-25 17:57:56  True
+rpi-debian       True     2016-02-29 10:35:02  True
 rpi-openocd      False    2016-03-23 18:06:03  True
 $
 ```
@@ -205,11 +205,11 @@ You can `search` for images available for cloning as follows:
 $ walt image search jessie
 User          Image name       Location           Clonable link
 ------------  ---------------  -----------        ----------------------------
-brunisholz    rpi-jessie       walt (other user)  walt:brunisholz/rpi-jessie
-eduble        rpi-jessie-test  docker hub         hub:eduble/rpi-jessie-test
-onss          rpi-jessie       walt (other user)  walt:onss/rpi-jessie
-waltplatform  rpi-jessie       docker hub         hub:waltplatform/rpi-jessie
-zyta          rpi-jessie       docker daemon      docker:zyta/rpi-jessie
+brunisholz    rpi-debian       walt (other user)  walt:brunisholz/rpi-debian
+eduble        rpi-debian-test  docker hub         hub:eduble/rpi-debian-test
+onss          rpi-debian       walt (other user)  walt:onss/rpi-debian
+waltplatform  rpi-debian       docker hub         hub:waltplatform/rpi-debian
+zyta          rpi-debian       docker daemon      docker:zyta/rpi-debian
 $
 ```
 
@@ -226,16 +226,30 @@ In the third case, only images of other users are listed, since the images you a
 Let’s choose one and clone it:
 
 ```console
-$ walt image clone walt:brunisholz/rpi-jessie
+$ walt image clone walt:brunisholz/rpi-debian
 [...]
 $
 ```
 
-After this operation, **your** image `rpi-jessie` will be listed when you type `walt image show`.
+After this operation, **your** image `rpi-debian` will be listed when you type `walt image show`.
 
-For now, your image `rpi-jessie` is just a clone of image `rpi-jessie` of WalT user `brunisholz`. But you can modify it, as we will show below.
+For now, your image `rpi-debian` is just a clone of image `rpi-debian` of WalT user `brunisholz`. But you can modify it, as we will show below.
 
-## Customizing your image
+
+## Notes on the usual workflow of WalT users
+
+WalT users usually follow these steps when using WalT:
+1. Adapt an OS image (or several ones) to the needs of the experiment.
+2. Let nodes run the modified OS images.
+3. Monitor the experiment, and possibly interact with nodes if something could not be automated on OS startup. Of course, if something is not working as expected, one might need to return to step 1 for further OS image changes. The experiment monitoring may be automated by using the logging system: see [`walt help show logging`](logging.md).
+4. If the experiment gave good results, publish OS images for allowing experiment reproducibility.
+
+It is still possible to modify things while the node is running (i.e., at step 3 instead of step 1).
+This is mostly useful in the debugging phase, because step 1 is done in a virtual and limited environment (since the OS is not running on the node yet).
+However, for the sake of reproducibility, it is better to have everything set up and automated in the WalT OS image before publishing it.
+
+
+## Workflow step 1: Customizing your image
 
 *N.B. Operations on the raspberry pi images require ARM emulation on WalT server side. This leads to a slower behavior.*
 
@@ -244,7 +258,7 @@ We will modify our image in order to allow two nodes to play a network ping pong
 A powerful way to modify an image is to use a shell:
 
 ```console
-$ walt image shell rpi-jessie
+$ walt image shell rpi-debian
 ```
 
 You should now be logged into the image as indicated by the prompt:
@@ -253,10 +267,11 @@ You should now be logged into the image as indicated by the prompt:
 root@image-shell:~#
 ```
 
-Now install `avahi-daemon` in order to allow discovery through the devices and `netcat` to set up a lightweight client/server architecture.
+Now install `netcat` to set up a lightweight client/server architecture.
 
 ```console
-root@image-shell:~# apt-get install avahi-daemon netcat
+root@image-shell:~# apt update
+root@image-shell:~# apt install netcat-openbsd
 ```
 
 Now go to the root directory, create and edit a file named pong.sh. It will be our master server:
@@ -312,6 +327,7 @@ Now create and edit a file named ping.sh and put it the following code. This wil
 ```bash
 #!/bin/bash
 
+server="$1"
 # This function is used by netcat to write the appropriate
 # response when receiving a specific message
 function nc_fct() {
@@ -338,8 +354,8 @@ fifo="fifo";
 # This will be used by netcat in order to listen/send messages
 [ -p $fifo ] || mkfifo $fifo;
 
-# Connect to the server using name resolution provided by avahi
-netcat rpi-sw3-3-pong.local 12345 < $fifo | nc_fct 1> $fifo &
+# Connect to the server running on the other node
+netcat "$server" 12345 < $fifo | nc_fct 1> $fifo &
 # Send the first ping to initialize the game
 echo 'ping' > $fifo
 # Print it on stderr in order to see it. We could have use stdout
@@ -353,52 +369,51 @@ root@image-shell:~# chmod +x pong.sh
 ```
 
 Now exit the container by pressing `CTRL + D` or by typing `exit` in the terminal.
-You will be asked for an image name. You can keep `rpi-jessie` or save this modified image with a new name.
+You will be asked for an image name. You can keep `rpi-debian` or save this modified image with a new name.
 Let’s call it `rpi-entertainment` for example.
 
 Your freshly customized image should now appear if you type `walt image show`.
 
-## Deploying an image
+
+## Workflow step 2: Letting nodes boot our modified image
 
 In order to make two of our Raspberry Pi play together, we will have to boot our new image on them.
 
 First, choose two Raspberry Pi we will use:
 
 ```console
-$ walt node show
+$ walt node show --all
 [...]
-The following nodes are free (they have never been used):
+The following nodes are free:
 
 name       type  ip             reachable
 ---------  ----  -------------  ---------
-rpi_sw3_3  rpi   192.168.12.16  yes
-rpi_sw3_2  rpi   192.168.12.56  yes
+rpi-sw3-3  rpi   192.168.12.16  yes
+rpi-sw3-2  rpi   192.168.12.56  yes
 
 [...]
 ```
 
-We will boot our image on `rpi_sw3_3` and `rpi_sw3_2`, but first we will rename them:
+We will boot our image on `rpi-sw3-3` and `rpi-sw3-2`, but first we will rename them:
 
 ```console
-$ walt device rename rpi_sw3_3 rpi-sw3-3-pong
-$ walt device rename rpi_sw3_2 rpi-sw3-2-ping
+$ walt device rename rpi-sw3-3 rpi-sw3-3-pong
+$ walt device rename rpi-sw3-2 rpi-sw3-2-ping
 ```
 
-> ***Naming Convention:*** *We propose the following naming convention inside the Drakkar Team:* \
+> ***Naming Convention:*** *We propose the following naming convention at LIG:* \
 > `[shortenedDeviceType]-[geographicalLocation|switchLocation]-[freeSuffix]` \
 > *We prefer the geographical (i.e. office name) over switchLocation as it eases maintenance if needed.
-> For example a Raspberry Pi located in the D317 office could be named:* \
+> For example a Raspberry Pi located in office D317 could be named:* \
 > `rpi-D317-tutorial`
 
 Then we boot nodes:
 
 ```console
-$ walt node boot rpi-sw3-3-pong rpi-entertainment
-Node rpi-sw3-3-pong will now boot rpi-entertainment.
-Node rpi-sw3-3-pong: rebooted ok.
-$ walt node boot rpi-sw3-2-ping rpi-entertainment
-Node rpi-sw3-2-ping will now boot rpi-entertainment.
-Node rpi-sw3-2-ping: rebooted ok.
+$ walt node boot rpi-sw3-2-ping,rpi-sw3-3-pong rpi-entertainment
+Nodes rpi-sw3-2-ping and rpi-sw3-3-pong will now boot rpi-entertainment.
+Nodes rpi-sw3-2-ping and rpi-sw3-3-pong: rebooted ok.
+$
 ```
 
 Nodes are now booting the OS contained in our image.
@@ -408,7 +423,7 @@ $ walt node wait rpi-sw3-2-ping,rpi-sw3-3-pong
 ```
 The command will return when nodes are ready.
 
-## Connecting to devices and monitoring experimentations
+## Workflow step 3: Connecting to nodes and monitoring the experiment
 
 Now that our image is running on two nodes, we can connect to them and start the ping pong game.
 
@@ -427,7 +442,7 @@ $ walt node shell rpi-sw3-2-ping
 Caution: changes outside /persist will be lost on next node reboot.
 Run 'walt help show shells' for more info.
 
-root@rpi-sw3-2-ping:~# ./ping.sh
+root@rpi-sw3-2-ping:~# ./ping.sh rpi-sw3-3-pong
 ```
 
 They should start playing ping pong together!
@@ -442,12 +457,12 @@ root@rpi-sw3-3-pong:~# walt-monitor ./pong.sh
 On the ping client:
 
 ```console
-root@rpi-sw3-2-ping:~# walt-monitor ./ping.sh
+root@rpi-sw3-2-ping:~# walt-monitor ./ping.sh rpi-sw3-3-pong
 ```
 
 You can then see the logs by typing the `walt log show --realtime` command in another terminal.
 
-## Publishing your image
+## Workflow step 4: Publishing your image
 
 If you are happy with your new `rpi-entertainment` image, you might want to publish it on the docker hub.
 This will allow researchers around the world to clone your image and replay your experiment.
