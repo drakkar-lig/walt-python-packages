@@ -1,0 +1,94 @@
+#!/bin/sh
+. walt-script-common
+set +e  # if the subscript fails, we will handle the error
+
+mode="$1"
+log_dir="$2"
+script_name="$3"
+shift 3
+script_args="$@"
+
+# When logs are enabled, we want to monitor our shell scripts
+# by running them with 'sh -x' and redirecting stderr to a file
+# in /persist.
+
+# However, if the walt server restarts, /persist will be lost
+# which, together with the '-x' setting, will prevent any single
+# shell command to run properly, including within a EXIT handler.
+# Thus such a script is not even able to trigger a reboot.
+
+# Consequently, we run this thin wrapper script, responsible
+# for setting up logging and then running the requested command
+# (i.e., another script, given in args); and this wrapper is run
+# without the -x option. It will handle any unexpected exit of
+# the requested command.
+
+# we concatenate to possibly existing content
+# from previous bootups, so we add a header with a date.
+_banner() {
+    echo
+    echo "-----"
+    busybox date
+}
+
+# start requested command with '-x' and proper redirection.
+# we have to emulate "pipefail" because busybox sh does not
+# have it.
+# fd 3: real stdout
+# fd 4: real stderr
+# fd 5: result channel
+# we log stderr but do not print it because of the "-x" option
+# which is very verbose. details are only in the log file.
+_logging_function() {
+    log_file_base="$1"
+    script_path="$(busybox which $script_name)"
+    {
+        res=$(
+        {
+            {
+                {
+                    sh -x "$script_path" $script_args
+                    echo $? >&5
+                } | busybox tee -a $log_file_base.out >&3
+            } 2>&1 | busybox tee -a $log_file_base.err >/dev/null
+        } 5>&1)
+        if [ "$res" != 0 ]
+        then
+            echo "Error dectected, see $script_name.err log file." >&4
+        fi
+        return $res
+    } 3>&1 4>&2
+}
+
+_main() {
+    if [ ! -z "$log_dir" ]
+    then
+        log_file_base="$log_dir/$script_name"
+        _banner >>$log_file_base.out
+        _banner >>$log_file_base.err
+        _logging_function "$log_file_base"
+    else
+        $script_name $script_args
+    fi
+    result=$?
+    if [ "$result" -ne 0 ]
+    then
+        echo "$script_name returned with exit failure." >/dev/console
+        trigger_walt_reboot reboot
+    fi
+    allow_script_exit
+    return $result
+}
+
+if [ ! -z "$log_dir" ]
+then
+    boot_step_label_cr      "Logging ${script_name} at /persist/logs/walt-init" >&2
+fi
+
+if [ "$mode" = "bg" ]
+then
+    _main &
+    allow_script_exit
+else
+    _main
+fi

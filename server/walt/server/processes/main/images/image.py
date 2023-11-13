@@ -128,6 +128,10 @@ class NodeImage(object):
     def editable(self):
         return self.metadata["editable"]
 
+    @property
+    def size_kib(self):
+        return self.metadata["size_kib"]
+
     def get_node_models(self):
         return self.node_models
 

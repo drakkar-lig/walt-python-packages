@@ -16,24 +16,31 @@ from walt.server.processes.main.images import spec
 from walt.server.tools import get_server_ip, update_template
 
 # List scripts to be installed on the node and indicate
-# if they contain template parameters that should be
-# updated.
+# * if they contain template parameters that should be updated
+# * if they should be moved to directory "/bin/_walt_internal_/"
 NODE_SCRIPTS = {
-    "walt-env": True,
-    "walt-log-echo": False,
-    "walt-log-cat": False,
-    "walt-log-tee": False,
-    "walt-echo": False,
-    "walt-cat": False,
-    "walt-tee": False,
-    "walt-timeout": False,
-    "walt-rpc": True,
-    "walt-clock-sync": False,
-    "walt-notify-bootup": False,
-    "walt-init": False,
-    "walt-fs-watchdog": False,
-    "walt-net-service": True,
-    "walt-tar-send": False,
+    "walt-env": (True, False),
+    "walt-log-echo": (False, False),
+    "walt-log-cat": (False, False),
+    "walt-log-tee": (False, False),
+    "walt-echo": (False, False),
+    "walt-cat": (False, False),
+    "walt-tee": (False, False),
+    "walt-timeout": (False, True),
+    "walt-rpc": (True, True),
+    "walt-clock-sync": (False, True),
+    "walt-notify-bootup": (False, True),
+    "walt-init": (False, False),
+    "walt-fs-watchdog": (False, True),
+    "walt-net-service": (False, True),
+    "walt-net-service-handler": (False, True),
+    "walt-tar-send": (False, True),
+    "walt-boot-modes": (False, True),
+    "walt-script-common": (False, True),
+    "walt-log-script": (False, True),
+    "walt-init-rootfs": (False, True),
+    "walt-init-rootfs-main": (False, True),
+    "walt-init-finalfs": (False, True),
 }
 
 TEMPLATE_ENV = dict(
@@ -159,7 +166,7 @@ def fix_absolute_symlinks(image_root, dirpath):
             fix_if_absolute_symlink(image_root, path)
 
 
-def setup(mount_path):
+def setup(image_id, mount_path, image_size_kib):
     # ensure FILES var is completely defined
     if FILES["/root/.ssh/authorized_keys"] is None:
         # ensure server has a pub key
@@ -196,17 +203,28 @@ def setup(mount_path):
     # fix compatbility with old walt-node packages
     if os.path.exists(mount_path + "/usr/local/bin/walt-echo"):
         os.remove(mount_path + "/usr/local/bin/walt-echo")
-    # copy walt scripts in <image>/bin, update template parameters
+    # copy walt scripts in <image>/bin/ or <image>/bin/_walt_internal_/,
+    # update template parameters
     image_bindir = mount_path + "/bin/"
-    for script_name, template in NODE_SCRIPTS.items():
-        shutil.copy(script_path(script_name), image_bindir)
+    image_widir = image_bindir + '_walt_internal_/'
+    Path(image_widir).mkdir(exist_ok=True)
+    env = dict(walt_image_id=image_id,
+               walt_image_size_kib=image_size_kib,
+               **TEMPLATE_ENV)
+    for script_name, script_info in NODE_SCRIPTS.items():
+        template, internal = script_info
+        if internal:
+            dst_dir = image_widir
+        else:
+            dst_dir = image_bindir
+        shutil.copy(script_path(script_name), dst_dir)
         if template:
-            update_template(image_bindir + script_name, TEMPLATE_ENV)
+            update_template(dst_dir + script_name, env)
     # read image spec file if any
     image_spec = spec.read_image_spec(mount_path)
     if image_spec is not None:
         # update template files specified there
-        spec.update_templates(mount_path, image_spec, TEMPLATE_ENV)
+        spec.update_templates(mount_path, image_spec, env)
         # update features matching those of the server
         spec.enable_matching_features(mount_path, image_spec)
     # copy server spec file, just in case

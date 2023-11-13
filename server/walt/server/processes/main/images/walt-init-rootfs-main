@@ -1,0 +1,24 @@
+#!/bin/busybox sh
+
+# preparation work
+. walt-script-common
+. walt-boot-modes
+. walt-clock-sync
+# setting clock
+boot_step_label_cr          "Setting clock..."
+sync_clock
+# boot mode detection
+boot_step_label_cr          "Detecting boot-mode..."
+exec 6>&1  # provide an alias to stdout for detect_boot_mode()
+boot_mode="$(detect_boot_mode)"
+exec 6>&-
+# mount the final root (at /mnt/finalfs for now)
+mount_finalfs $boot_mode
+# record boot_mode in walt-env for handling reboots properly
+grep -v "walt_boot_mode=" /mnt/finalfs/bin/walt-env > /mnt/finalfs/bin/walt-env.new
+echo "export walt_boot_mode='${boot_mode}'" >> /mnt/finalfs/bin/walt-env.new
+mv /mnt/finalfs/bin/walt-env.new /mnt/finalfs/bin/walt-env
+# mount secondary filesystems
+mount_secondaryfs $boot_mode
+# the process now returns to bin/_walt_internal_/walt-init-rootfs
+allow_script_exit

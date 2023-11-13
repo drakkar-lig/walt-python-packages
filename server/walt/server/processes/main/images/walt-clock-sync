@@ -1,47 +1,28 @@
 #!/bin/sh
-set -e
-
-DELAY_BEFORE_REBOOT=10
 SYNC_CLOCK_TIMEOUT=3
 TRIALS=5
 
-do_reboot()
-{
-    # if we got here as part of a clean OS shutdown,
-    # let the OS complete this shutdown
-    sleep ${DELAY_BEFORE_REBOOT}
-    reboot -f
+sync_clock() {
+    ts="none"
+    trials=$TRIALS
+    while [ $trials -gt 0 ]
+    do
+        trials=$((trials-1))
+        # get timestamp from server (format epoch)
+        ts=$(/bin/walt-timeout $SYNC_CLOCK_TIMEOUT /bin/walt-rpc sync_clock) || continue
+        break
+    done
+
+    if [ "$ts" = "none" ]
+    then
+        echo "walt-clock-sync: failed $TRIALS times."
+        trigger_walt_reboot reboot
+        exit 1
+    fi
+
+    # set local clock
+    # (if '@' epoch format is recognised, use it, otherwise convert
+    # before setting date)
+    busybox date -s @$ts 2>/dev/null || \
+    busybox date -s "$(busybox date -D "%s" -d $ts "+%Y-%m-%d %H:%M:%S")"
 }
-
-on_untimely_exit()
-{
-    echo "Time synchronization failed. Will reboot."
-    do_reboot
-}
-
-trap on_untimely_exit EXIT
-
-ts="none"
-trials=$TRIALS
-while [ $trials -gt 0 ]
-do
-    trials=$((trials-1))
-    # get timestamp from server (format epoch)
-    ts=$(/bin/walt-timeout $SYNC_CLOCK_TIMEOUT /bin/walt-rpc sync_clock) || continue
-    break
-done
-
-if [ "$ts" = "none" ]
-then
-    echo "Failed $TRIALS times."
-    exit 1
-fi
-
-# set local clock
-# (if '@' epoch format is recognised, use it, otherwise convert
-# before setting date)
-busybox date -s @$ts 2>/dev/null || \
-busybox date -s "$(busybox date -D "%s" -d $ts "+%Y-%m-%d %H:%M:%S")"
-
-# all done, remove the trap on EXIT
-trap '' EXIT

@@ -15,8 +15,8 @@ def reboot_nodes(nodes, powersave, **env):
     env.update(remaining_nodes=list(nodes))
     wf = Workflow(
         [
-            wf_reboot_virtual_nodes,
             wf_soft_reboot_nodes,
+            wf_hard_reboot_virtual_nodes,
             wf_hard_reboot_nodes,
             wf_reply_requester,
         ],
@@ -26,14 +26,14 @@ def reboot_nodes(nodes, powersave, **env):
     wf.run()
 
 
-def wf_reboot_virtual_nodes(wf, nodes_manager, remaining_nodes, **env):
+def wf_hard_reboot_virtual_nodes(wf, nodes_manager, remaining_nodes, **env):
     # check for virtual vs physical nodes
     # and hard reboot vnodes by killing their VM
     vmrebooted = []
     for node in remaining_nodes.copy():
         if node.virtual:
-            # restart VM (this will restart the node if running)
-            nodes_manager.start_vnode(node)
+            # restart VM
+            nodes_manager.vnode_hard_reboot(node.mac)
             # move node to 'vmrebooted' category
             remaining_nodes.remove(node)
             vmrebooted.append(node.name)

@@ -1,5 +1,5 @@
+import base64
 import random
-import signal
 
 from walt.server.const import SSH_COMMAND
 from walt.server.popen import BetterPopen
@@ -27,10 +27,10 @@ MSG_NOT_VIRTUAL = "WARNING: %s is not a virtual node. IGNORED.\n"
 FS_CMD_PATTERN = SSH_COMMAND + ' root@%(fs_id)s "sh"'  # use node_ip as our fs ID
 
 CMD_START_VNODE = (
-    "walt-virtual-node --mac %(mac)s --ip %(ip)s --model %(model)s --hostname %(name)s"
+    "walt-virtual-node --hostname %(name)s --mac %(mac)s --ip %(ip)s --model %(model)s"
     "                  --server-ip %(server_ip)s --cpu-cores %(cpu_cores)d"
     "                  --ram %(ram)s --disks %(disks)s --networks %(networks)s"
-    "                  --boot-delay %(boot_delay)s"
+    "                  --boot-delay %(boot_delay)s --managed"
 )
 
 
@@ -146,9 +146,6 @@ class NodesManager(object):
         return free_mac, free_ip, "pc-x86-64"
 
     def start_vnode(self, node):
-        # in case a screen session already exists for this vnode
-        # (e.g. walt server process was killed), kill it
-        self.try_kill_vnode(node.mac)
         # start vnode
         cmd = CMD_START_VNODE % dict(
             mac=node.mac,
@@ -166,23 +163,28 @@ class NodesManager(object):
         popen = BetterPopen(
             self.ev_loop,
             cmd,
-            lambda popen: popen.send_signal(signal.SIGTERM),
+            lambda popen: popen.stdin.write(b'EXIT\n'),
             shell=False,
         )
         listener = self.logs.monitor_file(popen.stdout, node.ip, "virtualconsole")
         self.vnodes[node.mac] = popen, listener
 
+    def vnode_hard_reboot(self, node_mac):
+        popen = self.vnodes[node_mac][0]
+        popen.stdin.write(b'KILL_VM\n')
+
     def vnode_console_input(self, node_mac, buf):
         # qemu has escape sequences starting with <ctrl-a>. we do not want
         # to let them accessible to the user.
-        # to send a <ctrl-a> to the quest, we send <ctrl-a><ctrl-a> to qemu.
+        # to send a <ctrl-a> to the guest, we send <ctrl-a><ctrl-a> to qemu.
         if buf == b"\x01":
             buf = b"\x01\x01"
         popen = self.vnodes[node_mac][0]
-        try:
-            popen.stdin.write(buf)
-        except Exception:
-            print("vnode_console_input to {node_mac} failed: {e}")
+        popen.stdin.write(b'INPUT ' + base64.b64encode(buf) + b'\n')
+
+    def vnode_update_vm_setting(self, node_mac, setting_name, setting_value):
+        popen = self.vnodes[node_mac][0]
+        popen.stdin.write(f"CONF {setting_name} {setting_value}\n".encode("ascii"))
 
     def get_node_info(self, requester, node_name):
         device_info = self.devices.get_device_info(requester, node_name)

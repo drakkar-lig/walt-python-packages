@@ -1,0 +1,198 @@
+#!/bin/sh
+
+# we expect the 1st argument to be "logged",
+# if not we do a recursive call with logging enabled
+if [ -z "$1" ]
+then
+    # recursive call with logging enabled
+    log_dir="/persist/logs/walt-init"
+    if [ ! -d "$log_dir" ]
+    then
+        log_dir=""
+    fi
+    exec walt-log-script fg "$log_dir" "walt-net-service-handler" "logged"
+fi
+
+# real startup of the client handler
+. walt-script-common
+MSG_NO_BLINK_EXEC='/bin/blink unavailable or not executable on image'
+MSG_BLINK_FAILED='/bin/blink returned a non-zero error code'
+
+echo "[walt:bg] walt-net-service-handler started." >&2
+
+timely_input() {
+    while true
+    do
+        if ! wait_for_input_line_shortly $1
+        then
+            # send notification message on fd 7
+            echo "SHELL-TIMEOUT" >&7
+            return 1
+        fi
+    done
+}
+
+shell_with_timeout() {
+    exec 7>&1
+    timely_input 15 | busybox sh -i 2>&1 || true
+    exec 7>&-
+}
+
+# Some versions of nc only close when there stdin is closed.
+# the remote peer closing the connection is not enough, and
+# could cause the "nc -l" process to block (with its socket
+# in TCP CLOSE_WAIT state). In this case, walt-net-service
+# is completely unusable: the code will not accept new
+# connections.
+# In this code, we force nc to close by using a command
+# `<proc> | nc -l` and let <proc> stop when needed.
+
+# The walt server uses one short-lived connection for each
+# request. This is the mode named "single" below. In this mode
+# <proc> stops after having processed each request.
+
+# Another use of this service is for debugging:
+# $ nc <node-ip> 12346
+# MODE multi
+# PING
+# OK
+# SHELL
+# OK
+# ...
+# CLOSE
+# In this mode named "multi", the server handles several
+# contiguous requests on the same connection.
+# As mentionned above, there is a risk of blocking the "nc -l"
+# process if the user forgets to run CLOSE.
+# To avoid this, we implement a timeout when reading requests
+# in this mode.
+# We also implement a timeout for SHELL command inputs.
+# Note: unfortunately, there may still be ways to block the
+# process such as letting a command such as "busybox top" run
+# indefinitely in a SHELL session.
+
+get_custom_walt_reboot_script() {
+    # custom rebooting is disabled for virtual nodes
+    # "vnode_mode" was passed as an env variable
+    if [ "$vnode_mode" -eq 1 ]
+    then
+        return
+    fi
+    if [ "${walt_boot_mode}" = "network" ]
+    then
+        # /bin/walt-network-reboot (new image)
+        if [ -e "/bin/walt-network-reboot" ]; then
+            echo "/bin/walt-network-reboot"
+            return
+        fi
+        # legacy /bin/walt-reboot (old image)
+        if [ -e "/bin/walt-reboot" ]; then
+            echo "/bin/walt-reboot"
+            return
+        fi
+    else    # hybrid boot
+        # /bin/walt-hybrid-reboot (new image)
+        if [ -e "/bin/walt-hybrid-reboot" ]; then
+            echo "/bin/walt-hybrid-reboot"
+            return
+        fi
+        # note: hybrid boot is unknown for old images
+    fi
+}
+
+# handle one client connection
+handle_one_connection() {
+    mode="unknown"
+    while true
+    do
+        # timeout if no more input on the connection
+        if line="$(wait_for_input_line_shortly 15)"
+        then
+            if [ -z "$line" ]
+            then
+                echo "Empty read, stopping" >&2
+                break
+            fi
+            set -- $line
+            if [ $# -eq 0 ]  # if blank line, continue
+            then
+                continue
+            fi
+            req="$1"; shift; args="$@"
+        else
+            echo "TIMEOUT Closing on my side."
+            break
+        fi
+
+        if [ "$req" = "CLOSE" ]; then
+            echo "OK Closing on my side."
+            break
+        fi
+
+        if [ "$req" = "MODE" ]
+        then
+            mode=$args
+            continue
+        else
+            if [ "$mode" = "unknown" ]
+            then
+                echo KO 'Start by specifying "MODE [single|multi]". Closing on my side.'
+                break
+            fi
+        fi
+
+        # respond to server if it checks whether we are alive
+        if [ "$req" = "PING" ]; then echo OK; fi
+
+        # respond to DMESG requests
+        if [ "$req" = "DMESG" ]; then echo OK; echo; busybox dmesg; fi
+
+        # respond to SHELL requests
+        if [ "$req" = "SHELL" ]; then
+            echo OK; echo
+            shell_with_timeout
+            echo END-OF-SHELL
+        fi
+
+        # reboot the node when we receive REBOOT
+        if [ "$req" = "REBOOT" ]; then
+            custom_script=$(get_custom_walt_reboot_script)
+            if [ ! -z "$custom_script" ]
+            then
+                # try to run it
+                if [ -x "$custom_script" ]; then
+                    echo OK
+                    trigger_walt_reboot walt-custom-reboot $custom_script
+                else
+                    echo KO $custom_script is not executable on image
+                fi
+            else
+                echo OK
+                trigger_walt_reboot reboot
+            fi
+        fi
+
+        # start /bin/blink [0|1] when we receive BLINK [0|1]
+        if [ "$req" = "BLINK" ]; then
+            if [ -x "/bin/blink" ]; then
+                if /bin/blink $args; then
+                    # all is fine
+                    echo OK
+                else
+                    # /bin/blink apparently failed
+                    echo KO $MSG_BLINK_FAILED
+                fi
+            else
+                # no /bin/blink on this image
+                echo KO $MSG_NO_BLINK_EXEC
+            fi
+        fi
+
+        # if not in mode "multi", exit.
+        if [ "$mode" != "multi" ]; then break; fi
+    done
+}
+
+handle_one_connection
+echo "[walt:bg] walt-net-service-handler: ending." >&2
+allow_script_exit

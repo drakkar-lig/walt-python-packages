@@ -39,16 +39,17 @@ Here is the set of settings currently allowed:
 | netsetup       | 'NAT' or 'LAN'          | devices of walt-net | (3)   |
 | ram            | e.g. '384M' or '1G'     | virtual nodes       |       |
 | cpu.cores      | e.g. 1 or 4             | virtual nodes       |       |
-| disks          | e.g. '8G' or '32G,1T'   | virtual nodes       |       |
+| disks          | e.g. '8G' or '32G,1T'   | virtual nodes       | (4)   |
 | boot.delay     | e.g. 2 or 'random'      | virtual nodes       |       |
-| networks       | e.g. 'walt-net,ext-net' | virtual nodes       | (4)   |
-| kexec.allow    | true or false           | nodes               | (5)   |
-| expose         | e.g. '80:8080,443:8443' | devices of walt-net | (6)   |
+| networks       | e.g. 'walt-net,ext-net' | virtual nodes       | (5)   |
+| kexec.allow    | true or false           | nodes               | (6)   |
+| expose         | e.g. '80:8080,443:8443' | devices of walt-net | (7)   |
 
 Notes:
 1. See [`walt help show switch-install`](switch-install.md)
 2. Only allowed when changing device type from 'unknown' to 'switch'
 3. See [`walt help show device-netsetup`](device-netsetup.md)
-4. See [`walt help show vnode-networks`](vnode-networks.md)
-5. Default is true: allow kexec-rebooting if the optional script `[walt-image]:/bin/walt-reboot` implements it.
-6. See [`walt help show device-expose`](device-expose.md)
+4. See [`walt help show vnode-disks`](vnode-disks.md)
+5. See [`walt help show vnode-networks`](vnode-networks.md)
+6. Default is true: allow kexec-rebooting if the optional script `[walt-image]:/bin/walt-reboot` implements it.
+7. See [`walt help show device-expose`](device-expose.md)

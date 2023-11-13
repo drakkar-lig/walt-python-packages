@@ -1,77 +1,104 @@
 #!/bin/busybox sh
-set -e
+
+# Check we are PID 1.
+if [ "$$" -ne 1 ]
+then
+    echo "This is the init script of walt nodes." >&2
+    echo "It is only useful when the node is booting. Exiting." >&2
+    exit 1
+fi
 
 MOUNT='busybox mount'
 UMOUNT='busybox umount'
-ROOTFS='/tmp/rootfs'
-# To activate walt-init logging, create a directory
-# /persist/logs/walt-init on the node.
-# If present, log files will be written at each bootup.
-OPTIONAL_LOGS_DIR="$ROOTFS/mnt/fs_union/persist/logs/walt-init"
+ROOTFS='/run/walt/rootfs'
 ROOTFS_BUSYBOX_APPLETS="
-    sh ls timeout reboot sleep nc chroot
-    mktemp mkfifo sed cat rm
+    basename cat chroot cp date grep ln ls mkdir mkfifo mktemp modprobe
+    mount nc pivot_root reboot rm sed sh sleep timeout umount uname
 "
-IMAGE_SCRIPTS="
+ROOTFS_IMAGE_SCRIPTS="
     /bin/walt-env
-    /bin/walt-fs-watchdog /bin/walt-net-service
-    /bin/walt-notify-bootup /bin/walt-rpc
-    /bin/walt-clock-sync /bin/walt-timeout
+    /bin/walt-log-tee
+    /bin/walt-log-cat
+    /bin/walt-log-echo
+    /bin/_walt_internal_/walt-rpc
+    /bin/_walt_internal_/walt-clock-sync
+    /bin/_walt_internal_/walt-timeout
+    /bin/_walt_internal_/walt-boot-modes
+    /bin/_walt_internal_/walt-script-common
+    /bin/_walt_internal_/walt-init-rootfs
+    /bin/_walt_internal_/walt-init-rootfs-main
+    /bin/_walt_internal_/walt-init-finalfs
+    /bin/_walt_internal_/walt-log-script
+    /bin/_walt_internal_/walt-fs-watchdog
 "
 
-admin_sh()
-{
-    echo 'Starting a shell.'
-    echo '(the node will be rebooted on exit.)'
-    # Inspired from Debian's initrd scripts
-    read console rest </proc/consoles
-    [ "${console}" = "tty0" ] && console="tty1"
-    # see http://www.busybox.net/FAQ.html#job_control
-    setsid sh -c "exec sh -i <>/dev/${console} 1>&0 2>&1"
-    reboot -f
+_run_is_mounted() {
+    busybox mount | busybox grep " /run " >/dev/null
 }
-
-reboot_or_sh()
-{
-    echo '>>> Issue detected!               <<<'
-    echo 'Will reboot... (or press <ENTER> now for a shell)'
-    /bin/walt-timeout 5 busybox head -n 1 && admin_sh || busybox reboot -f
-}
-
-trap reboot_or_sh EXIT
 
 do_mounts()
 {
-    [ -e "/proc/self" ] || $MOUNT -t proc none /proc
-    [ -e "/dev/null" ] || $MOUNT -t devtmpfs none /dev
-    $MOUNT -t tmpfs none /tmp
+    # mount /proc and /sys if missing, and if that is the case,
+    # record that for cleanup up before running the final init.
+    if [ -e "/proc/self" ]
+    then
+        export had_procfs=1
+    else
+        $MOUNT -t proc proc /proc
+        export had_procfs=0
+    fi
+    if [ -d "/sys/class" ]
+    then
+        export had_sysfs=1
+    else
+        $MOUNT -t sysfs sysfs /sys
+        export had_sysfs=0
+    fi
+    # mount /dev and /run if missing.
+    # in any case, we will not umount them before running the final init
+    # because walt bg processes need them.
+    if [ ! -e "/dev/null" ]
+    then
+        $MOUNT -t devtmpfs udev /dev
+    fi
+    if ! _run_is_mounted
+    then
+        $MOUNT -t tmpfs tmpfs /run
+    fi
 }
 
-capturing_logs()
-{
-    [ -d "$OPTIONAL_LOGS_DIR" ]
+# This function loads modules which we may need and may not be compiled in the kernel.
+load_modules() {
+    # ata_piix & sd_mod: useful for local disk detection (hybrid modes)
+    # if other modules are needed, the image may provide a file /bin/walt-preinit
+    # to load them.
+    for mod in ata_piix sd_mod overlay overlayfs ext4
+    do
+        busybox modprobe $mod >/dev/null 2>&1 || true
+    done
 }
 
-init_logging()
-{
-    # avoid NFS buffers by remounting with 'sync' option
-    $MOUNT -o remount,sync $ROOTFS/mnt/fs_final/persist
-    redirect_process_logs "walt-init"
-    set -x
+preinit() {
+    if [ -e "/bin/walt-preinit" ]
+    then
+        boot_step_label_cr          "Calling /bin/walt-preinit..."
+        /bin/walt-preinit
+    fi
 }
 
 copy_busybox_to_rootfs()
 {
+    busybox_path="$(busybox which busybox)"
     # copy binary
-    cp "$(which busybox)" $ROOTFS/bin/
+    cp "$busybox_path" $ROOTFS/bin/
     # check if ldd is available
-    if ! which ldd >/dev/null
+    if ! busybox which ldd >/dev/null
     then
         echo "Warning: no ldd -- If busybox is a dynamic executable, this script will not work."
         return
     fi
     # check needed shared libraries
-    if ! bin_deps="$(ldd $(which busybox))"
+    if ! bin_deps="$(ldd "$busybox_path" 2>/dev/null)"
     then
         # busybox is probably static, nothing more to do
         return
@@ -88,67 +115,14 @@ copy_busybox_to_rootfs()
     done
 }
 
-redirect_process_logs()
-{
-    name="$1"; shift
-    log_file_base="$OPTIONAL_LOGS_DIR/$name"
-    # prepare stdout and sterr log files
-    for ext in "out" "err"
-    do
-        # we concatenate to possibly existing content
-        # from previous bootups.
-        # first, add a header with a date
-        echo >> $log_file_base.$ext
-        echo "-----" >> $log_file_base.$ext
-        date >> $log_file_base.$ext
-    done
-    # redirect
-    exec 1>>$log_file_base.out 2>>$log_file_base.err
-}
-
-run_script_in_rootfs()
-{
-    cd $ROOTFS
-    mode="$1"
-    name="$2"
-    script_path="bin/$name"
-    shift 2; args="$@"
-    if capturing_logs
-    then
-        sh_x="-x"
-        pre_cmd="redirect_process_logs $name"
-    else
-        sh_x=""
-        pre_cmd=""
-    fi
-    cmd="busybox chroot . bin/sh $sh_x $script_path $args"
-    if [ "$mode" = "fg" ]
-    then
-        (
-        $pre_cmd
-        exec $cmd
-        )
-    else
-        # temporarily disable "set -x" in this parent process
-        # because it would mix with the background process
-        # traces.
-        capturing_logs && set +x
-        (
-        $pre_cmd
-        exec $cmd
-        ) &
-        capturing_logs && set -x    # restore set -x
-    fi
-    cd - >/dev/null
-}
-
 prepare_rootfs()
 {
-    mkdir $ROOTFS
+    busybox mkdir -p $ROOTFS
+    $MOUNT -t tmpfs tmpfs $ROOTFS  # pivot_root will need a mountpoint as <new_root>
     cd $ROOTFS
-    mkdir -p tmp bin dev mnt/nfsroot
+    busybox mkdir -p tmp bin dev proc sys run mnt/nfsroot
     copy_busybox_to_rootfs
-    for image_script in $IMAGE_SCRIPTS
+    for image_script in $ROOTFS_IMAGE_SCRIPTS
     do
         cp $image_script bin/
     done
@@ -156,123 +130,27 @@ prepare_rootfs()
     do
         ln -s busybox bin/$c
     done
-    # make the NFS mount and /dev visible in the rootfs
-    $MOUNT -o bind,ro /     mnt/nfsroot
-    $MOUNT -o bind    /dev  dev
     cd - >/dev/null
 }
 
-# we will start background processes in a chroot rooted in memory
-# (at /tmp/rootfs, and /tmp is a tmpfs filesystem):
-# * a network fs watchdog that will monitor the network filesystem
-#   mount and reboot the node if fs connection is lost
-# * a lightweight network service able to fulfill soft-reboot and
-#   led blink requests coming from the server
-# * a service which establishes a permanent TCP connection to the
-#   server, in order to reflect node bootup status
-# We could not start those processes on the final rootfs because
-# they could be affected by NFS disconnections or various other OS
-# issues possibly occurring on the image.
-# And we need those features to be as robust as possible, in order
-# to avoid the case of unresponsive nodes with no way to reboot them
-# remotely.
-# It may seem dirty to keep background processes running when we
-# exec the real OS init, but this is a simple and generic way to
-# handle these features in all WalT images.
-start_background_processes()
-{
-    run_script_in_rootfs bg walt-fs-watchdog
-    run_script_in_rootfs bg walt-net-service mnt/fs_union
-    run_script_in_rootfs bg walt-notify-bootup
-}
-
-# since we share the NFS export across all rpi nodes,
-# this mount must remain read-only.
-# in order to enable writes, each rpi will write
-# the filesystem changes in memory.
-# this is done by using a 'union' filesystem
-# called overlayfs.
-mount_union()
-{
-    cd $ROOTFS/mnt
-    # Overlay filesystem may be compiled in the kernel
-    # or provided as a module. Let's try to load it as
-    # a module and ignore errors.
-    modprobe overlay 2>/dev/null || modprobe overlayfs 2>/dev/null || true
-
-    # creating the union
-    # /: the nfs mount (that should remain read-only)
-    # fs_rw: the place to hold the filesystem changes
-    # fs_union: the mount point of the union
-    mkdir fs_rw fs_work fs_union
-    $MOUNT -t overlay -o upperdir=fs_rw,lowerdir=/,workdir=fs_work \
-                        union fs_union 2>/dev/null || \
-    $MOUNT -t overlayfs -o upperdir=fs_rw,lowerdir=/ union fs_union
-}
-
-# This is the persistent mount point, available even across reboots.
-# Data are stored on the server through an NFS share.
-mount_persistent()
-{
-    cd $ROOTFS/mnt
-
-    # Compute persistent storage path:
-    # <server-ip>:/var/lib/walt/nodes/<hostname>/persist
-    # Caution: with NFSv4, client first mounts /var/lib/walt/nodes,
-    # then retrieves /var/lib/walt/nodes/<mac>/fs symlink target,
-    # and mounts this target path. Thus the mount target, as
-    # reported by findmnt for instance, is this second step
-    # mount target, of the form /var/lib/walt/images/<image-id>/fs.
-    server_ip="$(grep ' / ' /proc/mounts | sed -e 's/:.*//')"
-    hostname="$(busybox uname -n)"
-    persist_path="${server_ip}:/var/lib/walt/nodes/${hostname}/persist"
-
-    # Mount the share
-    mkdir fs_union/persist
-    $MOUNT -t nfs -o rw,relatime,vers=3,nolock \
-           "${persist_path}" fs_union/persist 2>/dev/null || {
-        echo "/persist was not mounted (cf. walt node config)"
-        rm -rf fs_union/persist
-    }
-}
-
-has_mount()
-{
-    mp="$1"
-    $MOUNT | grep -q "[[:space:]]${mp}[[:space:]]"
-}
-
-update_mounts()
-{
-    $MOUNT -o bind /dev $ROOTFS/mnt/fs_union/dev
-    has_mount /run && $MOUNT -o bind /run $ROOTFS/mnt/fs_union/run
-    mkdir $ROOTFS/mnt/fs_union/run/origfs
-    $MOUNT -o bind / $ROOTFS/mnt/fs_union/run/origfs
-    $UMOUNT /proc
-}
-
-run_real_init()
-{
-    cd $ROOTFS/mnt/fs_union
-    exec busybox chroot . sbin/init $@
+switch_to_rootfs() {
+    cd $ROOTFS
+    busybox pivot_root . mnt/nfsroot
+    exec busybox chroot . bin/walt-init-rootfs "$@" \
+        <mnt/nfsroot/dev/console \
+        >mnt/nfsroot/dev/console 2>&1
 }
 
 # let's go
-echo "*** Mounting...                    ***"
+export PATH="$PATH:/bin/_walt_internal_"
+export walt_init_done=0
+. walt-script-common
+walt-log-echo "walt-init" "Starting up."
+boot_step_label_cr          "Initializing..."
 do_mounts
-echo "*** Preparing rootfs...            ***"
+load_modules
+preinit
+boot_step_label_cr          "Switching to rootfs..."
 prepare_rootfs
-echo "*** Mounting filesystem union...   ***"
-mount_union
-echo "*** Mounting persistent filesystem ***"
-mount_persistent
-capturing_logs && echo "*** Starting to capture logs...    ***"
-capturing_logs && init_logging
-echo "*** Re-mounting over the union...  ***"
-update_mounts
-echo "*** Setting clock...               ***"
-run_script_in_rootfs fg walt-clock-sync
-echo "*** Starting bg processes...       ***"
-start_background_processes
-echo "*** Starting walt image init...    ***"
-run_real_init
+switch_to_rootfs "$@"
+# the process continues in bin/_walt_internal_/walt-init-rootfs

@@ -68,7 +68,7 @@ APT_WALT_DEPENDENCIES_PACKAGES = """
         ntpdate ntp lockfile-progs ptpd tftpd-hpa ebtables qemu-system-x86 bridge-utils
         screen ifupdown gcc python3-dev git make sudo expect netcat libjson-perl
         docker-ce docker-ce-cli containerd.io podman buildah skopeo bash-completion
-        ksmtuned
+        ksmtuned fdisk e2fsprogs dosfstools
 """.split()
 
 
