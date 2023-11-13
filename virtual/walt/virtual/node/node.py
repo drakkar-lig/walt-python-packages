@@ -1,14 +1,18 @@
 #!/usr/bin/env python
 import atexit
+import json
 import os
 import platform
 import random
 import re
+import select
 import shlex
 import signal
 import subprocess
 import sys
+import tempfile
 import time
+import base64
 from contextlib import contextmanager
 from os import getenv, getpid, truncate
 from pathlib import Path
@@ -68,15 +72,14 @@ DEFAULT_QEMU_DISKS = ()
 DEFAULT_QEMU_NETWORKS = {"walt-net": {}}
 DEFAULT_BOOT_DELAY = "random"
 QEMU_ARGS = (
-    f"{QEMU_PROG} -enable-kvm"
-    f"            {QEMU_MACHINE_DEF}"
-    "             -m %(ram)d -smp %(cpu-cores)d"
-    "             %(disks)s %(networks)s"
+    f"{QEMU_PROG} -name %(name)s "
+    f"            -enable-kvm -nodefaults {QEMU_MACHINE_DEF}"
+    "             -m %(ram_megabytes)d -smp %(cpu_cores)s"
+    "             %(qemu_disks_args)s %(qemu_networks_args)s"
     "             -name %(name)s -nographic -serial mon:stdio -no-reboot"
-    "             -kernel %(boot-kernel)s"
+    "             -kernel %(boot_kernel)s"
 )
-STATE = dict(QEMU_PID=None, STOPPING=False, SAVED_STDIN=os.dup(0))
-os.close(0)
+STATE = dict(QEMU_PID=None, STOPPING=False)
 
 
 # This script is usually called from a terminal in raw mode,
@@ -130,46 +133,93 @@ def get_qemu_usb_args():
 
 
 USAGE = """\
-Usage: %(prog)s [--attach-usb] --mac <node_mac> --ip <node_ip> --model <node_model>\
- --hostname <node_name> --server-ip <server_ip>
-       %(prog)s [--attach-usb] --net-conf-udhcpc --mac <node_mac> --model <node_model>\
+Usage: %(prog)s [--attach-usb] [--managed] --mac <node_mac> --ip <node_ip>\
+ --model <node_model> --hostname <node_name> --server-ip <server_ip>
+       %(prog)s [--attach-usb] [--managed] --net-conf-udhcpc --mac <node_mac>\
+ --model <node_model>\
 """
 
 
-def get_qemu_disks(info):
-    if len(info._disks) == 0:
+def apply_disk_template(disk_path, disk_template):
+    if disk_template == "none":
+        return  # nothing to do
+    elif disk_template == "fat32":
+        part_type = "0c"    # "W95 FAT32 (LBA)"
+        mkfs = "mkfs.vfat -S 512"
+        init_content = None
+    elif disk_template == "ext4":
+        part_type = "83"    # "Linux"
+        mkfs = "mkfs.ext4"
+        init_content = None
+    elif disk_template in ("hybrid-boot-v", "hybrid-boot-p"):
+        part_type = "83"    # "Linux"
+        init_content = tempfile.TemporaryDirectory()
+        walt_hybrid_dir = Path(f"{init_content.name}/walt_hybrid")
+        walt_hybrid_dir.mkdir()
+        if disk_template == "hybrid-boot-p":
+            (walt_hybrid_dir / ".persistent").touch()
+        mkfs = f"mkfs.ext4 -d {init_content.name}"
+    # format the disk
+    sfdisk_cmd = f"sfdisk --no-reread --no-tell-kernel {disk_path}"
+    subprocess.run(shlex.split(sfdisk_cmd),
+                   text=True,
+                   input=f" 1 : start=2048 type={part_type}")
+    # get a free loop device
+    loop_device = subprocess.run(shlex.split("losetup -f"),
+                                 capture_output=True,
+                                 text=True).stdout
+    # map the loop device on first partition
+    subprocess.run(shlex.split(
+        f"losetup -o {2048*512} {loop_device} {disk_path}"))
+    # format the partition
+    subprocess.run(shlex.split(
+        f"{mkfs} {loop_device}"))
+    # release the loop device
+    subprocess.run(shlex.split(
+        f"losetup -d {loop_device}"))
+    # cleanup
+    if init_content is not None:
+        init_content.cleanup()
+
+
+def get_qemu_disks_args(disks_path, disks_info):
+    if len(disks_info) == 0:
         return ""
-    if info._disks_path is None:
-        disks_path = VNODE_DEFAULT_DISKS_PATH % dict(mac=info._mac)
-    else:
-        disks_path = info._disks_path
     Path(disks_path).mkdir(parents=True, exist_ok=True)
     qemu_disk_opts = ""
-    for disk_index, disk_cap in enumerate(info._disks):
+    for disk_index, disk_info in enumerate(disks_info):
+        disk_cap, disk_template = disk_info
         disk_cap_bytes = disk_cap * 1000000000
         disk_path = Path(f"{disks_path}/disk_{disk_index}.dd")
+        disk_params_file = Path(f"{disks_path}/disk_{disk_index}.info")
+        if disk_params_file.exists():
+            disk_params = json.loads(disk_params_file.read_text())
+            old_disk_template = disk_params['template']
+        else:   # backward compatibility
+            old_disk_template = 'none'
         if disk_path.exists():
-            # if not expected size, remove it
-            if disk_path.stat().st_size != disk_cap_bytes:
+            # if not expected size or template, remove it
+            if disk_path.stat().st_size != disk_cap_bytes or \
+                    old_disk_template != disk_template:
                 disk_path.unlink()
+                if disk_params_file.exists():
+                    disk_params_file.unlink()
         if not disk_path.exists():
             disk_path.touch()
             truncate(str(disk_path), disk_cap_bytes)
-        qemu_disk_opts += f" -drive file={disk_path},format=raw"
+            apply_disk_template(disk_path, disk_template)
+            disk_params_file.write_text(json.dumps({"template": disk_template}))
+        qemu_disk_opts += (
+            f" -drive file={disk_path},format=raw,id=disk{disk_index},if=none" +
+            " -device virtio-scsi-pci" +
+            f" -device scsi-hd,drive=disk{disk_index},product=QEMU-DISK")
     return qemu_disk_opts
 
 
-def get_qemu_networks(info):
-    if info._networks_path is None:
-        networks_path = VNODE_DEFAULT_NETWORKS_PATH % dict(mac=info._mac)
-    else:
-        networks_path = info._networks_path
+def get_qemu_networks_args(hostmac, hostid, networks_path, networks_info):
     Path(networks_path).mkdir(parents=True, exist_ok=True)
-    hostid = getattr(info, "_hostname", None)
-    if hostid is None:
-        hostid = info._mac
     qemu_networks_opts = ""
-    for network_name, network_restrictions in info._networks.items():
+    for network_name, network_restrictions in networks_info.items():
         ifup_script = Path(networks_path) / f"{network_name}-ifup.sh"
         ifdown_script = Path(networks_path) / f"{network_name}-ifdown.sh"
         intf_alias = f"tap to {network_name} of {hostid}"
@@ -191,7 +241,7 @@ def get_qemu_networks(info):
             )
             path.chmod(0o755)
         if network_name == "walt-net":
-            mac = info._mac
+            mac = hostmac
         else:
             mac_file = Path(networks_path) / f"{network_name}.mac"
             mac = get_persistent_random_mac(mac_file)
@@ -204,52 +254,247 @@ def get_qemu_networks(info):
     return qemu_networks_opts
 
 
+class VMParameters:
+    def __init__(self):
+        self._other_params = {}
+
+    # allow dict-like attribute management for compatibility with
+    # existing fakeipxe code of walt-common module.
+    # invalid chars in the name are replaced by underscores.
+
+    def _escape(self, attr):
+        return attr.replace('-', '_').replace(':', "__")
+
+    def __getitem__(self, attr):
+        return getattr(self, self._escape(attr))
+
+    def __setitem__(self, attr, value):
+        return setattr(self, self._escape(attr), value)
+
+    def update(self, d):
+        for k, v in d.items():
+            self[k] = v
+
+    def get(self, attr, default=None):
+        return getattr(self, self._escape(attr), default)
+
+    def __contains__(self, attr):
+        return hasattr(self, self._escape(attr))
+
+    # Handle parameters requiring special processing as properties
+
+    @property
+    def ram(self):
+        return self._ram
+
+    @ram.setter
+    def ram(self, ram_value):
+        if re.match(r"^\d+[MG]$", ram_value) is None:
+            raise ValueError(
+                "Invalid RAM amount specified (should be for instance 512M or 1G)."
+            )
+        # convert to megabytes
+        self.ram_megabytes = int(ram_value[:-1])
+        if ram_value[-1] == "G":
+            self.ram_megabytes *= 1024
+        self._ram = ram_value
+
+    @property
+    def disks(self):
+        return self._disks
+
+    @disks.setter
+    def disks(self, disks_value):
+        parsing = parse_vnode_disks_value(disks_value)
+        if parsing[0] is False:
+            raise ValueError(f"Invalid value for disks: {parsing[1]}")
+        self._disks_info = parsing[1]
+        self._disks = disks_value
+
+    @property
+    def qemu_disks_args(self):
+        return get_qemu_disks_args(
+            self.disks_path, self._disks_info)
+
+    @property
+    def networks(self):
+        return self._networks
+
+    @networks.setter
+    def networks(self, networks_value):
+        parsing = parse_vnode_networks_value(networks_value)
+        if parsing[0] is False:
+            raise ValueError(f"Invalid value for networks: {parsing[1]}")
+        self._networks_info = parsing[1]
+        self._networks = networks_value
+
+    @property
+    def qemu_networks_args(self):
+        return get_qemu_networks_args(
+            self.mac, self.hostid, self.networks_path, self._networks_info)
+
+    @property
+    def boot_delay(self):
+        return self._boot_delay
+
+    @boot_delay.setter
+    def boot_delay(self, delay_value):
+        if delay_value != "random":
+            try:
+                delay_value = int(delay_value)
+            except ValueError:
+                raise ValueError(
+                        'Invalid value for --boot-delay (use int value or "random")')
+            if delay_value < 0:
+                raise ValueError(
+                        "Invalid value for --boot-delay (use a positive value)")
+        self._boot_delay = delay_value
+
+
 def get_env_start(info):
     # define initial env variables for ipxe_boot()
     if info._udhcpc:
         required_args = ("mac", "model")
     else:
         required_args = ("mac", "ip", "model", "hostname", "server_ip")
-    env = {attr: getattr(info, "_" + attr, None) for attr in required_args}
-    if None in env.values():
-        print(USAGE % dict(prog=sys.argv[0]))
-        sys.exit()
-    env.update(
-        {
-            "manufacturer": MANUFACTURER,
-            "product": QEMU_PRODUCT,
-            "vci": "walt.node." + env["model"],
-        }
-    )
+    env = VMParameters()
+    for attr in required_args:
+        value = getattr(info, "_" + attr, None)
+        if value is None:
+            print(USAGE % dict(prog=sys.argv[0]))
+            sys.exit()
+        setattr(env, attr, value)
+    env.manufacturer = MANUFACTURER
+    env.product = QEMU_PRODUCT
+    env.vci = "walt.node." + env.model
+    if info._disks_path is None:
+        env.disks_path = VNODE_DEFAULT_DISKS_PATH % dict(mac=info._mac)
+    else:
+        env.disks_path = info._disks_path
+    if info._networks_path is None:
+        env.networks_path = VNODE_DEFAULT_NETWORKS_PATH % dict(mac=info._mac)
+    else:
+        env.networks_path = info._networks_path
+    if info._hostname is None:
+        env.hostid = info._mac
+    else:
+        env.hostid = info._hostname
     # define callbacks for ipxe_boot()
     if info._udhcpc:
-        env["fake-network-setup"] = udhcpc_fake_netboot
+        env.fake_network_setup = udhcpc_fake_netboot
     else:
-        env["fake-network-setup"] = api_fake_netboot
-    env["boot-function"] = boot_kvm
+        env.fake_network_setup = api_fake_netboot
+    env.boot_function = boot_kvm
     # the following data is not necessary for ipxe_boot() function
     # but will be used when launching the boot-function boot_kvm()
-    env["cpu-cores"] = info._cpu_cores
-    env["ram"] = info._ram
-    env["disks"] = get_qemu_disks(info)
-    env["networks"] = get_qemu_networks(info)
-    env["attach-usb"] = info._attach_usb
-    env["reboot-command"] = info._reboot_command
+    env.cpu_cores = info._cpu_cores
+    env.ram = info._ram
+    env.disks = info._disks
+    env.networks = info._networks
+    env.boot_delay = info._boot_delay
+    env.attach_usb = info._attach_usb
+    env.reboot_command = info._reboot_command
+    env.managed = info._managed
+    if info._managed:
+        env.waiter = select.poll()
+        env.waiter.register(0, select.POLLIN)   # listen on stdin
+        env.stdin_buffer = b''
     return env
 
 
 def boot_kvm(env):
+    if env.managed:
+        boot_kvm_managed(env)
+    else:
+        boot_kvm_unmanaged(env)
+
+
+def get_vm_args(env):
+    """Managed mode: receive commands on stdin and control VM accordingly"""
     qemu_args = QEMU_ARGS
-    if env["attach-usb"]:
+    if env.attach_usb:
         qemu_args += " " + get_qemu_usb_args()
     if "boot-initrd" in env:
         qemu_args += " -initrd %(boot-initrd)s"
-    env["boot-kernel-cmdline"] = env.get("boot-kernel-cmdline", "") + " " + QEMU_APPEND
-    if len(env["boot-kernel-cmdline"].strip()) > 0:
-        qemu_args += " -append '%(boot-kernel-cmdline)s'"
+    env.boot_kernel_cmdline = (
+            getattr(env, "boot_kernel_cmdline", "") + " " + QEMU_APPEND)
+    if len(env.boot_kernel_cmdline.strip()) > 0:
+        qemu_args += " -append '%(boot_kernel_cmdline)s'"
     cmd = qemu_args % env
-    print(" ".join(cmd.split()))  # print with multiple spaces shrinked
     args = shlex.split(cmd)
+    print(shlex.join(args))  # print with multiple spaces shrinked
+    return args
+
+
+def boot_kvm_managed(env):
+    qemu_pid_fd = None
+    # start the VM
+    args = get_vm_args(env)
+    qemu_stdin_r, qemu_stdin_w = os.pipe()
+    pid = os.fork()
+    if pid == 0:
+        # child
+        os.dup2(qemu_stdin_r, 0)  # set stdin
+        os.dup2(1, 2)  # duplicate stdout on stderr
+        # cleanup file descriptors
+        for fd in qemu_stdin_r, qemu_stdin_w:
+            os.close(fd)
+        # the qemu process should not automatically receive signals
+        # targetting its parent process, thus we run it in a different
+        # session
+        os.setsid()
+        os.execlp(args[0], *args)
+    # parent
+    STATE["QEMU_PID"] = pid
+    # cleanup unused file descriptors
+    os.close(qemu_stdin_r)
+    # open qemu_pid_fd
+    qemu_pid_fd = os.pidfd_open(pid)
+    # add qemu_pid_fd to the waiter
+    env.waiter.register(qemu_pid_fd, select.POLLIN)
+    while not STATE["STOPPING"]:
+        events = env.waiter.poll(5)
+        for fd, event in events:
+            if fd == 0:
+                env.stdin_buffer += os.read(0, 256)
+            else:
+                # qemu process has ended
+                env.waiter.unregister(qemu_pid_fd)
+                os.waitpid(STATE["QEMU_PID"], 0)
+                os.close(qemu_stdin_w)
+                os.close(qemu_pid_fd)
+                qemu_stdin_w = None
+                qemu_pid_fd = None
+                STATE["QEMU_PID"] = None
+                if env.reboot_command is not None:
+                    subprocess.call(env.reboot_command, shell=True)
+        while b'\n' in env.stdin_buffer:
+            line, env.stdin_buffer = env.stdin_buffer.split(b'\n', maxsplit=1)
+            line = line.decode(sys.stdin.encoding)
+            args = line.split()
+            if len(args) == 0:
+                continue    # empty line, ignore
+            if args[0] == "CONF":
+                setattr(env, args[1], args[2])
+            elif args[0] == "INPUT":
+                if qemu_stdin_w is not None:
+                    input_bytes = base64.b64decode(args[1])
+                    os.write(qemu_stdin_w, input_bytes)
+            elif args[0] == "KILL_VM":
+                kill_vm()
+            elif args[0] == "EXIT":
+                STATE["STOPPING"] = True
+                break
+            else:
+                print(f"Invalid command, ignored: {line}")
+                continue
+        if STATE["QEMU_PID"] is None:
+            return
+
+
+def boot_kvm_unmanaged(env):
+    """Unmanaged mode: start the VM with static conf parameters"""
+    args = get_vm_args(env)
     pid = os.fork()
     if pid == 0:
         # child
@@ -266,8 +511,8 @@ def boot_kvm(env):
         # wait until the child ends
         pid, exit_status = os.waitpid(STATE["QEMU_PID"], 0)
         STATE["QEMU_PID"] = None
-    if env["reboot-command"] is not None:
-        subprocess.call(env["reboot-command"], shell=True)
+    if env.reboot_command is not None:
+        subprocess.call(env.reboot_command, shell=True)
 
 
 @contextmanager
@@ -279,17 +524,18 @@ def api_fake_netboot(env):
 
 
 def send_register_request(env):
-    with ServerAPILink(env["server_ip"], "VSAPI") as server:
-        return server.register_device(env["vci"], "", env["ip"], env["mac"])
+    with ServerAPILink(env.server_ip, "VSAPI") as server:
+        return server.register_device(env.vci, "", env.ip, env.mac)
 
 
 def add_network_info(env):
-    with ServerAPILink(env["server_ip"], "VSAPI") as server:
-        info = server.get_device_info(env["mac"])
+    with ServerAPILink(env.server_ip, "VSAPI") as server:
+        info = server.get_device_info(env.mac)
         print(info)
         if info is None:
             return False
-        env.update(netmask=info["netmask"], gateway=info["gateway"])
+        env.netmask = info["netmask"]
+        env.gateway = info["gateway"]
 
 
 def random_wait():
@@ -323,16 +569,16 @@ def node_loop(info):
     random.seed()
     save_pid(info)
     save_screen_session(info)
+    env = get_env_start(info)
     while not STATE["STOPPING"]:
         try:
-            if info._boot_delay == "random":
+            if env.boot_delay == "random":
                 # default is to wait randomly to mitigate
                 # simultaneous load of various virtual nodes
                 random_wait()
-            elif info._boot_delay > 0:
-                time.sleep(info._boot_delay)
+            elif env.boot_delay > 0:
+                time.sleep(env.boot_delay)
             print("Starting...")
-            env = get_env_start(info)
             ipxe_boot(env)
         except Exception:
             print("Exception in node_loop()")
@@ -349,15 +595,21 @@ class WalTVirtualNode(LoggedApplication):
     _screen_session_path = None  # default
     _disks_path = None  # default
     _networks_path = None  # default
+    _hostname = None  # default
     _cpu_cores = DEFAULT_QEMU_CORES
     _ram = DEFAULT_QEMU_RAM
     _disks = DEFAULT_QEMU_DISKS
     _networks = DEFAULT_QEMU_NETWORKS
     _boot_delay = DEFAULT_BOOT_DELAY
+    _managed = False
 
     """run a virtual node"""
 
     def main(self):
+        if not self._managed:
+            # stdin will be used by qemu, not by us
+            STATE["SAVED_STDIN"] = os.dup(0)
+            os.close(0)
         self.init_logs()
         node_loop(self)
 
@@ -419,34 +671,17 @@ class WalTVirtualNode(LoggedApplication):
     @cli.switch("--ram", str)
     def set_ram(self, ram):
         """specify node's ram amount (e.g. 512M or 1G)"""
-        if re.match(r"^\d+[MG]$", ram) is None:
-            raise ValueError(
-                "Invalid RAM amount specified (should be for instance 512M or 1G)."
-            )
-        # convert to megabytes
-        ram_megabytes = int(ram[:-1])
-        if ram[-1] == "G":
-            ram_megabytes *= 1024
-        self._ram = ram_megabytes
+        self._ram = ram
 
     @cli.switch("--disks", str)
     def set_disks(self, disks):
-        """specify node's disks (e.g. none, 8G or "1T,32G")"""
-        parsing = parse_vnode_disks_value(disks)
-        if parsing[0] is False:
-            raise ValueError(
-                "Invalid value for --disks (should be for instance none, 8G or"
-                ' "1T,32G").'
-            )
-        self._disks = parsing[1]
+        """specify node's disks (e.g. none, 8G or "1T[template=ext4],32G")"""
+        self._disks = disks
 
     @cli.switch("--networks", str)
     def set_networks(self, networks):
         """specify node's networks (e.g. "walt-net,home-net[lat=8ms,bw=100Mbps]")"""
-        parsing = parse_vnode_networks_value(networks)
-        if parsing[0] is False:
-            raise ValueError(f"Invalid value for --networks: {parsing[1]}")
-        self._networks = parsing[1]
+        self._networks = networks
 
     @cli.switch("--net-conf-udhcpc")
     def set_net_conf_udhcpc(self):
@@ -461,16 +696,12 @@ class WalTVirtualNode(LoggedApplication):
     @cli.switch("--boot-delay", str)
     def set_boot_delay(self, delay):
         """define a delay before the VM [re]boots (number of seconds or "random")"""
-        if delay != "random":
-            try:
-                delay = int(delay)
-            except ValueError:
-                raise ValueError(
-                        f'Invalid value for --boot-delay (use int value or "random")')
-            if delay < 0:
-                raise ValueError(
-                        f"Invalid value for --boot-delay (use a positive value)")
         self._boot_delay = delay
+
+    @cli.switch("--managed")
+    def set_managed(self):
+        """use STDIN to get conf and commands"""
+        self._managed = True
 
 
 def kill_vm():

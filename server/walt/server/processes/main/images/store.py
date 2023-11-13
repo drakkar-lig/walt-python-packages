@@ -275,7 +275,7 @@ class NodeImageStore(object):
                 img = self.images[fullname]
                 if not img.mounted:
                     changes = True
-                    self.mount(img.image_id, img.fullname)
+                    self.mount(img)
                 new_mounts.add(img.image_id)
                 # if image was re-mounted while it was waiting grace time
                 # expiry, remove the deadline
@@ -403,16 +403,18 @@ class NodeImageStore(object):
     def get_filesystem(self, image_id):
         return self.filesystems[image_id]
 
-    def mount(self, image_id, fullname=None):
+    def mount(self, img):
+        image_id = img.image_id
         if image_id in self.mounts:
             return  # already mounted
         self.mounts.add(image_id)
+        fullname = img.fullname
         desc = fullname if fullname else image_id
         print("Mounting %s..." % desc)
         mount_path = get_mount_path(image_id)
         failsafe_makedirs(mount_path)
         self.registry.image_mount(image_id, mount_path)
-        setup(mount_path)
+        setup(image_id, mount_path, img.size_kib)
         print("Mounting %s... done" % desc)
 
     def unmount(self, image_id, fullname=None):

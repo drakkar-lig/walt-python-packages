@@ -258,10 +258,10 @@ class SettingsManager:
     ):
         parsing = parse_vnode_disks_value(setting_value)
         if parsing[0] is False:
+            error = parsing[1]
             requester.stderr.write(
-                f"Failed: '{setting_value}' is not a valid value for option 'disks'.\n"
-                "        Use for example 'none', or '8G' (1 disk),"
-                " '32G,1T' (2disks), etc.\n"
+                f"Failed: {error}\n"
+                + "        Check 'walt help show device-config' for more info.\n"
             )
             return False
         return True
@@ -464,6 +464,11 @@ class SettingsManager:
                 requester.stderr.write(msg)
         return nodes_ok, not_nodes + not_virtual_nodes
 
+    def update_vnodes_vm_setting(self, device_infos, setting_name, setting_value):
+        for device_info in device_infos:
+            self.server.nodes.vnode_update_vm_setting(
+                   device_info.mac, setting_name, setting_value)
+
     def set_device_config(self, requester, device_set, settings_args):
         # parse settings
         all_settings = {}
@@ -540,15 +545,20 @@ class SettingsManager:
                 should_reboot_devices = True
             elif setting_name == "cpu.cores":
                 db_settings["cpu.cores"] = int(setting_value)
-                should_reboot_devices = True  # update in DB (below) is enough
+                self.update_vnodes_vm_setting(device_infos, "cpu_cores", setting_value)
+                should_reboot_devices = True
             elif setting_name == "ram":
-                should_reboot_devices = True  # update in DB (below) is enough
+                self.update_vnodes_vm_setting(device_infos, "ram", setting_value)
+                should_reboot_devices = True
             elif setting_name == "disks":
-                should_reboot_devices = True  # update in DB (below) is enough
+                self.update_vnodes_vm_setting(device_infos, "disks", setting_value)
+                should_reboot_devices = True
             elif setting_name == "boot.delay":
-                should_reboot_devices = True  # update in DB (below) is enough
+                self.update_vnodes_vm_setting(device_infos, "boot_delay", setting_value)
+                should_reboot_devices = True
             elif setting_name == "networks":
-                should_reboot_devices = True  # update in DB (below) is enough
+                self.update_vnodes_vm_setting(device_infos, "networks", setting_value)
+                should_reboot_devices = True
             elif setting_name in ("lldp.explore", "poe.reboots", "kexec.allow"):
                 # convert value to boolean
                 setting_value = setting_value.lower() == "true"

@@ -50,6 +50,7 @@ class ServerToNodeRequest:
 
     def on_timeout(self):
         if self.status != REQUEST_STATUS.DONE:
+            self.sock.setblocking(True)
             self.ev_loop.remove_listener(self)
             self.close()
             if self.status == REQUEST_STATUS.CONNECTING:
@@ -64,7 +65,7 @@ class ServerToNodeRequest:
         if self.status == REQUEST_STATUS.CONNECTING:
             self.sock.setblocking(True)
             try:
-                self.sock.send(self.req.encode("ascii") + b"\n")
+                self.sock.send(f"MODE single\n{self.req}\n".encode("ascii"))
             except (ConnectionRefusedError, OSError) as e:
                 if isinstance(e, ConnectionRefusedError):
                     result_msg = "Connection refused"
@@ -76,10 +77,16 @@ class ServerToNodeRequest:
             self.status = REQUEST_STATUS.WAITING_RESPONSE
             self.ev_loop.update_listener(self, POLL_OPS_READ)
         elif self.status == REQUEST_STATUS.WAITING_RESPONSE:
-            rfile = self.sock.makefile()
-            resp = rfile.readline().split(" ", 1)
-            rfile.close()
-            resp = tuple(part.strip() for part in resp)
+            resp = b''
+            while True:
+                c = self.sock.recv(1)
+                if c == b'\n':
+                    break
+                elif c == b'':
+                    break
+                resp += c
+            resp = tuple(part.strip() for part in
+                         resp.decode('ascii').split(" ", 1))
             if resp[0] == "OK":
                 self.cb(self.env, self.node, "OK")
             elif len(resp) == 2:
@@ -91,6 +98,7 @@ class ServerToNodeRequest:
         return self.sock.fileno()
 
     def close(self):
+        print("ServerToNodeRequest.close()")
         if self.sock is not None:
             self.sock.close()
             self.sock = None
