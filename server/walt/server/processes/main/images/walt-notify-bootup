@@ -1,54 +1,27 @@
 #!/bin/sh
-
-RETRY_DELAY_SECONDS=5
-RETRY_COUNT=2
-NC_STOP="/tmp/nc-$$.fifo"
-RLWT_CAPTURE="/tmp/rlwt-capture"
-DELAY_BEFORE_REBOOT=10
-
-# we need variables walt_server_ip and walt_server_notify_bootup_port
-. /bin/walt-env
-
-do_reboot()
-{
-    # if we got here as part of a clean OS shutdown,
-    # let the OS complete this shutdown
-    sleep ${DELAY_BEFORE_REBOOT}
-    reboot -f
-}
-
-on_exit()
-{
-    echo "[bg] walt-notify-bootup exited! What happened?? Will reboot."
-    do_reboot
-}
-
-trap on_exit EXIT
-echo "[bg] walt-notify-bootup started."
+. walt-script-common
 
 wait_for_ssh() {
     while [ 1 ]
     do
-        echo | busybox nc 127.0.0.1 22 >/dev/null 2>&1 && break
-        sleep 1
+        # if port 22 is opened, send empty line to let sshd
+        # close the connection and let this nc command stop.
+        if walt-timeout 5 busybox nc 127.0.0.1 22 >/dev/null 2>&1 << EOF
+
+EOF
+        then
+            break  # OK, port 22 is ready to accept connections
+        fi
+        busybox sleep 1
     done
 }
 
-read_line_with_timeout() {
-    t=$1
-    shift
-    rm -f $RLWT_CAPTURE
-    /bin/walt-timeout $t \
-        busybox sh -c 'read line && echo -n $line' > $RLWT_CAPTURE && \
-        cat $RLWT_CAPTURE
-}
-
 call_image_bootup_script() {
-    if [ -f "mnt/fs_union/bin/on-bootup" ]
+    if [ -f "/bin/on-bootup" ]
     then
-        if [ -x "mnt/fs_union/bin/on-bootup" ]
+        if [ -x "/bin/on-bootup" ]
         then
-            cd mnt/fs_union && chroot . bin/on-bootup
+            /bin/on-bootup
         else
             echo "WARNING: cannot run /bin/on-bootup (execute permission missing)." >&2
         fi
@@ -56,29 +29,30 @@ call_image_bootup_script() {
 }
 
 remove_nologin() {
-    rm -f mnt/fs_union/run/nologin
+    busybox rm -f /run/nologin
 }
 
 run_permanent_connection() {
-    rm -f $NC_STOP
+    nc_stop="/run/walt/notify-bootup-$$.marker"
+    busybox rm -f $nc_stop
     {
         echo REQ_NOTIFY_BOOTUP_STATUS
         # It is important to keep nc stdin open until we detect a disconnection
         # otherwise nc stops immediately.
         # Some versions of busybox nc also fail to stop when the remote end
         # is closed. We send EOL chars periodically to detect this.
-        while [ ! -f $NC_STOP ]
+        while [ ! -f $nc_stop ]
         do
             echo
-            sleep 20
+            busybox sleep 20
         done
     } | {
-        busybox nc $walt_server_ip $walt_server_notify_bootup_port
+        busybox nc $walt_server_ip $walt_server_notify_bootup_port || true
         echo END
     } | {
         connected=0
         # read OK from server within 3 seconds
-        if msg_ok=$(read_line_with_timeout 3)
+        if msg_ok=$(wait_for_input_line_shortly 3)
         then
             if [ "$msg_ok" = "OK" ]
             then
@@ -97,9 +71,11 @@ run_permanent_connection() {
             echo CONNECT_FAILED
         fi
         # connection failure or disconnection, stop the loop above
-        echo > $NC_STOP
+        echo > $nc_stop
     }
 }
+
+echo "[walt:bg] walt-notify-bootup started."
 
 # We consider the node is ready when its
 # sshd service is ready to accept connections.
@@ -119,7 +95,7 @@ remove_nologin
 # can detect we are down. if this connection is closed
 # on server side, we know that the server is down and
 # images are probably umounted, so we reboot.
-retries=$RETRY_COUNT
+retries=2
 while true
 do
     status=$(run_permanent_connection)
@@ -128,11 +104,12 @@ do
     if [ "$status" = "CONNECT_FAILED" -a $retries -gt 0 ]
     then
         retries=$((retries - 1))
-        echo "[bg] walt-notify-bootup: reconnecting attempt after ${RETRY_DELAY_SECONDS} seconds"
-        sleep ${RETRY_DELAY_SECONDS}
+        echo "[walt:bg] walt-notify-bootup: reconnecting attempt after 5 seconds"
+        busybox sleep 5
         continue
     else
-        echo "[bg] walt-notify-bootup: failed or lost connection to walt server! Will reboot."
-        do_reboot
+        echo "[walt:bg] walt-notify-bootup:" \
+             "failed or lost connection to walt server!" >&2
+        trigger_walt_reboot reboot
     fi
 done

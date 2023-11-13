@@ -1,0 +1,189 @@
+#!/bin/sh
+
+# all scripts sourcing this file get the env variables
+# and have error monitoring enabled:
+. walt-env
+set -e
+trap _on_exit EXIT
+
+# private functions
+# #################
+
+_emergency_reboot() {
+    set +e
+    cd /
+    echo "emergency reboot"
+    busybox umount -a
+    busybox reboot -f now
+}
+
+_admin_sh()
+{
+    echo 'Starting a shell.'
+    echo '(the node will be rebooted on exit.)'
+    console="$1"
+    if [ "$console" != "unknown" ]
+    then
+        # see http://www.busybox.net/FAQ.html#job_control
+        busybox setsid sh -c "exec sh -i <>/dev/${console} 2>&1"
+    else
+        echo "Sorry, no job control."
+        busybox sh -i
+    fi
+}
+
+_detect_input() {
+    echo '>>> Issue detected!               <<<'
+    echo 'Will reboot... (or press <ENTER> now for a shell)'
+    wait_for_input_line_shortly 5 >/dev/null 2>&1
+}
+
+_reboot_or_sh()
+{
+    run_shell="no"
+    if [ -e "/sys/class/tty/console/active" ]
+    then
+        # if we could properly detect the console devices, detect
+        # on which one the standard input is connected
+        # by trying to read <ENTER> on each of them successively
+        for console_device in $(busybox cat /sys/class/tty/console/active)
+        do
+            if _detect_input <>/dev/$console_device 1>&0
+            then
+                curr_console_device=$console_device
+                run_shell="yes"
+                break
+            fi
+        done
+    else
+        # if we could not detect the console devices
+        # just wait for <ENTER> on standard input
+        if _detect_input
+        then
+            curr_console_device="unknown"
+            run_shell="yes"
+            break
+        fi
+    fi
+    if [ "$run_shell" = "yes" ]
+    then
+        _admin_sh $curr_console_device
+    fi
+    _emergency_reboot
+}
+
+_on_exit() {
+    if [ "$walt_init_done" = 1 ]
+    then
+        if [ ! -e "/run/.rebooting" ]
+        then
+            echo -n > "/run/.rebooting"   # touch file
+            echo "$0 exited! What happened?? Let's force-reboot!" >&2
+            exec busybox reboot -f now
+        else
+            # if we are rebooting, we can expect scripts to be interrupted
+            echo "$0 stopped, probably because of the running reboot procedure." >&2
+        fi
+    else
+        # walt-init is still running
+        _reboot_or_sh
+    fi
+}
+
+_wait_for_os_shutdown() {
+    busybox sleep 30
+    # if we are here...
+    echo 'Reboot failed or was too long.' >&2
+    _do_force_reboot
+}
+
+_do_force_reboot() {
+    echo "Calling 'reboot -f' command." >&2
+    exec busybox reboot -f now
+}
+
+_do_reboot() {
+    REBOOT_CMD_TIMEOUT=2        # the reboot command itself should not block
+    if [ "${walt_boot_mode}" = "network" ]
+    then
+        # we are on a readonly NFS-boot and all file changes
+        # were handled in RAM, so no need to wait for the init system
+        # shutdown procedure
+        _do_force_reboot
+    else
+        # we have booted on a local disk, let the init system follow
+        # its shutdown procedure.
+        echo "Calling 'reboot' command." >&2
+        if walt-timeout $REBOOT_CMD_TIMEOUT reboot
+        then
+            # the OS should now be shutting down its services
+            _wait_for_os_shutdown
+        else
+            echo "'reboot' command failed!" >&2
+            exit 1
+        fi
+    fi
+}
+
+_do_walt_reboot() {
+    script="$1"
+    WALT_REBOOT_CMD_TIMEOUT=60  # walt-reboot has to download a kernel, initrd, etc.
+    echo "Calling $script"
+    if walt-timeout $WALT_REBOOT_CMD_TIMEOUT $script >/dev/null 2>/dev/null
+    then
+        # the OS should now be shutting down its services
+        _wait_for_os_shutdown
+    else
+        echo "Command 'bin/walt-reboot' failed!" >&2
+        _do_force_reboot
+    fi
+}
+
+# public functions
+# ################
+
+allow_script_exit() {
+    trap '' EXIT
+}
+
+trigger_walt_reboot() {
+    reboot_kind="$1"
+    echo -n > "/run/.rebooting"   # touch file
+    if [ "$reboot_kind" = "walt-custom-reboot" ]
+    then
+        _do_walt_reboot $2
+    elif [ "$reboot_kind" = "reboot" ]
+    then
+        _do_reboot
+    elif [ "$reboot_kind" = "force-reboot" ]
+    then
+        _do_force_reboot
+    fi
+}
+
+wait_for_input_line_shortly() {
+    walt-timeout $1 busybox sh -c 'read l && echo "$l"'
+}
+
+mount_union()
+{
+    lowerdir="$1"
+    upperdir="$2"
+    workdir="$3"
+    uniondir="$4"
+
+    # creating the union
+    # /: the nfs mount (that should remain read-only)
+    # fs_rw: the place to hold the filesystem changes
+    # finalfs: the mount point of the union
+    busybox mount -t overlay \
+        -o upperdir=${upperdir},lowerdir=${lowerdir},workdir=${workdir} \
+        union ${uniondir} 2>/dev/null || \
+    busybox mount -t overlayfs \
+        -o upperdir=${upperdir},lowerdir=${lowerdir} \
+        union ${uniondir}
+}
+
+boot_step_label_cr() {
+    busybox printf "*** %-60s ***\n" "$1"
+}

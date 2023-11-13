@@ -16,6 +16,7 @@ METADATA_CACHE_FILE = Path("/var/cache/walt/images.metadata")
 IMAGE_LAYERS_DIR = "/var/lib/containers/storage/overlay"
 PODMAN_API_SOCKET = "unix:///run/walt/podman/podman.socket"
 
+
 # parse_date() handles the following example formats:
 # - "2023-07-04T13:58:03.480332+02:00"
 # - "2023-07-04T13:58:03.480332667+02:00"
@@ -98,7 +99,7 @@ class WalTLocalRegistry:
             if len(metadata) > 0:
                 # check compatibility with the format expected with current code
                 first_entry = tuple(metadata.values())[0]
-                if "node_models_desc" in first_entry:
+                if "size_kib" in first_entry:
                     # all is fine
                     return metadata
         return {}
@@ -155,6 +156,7 @@ class WalTLocalRegistry:
             num_layers = 0
         else:
             num_layers = len(layers)
+        size_kib = data.attrs['Size'] // 1024
         return dict(
             labels=labels,
             editable=(num_layers < MAX_IMAGE_LAYERS),
@@ -162,6 +164,7 @@ class WalTLocalRegistry:
             created_at=parse_date(created_at_ts),
             node_models=node_models,
             node_models_desc=node_models_desc,
+            size_kib=size_kib
         )
 
     def image_exists(self, fullname):

@@ -1,0 +1,77 @@
+#!/bin/sh
+
+is_vnode() {
+    if [ -r "/sys/class/dmi/id/sys_vendor" ]
+    then
+        sys_vendor="$(busybox cat "/sys/class/dmi/id/sys_vendor")"
+        if [ "$sys_vendor" = "QEMU" ]
+        then
+            return 0  # yes, vnode
+        fi
+    fi
+    return 1  # no, not a vnode
+}
+
+start_background_processes()
+{
+    # walt-net-service needs to know if it is on a vnode,
+    # let's check it now because we need /sys and it may be
+    # unmounted before walt-net-service is started.
+    if is_vnode
+    then
+        vnode_mode=1
+    else
+        vnode_mode=0
+    fi
+    # check if walt-init logs are enabled
+    log_dir="/persist/logs/walt-init"
+    if [ -d "$log_dir" ]
+    then
+        rootfs_log_dir="/mnt$log_dir"
+    else
+        log_dir=""
+        rootfs_log_dir=""
+    fi
+    # start bg processes.
+    # walt-fs-watchdog is run with chroot in the rootfs,
+    # a tmpfs in RAM where the busybox binary has been copied,
+    # in order to be able to run properly in case of NFS share
+    # disconnection.
+    walt-log-script bg "$log_dir" walt-net-service $vnode_mode
+    walt-log-script bg "$log_dir" walt-notify-bootup
+    cd "/run/walt/rootfs"
+    busybox chroot . bin/walt-log-script bg "$rootfs_log_dir" walt-fs-watchdog
+    cd /
+}
+
+update_mounts_rootfs_to_finalfs() {
+    busybox mkdir -p /persist /run/walt/rootfs/mnt/finalfs
+    cd /run/walt/rootfs
+    busybox mount -o bind mnt/persist /persist
+    busybox mount -o bind /dev dev  # needed for walt-log-script & walt-fs-watchdog
+    [ -d mnt/hm_part ] && busybox umount mnt/hm_part
+    cd /
+}
+
+run_real_init()
+{
+    # try to make the system ressemble what we got when called
+    [ "$had_procfs" -eq 1 ] || busybox umount /proc
+    [ "$had_sysfs" -eq 1 ] || busybox umount /sys
+    # call the OS init
+    exec /sbin/init "$@" </dev/console >/dev/console 2>&1
+}
+
+# complete transition to finalfs
+. walt-script-common
+update_mounts_rootfs_to_finalfs
+export walt_init_done=1
+
+# start bg processes
+boot_step_label_cr          "Starting bg processes..."
+start_background_processes
+
+# start image init
+boot_step_label_cr          "Starting walt image init..."
+walt-log-echo "walt-init" "Handing over to WALT image init."
+run_real_init

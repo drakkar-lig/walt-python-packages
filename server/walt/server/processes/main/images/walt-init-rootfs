@@ -1,0 +1,76 @@
+#!/bin/busybox sh
+
+# This is the persistent mount point, available even across reboots.
+# Data are stored on the server through an NFS share.
+mount_persistent()
+{
+    # Compute persistent storage path:
+    # <server-ip>:/var/lib/walt/nodes/<hostname>/persist
+    # Caution: with NFSv4, client first mounts /var/lib/walt/nodes,
+    # then retrieves /var/lib/walt/nodes/<mac>/fs symlink target,
+    # and mounts this target path. Thus the mount target, as
+    # reported by findmnt for instance, is this second step
+    # mount target, of the form /var/lib/walt/images/<image-id>/fs.
+    server_ip="$(grep ' /mnt/nfsroot ' /proc/mounts | sed -e 's/:.*//')"
+    hostname="$(uname -n)"
+    persist_path="${server_ip}:/var/lib/walt/nodes/${hostname}/persist"
+    options="rw,relatime,vers=3,nolock"
+    if [ "$1" = "sync" ]
+    then
+        options="${options},sync"
+    fi
+
+    # Mount the share
+    mkdir -p /mnt/persist
+    mount -t nfs -o "$options" \
+           "${persist_path}" /mnt/persist  2>/dev/null || {
+        echo "/persist was not mounted (cf. walt node config)"
+        rm -rf /mnt/persist
+    }
+}
+
+update_mounts_nfs_to_rootfs()
+{
+    # update mounts
+    for d in dev proc sys run
+    do
+        mount -o move /mnt/nfsroot/$d /$d
+    done
+}
+
+switch_to_finalfs() {
+    cd /mnt/finalfs
+    for d in dev proc sys run
+    do
+        mount -o move /$d $d
+    done
+    pivot_root . run/walt/rootfs
+    exec chroot . bin/_walt_internal_/walt-init-finalfs "$@" \
+        <dev/console \
+        >dev/console 2>&1
+}
+
+# preparation work
+. walt-script-common
+update_mounts_nfs_to_rootfs
+# mount /persist (at /mnt/persist for now)
+boot_step_label_cr          "Mounting /persist..."
+mount_persistent
+# check if walt-init logs are enabled
+log_dir="/mnt/persist/logs/walt-init"
+if [ -d "$log_dir" ]
+then
+    # avoid NFS buffers by remounting with 'sync' option.
+    # note: "mount -o remount,sync" fails on some systems,
+    # so we umount + mount again.
+    umount /mnt/persist
+    mount_persistent sync
+else
+    log_dir=""
+fi
+# continue with walt-init-rootfs-main
+walt-log-script fg "$log_dir" walt-init-rootfs-main
+# switch to finalfs
+boot_step_label_cr          "Switching to finalfs..."
+switch_to_finalfs "$@"
+# the process continues in bin/_walt_internal_/walt-init-finalfs
