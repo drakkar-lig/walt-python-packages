@@ -31,12 +31,14 @@ Full table of Contents
    :caption: Using nodes
 
    node-ownership
+   node-reboot
    node-config
    node-console
    node-cp
    node-expose
    node-netsetup
    vnode-networks
+   vnode-disks
 
 
 .. toctree::
@@ -94,6 +96,7 @@ Full table of Contents
    :caption: How it works
 
    node-bootup
+   boot-modes
 
 
 .. toctree::

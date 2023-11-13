@@ -1,0 +1,169 @@
+#!/bin/busybox sh
+# vim: ft=sh
+
+HYBRID_MODE_COMMANDS="grep awk mkdir mount umount df tail tar mv"
+. /bin/walt-script-common --catch-errors
+
+_free_size_kib() {
+    dir=$1
+    set -- $(df "$dir" | tail -n 1)
+    echo $(($2-$3))
+}
+
+_busybox_has() {
+    busybox $1 --help >/dev/null 2>&1
+}
+
+_make_room_for_new_image() {
+    estimated_image_size_kib=$((walt_image_size_kib * 2))
+    cd "/mnt/hm_part/walt_hybrid"
+    while [ "$(_free_size_kib .)" -lt "$estimated_image_size_kib" ]
+    do
+        # remove oldest images until we get sufficient room
+        set -- $(ls -1t)
+        if [ -z "$1" ]
+        then
+            echo "boot mode detection: FALLBACK to network boot --" \
+             "not enough room on local disk" >&2
+            return 1
+        fi
+        rm -rf "$1"
+    done
+    return 0  # ok
+}
+
+_exit_return_ok() {
+    allow_script_exit
+    exit 0
+}
+
+_exit_return_failure() {
+    allow_script_exit
+    exit 1
+}
+
+_happy_grep() {
+    grep "$@" || true   # always return status ok
+}
+
+detect_hybrid_mode() {
+    missing=""
+    for applet in $HYBRID_MODE_COMMANDS
+    do
+        if _busybox_has $applet
+        then
+            ln -s busybox /bin/$applet
+        else
+            missing="$missing $applet"
+        fi
+    done
+    if [ ! -z "$missing" ]
+    then
+        echo "boot mode detection: BYPASSED, using network boot --" \
+             "[image]/bin/busybox misses" $missing >&2
+        _exit_return_failure
+    fi
+
+    # detect block devices of disk partitions. We exclude loop, ram and
+    # optical disk devices; partition devices end with a digit, whereas
+    # full disk devices do not (e.g. sda1 vs sda), except SD cards
+    # (e.g. mmcblk0p1 vs mmcblk0). If ever we forgot to discard something,
+    # it will be mount-tested, which should not harm anyway.
+    devs=$(ls -l /dev/ | _happy_grep '^b' | awk '{print $NF}' | \
+            _happy_grep '[0-9]$' | \
+            _happy_grep -v '^loop' | \
+            _happy_grep -v '^ram' | \
+            _happy_grep -v '^sr' | \
+            _happy_grep -v 'mmcblk[0-9]$')
+    mkdir -p /mnt/hm_part   # hm stands for hybrid mode
+    for dev in $devs
+    do
+        # if busybox has xxd applet, we can check the ext4 magic number
+        # (otherwise we will just try if mount.ext4 works...)
+        if _busybox_has xxd
+        then
+            ext4_magic="$(busybox xxd -s 1080 -l 2 -p "/dev/$dev")"
+            if [ "$ext4_magic" != "53ef" ]
+            then
+                continue    # not an ext4 partition
+            fi
+        fi
+        if mount -t ext4 "/dev/$dev" /mnt/hm_part >/dev/null 2>&1
+        then
+            if [ -d "/mnt/hm_part/walt_hybrid" ]
+            then
+                # hybrid mode is enabled
+                image_dir="/mnt/hm_part/walt_hybrid/${walt_image_id}/image"
+                if [ ! -d "$image_dir" ]
+                then
+                    # ... but image is new, not copied locally yet
+                   if _make_room_for_new_image
+                   then
+                       _exit_return_ok
+                   else
+                       umount /mnt/hm_part
+                       break
+                   fi
+                else  # image already there
+                    _exit_return_ok
+                fi
+            else
+                umount /mnt/hm_part
+            fi
+        fi
+    done
+    # no hybrid mode
+    rm -r /mnt/hm_part
+    _exit_return_failure
+}
+
+get_boot_mode_variant() {
+    if [ -f "/mnt/hm_part/walt_hybrid/.persistent" ]
+    then
+        echo "persistent"
+    else
+        echo "volatile"
+    fi
+}
+
+mount_hybrid_mode() {
+    echo "image_id: ${walt_image_id}"
+    image_dir="/mnt/hm_part/walt_hybrid/${walt_image_id}/image"
+    if [ ! -d "$image_dir" ]
+    then
+        walt-log-echo "walt-init" "Hybrid-mode: copying image files locally (this may be long)."
+        boot_step_label_cr "Copying image to local disk..."
+        mkdir -p "$image_dir.part"
+        { cd /mnt/nfsroot; tar cf - . ; } | \
+            { cd "$image_dir.part"; tar xf -; }
+        mv "$image_dir.part" "$image_dir"
+    fi
+    boot_step_label_cr "Mounting local image copy..."
+    variant=$(get_boot_mode_variant)
+    diff_dir="/mnt/hm_part/walt_hybrid/${walt_image_id}/diff"
+    work_dir="/mnt/hm_part/walt_hybrid/${walt_image_id}/work"
+    rm -rf "$work_dir"
+    if [ "$variant" = "volatile" ]
+    then
+        boot_step_label_cr "Discarding artefacts of previous run..."
+        rm -rf "$diff_dir"
+    fi
+    mkdir -p "$diff_dir" "$work_dir" /mnt/fs_final
+    mount_union $image_dir $diff_dir $work_dir /mnt/fs_final
+    _exit_return_ok
+}
+
+if [ "$1" = "detect" ]
+then
+    detect_hybrid_mode
+elif [ "$1" = "mode-variant" ]
+then
+    get_boot_mode_variant
+    _exit_return_ok
+elif [ "$1" = "mount" ]
+then
+    mount_hybrid_mode
+else
+    echo "invalid command: $@" >&2
+    exit 1  # will trigger the unexpected exit handler
+fi

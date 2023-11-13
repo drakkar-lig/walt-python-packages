@@ -1,25 +1,7 @@
 #!/bin/sh
-set -e
-
-DELAY_BEFORE_REBOOT=10
+. /bin/walt-script-common --catch-errors
 SYNC_CLOCK_TIMEOUT=3
 TRIALS=5
-
-do_reboot()
-{
-    # if we got here as part of a clean OS shutdown,
-    # let the OS complete this shutdown
-    sleep ${DELAY_BEFORE_REBOOT}
-    reboot -f
-}
-
-on_untimely_exit()
-{
-    echo "Time synchronization failed. Will reboot."
-    do_reboot
-}
-
-trap on_untimely_exit EXIT
 
 ts="none"
 trials=$TRIALS
@@ -33,7 +15,8 @@ done
 
 if [ "$ts" = "none" ]
 then
-    echo "Failed $TRIALS times."
+    echo "walt-clock-sync: failed $TRIALS times."
+    trigger_walt_reboot reboot
     exit 1
 fi
 
@@ -44,4 +27,4 @@ busybox date -s @$ts 2>/dev/null || \
 busybox date -s "$(busybox date -D "%s" -d $ts "+%Y-%m-%d %H:%M:%S")"
 
 # all done, remove the trap on EXIT
-trap '' EXIT
+allow_script_exit

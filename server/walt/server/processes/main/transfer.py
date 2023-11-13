@@ -198,7 +198,7 @@ def docker_wrap_cmd(cmd, input_needed=False):
     walt_tar_send = script_path("walt-tar-send")
     return f"""\
         podman run -q {input_opt} --name %(container_name)s -w /root \
-        -v {walt_tar_send}:/bin/walt-tar-send \
+        -v {walt_tar_send}:/bin/_walt_internal_/walt-tar-send \
         --entrypoint /bin/sh %(image_fullname)s -c "{cmd}; sync; sync" """
 
 
@@ -207,7 +207,7 @@ def ssh_wrap_cmd(cmd):
 
 
 TarSendCommand = """\
-        walt-tar-send %(src_path)s %(dst_name)s \
+        /bin/_walt_internal_/walt-tar-send %(src_path)s %(dst_name)s \
         """
 
 

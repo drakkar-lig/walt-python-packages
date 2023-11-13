@@ -1,0 +1,136 @@
+#!/bin/sh
+
+# scripts running in ROOTFS do at least the following:
+. /bin/walt-env
+if [ "$1" = "--catch-errors" ]
+then
+    shift 1
+    set -e
+    set -o pipefail || true
+    trap _on_exit EXIT
+fi
+
+_on_exit() {
+    if [ ! -e "/.rebooting" ]
+    then
+        echo -n > "/.rebooting"   # touch file
+        echo "$0 exited! What happened?? Let's force-reboot!" >&2
+        exec reboot -f
+    else
+        # if we are rebooting, we can expect scripts to be interrupted
+        echo "$0 stopped, probably because of the running reboot procedure." >&2
+    fi
+}
+
+_wait_for_os_shutdown() {
+    sleep 30
+    # if we are here...
+    echo 'Reboot failed or was too long.' >&2
+    _do_force_reboot
+}
+
+_do_force_reboot() {
+    echo "Calling 'reboot -f' command." >&2
+    exec reboot -f
+}
+
+_do_reboot() {
+    REBOOT_CMD_TIMEOUT=2        # the reboot command itself should not block
+    if [ "${walt_boot_mode}" = "network" ]
+    then
+        # we are on a readonly NFS-boot and all file changes
+        # were handled in RAM, so no need to wait for the init system
+        # shutdown procedure
+        _do_force_reboot
+    else
+        # we have booted on a local disk, let the init system follow
+        # its shutdown procedure.
+        cd "/mnt/fs_final"
+        echo "Calling 'reboot' command." >&2
+        if walt-timeout $REBOOT_CMD_TIMEOUT chroot . reboot
+        then
+            # the OS should now be shutting down its services
+            _wait_for_os_shutdown
+        else
+            echo "'reboot' command failed!" >&2
+            exit 1
+        fi
+    fi
+}
+
+_do_walt_reboot() {
+    script="$1"
+    WALT_REBOOT_CMD_TIMEOUT=60  # walt-reboot has to download a kernel, initrd, etc.
+    cd "/mnt/fs_final"
+    echo "Calling $script"
+    export walt_boot_mode="$walt_boot_mode"
+    if walt-timeout $WALT_REBOOT_CMD_TIMEOUT chroot . $script
+    then
+        # the OS should now be shutting down its services
+        _wait_for_os_shutdown
+    else
+        echo "Command 'bin/walt-reboot' failed!" >&2
+        _do_force_reboot
+    fi
+}
+
+trigger_walt_reboot() {
+    reboot_kind="$1"
+    echo -n > "/.rebooting"   # touch file
+    if [ "$reboot_kind" = "walt-custom-reboot" ]
+    then
+        _do_walt_reboot $2
+    elif [ "$reboot_kind" = "reboot" ]
+    then
+        _do_reboot
+    elif [ "$reboot_kind" = "force-reboot" ]
+    then
+        _do_force_reboot
+    fi
+}
+
+allow_script_exit() {
+    trap '' EXIT
+}
+
+wait_for_input_line_shortly() {
+    walt-timeout $1 busybox head -n 1
+}
+
+mount_union()
+{
+    lowerdir="$1"
+    upperdir="$2"
+    workdir="$3"
+    uniondir="$4"
+
+    # Overlay filesystem may be compiled in the kernel
+    # or provided as a module. Let's try to load it as
+    # a module and ignore errors.
+    modprobe overlay 2>/dev/null || modprobe overlayfs 2>/dev/null || true
+
+    # creating the union
+    # /: the nfs mount (that should remain read-only)
+    # fs_rw: the place to hold the filesystem changes
+    # fs_final: the mount point of the union
+    busybox mount -t overlay \
+        -o upperdir=${upperdir},lowerdir=${lowerdir},workdir=${workdir} \
+        union ${uniondir} 2>/dev/null || \
+    busybox mount -t overlayfs \
+        -o upperdir=${upperdir},lowerdir=${lowerdir} \
+        union ${uniondir}
+}
+
+boot_step_label() {
+    busybox printf "*** %-45s ***" "$1"
+}
+
+boot_step_label_cr() {
+    boot_step_label "$1"
+    echo
+}
+
+boot_step_label_replace() {
+    echo -e -n "\r"
+    boot_step_label_cr "$1"
+}

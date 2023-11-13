@@ -1,0 +1,52 @@
+#!/bin/sh
+OPTIONAL_LOGS_DIR="/mnt/fs_final/persist/logs/walt-init"
+. /bin/walt-script-common
+
+allow_fail="$1"
+name="$2"
+script_path="bin/$name"
+shift 2
+
+# When logs are enabled, we want to monitor our shell scripts
+# by running them with 'sh -x' and redirecting stderr to a file
+# in /persist.
+
+# However, if the walt server restarts, /persist will be lost
+# which, together with the '-x' setting, will prevent any single
+# shell command to run properly, including within a EXIT handler.
+# Thus such a script is not even able to trigger a reboot.
+
+# Consequently, we run this thin wrapper script, responsible
+# for setting up logging and then running the requested command
+# (i.e., another script, given in args); and this wrapper is run
+# without the -x option. It will handle any unexpected exit of
+# the requested command.
+
+if [ -d "$OPTIONAL_LOGS_DIR" ]
+then
+    log_file_base="$OPTIONAL_LOGS_DIR/$capture_log_name"
+    # prepare stdout and sterr log files
+    for ext in "out" "err"
+    do
+        # we concatenate to possibly existing content
+        # from previous bootups.
+        # first, add a header with a date
+        echo >> $log_file_base.$ext
+        echo "-----" >> $log_file_base.$ext
+        date >> $log_file_base.$ext
+    done
+    # start requested command with '-x' and proper redirection
+    sh -x "$script_path" "$@" 1>>$log_file_base.out 2>>$log_file_base.err
+else
+    sh "$script_path" "$@"
+fi
+
+result=$?
+
+if [ "$result" -ne 0 -a "$allow_fail" -eq 0 ]
+then
+    echo "$name returned with exit failure." >/dev/console
+    trigger_walt_reboot reboot
+fi
+
+return $result
