@@ -54,6 +54,8 @@ capturing_logs()
 
 init_logging()
 {
+    # avoid NFS buffers by remounting with 'sync' option
+    $MOUNT -o remount,sync $ROOTFS/mnt/fs_final/persist
     redirect_process_logs "walt-init"
     set -x
 }
