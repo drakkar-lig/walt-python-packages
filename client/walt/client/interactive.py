@@ -36,7 +36,6 @@ class PromptClient(object):
             # because two signals could be raised in a short interval,
             # and the import of the first call could be interrupted.
             # so let's do it now.
-            import shutil
             from walt.common.term import TTYSettings
             self.tty_settings = TTYSettings()
             # send terminal width and provided parameters
@@ -60,8 +59,18 @@ class PromptClient(object):
     def resize_handler(self, signum, frame):
         self.resize_handler_called = True
         if self.tty_mode:
-            import shutil
-            termsize = shutil.get_terminal_size()
+            # the python doc recommends using shutil.get_terminal_size()
+            # which may internally call os.get_terminal_size(). But it will
+            # use LINES and COLUMNS environment variables if available,
+            # and these variables may be wrong (not updated) in some cases.
+            # we prefer to try querying the terminal first (i.e., call
+            # os.get_terminal_size()), and if this fails, fallback to
+            # reasonable defaults using shutil.get_terminal_size().
+            try:
+                termsize = os.get_terminal_size()
+            except OSError:
+                import shutil
+                termsize = shutil.get_terminal_size()
             buf = pickle.dumps(
                 {
                     "evt": "window_resize",
