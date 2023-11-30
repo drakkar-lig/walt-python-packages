@@ -16,9 +16,18 @@ You can obviously use this in the experiment scripts you run on nodes.
 
 ## Advanced usage and performance tips
 
-If you have means to specify high precision timestamps (e.g. network capture timestamps), you may use option `--ts`:
+By default, or if option --ts-server is specified, timestamps will be taken upon reception on server side.
+
+If you know the node is well synchronized (e.g., PTP is set up on this WALT image, or NTP and the node has booted several hours ago),
+you may specify --ts-local instead:
 ```
-[node]$ <command...> | walt-log-cat --ts <stream-name>
+[node]$ <command...> | walt-log-cat --ts-local <stream-name>
+```
+Timestamps will be taken locally on the node by using `date +%s.%N`.
+
+If you can get even higher precision timestamps (e.g. network capture timestamps), you may use option --ts-provided instead:
+```
+[node]$ <command...> | walt-log-cat --ts-provided <stream-name>
 ```
 In this case, output lines of `<command...>` must match the following form instead:
 ```

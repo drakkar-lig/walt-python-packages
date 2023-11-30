@@ -1,15 +1,23 @@
 #!/bin/sh
 
 USAGE="\
-Usage: $ <cmd...> | $(basename $0) [--ts] <logstream-label>
+Usage: $ <cmd...> | $(basename $0) [--ts-provided|--ts-local|--ts-server] <logstream-label>
 
 Output lines of <cmd...> will be transmitted up to
 WalT server and stored as log lines associated with
 the given log stream label.
 
-If you have means to specify high precision timestamps
-(e.g. network capture timestamps), you may use option --ts
-and stream lines of the following form instead:
+By default, or if option --ts-server is specified, timestamps
+will be taken upon reception on server side.
+
+If you know the node is well synchronized (e.g., PTP is set up
+on this WALT image, or NTP and the node has booted several hours
+ago) you may specify --ts-local instead. Timestamps will be
+taken locally on the node by this script, using 'date +%s.%N'.
+
+If you can get even higher precision timestamps (e.g. network
+capture timestamps), you may instead use option --ts-provided
+and stream lines of the following form:
 <float_timestamp> <log_line>
 with float_timestamp a unix timestamp (float number of
 seconds since 1970), as obtained with 'date +%s.%N'.
@@ -19,20 +27,36 @@ seconds since 1970), as obtained with 'date +%s.%N'.
 . walt-env
 
 # check possible option
-ts_mode=0
-if [ "$1" = "--timestamp" -o "$1" = "--ts" ]
+ts_mode='server'   # --ts-server assumed by default
+
+# note: "--timestamp" or "--ts" are obsolete aliases to "--ts-provided".
+# It is mandatory to maintain these aliases because older experiment
+# scripts in walt images and the walt-logs-daemon software of
+# sub-package walt-common use them.
+if [ "$1" = "--timestamp" -o "$1" = "--ts" -o "$1" = "--ts-provided" ]
 then
     # timestamps provided in input
-    ts_mode=1
+    ts_mode='provided'
     shift
-else
+elif [ "$1" = "--ts-local" ]
+then
     # check if date command can provide sub-second granularity
     if [ "$(date +%N)" = '%N' ]
     then
         # cannot get sub-second granularity
         # we will let the server timestamp traces
-        ts_mode=2
+        echo "WARNING: this date command cannot provide sub-second granularity." >&2
+        echo "WARNING: falling back to server timestamping mode (--ts-server)." >&2
+        ts_mode='server'
+    else
+        # OK for local timestamping
+        ts_mode='local'
     fi
+    shift
+elif [ "$1" = "--ts-server" ]
+then
+    ts_mode='server'
+    shift
 fi
 
 # get stream name as first arg
@@ -52,7 +76,7 @@ exec 6<&1
 {
     echo REQ_NEW_INCOMING_LOGS
     echo "$stream"
-    if [ "$ts_mode" = "2" ]
+    if [ "$ts_mode" = "server" ]
     then
         # let the server know we will not send timestamps
         # (thus server should set timestamps itself)
@@ -68,7 +92,7 @@ exec 6<&1
         # let the server know we will send timestamps
         # (as 1st column)
         echo "TIMESTAMPS_INSIDE"
-        if [ "$ts_mode" = "1" ]
+        if [ "$ts_mode" = "provided" ]
         then
             while read ts line
             do
@@ -77,7 +101,7 @@ exec 6<&1
                 # also print it to stdout
                 echo "$line" >&6
             done
-        else
+        else    # ts_mode 'local'
             while read line
             do
                 # send log line through pipe
