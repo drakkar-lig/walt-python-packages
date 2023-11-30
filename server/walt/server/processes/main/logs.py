@@ -10,6 +10,8 @@ from walt.common.tcp import PICKLE_VERSION, Requests, read_pickle, write_pickle
 from walt.common.udp import udp_server_socket
 from walt.server.tools import get_server_ip
 
+TEN_YEARS = 3600 * 24 * 365 * 10
+
 
 class LogsToDBHandler(object):
     # Logs cause many inserts in db, so we buffer
@@ -99,6 +101,9 @@ class LogsStreamListener(object):
             else:
                 timestamp, line = inputline.split(None, 1)
                 timestamp = float(timestamp)
+                if timestamp < ts - TEN_YEARS or timestamp > ts + 1:
+                    # wrong timestamp, replace with ts
+                    timestamp = ts
             record = dict(timestamp=timestamp, line=line)
         except BaseException as e:
             print(e)

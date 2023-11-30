@@ -1,5 +1,6 @@
 import pickle
 import re
+from datetime import datetime, timedelta
 from time import time
 
 from walt.common.tools import get_mac_address
@@ -10,6 +11,8 @@ from walt.server.tools import get_server_ip
 EV_AUTO_COMMIT = 0
 EV_AUTO_COMMIT_PERIOD = 2
 LOGS_AGGREGATION_THRESHOLD_SECS = 0.002
+ONE_SECOND = timedelta(seconds=1)
+ONE_MINUTE = timedelta(minutes=1)
 
 
 class ServerDB(PostgresDB):
@@ -355,12 +358,19 @@ class ServerDB(PostgresDB):
     def insert_multiple_logs(self, records):
         if len(records) > 0:
             record = records[0]
-            if self.timestamp_last_logs is None:
-                self.timestamp_last_logs = record["timestamp"]
+            ts = record["timestamp"]
+            now = datetime.now()
+            if ts < now - ONE_MINUTE or ts > now + ONE_SECOND:
+                # heavily desynchronized, do not consider this log line
+                # for defragmentation
+                pass
             else:
-                self.timestamp_last_logs = min(
-                    self.timestamp_last_logs, record["timestamp"]
-                )
+                if self.timestamp_last_logs is None:
+                    self.timestamp_last_logs = ts
+                else:
+                    self.timestamp_last_logs = min(
+                        self.timestamp_last_logs, ts
+                    )
         # due to buffering, we might still get stream_ids of a device
         # recently forgotten, which could lead to a foreign constraint violation
         # (stream_id no longer exists in the logstream table).
