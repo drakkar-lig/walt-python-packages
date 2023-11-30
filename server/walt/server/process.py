@@ -85,6 +85,7 @@ class EvProcessesManager(object):
     def __init__(self):
         self.process_levels = defaultdict(list)
         self.initial_failing_process = None
+        self.graceful_exit = True  # by default
         self.files = defaultdict(list)
         self.name = "__manager__"
 
@@ -121,11 +122,20 @@ class EvProcessesManager(object):
             read_set = tuple(t.pipe_manager for t in self.processes)
             on_sigterm_throw_exception()
             r, w, e = select(read_set, (), read_set)
-            msg = r[0].recv()
-            assert msg == "START_EXIT", "Unexpected message in pipe_manager"
+            try:
+                msg = r[0].recv()
+                assert msg == "START_EXIT", "Unexpected message in pipe_manager"
+            except Exception:
+                # the process may have crashed without a possibility to notify
+                # this process manager
+                self.graceful_exit = False
             for t in self.processes:
                 if t.pipe_manager is r[0]:
                     self.initial_failing_process = t
+                    if not self.graceful_exit:
+                        print(f"exit: {t.name} seems to have crashed")
+                    else:
+                        print(f"exit: requested by {t.name}")
                     break
 
     def cleanup(self):
@@ -134,7 +144,10 @@ class EvProcessesManager(object):
             processes = self.process_levels[level]
             for t in processes:
                 if t is not self.initial_failing_process:
-                    t.pipe_manager.send("PROPAGATED_EXIT")
+                    try:
+                        t.pipe_manager.send("PROPAGATED_EXIT")
+                    except Exception:
+                        print(f"exit: {t.name} is not responding")
                 t.join(20)
                 if t.exitcode is None:
                     print(f"exit: sending SIGTERM to {t.name}")
