@@ -71,6 +71,9 @@ update-setup: black.pip-package
 	@echo updating all setup.py files
 	dev/setup-updater.py
 
+quick-venv-update:
+	@dev/quick-venv-update.sh
+
 clean:
 	find . -name \*.pyc -delete
 
