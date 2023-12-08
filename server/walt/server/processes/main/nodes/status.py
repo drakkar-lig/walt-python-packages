@@ -29,11 +29,11 @@ class NodeBootupStatusListener:
         self.sock_files_per_ip = sock_files_per_ip
         self.nodes_manager = nodes_manager
         self.node_ip, _ = self.sock_file.getpeername()
+        self.sock_files_per_ip[self.node_ip] = self.sock_file
         self.nodes_manager.change_nodes_bootup_status(
             nodes_ip=[self.node_ip], booted=True
         )
         self.set_keepalive()
-        self.sock_files_per_ip[self.node_ip] = self.sock_file
         self.sock_file.write(b'OK\n')
 
     def set_keepalive(self):
@@ -73,6 +73,8 @@ class NodeBootupStatusListener:
 
     def close(self):
         if self.sock_file:
+            if self.sock_files_per_ip[self.node_ip] is self.sock_file:
+                del self.sock_files_per_ip[self.node_ip]
             self.sock_file.close()
             self.sock_file = None
 
