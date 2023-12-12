@@ -12,15 +12,27 @@ BOLD_ON = "1"
 DIM_ON = "2"
 DIM_AND_BOLD_OFF = "22"
 
+C256_BLACK = 0
+C256_BLUE = 4
+C256_LIGHT_GREY = 7
+C256_WHITE = 15
+C256_DARK_YELLOW = 172
+C256_DARK_RED = 88
+
+# note: we could use only "[34]8;5;{c}" codes, but for a smaller
+# formatted text we prefer to generate short codes for standard colors
+C256_FG = lambda c: f"38;5;{c}" if c > 15 else f"{82+c}" if c > 7 else f"{30+c}"
+C256_BG = lambda c: f"48;5;{c}" if c > 15 else f"{92+c}" if c > 7 else f"{40+c}"
+
 FG_COLOR_DEFAULT = "39"
-FG_COLOR_BLACK = "30"
-FG_COLOR_DARK_YELLOW = "38;5;172"
-FG_COLOR_BLUE = "34"
-FG_COLOR_DARK_RED = "38;5;88"
+FG_COLOR_BLACK = C256_FG(C256_BLACK)
+FG_COLOR_DARK_YELLOW = C256_FG(C256_DARK_YELLOW)
+FG_COLOR_BLUE = C256_FG(C256_BLUE)
+FG_COLOR_DARK_RED = C256_FG(C256_DARK_RED)
 
 BG_COLOR_DEFAULT = "49"
-BG_COLOR_WHITE = "107"
-BG_COLOR_LIGHT_GREY = "47"
+BG_COLOR_WHITE = C256_BG(C256_WHITE)
+BG_COLOR_LIGHT_GREY = C256_BG(C256_LIGHT_GREY)
 
 RE_ESC_COLOR = re.compile("\x1b" + r"\[[0-9;]*m")
 
