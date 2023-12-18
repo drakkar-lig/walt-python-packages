@@ -11,12 +11,12 @@ from walt.client.doc.color import (
     BG_COLOR_WHITE,
     FG_COLOR_BLACK,
     FG_COLOR_BLUE,
-    FG_COLOR_DARK_RED,
-    FG_COLOR_DARK_YELLOW,
     FG_COLOR_DEFAULT,
+    FG_COLOR_DARK_RED,
     RE_ESC_COLOR,
     FormatState,
     get_transition_esc_sequence,
+    optimize_and_reset_default_colors
 )
 from walt.client.doc.mdtable import detect_table, render_table
 from walt.common.term import TTYSettings
@@ -25,8 +25,9 @@ MAX_TARGET_WIDTH = 120
 
 FG_COLOR_MARKDOWN = FG_COLOR_BLACK
 BG_COLOR_MARKDOWN = BG_COLOR_WHITE
-FG_COLOR_SOURCE_CODE = FG_COLOR_DARK_YELLOW
+FG_COLOR_SOURCE_CODE = FG_COLOR_BLACK
 BG_COLOR_SOURCE_CODE = BG_COLOR_LIGHT_GREY
+BG_COLOR_SOURCE_CODE_HIGHLIGHT = "103"
 FG_COLOR_URL = FG_COLOR_BLUE
 FG_COLOR_HEADING = FG_COLOR_DARK_RED
 
@@ -62,7 +63,10 @@ class MarkdownRenderer:
                 raise NotImplementedError(type_)
             getattr(self, type_)(event["node"], event["entering"])
             event = walker.nxt()
-        return self.buf
+        optimized_buf = optimize_and_reset_default_colors(
+                self.buf, FG_COLOR_DEFAULT, BG_COLOR_DEFAULT
+        )
+        return optimized_buf
 
     def document(self, node, entering):
         if entering:
@@ -256,54 +260,102 @@ class MarkdownRenderer:
         text = "\n".join(line.rstrip() for line in text.rstrip("\n").split("\n"))
         return text
 
-    # Since pygments output includes escape codes to reset the foreground
-    # or background color, we have to make a pass to revert those escape
-    # codes and get the default colors we want.
-    def fix_pygments_default_colors(self, s, default_fg, default_bg):
-        reset_all = "0;%s;%s" % (str(default_fg), str(default_bg))
-        mapping = {
-            39: str(default_fg),  # default fg color
-            49: str(default_bg),  # default bg color
-            0: reset_all,
-        }
-        s2 = ""
-        start = 0
-        end = 0
-        for m in RE_ESC_COLOR.finditer(s):
-            start = m.start()
-            s2 += s[end:start] + "\x1b["
-            codes = (int(c) for c in m.group()[2:-1].split(";"))
-            s2 += ";".join(mapping.get(code, str(code)) for code in codes) + "m"
-            end = m.end()
-        s2 += s[end:]
-        return s2
+    def add_line_prefix(self, lineno, line, breakpoints, line_number_width):
+        elements = ()
+        if breakpoints is not None:
+            elements += ("\u2BC3" if lineno in breakpoints else " ",)
+        if line_number_width is not None:
+            elements += (f"{lineno:>{line_number_width}}",)
+        if len(elements) > 0:
+            elements += ("|",)
+        elements += (line,)
+        return " ".join(elements)
+
+    def add_line_prefixes(self, lines, breakpoints, line_number_width):
+        return [self.add_line_prefix(n+1, line, breakpoints, line_number_width)
+                for n, line in enumerate(lines)]
 
     def code_block(self, node, entering):
         code_text = self.pre_format_code_block(node.literal)
+        colored_text = code_text  # if we cannot perform syntax highlighting
+        params = {}
+        enable_linenos = False
+        if node.info != '':
+            language = None
+            for spec in node.info.split():
+                if '=' in spec:
+                    param, value = spec.split("=")
+                    params[param] = value
+                elif spec == "linenos":
+                    enable_linenos = True
+                else:
+                    language = spec
+            if language is not None:
+                try:
+                    lexer = get_lexer_by_name(language)
+                    colored_text = highlight(code_text, lexer, Terminal256Formatter())
+                    colored_text = colored_text.rstrip("\n")
+                except Exception:  # syntax highlighting failed: just use the raw code
+                    colored_text = code_text
+        highlight_line = params.get("highlight-line", None)
+        breakpoints = params.get("breakpoints", None)
+        if breakpoints is not None:
+            if breakpoints == '':
+                breakpoints = ()
+            else:
+                breakpoints = set(int(line) for line in breakpoints.split(","))
+        code_lines = code_text.split("\n")
+        if enable_linenos:
+            line_number_width = len(str(len(code_lines)))
+        else:
+            line_number_width = None
+        code_lines = self.add_line_prefixes(
+                code_lines, breakpoints, line_number_width)
+        colored_lines = colored_text.split("\n")
+        colored_lines = self.add_line_prefixes(
+                colored_lines, breakpoints, line_number_width)
+        if highlight_line is not None:
+            highlight_line = int(highlight_line) - 1  # 1-indexing -> 0-indexing
+            sections = (
+                (0, highlight_line, BG_COLOR_SOURCE_CODE),
+                (highlight_line, highlight_line+1, BG_COLOR_SOURCE_CODE_HIGHLIGHT),
+                (highlight_line+1, len(code_lines), BG_COLOR_SOURCE_CODE),
+            )
+        else:
+            sections = (
+                (0, len(code_lines), BG_COLOR_SOURCE_CODE),
+            )
         code_width = max(len(line) for line in code_text.split("\n")) + 1
         code_width = max(code_width, self.target_width)
-        try:
-            lexer = get_lexer_by_name(node.info)
-            colored_text = highlight(code_text, lexer, Terminal256Formatter())
-            colored_text = self.fix_pygments_default_colors(
-                colored_text, FG_COLOR_SOURCE_CODE, BG_COLOR_SOURCE_CODE
+        for section_start, section_end, bg_color in sections:
+            section_code_lines = code_lines[section_start:section_end]
+            section_colored_lines = colored_lines[section_start:section_end]
+            if len(section_code_lines) == 0:
+                continue  # empty section, e.g., when highlighting 1st line
+            # pygments output includes escape codes to reset the foreground
+            # or background color, we have to make a pass to revert those escape
+            # codes and get the default colors we want.
+            section_colored_text = optimize_and_reset_default_colors(
+                "\n".join(section_colored_lines),
+                FG_COLOR_SOURCE_CODE,
+                bg_color
             )
-        except Exception:
-            colored_text = code_text
-        for code_line, colored_line in zip(
-            code_text.split("\n"), colored_text.split("\n")
-        ):
-            self.stack_context(
-                fg_color=FG_COLOR_SOURCE_CODE, bg_color=BG_COLOR_SOURCE_CODE
-            )
-            # paste the colored line, then kill ('\e[K') in order to paint the rest
-            # with background color of source code, then move to the right ('\e[<N>C')
-            # up to the edge of code block
-            self.lit(colored_line + "\x1b[K\x1b[%dC" % (code_width - len(code_line)))
-            # this will restore markdown background color
-            self.pop_context()
-            # line feed
-            self.cr()
+            section_code_text = "\n".join(section_code_lines)
+            for code_line, colored_line in zip(
+                section_code_text.split("\n"), section_colored_text.split("\n")
+            ):
+                self.stack_context(
+                    fg_color=FG_COLOR_SOURCE_CODE, bg_color=bg_color
+                )
+                # paste the colored line, then kill ('\e[K') in order to paint the
+                # rest with background color of source code, then move to the right
+                # ('\e[<N>C') up to the edge of code block
+                self.lit(colored_line + "\x1b[K\x1b[%dC" %
+                         (code_width - len(code_line)))
+                # this will restore markdown background color
+                self.pop_context()
+                # line feed
+                self.cr()
         self.cr()
 
     def list(self, node, entering):
