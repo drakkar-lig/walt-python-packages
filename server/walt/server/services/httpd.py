@@ -7,7 +7,7 @@ from gevent.fileobject import FileObject
 from gevent.pywsgi import WSGIServer
 from walt.common.unix import Requests, bind_to_random_sockname, recv_msg_fds
 from walt.server.const import UNIX_SERVER_SOCK_PATH
-from walt.server.tools import get_server_ip
+from pkg_resources import resource_filename
 
 WALT_HTTPD_PORT = 80
 
@@ -17,12 +17,14 @@ WELCOME_PAGE = """
 
 Available sub-directories:
 <ul>
-  <li> <b>/boot</b> -- boot files to be retrieved by HTTP-capable bootloaders </li>
+  <li> <b><a href="/doc">/doc</a></b> -- WalT documentation </li>
+  <li> <b>/boot</b> -- boot files to be retrieved by HTTP-capable node bootloaders </li>
 </ul>
 </html>
 """
 
 MAIN_DAEMON_SOCKET_TIMEOUT = 3
+HTML_DOC_DIR = resource_filename("walt.doc", "html")
 
 
 def fake_tftp_read(s_conn, ip, path):
@@ -75,8 +77,12 @@ def run():
     def welcome():
         return WELCOME_PAGE
 
+    @app.route("/favicon.ico")
+    def favicon():
+        bottle.redirect('/doc/_static/logo-walt.png')
+
     @app.route("/boot/<path:path>")
-    def serve(path):
+    def serve_boot(path):
         global s_conn
         # for a virtual node actually running on the server,
         # the IP address of the socket peer does not match
@@ -106,7 +112,16 @@ def run():
         else:
             return bottle.HTTPError(400, status)
 
+    @app.route("/doc")
+    def redirect_doc():
+        bottle.redirect('/doc/')
+
+    @app.route("/doc/")
+    @app.route("/doc/<path:path>")
+    def serve_doc(path="index.html"):
+        return bottle.static_file(path, root=HTML_DOC_DIR)
+
     # run web app
-    server = WSGIServer((get_server_ip(), WALT_HTTPD_PORT), app)
+    server = WSGIServer(('', WALT_HTTPD_PORT), app)
     notify_systemd()
     server.serve_forever()

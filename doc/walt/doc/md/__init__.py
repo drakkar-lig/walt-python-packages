@@ -2,7 +2,7 @@ import re
 import sys
 
 from pkg_resources import resource_listdir, resource_string
-from walt.client.doc.pager import DocPager
+from walt.doc.pager import DocPager
 
 
 def get_md_content(topic, err_out=False):

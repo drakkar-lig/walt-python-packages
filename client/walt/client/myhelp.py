@@ -16,7 +16,7 @@ class WalTHelpShow(WalTApplication):
     USAGE = "walt help show [topic=help-intro]\n"
 
     def main(self, topic: HELP_TOPIC = "help-intro"):
-        from walt.client.doc.md import display_doc
+        from walt.doc.md import display_doc
 
         display_doc(topic)
 
@@ -26,6 +26,6 @@ class WalTHelpList(WalTApplication):
     """displays the list of help topics"""
 
     def main(self):
-        from walt.client.doc.md import display_topic_list
+        from walt.doc.md import display_topic_list
 
         display_topic_list()

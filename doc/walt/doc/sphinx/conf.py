@@ -18,20 +18,23 @@ print(THIS_DIR)
 md_dir = THIS_DIR.parent / "md"
 
 
-def need_rebuild(source, generated):
+def need_rebuild(sources, generated):
     if not generated.exists():
         return True
-    if source.stat().st_mtime > generated.stat().st_mtime:
-        return True
+    for source in sources:
+        if source.stat().st_mtime > generated.stat().st_mtime:
+            return True
     return False
 
 
 for md_file in tuple(md_dir.glob("*.md")):
+    src_files = (md_file,)
     if md_file.name == "help-intro.md":
+        src_files += ((THIS_DIR / "index_rst_tables"),)
         rst_file = THIS_DIR / "index.rst"
     else:
         rst_file = (THIS_DIR / md_file.name).with_suffix(".rst")
-    if need_rebuild(md_file, rst_file):
+    if need_rebuild(src_files, rst_file):
         print(f"Converting {md_file.name} to reStructuredText format.")
         # rst = reStructuredText; gfm = GitHub Flavored Markdown
         rst_content = pypandoc.convert_file(md_file, "rst", format="gfm")
@@ -82,3 +85,5 @@ html_theme_options = {
     "style_nav_header_background": "gray",
     "sticky_navigation": False,
 }
+html_show_sourcelink = False
+html_favicon = "logo-walt.png"

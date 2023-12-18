@@ -5,7 +5,7 @@ import textwrap
 from pygments import highlight
 from pygments.formatters import Terminal256Formatter
 from pygments.lexers import get_lexer_by_name
-from walt.client.doc.color import (
+from walt.doc.color import (
     BG_COLOR_DEFAULT,
     BG_COLOR_LIGHT_GREY,
     BG_COLOR_WHITE,
@@ -18,7 +18,7 @@ from walt.client.doc.color import (
     get_transition_esc_sequence,
     optimize_and_reset_default_colors
 )
-from walt.client.doc.mdtable import detect_table, render_table
+from walt.doc.mdtable import detect_table, render_table
 from walt.common.term import TTYSettings
 
 MAX_TARGET_WIDTH = 120

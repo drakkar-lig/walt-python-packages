@@ -1,0 +1,2 @@
+include walt/doc/md/*.md
+graft walt/doc/html

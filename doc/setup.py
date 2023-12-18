@@ -9,22 +9,16 @@ if sys.version_info[0] == 2:
     sys.exit("Sorry, Python 2 is no longer supported.")
 
 setup_info = {
-    "name": "walt-client",
+    "name": "walt-doc",
     "version": "8.2",
-    "install_requires": ["plumbum>=1.7.2", "walt-common==8.2", "walt-doc==8.2"],
-    "extras_require": {"g5k": ["walt-client-g5k==8.2"]},
+    "install_requires": ["commonmark>=0.7.5", "pygments>=2.2.0", "walt-common==8.2"],
     "author": "WalT developers",
     "author_email": "walt-contact@univ-grenoble-alpes.fr",
     "keywords": "WalT testbed",
     "license": "3-Clause BSD",
     "url": "https://walt-project.liglab.fr",
-    "description": "WalT control tool.",
-    "entry_points": {
-        "console_scripts": [
-            "walt = walt.client.client:run",
-            "walt-autocomplete-helper = walt.client.autocomplete:ac_helper",
-        ]
-    },
+    "description": "WalT doc files and related code.",
+    "include_package_data": True,
 }
 setup_info.update(packages=find_packages())
 setup(**setup_info)

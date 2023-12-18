@@ -4,6 +4,7 @@
 build
 dist
 *ignore/
-client/walt/client/doc/sphinx/*.rst
-client/walt/client/doc/sphinx/_build
+doc/walt/doc/sphinx/*.rst
+doc/walt/doc/sphinx/_build
+doc/walt/doc/html/
 .venv

@@ -7,10 +7,10 @@ build:
 
 sphinx:
   fail_on_warning: true
-  configuration: client/walt/client/doc/sphinx/conf.py
+  configuration: doc/walt/doc/sphinx/conf.py
 
 python:
   install:
-    - requirements: client/walt/client/doc/sphinx/requirements.txt
+    - requirements: doc/walt/doc/sphinx/requirements.txt
 
 
