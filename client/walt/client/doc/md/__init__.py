@@ -2,7 +2,7 @@ import re
 import sys
 
 from pkg_resources import resource_listdir, resource_string
-from walt.client.doc.pager import Pager
+from walt.client.doc.pager import DocPager
 
 
 def get_md_content(topic, err_out=False):
@@ -16,7 +16,7 @@ def get_md_content(topic, err_out=False):
 
 def display_doc(topic):
     if sys.stdout.isatty() and sys.stdin.isatty():
-        pager = Pager(get_md_content)
+        pager = DocPager(get_md_content)
         pager.display_topic(topic)
     else:
         print(get_md_content(topic, err_out=True))

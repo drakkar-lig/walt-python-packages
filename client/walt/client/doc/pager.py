@@ -17,31 +17,22 @@ RE_LINKTAGS = re.compile(r"<L+>")
 
 
 class Pager:
-    def __init__(self, get_md_content):
+    def __init__(self, authorized_keys):
         self.tty = TTYSettings()
-        self.get_md_content = get_md_content
         self.parser = commonmark.Parser()
         self.renderer = MarkdownRenderer()
-        self.debug_s = ""
+        self.authorized_keys = authorized_keys
 
-    def display_topic(self, topic):
-        content = self.get_md_content(topic, err_out=True)
-        if content is None:
-            return
-        if os.isatty(sys.stdout.fileno()):
-            try:
-                self.tty.set_raw_no_echo()
-                with alternate_screen_buffer(mouse_wheel_as_arrow_keys=True):
-                    self.pager_main_loop(topic, 0)
-            except Exception as e:
-                sys.stdout.write("\r\n\x1b[0m")
-                traceback.print_exception(e)
-            finally:
-                self.tty.restore()
-        else:
-            print(content)
-            # For debugging colors with hexdump, prefer:
-            # print(MarkdownRenderer().render(content))
+    def start_display(self, **env):
+        try:
+            self.tty.set_raw_no_echo()
+            with alternate_screen_buffer(mouse_wheel_as_arrow_keys=True):
+                self.pager_main_loop(**env)
+        except Exception as e:
+            sys.stdout.write("\r\n\x1b[0m")
+            traceback.print_exception(e)
+        finally:
+            self.tty.restore()
 
     def parse_topic_links(self, ast):
         # in order to handle <tab> / <shift>-<tab> navigation we have to
@@ -77,42 +68,76 @@ class Pager:
             node.first_child.literal = literal
         return topic_links
 
-    def adapt_footer_height(self, num_lines, topic_links, depth):
-        footer = "\u2501" * self.tty.cols + "\r\n"
-        # check if we can feet all in one help line
-        page_height = self.tty.rows - 2
-        help_keys = []
-        if num_lines > page_height:
-            help_keys += [SCROLL_HELP]
-        if len(topic_links) > 0 or depth > 0:
-            help_keys += [TOPICS_HELP]
-        help_keys += [Q_HELP]
-        lower_line = " " + " \u2502 ".join(help_keys)
-        if len(lower_line) <= self.tty.cols:
-            # ok for one line
-            footer += lower_line + "\r"
-        else:
-            # use two help lines
-            footer += " " + " \u2502 ".join((SCROLL_HELP, Q_HELP)) + "\r\n"
-            footer += " " + TOPICS_HELP + "\r"
-            page_height -= 1  # 1 less line for file view zone
-        return page_height, footer
+    def pad_right(self, line):
+        return line + " " * (self.tty.cols - len(line))
 
-    def pager_main_loop(self, topic, depth):
+    def format_header(self, **env):
+        text = self.get_header_text(cols=self.tty.cols, **env)
+        if text == '':
+            return 0, ''
+        else:
+            header_lines = [self.pad_right(line) for line in text.splitlines()]
+            header_lines += ["\u2501" * self.tty.cols]
+            return len(header_lines), '\r\n'.join(header_lines)
+
+    def footer_line_format(self, footer_line_keys, pad_right=False):
+        line = " " + " \u2502 ".join(footer_line_keys)
+        if pad_right:
+            line = self.pad_right(line) + '\r'
+        return line
+
+    def footer_line_short_enough(self, footer_line_keys):
+        return len(self.footer_line_format(footer_line_keys)) <= self.tty.cols
+
+    def format_footer(self, num_lines, topic_links, **env):
+        footer_lines = ["\u2501" * self.tty.cols + "\r"]
+        footer_lines_number = 2  # first estimation
+        while True:
+            scrollable = (num_lines > self.tty.rows - footer_lines_number)
+            help_keys = self.get_footer_help_keys(
+                    topic_links=topic_links,
+                    scrollable=scrollable,
+                    **env)
+            # sort help keys by decreasing length
+            help_keys = sorted(help_keys,
+                               key=(lambda k: len(k)),
+                               reverse=True)
+            # arrange help keys on as few lines as possible
+            footer_lines = footer_lines[:1]
+            while len(help_keys) > 0:
+                footer_line_keys, help_keys = (help_keys[0],), help_keys[1:]
+                for i, candidate_key in tuple(enumerate(help_keys)):
+                    candidate_footer_line_keys = footer_line_keys + (candidate_key,)
+                    if self.footer_line_short_enough(candidate_footer_line_keys):
+                        footer_line_keys = candidate_footer_line_keys
+                        help_keys[i] = None  # preserve indices, filter out below
+                help_keys = tuple(k for k in help_keys if k is not None)
+                line = self.footer_line_format(footer_line_keys, pad_right=True)
+                footer_lines += [line]
+            footer_lines_number = len(footer_lines)
+            if (
+                    scrollable is False and
+                    num_lines > self.tty.rows - footer_lines_number
+               ):
+                # our estimation of number of footer lines was wrong, and it appears
+                # that the text zone would actually be scrollable, let's restart
+                continue
+            else:
+                break  # ok proceed
+        footer = "\n".join(footer_lines)
+        return footer_lines_number, footer
+
+    def pager_main_loop(self, **env):
         # activate the pager
-        should_load_topic = True
-        should_render = True
+        should_load_topic, should_render_markdown, should_redraw = True, True, True
         while True:
             if should_load_topic:
-                self.debug_s += "l"
-                index = 0
                 selected_link_num = 0
-                content = self.get_md_content(topic)
+                content, index = self.get_md_content(rows=self.tty.rows, **env)
                 ast = self.parser.parse(content)
                 topic_links = self.parse_topic_links(ast)
                 should_load_topic = False
-            if should_render:
-                self.debug_s += "r"
+            if should_render_markdown:
                 text = self.renderer.render(ast, selected_link_num)
                 lines = text.split("\n")
                 # we have to behave the same wether the document ends with an empty line
@@ -122,17 +147,24 @@ class Pager:
                     lines = lines[:-1]  # remove last line
                 num_lines = len(lines)
                 # adapt footer help
-                page_height, footer = self.adapt_footer_height(
-                    num_lines, topic_links, depth
+                header_height, header = self.format_header(**env)
+                footer_height, footer = self.format_footer(
+                    num_lines=num_lines,
+                    topic_links=topic_links,
+                    **env
                 )
-                # if the text is not long enough to fill the pager screen, we
-                # add blank lines
-                if num_lines < page_height:
-                    lines += [" " * self.tty.cols] * (page_height - num_lines)
-                    num_lines = page_height
+                page_height = self.tty.rows - (footer_height + header_height)
+                should_render_markdown = False
+            if should_redraw:
+                # ensure the text after the index is long enough to fill the
+                # pager screen
+                if len(lines) < index + page_height:
+                    lines += [" " * self.tty.cols] * (index + page_height - len(lines))
                 # to avoid the terminal scrolls, we restart the drawing at
                 # the top-left corner.
                 sys.stdout.write("\x1b[H")
+                if header_height > 0:
+                    sys.stdout.write(header + '\r\n')
                 # the lines displayed are actually in range
                 # [index:index+page_height], but if one of the previous
                 # lines entered a 'bold' zone for example, (esc code '\e[1m'
@@ -147,21 +179,20 @@ class Pager:
                 displayed = lines[index : index + page_height]
                 sys.stdout.write("\r\n".join(displayed) + "\r\n\x1b[0m")
                 sys.stdout.write(footer)
-                should_render = False
+                should_redraw = False
             # get keyboard input
             req = None
-            while req not in list("qAB56\tZ\r\x7f"):
+            while req not in list(self.authorized_keys):
                 req = sys.stdin.read(1)
-                self.debug_s += repr(req)[1:-1]
             # process keyboard input
             next_index = index
             next_selected_link_num = selected_link_num
             if req == "q":
                 return False  # should not continue
             elif req == "\x7f":  # backspace (return to prev topic)
-                if depth == 0:  # no prev topic to return to
-                    continue
-                return True  # should continue (and not quit)
+                if not self.can_return_to_prev_topic(**env):
+                    continue  # ignore the keypress
+                return True  # return from self.select_topic() called for "\r" below
             elif req == "A":  # up   (we get '\e[A', but '\e' and '[' are ignored)
                 next_index = index - 1
             elif req == "B":  # down
@@ -172,7 +203,7 @@ class Pager:
                 next_index = index + page_height
             elif req == "\t":  # tab
                 if len(topic_links) == 0:
-                    continue
+                    continue  # ignore the keypress
                 next_selected_link_num = (selected_link_num + 1) % (len(topic_links))
                 # ensure the viewport includes the selected link
                 selected_link_line = topic_links[next_selected_link_num][1]
@@ -201,21 +232,72 @@ class Pager:
                     or index < selected_link_line - page_height
                 ):
                     # link is not visible, user probably did not want to jump to it
-                    continue
+                    continue  # ignore the keypress
                 # recursive call
-                should_continue = self.pager_main_loop(selected_topic, depth + 1)
+                should_continue = self.select_topic(selected_topic, **env)
                 if should_continue:
-                    # when returning from this selected topic page, we have to
-                    # render again
-                    should_render = True
+                    # we are returning from a recursive call to a selected topic page,
+                    # we now have to redraw the screen
+                    should_redraw = True
                     continue
                 else:
                     # we should quit
                     return False
+            elif req == "n":  # <n>: "next"
+                self.handle_next(**env)
+                should_load_topic = True
+                should_render_markdown = True
+                should_redraw = True
+                continue
             # limit index value to fit the viewport
+            next_index = min(next_index, num_lines - (page_height - 10))
             next_index = max(next_index, 0)
-            next_index = min(next_index, num_lines - page_height)
-            if next_index != index or next_selected_link_num != selected_link_num:
-                should_render = True
+            if next_selected_link_num != selected_link_num:
+                should_render_markdown = True
+                should_redraw = True
+            if next_index != index:
+                should_redraw = True
             index = next_index
             selected_link_num = next_selected_link_num
+
+
+class DocPager(Pager):
+    def __init__(self, get_md_content):
+        super().__init__("qAB56\tZ\r\x7f")
+        self._get_md_content = get_md_content
+
+    def display_topic(self, topic):
+        content = self.get_md_content(topic, err_out=True)
+        if content is None:
+            return
+        if os.isatty(sys.stdout.fileno()):
+            self.start_display(
+                    topic=topic,
+                    depth=0
+            )
+        else:
+            print(content)
+            # For debugging colors with hexdump, prefer:
+            # print(MarkdownRenderer().render(content))
+
+    def get_header_text(self, **env):
+        return ""  # no header
+
+    def get_footer_help_keys(self, topic_links, scrollable, depth, **env):
+        help_keys = []
+        if scrollable:
+            help_keys += [SCROLL_HELP]
+        if len(topic_links) > 0 or depth > 0:
+            help_keys += [TOPICS_HELP]
+        help_keys += [Q_HELP]
+        return help_keys
+
+    def get_md_content(self, topic, **env):
+        return self._get_md_content(topic), 0
+
+    def can_return_to_prev_topic(self, depth, **env):
+        return depth > 0
+
+    def select_topic(self, selected_topic, depth, **env):
+        # recursive call to the pager main loop
+        return self.pager_main_loop(topic=selected_topic, depth=depth + 1)
