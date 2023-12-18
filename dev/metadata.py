@@ -8,13 +8,25 @@ PACKAGE_GENERIC_INFO = dict(
 )
 
 PACKAGE_SPECIFIC_INFO = {
+    "walt-doc": dict(
+        subdir="doc",
+        requires=[
+            "commonmark>=0.7.5",
+            "pygments>=2.2.0",
+            "walt-common==%(walt_version)s",
+        ],
+        version_str="%(walt_version)s",
+        setup=dict(
+            description="WalT doc files and related code.",
+            include_package_data=True,
+        ),
+    ),
     "walt-client": dict(
         subdir="client",
         requires=[
             "plumbum>=1.7.2",
-            "commonmark>=0.7.5",
-            "pygments>=2.2.0",
             "walt-common==%(walt_version)s",
+            "walt-doc==%(walt_version)s",
         ],
         extras_require={"g5k": ["walt-client-g5k==%(walt_version)s"]},
         version_str="%(walt_version)s",
@@ -26,7 +38,6 @@ PACKAGE_SPECIFIC_INFO = {
                     "walt-autocomplete-helper = walt.client.autocomplete:ac_helper",
                 ]
             },
-            include_package_data=True,
         ),
     ),
     "walt-client-g5k": dict(
@@ -83,6 +94,7 @@ PACKAGE_SPECIFIC_INFO = {
             "setproctitle>=1.3.2",
             "walt-client==%(walt_version)s",
             "walt-common==%(walt_version)s",
+            "walt-doc==%(walt_version)s",
             "walt-virtual==%(walt_version)s",
             "walt-vpn==%(walt_version)s",
         ],

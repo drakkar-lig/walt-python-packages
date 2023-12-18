@@ -17,9 +17,9 @@
 
 ALL_PACKAGES=common virtual vpn server node client client-g5k
 # common must be installed 1st (needed by others), then virtual
-INSTALLABLE_PACKAGES_ON_SERVER=common virtual vpn client server
-INSTALLABLE_PACKAGES_ON_CLIENT=common client
-INSTALLABLE_PACKAGES_ON_CLIENT_G5K=common client client-g5k
+INSTALLABLE_PACKAGES_ON_SERVER=common virtual vpn doc client server
+INSTALLABLE_PACKAGES_ON_CLIENT=common doc client
+INSTALLABLE_PACKAGES_ON_CLIENT_G5K=common client doc client-g5k
 GNUMAKEFLAGS=--no-print-directory
 
 upper=$(shell echo '$1' | tr '[:lower:]-' '[:upper:]_')
@@ -59,7 +59,17 @@ clean: $(patsubst %,%.clean,$(ALL_PACKAGES))
 %.pip-package:
 	$(PIP) show "$*" >/dev/null 2>&1 || $(PIP) install "$*"
 
+compile-doc:
+	cd doc/walt/doc/sphinx && \
+        $(PIP) install -r requirements.txt && \
+        make SPHINXOPTS="-W" html && \
+        rm -rf ../html && cp -r _build/html ../html && \
+		cd ../html && rm -rf _sources && \
+		find . -type d | while read d; do touch $$d/__init__.py; done && \
+		cd ../../..
+
 %.build: build.pip-package black.pip-package
+	if [ "$*" = "doc" ]; then $(MAKE) compile-doc; fi
 	$(MAKE) $*/setup.py
 	cd $*; pwd; rm -rf dist && $(BUILD)
 

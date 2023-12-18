@@ -9,7 +9,7 @@ from textwrap import wrap
 
 import netifaces
 from plumbum.cli.terminal import prompt
-from walt.client.doc.md import display_doc
+from walt.doc.md import display_doc
 from walt.common.formatting import columnate, format_sentence, framed, highlight
 from walt.common.term import alternate_screen_buffer, choose, clear_screen
 

@@ -4,9 +4,9 @@ import re
 import sys
 
 import commonmark
-from walt.client.doc.color import RE_ESC_COLOR
-from walt.client.doc.color import BOLD_ON, FG_COLOR_DARK_RED, BG_COLOR_WHITE
-from walt.client.doc.markdown import MarkdownRenderer
+from walt.doc.color import RE_ESC_COLOR
+from walt.doc.color import BOLD_ON, FG_COLOR_DARK_RED, BG_COLOR_WHITE
+from walt.doc.markdown import MarkdownRenderer
 from walt.common.term import TTYSettings, alternate_screen_buffer
 
 SCROLL_HELP = "<up>/<down>, <page-up>/<page-down>: scroll"

@@ -56,6 +56,7 @@ setup_info = {
         "urllib3==1.26.15",
         "walt-client==8.2",
         "walt-common==8.2",
+        "walt-doc==8.2",
         "walt-virtual==8.2",
         "walt-vpn==8.2",
         "yarl==1.9.2",
