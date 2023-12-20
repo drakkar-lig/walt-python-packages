@@ -2,14 +2,18 @@ import itertools
 import signal
 import sys
 import traceback
+import setproctitle
+
 from collections import defaultdict
 from multiprocessing import Pipe, Process, current_process
 from select import select
+from pathlib import Path
 
-import setproctitle
+import walt
 from walt.common.apilink import AttrCallAggregator, AttrCallRunner
 from walt.common.evloop import BreakLoopRequested, EventLoop
 from walt.common.tools import AutoCleaner, SimpleContainer, on_sigterm_throw_exception
+from walt.server.trackexec.recorder import TrackExecRecorder
 
 
 class EvProcess(Process):
@@ -42,6 +46,8 @@ class EvProcess(Process):
         self.ev_loop.register_listener(self)
         try:
             self.prepare()
+            print("TODO: enable trackexec through a config item")
+            TrackExecRecorder.record(walt, Path("/var/log/walt-trackexec"), self.name)
             self.ev_loop.loop()
         except BreakLoopRequested:
             return  # end of propagated exit procedure
