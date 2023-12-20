@@ -92,6 +92,8 @@ PACKAGE_SPECIFIC_INFO = {
             "urllib3<2",  # for compatibility with podman
             "podman>=4.2.0",
             "setproctitle>=1.3.2",
+            "numpy>=1.24.3",
+            "numba>=0.58.1",
             "walt-client==%(walt_version)s",
             "walt-common==%(walt_version)s",
             "walt-doc==%(walt_version)s",
@@ -110,6 +112,7 @@ PACKAGE_SPECIFIC_INFO = {
                     "walt-server-snmpd = walt.server.services.snmpd:run",
                     "walt-server-lldpd = walt.server.services.lldpd:run",
                     "walt-server-ptpd = walt.server.services.ptpd:run",
+                    "walt-server-trackexec-replay = walt.server.trackexec.player:run",
                     "walt-dhcp-event = walt.server.dhcpevent:run",
                     "walt-net-config = walt.server.netconfig:run",
                     "walt-image-check = walt.server.imagecheck:run",

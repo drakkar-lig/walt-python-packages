@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import contextlib
 import signal
 from heapq import heappop, heappush
 from multiprocessing import current_process  # noqa: F401
@@ -78,6 +79,9 @@ class EventLoop(object):
         self.planned_events = []
         self.poller = poll()
         self.recursion_depth = 0
+        # by default self.idle_period_recorder does nothing, but
+        # the caller can update this attribute if needed.
+        self.idle_period_recorder = contextlib.nullcontext
 
     def plan_event(self, ts, target=None, callback=None, repeat_delay=None, **kwargs):
         # Note: We have the risk of planning several events at the same time.
@@ -204,8 +208,15 @@ class EventLoop(object):
             # pthread_sigmask(), and loop_condition status may have changed.
             if not self.should_continue(loop_condition):
                 break
-            # wait for an event
-            res = self.poller.poll(self.get_timeout())
+            # we will wait for an event
+            # first check if we have pending events we should process right away
+            res = self.poller.poll(0)   # timeout = 0
+            if len(res) == 0:
+                # compute timeout
+                timeout = self.get_timeout()
+                if timeout > 0:
+                    with self.idle_period_recorder():
+                        res = self.poller.poll(timeout)
             # re-block signals while we are processing
             signal.pthread_sigmask(signal.SIG_BLOCK, [signal.SIGHUP, signal.SIGCHLD])
             # save the time of the event as soon as possible

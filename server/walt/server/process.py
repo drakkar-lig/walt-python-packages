@@ -2,14 +2,22 @@ import itertools
 import signal
 import sys
 import traceback
+import setproctitle
+
 from collections import defaultdict
+from datetime import datetime
 from multiprocessing import Pipe, Process, current_process
+from os import getpid
+from pathlib import Path
 from select import select
 
-import setproctitle
+import walt
 from walt.common.apilink import AttrCallAggregator, AttrCallRunner
 from walt.common.evloop import BreakLoopRequested, EventLoop
 from walt.common.tools import AutoCleaner, SimpleContainer, on_sigterm_throw_exception
+from walt.server.trackexec.recorder import TrackExecRecorder
+
+TRACKEXEC_LOG_DIR = Path("/var/log/walt/trackexec")
 
 
 class EvProcess(Process):
@@ -20,6 +28,7 @@ class EvProcess(Process):
         manager.attach_file(manager, self.pipe_manager)
         manager.register_process(self, level)
         self.ev_loop = EventLoop()
+        self.start_time = datetime.now()
 
     def set_auto_close(self, files):
         self._auto_close_files = files
@@ -42,6 +51,16 @@ class EvProcess(Process):
         self.ev_loop.register_listener(self)
         try:
             self.prepare()
+            # if the admin created directory /var/log/walt/trackexec,
+            # enable execution tracking
+            if TRACKEXEC_LOG_DIR.exists():
+                start_time = self.start_time.strftime("%y%m%d-%H%M")
+                pid = getpid()
+                log_dir_path = TRACKEXEC_LOG_DIR / start_time / f"{self.name}-{pid}"
+                TrackExecRecorder.record(walt, log_dir_path)
+                self.ev_loop.idle_period_recorder = \
+                    TrackExecRecorder.idle_period_recorder
+            # run the event loop
             self.ev_loop.loop()
         except BreakLoopRequested:
             return  # end of propagated exit procedure
@@ -77,6 +96,7 @@ class EvProcess(Process):
         print(f"exit: calling cleanup function for {self.name}")
         try:
             self.cleanup()
+            TrackExecRecorder.stop()
         except Exception:
             traceback.print_exc()
 
