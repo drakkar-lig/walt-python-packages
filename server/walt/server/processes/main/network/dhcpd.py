@@ -60,8 +60,9 @@ if (vci = "PXEClient:Arch:00000:UNDI:002001") {
         # This script specifies itself the script to boot from TFTP, so
         # no filename is given here.
     }
-    elsif ((b2a(16,8,":",substring(hardware, 1, 3)) = "b8:27:eb") or
-           (b2a(16,8,":",substring(hardware, 1, 3)) = "28:cd:c1") or
+    elsif ((b2a(16,8,":",substring(hardware, 1, 3)) = "28:cd:c1") or
+           (b2a(16,8,":",substring(hardware, 1, 3)) = "b8:27:eb") or
+           (b2a(16,8,":",substring(hardware, 1, 3)) = "d8:3a:dd") or
            (b2a(16,8,":",substring(hardware, 1, 3)) = "dc:a6:32") or
            (b2a(16,8,":",substring(hardware, 1, 3)) = "e4:5f:01")) {
         # native rpi3b+ network boot
