@@ -103,7 +103,9 @@ class GlobalProgress:
         self._percent_install = 0
         self._errormsg = None
         timestamp_str = datetime.datetime.now().strftime("%m%d%y%H%M%S")
-        self.log_file_path = Path(f"/var/log/walt-server-setup.{timestamp_str}.log")
+        self.log_file_path = Path(
+                f"/var/log/walt/setup/walt-server-setup.{timestamp_str}.log")
+        self.log_file_path.parent.mkdir(parents=True, exist_ok=True)
         self.log_file = self.log_file_path.open("wb")
         os.set_inheritable(self.log_file.fileno(), True)
         self.acquire = AcquireProgress(self)
