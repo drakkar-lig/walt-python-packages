@@ -22,24 +22,24 @@ def all_package_names():
 
 
 def parse_rfc2822_part(text):
-    space_8 = 8 * " "
-    space_9 = 9 * " "
-    text = text.strip().replace("\n", f"\n{space_9}")
-    text = text.replace(f"\n{space_9}{space_8}", f"\n{space_8}")
-    textlines = text.split(f"\n{space_9}")
-    return {
-        k: v.strip() for k, v in (line.split(":", maxsplit=1) for line in textlines)
-    }
+    pinfo = {}
+    for line in text.splitlines():
+        splits = line.split(":", maxsplit=1)
+        if splits[0] in ("Name", "Version", "Requires"):
+            k, v = splits
+            pinfo[k] = v.strip()
+    return pinfo
 
 
 def parse_rfc2822(text):
-    return [parse_rfc2822_part(part) for part in text.split("---")]
+    return [parse_rfc2822_part(part) for part in text.split("\n---")]
 
 
 def get_packages_info(package_names):
     cmd = ["dev/python.sh", "-m", "pip", "show"] + list(package_names)
     proc = subprocess.run(cmd, text=True, stdout=subprocess.PIPE)
-    return {p_info["Name"].lower(): p_info for p_info in parse_rfc2822(proc.stdout)}
+    parsed = parse_rfc2822(proc.stdout)
+    return {p_info["Name"].lower(): p_info for p_info in parsed}
 
 
 def get_dependencies(package_name, packages_info, add_current_package=False):
