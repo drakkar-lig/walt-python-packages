@@ -300,7 +300,7 @@ def parse_image_fullname(image_fullname):
 
 def format_image_fullname(user, image_name):
     if ":" in image_name:
-        repo, tag = image_name.split(":")
+        repo, tag = image_name.split(":", maxsplit=1)
     else:
         repo, tag = image_name, "latest"
     return user + "/" + repo + ":" + tag
