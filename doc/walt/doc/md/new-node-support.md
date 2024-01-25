@@ -5,6 +5,7 @@
 
 WalT is currently provided with support for several kinds of nodes:
 * Raspberry Pi boards: models B, B+, 2B, 3B, 3B+ and 4B
+* Google Coral dev boards
 * Standard PC machines (x86 32bit or 64bit CPU)
 * Virtual nodes
 
