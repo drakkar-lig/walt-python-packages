@@ -110,6 +110,16 @@ then
     ls "$TESTS_DIR"/*.py >/dev/null 2>&1 && PY_TEST_FILES=("$TESTS_DIR"/*.py)
 fi
 
+# cleanup possible artefacts of previous execution
+if [ -e /tmp/test_suite_node ]
+then
+    walt node remove $(cat /tmp/test_suite_node) >/dev/null 2>&1
+fi
+if [ -e /tmp/test_suite_image ]
+then
+    walt image remove $(cat /tmp/test_suite_image) >/dev/null 2>&1
+fi
+
 __prepared_sh_source="$TMPDIR/prepared_source.sh"
 
 for __testsuite_source_file in "${SH_TEST_FILES[@]}"
