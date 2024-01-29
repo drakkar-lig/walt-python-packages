@@ -1,0 +1,70 @@
+#!/bin/sh
+
+# buildah / podman containers are considered for walt
+# internal use only.
+# the server admin may use docker for running other
+# containers (e.g. a private registry), and those will
+# not be touched by this cleanup script.
+
+# umount any remaining walt image
+remaining_mountpoints="$(mount | awk '{print $3}' | grep "/var/lib/walt")"
+if [ ! -z "$remaining_mountpoints" ]
+then
+    umount $(mount | awk '{print $3}' | grep "/var/lib/walt")
+fi
+
+# remove buildah containers
+buildah ps --quiet | while read cid
+do
+    buildah rm $cid
+done
+
+# stop running podman containers
+podman ps --quiet | while read cid
+do
+    podman stop $cid || podman kill $cid || true
+    podman wait $cid
+done
+
+# remove podman containers
+podman ps -a --quiet | while read cid
+do
+    podman rm $cid
+done
+
+# remove temporary walt images
+tmp_images=$(podman images | \
+             grep localhost/walt/ | \
+             awk '{print $1 ":" $2}')
+if [ ! -z "$tmp_images" ]
+then
+    podman rmi $tmp_images
+fi
+
+# remove content of any non-empty image mounpoints
+# (Having content there may happen with badly broken
+# development code and will prevent next mount at
+# this place.)
+image_fs_dirs="$(ls -d /var/lib/walt/images/*/fs 2>/dev/null)"
+if [ ! -z "$image_fs_dirs" ]
+then
+    for d in $image_fs_dirs
+    do
+        # if the image mount is still there, it probably means
+        # the server process have been killed. It will just bypass
+        # this mount at next restart, which should not be a
+        # problem.
+        if mountpoint "$d" >/dev/null
+        then
+            continue
+        fi
+        # if there are files in the mountpoint directory,
+        # remove them.
+        if [ $(ls -1 "$d"/ | wc -l) -gt 0 ]
+        then
+            rm -rf "$d"/*
+        fi
+    done
+fi
+
+exit 0

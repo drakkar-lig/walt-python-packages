@@ -119,7 +119,9 @@ PACKAGE_SPECIFIC_INFO = {
                     "walt-annotate-cmd = walt.server.annotatecmd:run",
                 ]
             },
-            scripts=["sh/walt-image-shell-helper", "sh/walt-image-build-helper"],
+            scripts=["sh/walt-image-shell-helper",
+                     "sh/walt-image-build-helper",
+                     "sh/walt-server-cleanup"],
             include_package_data=True,
         ),
     ),

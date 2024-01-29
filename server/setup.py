@@ -89,7 +89,11 @@ setup_info = {
         ]
     },
     "include_package_data": True,
-    "scripts": ["sh/walt-image-shell-helper", "sh/walt-image-build-helper"],
+    "scripts": [
+        "sh/walt-image-shell-helper",
+        "sh/walt-image-build-helper",
+        "sh/walt-server-cleanup",
+    ],
 }
 setup_info.update(packages=find_packages())
 setup(**setup_info)
