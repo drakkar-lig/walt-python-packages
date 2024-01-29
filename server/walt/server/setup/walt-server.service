@@ -26,6 +26,7 @@ RuntimeDirectory=walt/daemon
 StateDirectory=walt
 EnvironmentFile=-/etc/default/walt-server
 EnvironmentFile=-/etc/sysconfig/walt-server
+ExecStartPre=walt-server-cleanup
 ExecStart=walt-server-daemon $DAEMON_ARGS
 ExecReload=kill -HUP $MAINPID
 Restart=on-failure

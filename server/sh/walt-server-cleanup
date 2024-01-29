@@ -1,0 +1,39 @@
+#!/bin/sh
+
+# buildah / podman containers are considered for walt
+# internal use only.
+# the server admin may use docker for running other
+# containers (e.g. a private registry), and those will
+# not be touched by this cleanup script.
+
+# umount any remaining walt image
+remaining_mountpoints="$(mount | awk '{print $3}' | grep "/var/lib/walt")"
+if [ ! -z "$remaining_mountpoints" ]
+then
+    umount $(mount | awk '{print $3}' | grep "/var/lib/walt")
+fi
+
+# remove buildah containers
+buildah ps --quiet | while read cid
+do
+    buildah rm $cid
+done
+
+# stop running podman containers
+podman ps --quiet | while read cid
+do
+    podman stop $cid || podman kill $cid || true
+    podman wait $cid
+done
+
+# remove podman containers
+podman ps -a --quiet | while read cid
+do
+    podman rm $cid
+done
+
+# remove temporary walt images
+podman rmi $(podman images | \
+             grep localhost/walt/ | \
+             awk '{print $1 ":" $2}')
+exit 0
