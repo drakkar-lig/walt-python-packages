@@ -13,7 +13,7 @@ def dup_msg(msg, stdstream, logs):
 
 
 def handle_registration_request(
-    db, logs, blocking, mac, images, model, image_fullname=None, **kwargs
+    db, logs, blocking, exports, mac, images, model, image_fullname=None, **kwargs
 ):
     if image_fullname is None:
         image_fullname = images.get_default_image_fullname(model)
@@ -48,7 +48,8 @@ def handle_registration_request(
             logs,
         )
         wf_steps += [wf_pull_image, wf_after_pull_image]
-    wf_steps += [wf_update_device_in_db, images.wf_update_image_mounts, wf_dhcpd_named_update]
+    wf_steps += [wf_update_device_in_db, exports.wf_update_persist_exports,
+                 images.wf_update_image_mounts, wf_dhcpd_named_update]
     wf = Workflow(wf_steps, **full_kwargs)
     wf.run()
 
