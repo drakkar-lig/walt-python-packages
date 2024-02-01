@@ -68,7 +68,7 @@ class NodeImageStore(object):
         self.mounts = set()
         self.deadlines = {}
         self.filesystems = FilesystemsCache(server.ev_loop, FS_CMD_PATTERN)
-        self.exports = FilesystemsExporter(server.ev_loop)
+        self.exports = server.exports
         self._update_wf = None
         self._planned_update_wf = None
 
@@ -305,7 +305,6 @@ class NodeImageStore(object):
             images_info = set(
                 (image_id, self.get_mount_path(image_id)) for image_id in all_mounts
             )
-            nodes = self.db.select("nodes")
             # release filesystem interpreters before unmounting images
             for image_id in to_be_unmounted:
                 if image_id in self.filesystems:
@@ -318,13 +317,13 @@ class NodeImageStore(object):
             # the NFS export
             update_wf.insert_steps(
                 [
-                    self.exports.wf_update_exported_filesystems,
+                    self.exports.wf_update_image_exports,
                     self._wf_unmount_images,
                     self._wf_update_image_mounts,
                 ]
             )
             update_wf.update_env(
-                to_be_unmounted=to_be_unmounted, images_info=images_info, nodes=nodes
+                to_be_unmounted=to_be_unmounted, images_info=images_info
             )
         else:
             # finalize this update
@@ -348,7 +347,7 @@ class NodeImageStore(object):
         if len(self.mounts) > 0:
             # release nfs mounts and unmount images
             wf = Workflow(
-                [self.exports.wf_update_exported_filesystems], images_info=[], nodes=[]
+                [self.exports.wf_update_image_exports], images_info=[]
             )
             wf.run()
             # Since we are cleaning up, we cannot use a callback

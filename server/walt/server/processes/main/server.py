@@ -12,6 +12,7 @@ from walt.server.processes.main.apisession import APISession
 from walt.server.processes.main.autocomplete import shell_autocomplete
 from walt.server.processes.main.blocking import BlockingTasksManager
 from walt.server.processes.main.devices.manager import DevicesManager
+from walt.server.processes.main.exports import FilesystemsExporter
 from walt.server.processes.main.images.manager import NodeImageManager
 from walt.server.processes.main.interactive import InteractionManager
 from walt.server.processes.main.logs import LogsManager
@@ -45,6 +46,7 @@ class Server(object):
         self.devices = DevicesManager(self)
         self.dhcpd = DHCPServer(self.db, self.ev_loop)
         self.named = DNSServer(self.db, self.ev_loop)
+        self.exports = FilesystemsExporter(ev_loop, self.db)
         self.images = NodeImageManager(self)
         self.interaction = InteractionManager(self.tcp_server, self.ev_loop)
         self.unix_server = UnixSocketServer()
@@ -68,6 +70,7 @@ class Server(object):
         # the topology.
         self.dhcpd.update(force=True)
         self.named.update(force=True)
+        self.exports.update_persist_exports()
         self.images.prepare()
         self.devices.prepare()
         self.nodes.prepare()
@@ -85,6 +88,7 @@ class Server(object):
     def cleanup(self):
         APISession.cleanup_all()
         tftp.cleanup(self.db)
+        self.exports.update_persist_exports(cleanup=True)
         self.images.cleanup()
         self.nodes.cleanup()
         self.devices.cleanup()
@@ -193,6 +197,7 @@ class Server(object):
             [
                 self.nodes.powersave.wf_forget_device,
                 self.wf_forget_device_other_steps,
+                self.exports.wf_update_persist_exports,
                 self.images.store.wf_update_image_mounts,
                 self.wf_unblock_client,
             ],

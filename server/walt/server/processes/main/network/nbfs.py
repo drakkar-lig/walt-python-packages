@@ -34,7 +34,7 @@ def get_nbfsd_pid():
         return None
 
 
-def update_exports(root_paths, subnet):
+def update_image_exports(root_paths, subnet):
     if server_has_feature("nbfs"):
         NBFS_EXPORTS_PATH.parent.mkdir(parents=True, exist_ok=True)
         if NBFS_EXPORTS_PATH.exists():
