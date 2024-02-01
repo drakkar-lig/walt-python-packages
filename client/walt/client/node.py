@@ -127,13 +127,13 @@ class WalTNode(WalTCategoryApplication):
         if not ignore_other_devices and len(not_nodes) > 0:
             sys.stderr.write(
                 format_sentence(
-                    "Error: %s is(are) not WalT nodes. Aborting.",
-                    owned,
+                    "Error: %s is(are) not a() WalT node(nodes).",
+                    not_nodes,
                     "",
                     "Device",
                     "Devices",
-                )
-                + "\n"
+                ).replace('  ', ' ')
+                + " Aborting.\n"
             )
             return False
         if mode == "free-or-not-owned" and len(owned) > 0:
