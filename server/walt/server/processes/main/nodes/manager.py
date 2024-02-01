@@ -42,6 +42,7 @@ class NodesManager(object):
         self.blocking = server.blocking
         self.wait_info = WaitInfo()
         self.ev_loop = server.ev_loop
+        self.exports = server.exports
         self.clock = NodesClockSyncInfo(server.ev_loop)
         self.expose_manager = ExposeManager(server.tcp_server, server.ev_loop)
         self.status_manager = NodeBootupStatusManager(server.tcp_server, self)
@@ -82,6 +83,8 @@ class NodesManager(object):
 
     def forget_vnode(self, node_mac):
         self.try_kill_vnode(node_mac)
+        # note: the calling code takes care of discarding db data
+        # about this vnode (see server.py)
 
     def register_node(self, mac, model, image_fullname=None):
         handle_registration_request(
@@ -92,6 +95,7 @@ class NodesManager(object):
             image_fullname=image_fullname,
             blocking=self.blocking,
             logs=self.logs,
+            exports=self.exports,
             **self.node_register_kwargs,
         )
 
