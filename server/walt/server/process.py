@@ -1,4 +1,6 @@
 import itertools
+import os
+import pdb
 import signal
 import sys
 import traceback
@@ -11,13 +13,86 @@ from os import getpid
 from pathlib import Path
 from select import select
 
-import walt
 from walt.common.apilink import AttrCallAggregator, AttrCallRunner
 from walt.common.evloop import BreakLoopRequested, EventLoop
 from walt.common.tools import AutoCleaner, SimpleContainer, on_sigterm_throw_exception
-from walt.server.trackexec.recorder import TrackExecRecorder
+from walt.common.tools import interrupt_print
+from walt.server.tools import set_rlimits
 
 TRACKEXEC_LOG_DIR = Path("/var/log/walt/trackexec")
+
+
+# Notes about signals:
+# We manage signals per-process, thus we have to use os.setpgrp()
+# to have each subprocess in its own process group.
+# SIGHUP is sent by systemd to the deamon process, so the daemon
+# process forwards this signal to its subprocess server-main.
+# The daemon manages its subprocesses by using subprocess.Process()
+# objects, and uses t.join() to wait for their end. The return code
+# t.retcode allows to detect if the subprocess failed to end.
+# The subprocesses may also run sub-sub-processes, such as a process
+# for each virtual node or a temporary process for exploring the
+# filesystem of a node or an image. These sub-sub-processes use
+# walt.server.popen.BetterPopen class. They call os.setpgrp() too.
+# Their parent process automatically calls os.waitpid() when they end,
+# an event we detect by catching the SIGCHLD signal.
+# Note that the daemon process does not implement this automatic call
+# to os.waitpid() because otherwise t.retcode would not be set,
+# it would remain "None", which normally means that the subprocess
+# is still running. It uses t.join() instead.
+
+
+def transmit_sighup_to_main(main_pid):
+    def signal_handler(sig, frame):
+        interrupt_print("SIGHUP received by daemon. Transmitting to main.")
+        os.kill(main_pid, sig)
+
+    signal.signal(signal.SIGHUP, signal_handler)
+
+
+def on_sigchld_call_waitpid():
+    def signal_handler(sig, frame):
+        while True:
+            try:
+                waitstatus = os.waitpid(-1, os.WNOHANG)
+            except ChildProcessError:
+                return
+            pid = waitstatus[0]
+            if pid > 0:
+                # import pdb; pdb.set_trace()
+                # interrupt_print(f'process pid={pid} has stopped.')
+                continue
+            else:
+                return
+
+    signal.signal(signal.SIGCHLD, signal_handler)
+
+
+def block_sighup_and_sigchld():
+    # these signals should only be able to interrupt us at chosen times
+    # (cf. event loop)
+    signal.pthread_sigmask(signal.SIG_BLOCK, [signal.SIGHUP, signal.SIGCHLD])
+
+
+def fix_pdb():
+    # Monkey patch pdb for usage in a subprocess.
+    # For this, it will call current_process().readline(), which
+    # actually requests input lines to the daemon process, which
+    # manages the tty input.
+    pdb.SavedPdb = pdb.Pdb
+
+    class BetterPdb(pdb.SavedPdb):
+        def interaction(self, *args, **kwargs):
+            sys_stdin_readline_saved = sys.stdin.readline
+            try:
+                from multiprocessing import current_process
+                self.prompt = f"(Pdb {current_process().name}) "
+                sys.stdin.readline = current_process().readline
+                pdb.SavedPdb.interaction(self, *args, **kwargs)
+            finally:
+                sys.stdin.readline = sys_stdin_readline_saved
+
+    pdb.Pdb = BetterPdb
 
 
 class EvProcess(Process):
@@ -27,33 +102,40 @@ class EvProcess(Process):
         manager.attach_file(self, self.pipe_process)
         manager.attach_file(manager, self.pipe_manager)
         manager.register_process(self, level)
-        self.ev_loop = EventLoop()
         self.start_time = datetime.now()
 
     def set_auto_close(self, files):
         self._auto_close_files = files
 
-    # mimic an event loop
-    def __getattr__(self, attr):
-        return getattr(self.ev_loop, attr)
-
     def run(self):
         setproctitle.setproctitle(f"walt-server-daemon:{self.name}")
+        # set appropriate OS resource limits
+        set_rlimits()
+        # each process should be in its own group to avoid receiving
+        # signals targetting others
+        os.setpgrp()
+        # fix pdb when running in a subprocess
+        fix_pdb()
         # SIGINT and SIGTERM signals should be sent to the daemon only, not to
         # its subprocesses
         signal.signal(signal.SIGINT, signal.SIG_IGN)
         signal.signal(signal.SIGTERM, signal.SIG_IGN)
+        block_sighup_and_sigchld()  # unblock those only when idle in evloop
+        on_sigchld_call_waitpid()
         # close file descriptors that were opened for other Process objects
         for f in self._auto_close_files:
             # print(self.name, 'closing fd not for us:', f)
             f.close()
         # run
+        self.ev_loop = EventLoop()
         self.ev_loop.register_listener(self)
         try:
             self.prepare()
             # if the admin created directory /var/log/walt/trackexec,
             # enable execution tracking
             if TRACKEXEC_LOG_DIR.exists():
+                import walt
+                from walt.server.trackexec.recorder import TrackExecRecorder
                 start_time = self.start_time.strftime("%y%m%d-%H%M")
                 pid = getpid()
                 log_dir_path = TRACKEXEC_LOG_DIR / start_time / f"{self.name}-{pid}"
@@ -77,7 +159,7 @@ class EvProcess(Process):
 
     def handle_event(self, ts):
         msg = self.pipe_process.recv()
-        assert msg == "PROPAGATED_EXIT", "Unexpected message in pipe_process"
+        assert msg == "PROPAGATED_EXIT", f"Unexpected message in pipe_process: {msg}"
         self.failsafe_cleanup()
         # we have to interrupt the event loop to exit the process
         raise BreakLoopRequested
@@ -96,9 +178,16 @@ class EvProcess(Process):
         print(f"exit: calling cleanup function for {self.name}")
         try:
             self.cleanup()
-            TrackExecRecorder.stop()
+            print(f"exit: cleanup function has ended")
+            if TRACKEXEC_LOG_DIR.exists():
+                from walt.server.trackexec.recorder import TrackExecRecorder
+                TrackExecRecorder.stop()
         except Exception:
             traceback.print_exc()
+
+    def readline(self):
+        self.pipe_process.send("GET_INPUT_LINE")
+        return self.pipe_process.recv()
 
 
 class EvProcessesManager(object):
@@ -131,6 +220,8 @@ class EvProcessesManager(object):
             # start sub processes
             for t in self.processes:
                 t.start()
+                if t.name == "server-main":
+                    main_pid = t.pid
             # close file descriptors of sub processes
             # (no longer needed by this Process manager)
             for proc_name, files in self.files.items():
@@ -141,14 +232,23 @@ class EvProcessesManager(object):
             # wait for ending condition
             read_set = tuple(t.pipe_manager for t in self.processes)
             on_sigterm_throw_exception()
-            r, w, e = select(read_set, (), read_set)
-            try:
-                msg = r[0].recv()
-                assert msg == "START_EXIT", "Unexpected message in pipe_manager"
-            except Exception:
-                # the process may have crashed without a possibility to notify
-                # this process manager
-                self.graceful_exit = False
+            transmit_sighup_to_main(main_pid)
+            # Note: it seems SIGHUP does not interrupt the select()
+            while True:
+                r, w, e = select(read_set, (), read_set)
+                try:
+                    msg = r[0].recv()
+                    if msg == "START_EXIT":
+                        break
+                    if msg == "GET_INPUT_LINE":
+                        r[0].send(sys.stdin.readline())
+                        continue
+                    raise Exception("Unexpected message in pipe_manager")
+                except Exception as e:
+                    print("recv:", e)
+                    # the process may have crashed without a possibility to notify
+                    # this process manager
+                    self.graceful_exit = False
             for t in self.processes:
                 if t.pipe_manager is r[0]:
                     self.initial_failing_process = t
@@ -213,7 +313,11 @@ class RPCService:
         super().__setattr__("service_handlers", service_handlers)
 
     def __getattr__(self, service_name):
-        return self.service_handlers[service_name]
+        handler = self.service_handlers.get(service_name)
+        if handler is None:
+            raise AttributeError
+        else:
+            return handler
 
     def __setattr__(self, service_name, service_handler):
         self.service_handlers[service_name] = service_handler
@@ -285,17 +389,31 @@ class RPCContext(object):
 
 
 class RPCProcessConnector(ProcessConnector):
-    def __init__(self, default_service=None, local_context=True, label=None):
+    def __init__(self, local_context=True, label=None):
         ProcessConnector.__init__(self)
         self.submitted_tasks = {}
-        self.ids_generator = itertools.count()
+        self.ids_generator = None
         self.results = {}
-        self.default_service = AttrCallRunner(default_service)
-        self.default_session = self.create_session(-1, default_service)
-        self.do_async = self.default_session.do_async
-        self.do_sync = self.default_session.do_sync
+        self.default_service = None
+        self.default_session = None
+        self.do_async = None
+        self.do_sync = None
         self.local_context = local_context
         self.label = label
+
+    def __getstate__(self):
+        assert self.default_service is None, \
+                "cannot pickle RPCProcessConnector after it is configured"
+        return self.__dict__
+
+    def __setstate__(self, state):
+        self.__dict__ = state
+
+    def configure(self, default_local_service=None):
+        self.default_service = AttrCallRunner(default_local_service)
+        self.default_session = self.create_session(-1, default_local_service)
+        self.do_async = self.default_session.do_async
+        self.do_sync = self.default_session.do_sync
 
     def __repr__(self):
         if self.label is not None:
@@ -395,6 +513,8 @@ class RPCProcessConnector(ProcessConnector):
             return result
 
     def send_task(self, remote_req_id, local_service, path, args, kwargs, sync_call):
+        if self.ids_generator is None:
+            self.ids_generator = itertools.count()
         local_req_id = next(self.ids_generator)
         self.last_req_id = local_req_id
         self.submitted_tasks[local_req_id] = SimpleContainer(
@@ -414,7 +534,10 @@ class RPCProcessConnector(ProcessConnector):
 
 class SyncRPCProcessConnector(RPCProcessConnector):
     def __getattr__(self, attr):
-        return getattr(self.default_session.do_sync, attr)
+        if self.default_session is not None:
+            return getattr(self.default_session.do_sync, attr)
+        else:
+            raise AttributeError
 
     def is_valid(self):
         return True

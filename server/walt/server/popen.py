@@ -22,6 +22,7 @@ class BetterPopen:
         self.ev_loop = ev_loop
         self.kill_function = kill_function
         self._synchronous_close = synchronous_close
+        self.cmd = cmd
         stdin_r, stdin_w = os.pipe()
         stdout_r, stdout_w = os.pipe()
         os.set_inheritable(stdin_r, True)
@@ -34,6 +35,7 @@ class BetterPopen:
         if pid == 0:
             # child
             # print(f'child {os.getpid()}')
+            os.setpgrp()
             os.close(stdin_w)
             os.close(stdout_r)
             os.dup2(stdin_r, 0)
@@ -48,6 +50,8 @@ class BetterPopen:
             self.child_pid = pid
             self.stdin = os.fdopen(stdin_w, mode="wb", buffering=0)
             self.stdout = os.fdopen(stdout_r, mode="rb", buffering=0)
+            self._closing = False
+            self._closing_callbacks = []
 
     def send_signal(self, sig):
         try:
@@ -70,11 +74,13 @@ class BetterPopen:
         self.close()
 
     def close(self, cb=None):
-        if cb is None:
-
-            def cb():
-                return None
-
+        if cb is not None:
+            self._closing_callbacks.append(cb)
+        if self._closing:
+            # already closing
+            return
+        self._closing = True
+        print("close", self.cmd)
         # call kill function
         if self.poll():
             try:
@@ -96,39 +102,43 @@ class BetterPopen:
                 # run event loop until self.poll() returns False
                 self.ev_loop.loop(self.poll)
                 print("popen synchronous close completed")
-                cb()
             else:
-                self.plan_terminate(TERMINATE_EVENTS, cb)
-        else:
-            cb()
+                self.plan_terminate(TERMINATE_EVENTS)
+                return
+        self.call_closing_callbacks()
 
-    def plan_terminate(self, terminate_events, cb):
+    def plan_terminate(self, terminate_events):
         delay, sig = terminate_events[0]
         next_ts = time() + delay
         self.ev_loop.plan_event(
             ts=next_ts,
             callback=self.terminate,
-            terminate_events=terminate_events,
-            cb=cb,
+            terminate_events=terminate_events
         )
 
-    def terminate(self, terminate_events, cb):
-        try:
-            if not self.poll():  # ok child has terminated
-                cb()
-                return
-            evt, next_evts = terminate_events[0], terminate_events[1:]
-            delay, sig = evt
-            if sig is not None:
-                self.send_signal(sig)
-            if len(next_evts) == 0:
-                print("popen end of termination events")
-                # run event loop until self.poll() returns False
-                self.ev_loop.loop(self.poll)
-                print("popen end completed")
-                cb()
-                return
-            # recall self.terminate() with next events after a delay
-            self.plan_terminate(next_evts, cb)
-        except Exception as e:
-            print("popen.terminate() -- ignored exception:", e)
+    def terminate(self, terminate_events):
+        if self.poll():  # if child is still alive
+            try:
+                evt, next_evts = terminate_events[0], terminate_events[1:]
+                delay, sig = evt
+                if sig is not None:
+                    self.send_signal(sig)
+                if len(next_evts) == 0:
+                    print("popen end of termination events")
+                    # run event loop until self.poll() returns False
+                    self.ev_loop.loop(self.poll)
+                    print("popen end completed")
+                else:
+                    # recall self.terminate() with next events after a delay
+                    self.plan_terminate(next_evts)
+                    return
+            except Exception as e:
+                print("popen.terminate() -- ignored exception:", e)
+        self.call_closing_callbacks()
+
+    def call_closing_callbacks(self):
+        while len(self._closing_callbacks) > 0:
+            cb, self._closing_callbacks = (
+                self._closing_callbacks[0], self._closing_callbacks[1:]
+            )
+            cb()

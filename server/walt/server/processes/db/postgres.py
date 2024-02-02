@@ -7,36 +7,7 @@ import psycopg2
 from psycopg2.extras import NamedTupleCursor
 from walt.common.formatting import columnate
 from walt.server.const import WALT_DBNAME, WALT_DBUSER
-from walt.server.tools import SerializableNT, build_named_tuple_cls
-
-
-# we wrap database record objects otherwise they cannot be pickled
-class DBRecord(SerializableNT):
-    pass
-
-
-class DBRecordSet:
-    def __init__(self, records=None):
-        self.records = records
-
-    def __getstate__(self):
-        return [row._asdict() for row in self.records]
-
-    def __setstate__(self, dict_records):
-        if len(dict_records) == 0:
-            self.records = []
-        else:
-            nt_cls = build_named_tuple_cls(dict_records[0])
-            self.records = [nt_cls(**row) for row in dict_records]
-
-    def __iter__(self):
-        return iter(self.records)
-
-    def __len__(self):
-        return len(self.records)
-
-    def __getitem__(self, i):
-        return self.records[i]
+from walt.server.tools import DBRecord, DBRecordSet
 
 
 class PostgresDB:

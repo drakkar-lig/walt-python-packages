@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 import pickle
 import sys
-from select import select
 from socket import IPPROTO_TCP, TCP_NODELAY, create_connection
 from time import time
 
@@ -126,16 +125,13 @@ class LinkException(Exception):
     pass
 
 
-DEFAULT_BUSY_INDICATOR = BusyIndicator("Server is working")
-
-
 @reusable
 class ServerAPIConnection(object):
     def __init__(self, server_ip, local_service, target_api, busy_indicator):
         if local_service is None:
             local_service = BaseAPIService()
         if busy_indicator is None:
-            busy_indicator = DEFAULT_BUSY_INDICATOR
+            busy_indicator = BusyIndicator("Server is working")
         self.target_api = target_api
         self.server_ip = server_ip
         self.sock = None
@@ -256,6 +252,7 @@ class ServerAPIConnection(object):
         self.api_channel.write("RESULT", res)
 
     def wait_api_result(self):
+        from select import select
         self.indicator.start()
         api_result = None
         while True:
