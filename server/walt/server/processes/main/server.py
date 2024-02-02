@@ -7,10 +7,8 @@ from walt.common.formatting import format_sentence
 from walt.common.tcp import TCPServer
 from walt.common.tools import format_image_fullname, parse_image_fullname
 from walt.server import conf
-from walt.server.process import SyncRPCProcessConnector
 from walt.server.processes.main.apisession import APISession
 from walt.server.processes.main.autocomplete import shell_autocomplete
-from walt.server.processes.main.blocking import BlockingTasksManager
 from walt.server.processes.main.devices.manager import DevicesManager
 from walt.server.processes.main.exports import FilesystemsExporter
 from walt.server.processes.main.images.manager import NodeImageManager
@@ -36,11 +34,13 @@ KVM_DEV_FILE = Path("/dev/kvm")
 
 
 class Server(object):
-    def __init__(self, ev_loop):
+    def __init__(self, ev_loop, db, blocking):
         self.ev_loop = ev_loop
-        self.db = SyncRPCProcessConnector(label="main-to-db")
+        self.db = db
+        self.db.configure()
         self.registry = WalTLocalRegistry()
-        self.blocking = BlockingTasksManager(self)
+        self.blocking = blocking
+        self.blocking.configure(self)
         self.tcp_server = TCPServer(WALT_SERVER_TCP_PORT)
         self.logs = LogsManager(self.db, self.tcp_server, self.blocking, self.ev_loop)
         self.devices = DevicesManager(self)

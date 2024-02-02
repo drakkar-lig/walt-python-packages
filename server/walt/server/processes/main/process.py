@@ -1,31 +1,47 @@
-import os
+import signal
 
+from walt.common.tools import interrupt_print
 from walt.server.process import EvProcess
+from walt.server.process import SyncRPCProcessConnector
 from walt.server.processes.main.hub import HubRPCProcessConnector
-from walt.server.processes.main.server import Server
+from walt.server.processes.main.blocking import BlockingTasksManager
+from walt.server.processes.main.spec import reload_server_spec
+
+
+def on_sighup_reload_conf():
+    def signal_handler(signal, frame):
+        interrupt_print("SIGHUP received. Reloading conf.")
+        reload_server_spec()
+
+    signal.signal(signal.SIGHUP, signal_handler)
 
 
 class ServerMainProcess(EvProcess):
     def __init__(self, tman, level):
         EvProcess.__init__(self, tman, "server-main", level)
-        self.server = Server(self.ev_loop)
-        self.db = self.server.db
+        self.server = None  # not configured yet
+        self.db = SyncRPCProcessConnector(label="main-to-db")
         tman.attach_file(self, self.db)
-        self.blocking = self.server.blocking
+        self.blocking = BlockingTasksManager()
         tman.attach_file(self, self.blocking)
-        self.hub = HubRPCProcessConnector(self.server)
+        self.hub = HubRPCProcessConnector()
         tman.attach_file(self, self.hub)
 
     def prepare(self):
-        self.register_listener(self.hub)
-        self.register_listener(self.blocking)
-        self.register_listener(self.db)
+        from walt.server.processes.main.server import Server
+        on_sighup_reload_conf()
+        self.server = Server(self.ev_loop, self.db, self.blocking)
+        self.hub.configure(self.server)
+        self.ev_loop.register_listener(self.hub)
+        self.ev_loop.register_listener(self.blocking)
+        self.ev_loop.register_listener(self.db)
         self.server.prepare()
         self.notify_systemd()
         self.server.update()
         print("Ready.")
 
     def notify_systemd(self):
+        import os
         if "NOTIFY_SOCKET" in os.environ:
             import sdnotify
 
@@ -37,4 +53,5 @@ class ServerMainProcess(EvProcess):
             del os.environ["NOTIFY_SOCKET"]
 
     def cleanup(self):
-        self.server.cleanup()
+        if self.server is not None:
+            self.server.cleanup()

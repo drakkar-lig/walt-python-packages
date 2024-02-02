@@ -2,12 +2,11 @@ from walt.server.process import RPCProcessConnector, RPCService
 
 
 class BlockingTasksManager(RPCProcessConnector):
-    def __init__(self, server):
-        super().__init__(
-            default_service=RPCService(server=server),
-            local_context=False,
-            label="main-to-blocking",
-        )
+    def __init__(self):
+        super().__init__(local_context=False, label="main-to-blocking")
+
+    def configure(self, server):
+        RPCProcessConnector.configure(self, RPCService(server=server))
         self.server = server
 
     def session(self, requester):

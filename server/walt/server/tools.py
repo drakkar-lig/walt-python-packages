@@ -1,34 +1,8 @@
-import asyncio
-import pdb
 import pickle
-import resource
-import sys
-from collections import namedtuple
 from ipaddress import IPv4Address, ip_address, ip_network
-from multiprocessing import current_process
 from typing import Union
 
-import aiohttp
-from aiostream import stream
-from walt.server.autoglob import autoglob
-
 DEFAULT_JSON_HTTP_TIMEOUT = 10
-
-
-def fix_pdb():
-    # monkey patch pdb for usage in a subprocess
-    pdb.SavedPdb = pdb.Pdb
-
-    class BetterPdb(pdb.SavedPdb):
-        def interaction(self, *args, **kwargs):
-            try:
-                self.prompt = f"(Pdb {current_process().name}) "
-                sys.stdin = open("/dev/stdin")
-                pdb.SavedPdb.interaction(self, *args, **kwargs)
-            finally:
-                sys.stdin = sys.__stdin__
-
-    pdb.Pdb = BetterPdb
 
 
 # wrapper to make a named tuple serializable using pickle
@@ -79,6 +53,7 @@ nt_classes = {}
 
 def build_named_tuple_cls(d):
     global nt_index
+    from collections import namedtuple
     code = pickle.dumps(tuple(d.keys()))
     if code not in nt_classes:
         base = namedtuple("NamedTuple_%d" % nt_index, list(d.keys()))
@@ -124,6 +99,7 @@ def try_encode(s, encoding):
 
 
 def format_node_models_list(node_models):
+    from walt.server.autoglob import autoglob
     return autoglob(node_models)
 
 
@@ -132,6 +108,7 @@ SOFT_RLIMIT_NOFILE = 16384
 
 
 def set_rlimits():
+    import resource
     soft_limit, hard_limit = resource.getrlimit(resource.RLIMIT_NOFILE)
     resource.setrlimit(resource.RLIMIT_NOFILE, (SOFT_RLIMIT_NOFILE, hard_limit))
 
@@ -150,6 +127,7 @@ async def async_json_http_get(
         ssl_opt = None  # default setting of ssl option = verification enabled
     else:
         ssl_opt = False
+    import aiohttp
     timeout = aiohttp.ClientTimeout(total=timeout)
     async with aiohttp.ClientSession(timeout=timeout) as session:
         async with session.get(url, ssl=ssl_opt) as response:
@@ -163,6 +141,7 @@ async def async_json_http_get(
 
 async def async_gather_tasks(tasks):
     # make sure all asyncio tasks are run up to their result or exception
+    import asyncio
     results = await asyncio.gather(*tasks, return_exceptions=True)
     for res in results:
         if isinstance(res, Exception):
@@ -171,6 +150,7 @@ async def async_gather_tasks(tasks):
 
 
 async def async_merge_generators(*generators):
+    from aiostream import stream
     merged_generator = stream.merge(*generators)
     async with merged_generator.stream() as streamer:
         async for item in streamer:
@@ -279,3 +259,32 @@ def get_registry_labels():
 
 def get_clone_url_locations():
     return ("docker", "walt") + get_registry_labels()
+
+
+# we wrap database record objects otherwise they cannot be pickled
+class DBRecord(SerializableNT):
+    pass
+
+
+class DBRecordSet:
+    def __init__(self, records=None):
+        self.records = records
+
+    def __getstate__(self):
+        return [row._asdict() for row in self.records]
+
+    def __setstate__(self, dict_records):
+        if len(dict_records) == 0:
+            self.records = []
+        else:
+            nt_cls = build_named_tuple_cls(dict_records[0])
+            self.records = [nt_cls(**row) for row in dict_records]
+
+    def __iter__(self):
+        return iter(self.records)
+
+    def __len__(self):
+        return len(self.records)
+
+    def __getitem__(self, i):
+        return self.records[i]

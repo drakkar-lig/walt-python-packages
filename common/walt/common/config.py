@@ -1,4 +1,3 @@
-from hashlib import blake2s
 import base64
 import pickle
 
@@ -34,6 +33,7 @@ def load_conf(path, optional=False, fast_load_mode=False):
             if line != "":
                 clean_lines.append(line)
         clean_text = '\n'.join(clean_lines)
+        from hashlib import blake2s
         h = blake2s(digest_size=12)
         h.update(clean_text.encode())
         hash_val = h.hexdigest()

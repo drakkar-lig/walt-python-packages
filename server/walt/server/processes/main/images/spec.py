@@ -6,7 +6,7 @@ from pathlib import Path
 from plumbum.cmd import chroot
 from walt.common.config import load_conf
 from walt.common.tools import failsafe_makedirs
-from walt.server.spec import SERVER_SPEC_PATH, get_server_features
+from walt.server.processes.main.spec import SERVER_SPEC_PATH, get_server_features
 from walt.server.tools import update_template
 
 IMAGE_SPEC_PATH = "/etc/walt/image.spec"
