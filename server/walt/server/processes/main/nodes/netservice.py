@@ -98,7 +98,6 @@ class ServerToNodeRequest:
         return self.sock.fileno()
 
     def close(self):
-        print("ServerToNodeRequest.close()")
         if self.sock is not None:
             self.sock.close()
             self.sock = None
