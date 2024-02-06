@@ -233,6 +233,10 @@ class CSAPI(APISession):
         return context.images.duplicate(context.requester, image_name, new_name)
 
     @api_expose_method
+    def update_default_images(self, context):
+        return context.images.update_default_images(context.requester, context.task)
+
+    @api_expose_method
     def validate_image_cp(self, context, src, dst):
         return context.server.validate_cp(context.requester, "image", src, dst)
 

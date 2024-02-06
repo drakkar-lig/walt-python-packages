@@ -142,6 +142,29 @@ class NodeImageStore(object):
         self.db.commit()
         self.images[image_fullname] = NodeImage(self, image_fullname)
 
+    def update_default_images(self, requester, task_cb):
+        # we ignore the final reboot status of nodes
+        def final_task_cb(status=None):
+            task_cb(None)
+        update_info = {}
+        for fullname, image in self.images.items():
+            if (    fullname.startswith('waltplatform/') and \
+                    fullname.endswith('-default:latest')
+            ):
+                update_info[fullname] = image.created_ts
+        if len(update_info) > 0:
+            def after_update_cb(updated_fullnames):
+                if len(updated_fullnames) > 0:
+                    self.server.reboot_nodes_after_image_change(
+                        requester, final_task_cb, *updated_fullnames
+                    )
+                else:
+                    final_task_cb()
+            self.blocking.update_default_images(
+                    requester, after_update_cb, update_info)
+        else:
+            final_task_cb()
+
     # Make sure to rename the image in docker *before* calling this.
     def rename(self, old_fullname, new_fullname):
         self.db.execute(

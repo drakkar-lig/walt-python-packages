@@ -1,0 +1,8 @@
+update default images (images of free nodes)
+
+Usage:
+    walt advanced update-default-images [SWITCHES] 
+
+Meta-switches:
+    -h, --help      Prints this help message and quits
+

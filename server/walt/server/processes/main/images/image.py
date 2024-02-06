@@ -109,8 +109,16 @@ class NodeImage(object):
         return self.metadata["image_id"]
 
     @property
+    def digest(self):
+        return self.metadata["digest"]
+
+    @property
     def created_at(self):
         return self.metadata["created_at"]
+
+    @property
+    def created_ts(self):
+        return self.metadata["created_ts"]
 
     @property
     def labels(self):

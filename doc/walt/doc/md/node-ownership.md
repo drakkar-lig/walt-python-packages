@@ -43,3 +43,7 @@ $ walt node boot <node(s)> <node-model>-default            # I associate nodes t
 ```
 For clarity regarding images supporting several node models, `walt node acquire` sometimes gives a different name to the cloned image (not `<node-model>-default`).
 This name is obviously printed.
+
+New users automatically get a clone of the default images present on the platform, the first time they type `walt image show`.
+It is possible to update the default images present on the platform using `walt advanced update-default-images`. This command will look for newer
+default images on remote registries (docker hub and/or any private registry configured) and will also query the docker daemon running on the WALT server.

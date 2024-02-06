@@ -77,6 +77,10 @@ class NodeImageManager:
     def duplicate(self, requester, image_name, new_name):
         return duplicate(self.store, self.registry, requester, image_name, new_name)
 
+    def update_default_images(self, requester, task):
+        task.set_async()  # result will be available later
+        return self.store.update_default_images(requester, task.return_result)
+
     def validate_cp_entity(self, requester, image_name, index, **info):
         if image_name == "booted-image":
             username = requester.get_username()

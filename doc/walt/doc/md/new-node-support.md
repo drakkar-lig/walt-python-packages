@@ -84,9 +84,13 @@ $ walt image show --refresh
 
 You can now try to boot the new node for the first time.
 
-After this initial try, you can of course use `walt node boot` to direct the new node to
-another image within your account. This will make debugging easier than having to refresh
-the default image again.
+After this initial try, you can of course clone this default image to get your own copy,
+update it using `walt image shell` for instance, and use `walt node boot` to test your
+modifications. This will make debugging easier than having to refresh the default image again.
+
+As an alternative, you can also use docker rather than walt to make modifications, and then
+force walt to clone the updated default image from the docker repository by using
+`walt advanced update-default-images`.
 
 At the end of the debugging, in order to have your new default walt image pushed to the
 docker hub, you should notify us about it (add a comment to the issue you initially reported),

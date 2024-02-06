@@ -79,3 +79,12 @@ class WalTDumpBashAutocomplete(WalTApplication):
         import walt.client.autocomplete.dump as dumper
 
         dumper.dump_bash_autocomplete(self)
+
+
+@WalTAdvanced.subcommand("update-default-images")
+class WalTUpdateDefaultImages(WalTApplication):
+    """update default images (images of free nodes)"""
+
+    def main(self):
+        with ClientToServerLink() as server:
+            return server.update_default_images()

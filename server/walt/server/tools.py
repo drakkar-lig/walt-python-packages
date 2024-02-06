@@ -288,3 +288,25 @@ class DBRecordSet:
 
     def __getitem__(self, i):
         return self.records[i]
+
+
+# parse_date() handles the following example formats:
+# - "2023-07-04T13:58:03.480332+02:00"
+# - "2023-07-04T13:58:03.480332667+02:00"
+# - "2023-07-04T13:58:03.480332667Z"
+# - "2023-07-04 13:58:03.480332 +0000 UTC"
+# - "2023-07-04 13:58:03.480332 +0000"
+# - "2023-07-04 13:58:03.480332 +00:00"
+def parse_date(created_at):
+    import re
+    from datetime import datetime
+    # add a space before the ending timezone offset
+    created_at = re.sub(r"([+-][0-9][0-9:.]*)$", r" \1",  created_at)
+    # interpret 'T' and 'Z'
+    created_at = created_at.replace("T", " ").replace("Z", " +0000")
+    # keep only the first 3 words (timezone is sometimes repeated as text)
+    created_at = " ".join(created_at.split()[:3])
+    # strptime does not support parsing nanosecond precision
+    # remove last 3 decimals of this number
+    created_at = re.sub(r"([0-9]{6})[0-9]*", r"\1", created_at)
+    return datetime.strptime(created_at, "%Y-%m-%d %H:%M:%S.%f %z")
