@@ -79,7 +79,12 @@ class ServerToNodeRequest:
         elif self.status == REQUEST_STATUS.WAITING_RESPONSE:
             resp = b''
             while True:
-                c = self.sock.recv(1)
+                try:
+                    c = self.sock.recv(1)
+                except Exception:
+                    result_msg = "Broken connection"
+                    self.cb(self.env, self.node, result_msg)
+                    return False  # ev_loop should remove this listener
                 if c == b'\n':
                     break
                 elif c == b'':
