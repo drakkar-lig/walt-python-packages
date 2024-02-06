@@ -1,8 +1,6 @@
 import json
 import os
-import re
 import shutil
-from datetime import datetime
 from pathlib import Path
 from subprocess import CalledProcessError
 
@@ -10,6 +8,7 @@ from podman import PodmanClient
 from podman.errors.exceptions import ImageNotFound
 from walt.server.exttools import buildah, findmnt, mount, podman, umount
 from walt.server.tools import add_image_repo, format_node_models_list
+from walt.server.tools import parse_date
 
 MAX_IMAGE_LAYERS = 128
 METADATA_CACHE_FILE = Path("/var/cache/walt/images.metadata")
@@ -17,24 +16,7 @@ IMAGE_LAYERS_DIR = "/var/lib/containers/storage/overlay"
 PODMAN_API_SOCKET = "unix:///run/walt/podman/podman.socket"
 
 
-# parse_date() handles the following example formats:
-# - "2023-07-04T13:58:03.480332+02:00"
-# - "2023-07-04T13:58:03.480332667+02:00"
-# - "2023-07-04T13:58:03.480332667Z"
-# - "2023-07-04 13:58:03.480332 +0000 UTC"
-# - "2023-07-04 13:58:03.480332 +0000"
-# - "2023-07-04 13:58:03.480332 +00:00"
-def parse_date(created_at):
-    # add a space before the ending timezone offset
-    created_at = re.sub(r"([+-][0-9][0-9:.]*)$", r" \1",  created_at)
-    # interpret 'T' and 'Z'
-    created_at = created_at.replace("T", " ").replace("Z", " +0000")
-    # keep only the first 3 words (timezone is sometimes repeated as text)
-    created_at = " ".join(created_at.split()[:3])
-    # strptime does not support parsing nanosecond precision
-    # remove last 3 decimals of this number
-    created_at = re.sub(r"([0-9]{6})[0-9]*", r"\1", created_at)
-    dt = datetime.strptime(created_at, "%Y-%m-%d %H:%M:%S.%f %z")
+def date_to_str_local(dt):
     # remove subsecond precision (not needed)
     dt = dt.replace(microsecond=0)
     # convert to local time
@@ -99,7 +81,7 @@ class WalTLocalRegistry:
             if len(metadata) > 0:
                 # check compatibility with the format expected with current code
                 first_entry = tuple(metadata.values())[0]
-                if "size_kib" in first_entry:
+                if "created_ts" in first_entry:
                     # all is fine
                     return metadata
         return {}
@@ -144,7 +126,7 @@ class WalTLocalRegistry:
         labels = data.attrs["Labels"]
         if labels is None:
             labels = {}
-        created_at_ts = data.attrs["Created"]
+        created_ts = data.attrs["Created"]
         if "walt.node.models" in labels:
             node_models = labels["walt.node.models"].split(",")
             node_models_desc = format_node_models_list(node_models)
@@ -157,14 +139,17 @@ class WalTLocalRegistry:
         else:
             num_layers = len(layers)
         size_kib = data.attrs['Size'] // 1024
+        dt = parse_date(created_ts)
         return dict(
             labels=labels,
             editable=(num_layers < MAX_IMAGE_LAYERS),
             image_id=image_id,
-            created_at=parse_date(created_at_ts),
+            created_at=date_to_str_local(dt),
+            created_ts=dt.timestamp(),
             node_models=node_models,
             node_models_desc=node_models_desc,
-            size_kib=size_kib
+            size_kib=size_kib,
+            digest=data.attrs["Digest"]
         )
 
     def image_exists(self, fullname):

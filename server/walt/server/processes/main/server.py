@@ -297,15 +297,22 @@ class Server(object):
         self.nodes.forget_vnode(info.mac)
         return self.forget_device(requester, task, name)
 
-    def reboot_nodes_after_image_change(self, requester, task_callback, image_fullname):
-        nodes = self.nodes.get_nodes_using_image(image_fullname)
+    def reboot_nodes_after_image_change(self,
+            requester, task_callback, *image_fullnames):
+        nodes = ()
+        for image_fullname in image_fullnames:
+            nodes += tuple(self.nodes.get_nodes_using_image(image_fullname))
         if len(nodes) == 0:
             # nothing to do
             task_callback("OK")
             return
+        if len(image_fullnames) > 1:
+            images_desc = "these images"
+        else:
+            images_desc = "this image"
         requester.stdout.write(
             format_sentence(
-                "Trying to reboot %s using this image...\n",
+                f"Trying to reboot %s using {images_desc}...\n",
                 [n.name for n in nodes],
                 None,
                 "node",

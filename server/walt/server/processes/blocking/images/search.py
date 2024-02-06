@@ -39,9 +39,10 @@ def location_long_label(location):
 
 
 class Search(object):
-    def __init__(self, image_store, requester, validate=None):
+    def __init__(self, image_store, requester, validate=None, output_registries=False):
         self.image_store = image_store
         self.requester = requester
+        self.output_registries = output_registries
         if validate is None:
 
             def validate(user, name, location):
@@ -57,8 +58,12 @@ class Search(object):
         return self.validate(image_name, user, location)
 
     # search yields results in the form (<image_fullname>, <location>, <labels>)
+    # or (<registry>, <image_fullname>, <location>, <labels>) if
+    # output_registries was set to True.
     async def async_search(self):
-        generators = [self.async_search_walt()]
+        generators = []
+        if self.image_store is not None:
+            generators += [self.async_search_walt()]
         if docker is not None:
             generators += [self.async_search_daemon()]
         for reg_info in conf["registries"]:
@@ -86,7 +91,12 @@ class Search(object):
         # search for local images
         for fullname, labels in self.image_store.get_labels().items():
             if self.validate_fullname(fullname, "walt"):
-                yield (fullname, "walt", labels)
+                if self.output_registries:
+                    raise NotImplementedError(
+                        "Local walt image repo does not "
+                        "implement the same registry API.")
+                else:
+                    yield (fullname, "walt", labels)
 
     async def async_search_daemon(self):
         try:
@@ -98,7 +108,10 @@ class Search(object):
                     labels = await docker_daemon.async_get_labels(
                         self.requester, fullname
                     )
-                    yield (fullname, "docker", labels)
+                    if self.output_registries:
+                        yield (docker_daemon, fullname, "docker", labels)
+                    else:
+                        yield (fullname, "docker", labels)
         except Exception:
             self.requester.stderr.write(
                 "Ignoring images of docker daemon because of a communication failure.\n"
@@ -115,6 +128,8 @@ class Search(object):
                     user = waltuser_info["name"].split("/")[0]
                     generators += [self.async_search_hub_user_images(hub, user)]
             async for record in async_merge_generators(*generators):
+                if self.output_registries:
+                    record = (hub,) + record
                 yield record
         except Exception:
             self.requester.stderr.write(
@@ -136,6 +151,8 @@ class Search(object):
                     self.async_get_registry_v2_image_tags(registry, image_name)
                 ]
             async for record in async_merge_generators(*generators):
+                if self.output_registries:
+                    record = (registry,) + record
                 yield record
         except Exception:
             self.requester.stderr.write(

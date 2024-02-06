@@ -14,3 +14,8 @@ define_test "walt advanced dump-bash-autocomplete" as {
     bash $autocomp_file   # check we got regular bash code
     rm $autocomp_file
 }
+
+define_test "walt advanced update-default-images" as {
+    walt advanced update-default-images
+}
+

@@ -7,7 +7,7 @@ from walt.common.formatting import indicate_progress
 from walt.server import conf
 from walt.server.exttools import docker, podman, skopeo
 from walt.server.processes.blocking.images.tools import update_main_process_about_image
-from walt.server.tools import async_json_http_get, get_registry_info
+from walt.server.tools import async_json_http_get, get_registry_info, parse_date
 
 SKOPEO_RETRIES = 10
 REGISTRY = "docker.io"
@@ -132,10 +132,57 @@ class RegistryClientBase:
         return asyncio.run(self.async_get_labels(requester, image_fullname))
 
     async def async_get_labels(self, requester, image_fullname):
+        labels, created_ts = await self.async_get_labels_and_created_ts(
+                requester, image_fullname)
+        return labels
+
+    async def async_get_created_ts(self, requester, image_fullname):
+        labels, created_ts = await self.async_get_labels_and_created_ts(
+                requester, image_fullname)
+        return created_ts
+
+    async def async_get_labels_and_created_ts(self, requester, image_fullname):
         raise NotImplementedError
 
 
-class DockerDaemonClient(RegistryClientBase):
+class SkopeoRegistryClient(RegistryClientBase):
+    async def async_inspect(self, requester, fullname):
+        print(f"Inspecting remote image on {self.label}: {fullname}")
+        url = "docker://" + self.get_podman_pull_url(fullname)
+        args = self.get_tool_opts(requester, "inspect") + [url]
+        for _ in range(SKOPEO_RETRIES):
+            try:
+                data = await skopeo.inspect.awaitable(*args)
+            except RegistryAuthRequired:
+                raise
+            except Exception:
+                continue  # retry
+            try:
+                config = json.loads(data)
+            except:
+                config = {}
+            if "Created" not in config:
+                raise Exception(f"{fullname}: unknown image format.")
+            else:
+                return config
+        raise Exception("Failed to inspect remote image: " + fullname)
+
+    async def async_get_labels_and_created_ts(self, requester, fullname):
+        try:
+            info = await self.async_inspect(requester, fullname)
+            labels = info.get("Labels", {})
+            if labels is None:
+                labels = {}
+            dt = parse_date(info["Created"])
+            return (labels, dt.timestamp())
+        except Exception as e:
+            print(e)
+            return ({}, 0)
+
+
+# Note: Docker daemon client uses direct calls to the "docker" command when possible
+# because it is much faster than using skopeo with the "docker-daemon:" prefix.
+class DockerDaemonClient(SkopeoRegistryClient):
     def __init__(self):
         super().__init__("docker", "docker-daemon:", None, "custom", "none", ())
 
@@ -158,37 +205,19 @@ class DockerDaemonClient(RegistryClientBase):
             results.append(repo_name + ":" + tag)
         return results
 
-    async def async_get_labels(self, requester, image_fullname):
-        json_labels = await docker.image.inspect.awaitable(
-            "--format", "{{json .Config.Labels}}", image_fullname
+    async def async_get_labels_and_created_ts(self, requester, image_fullname):
+        print(f"Inspecting image on docker daemon: {image_fullname}")
+        json_info = await docker.image.inspect.awaitable(
+            "--format", "{{json .}}", image_fullname
         )
-        return json.loads(json_labels)
-
-
-class SkopeoRegistryClient(RegistryClientBase):
-    async def async_get_config(self, requester, fullname):
-        print(f"retrieving config from {self.label}: {fullname}")
-        url = "docker://" + self.get_podman_pull_url(fullname)
-        args = self.get_tool_opts(requester, "inspect") + ["--config", url]
-        for _ in range(SKOPEO_RETRIES):
-            try:
-                data = await skopeo.inspect.awaitable(*args)
-                return json.loads(data)
-            except RegistryAuthRequired:
-                raise
-            except Exception:
-                continue  # retry
-        raise Exception("Failed to download config for image: " + fullname)
-
-    async def async_get_labels(self, requester, fullname):
-        config = await self.async_get_config(requester, fullname)
-        if "config" not in config:
-            print("{fullname}: unknown image config format.".format(fullname=fullname))
-            return {}
-        if "Labels" not in config["config"]:
-            print("{fullname}: image has no labels.".format(fullname=fullname))
-            return {}
-        return config["config"]["Labels"]
+        info = json.loads(json_info)
+        labels = None
+        if "Config" in info:
+            labels = info["Config"].get("Labels", {})
+        if labels is None:
+            labels = {}
+        dt = parse_date(info["Created"])
+        return (labels, dt.timestamp())
 
 
 class DockerHubClient(SkopeoRegistryClient):

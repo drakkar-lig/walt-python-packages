@@ -65,6 +65,10 @@ class BlockingTasksManager(RPCProcessConnector):
     def run_shell_cmd(self, requester, result_cb, cmd, **kwargs):
         self.session(requester).do_async.run_shell_cmd(cmd, **kwargs).then(result_cb)
 
+    def update_default_images(self, requester, cb, update_info):
+        return self.session(requester).do_async.update_default_images(
+                update_info).then(cb)
+
     # sync calls will block the 'main' process, so should only be used e.g. during
     # service startup.
     def sync_list_docker_daemon_images(self):
