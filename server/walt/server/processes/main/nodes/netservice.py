@@ -50,15 +50,13 @@ class ServerToNodeRequest:
 
     def on_timeout(self):
         if self.status != REQUEST_STATUS.DONE:
-            self.sock.setblocking(True)
-            self.ev_loop.remove_listener(self)
-            self.close()
             if self.status == REQUEST_STATUS.CONNECTING:
                 result_msg = "Connection timed out"
             else:
                 result_msg = "Timed out waiting for reply"
+            # ev_loop will call close(), setting status to DONE
+            self.ev_loop.remove_listener(self)
             self.cb(self.env, self.node, result_msg)
-            self.status = REQUEST_STATUS.DONE
 
     def handle_event(self, ts):
         # the event loop detected an event for us
@@ -73,13 +71,20 @@ class ServerToNodeRequest:
                     result_msg = e.strerror
                 print(result_msg)
                 self.cb(self.env, self.node, result_msg)
-                return False  # ev_loop should remove this listener
+                # ev_loop will call close(), setting status to DONE
+                return False
             self.status = REQUEST_STATUS.WAITING_RESPONSE
             self.ev_loop.update_listener(self, POLL_OPS_READ)
         elif self.status == REQUEST_STATUS.WAITING_RESPONSE:
             resp = b''
             while True:
-                c = self.sock.recv(1)
+                try:
+                    c = self.sock.recv(1)
+                except Exception:
+                    result_msg = "Broken connection"
+                    self.cb(self.env, self.node, result_msg)
+                    # ev_loop will call close(), setting status to DONE
+                    return False
                 if c == b'\n':
                     break
                 elif c == b'':
@@ -91,7 +96,9 @@ class ServerToNodeRequest:
                 self.cb(self.env, self.node, "OK")
             elif len(resp) == 2:
                 self.cb(self.env, self.node, resp[1])
-            return False  # ev_loop should remove this listener
+            else:
+                self.cb(self.env, self.node, "Node did not respond properly")
+            return False  # ev_loop will call close(), setting status to DONE
 
     # let the event loop know what we are reading on
     def fileno(self):
