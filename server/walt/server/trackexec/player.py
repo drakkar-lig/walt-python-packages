@@ -65,9 +65,7 @@ class TrackExecPlayer(Pager, LogAbstractManagement):
         self._file_ids_stack = Uint16Stack()
         self._old_filename = None
         self._lineno = None
-        filenames = list(self._log_sources_path.read_text().splitlines())
-        self._prefix = filenames[0]
-        self._filenames = filenames[1:]
+        self._filenames = list(self._log_sources_order_path.read_text().splitlines())
         self._block_id = 0
         self._index_blocks = np.memmap(self._log_index_path,
                                        dtype=index_block_dt(),
@@ -368,8 +366,7 @@ class TrackExecPlayer(Pager, LogAbstractManagement):
                 if file_id == self._file_id)
         code_flags = f"linenos highlight-line={self._lineno}"
         code_flags += " breakpoints=" + ",".join(breakpoints)
-        with open(f"{self._prefix}/{self._filename}", 'r') as source_file:
-            source_text = source_file.read()
+        source_text = (self._log_sources_path / self._filename).read_text()
         md_text = (f"""
 ```python3 {code_flags}
 {source_text}```
@@ -412,7 +409,7 @@ class TrackExecPlayer(Pager, LogAbstractManagement):
         return datetime.fromtimestamp(float(ts) / SEC_AS_TS)
 
     def get_header_text(self, cols, **env):
-        location = f"{self._prefix}/{self._filename}:{self._lineno}"
+        location = f"{self._log_sources_path}/{self._filename}:{self._lineno}"
         location_maxlen = cols - len("location: ")
         if len(location) > location_maxlen:
             location = "..." + location[len(location)-location_maxlen+3:]
