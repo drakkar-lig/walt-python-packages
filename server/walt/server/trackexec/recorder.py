@@ -3,6 +3,7 @@ import numpy as np
 import sys
 
 from os import getpid
+from pathlib import Path
 from time import time
 from walt.server.trackexec.const import (
         OpCodes, MAP_FILE_SIZE, SEC_AS_TS
@@ -31,13 +32,13 @@ class TrackExecRecorder(LogAbstractManagement):
         self._file_ids_stack = Uint16Stack()
         self._bytecode = Uint16Stack()
         self._old_line = None
-        with self._log_sources_path.open("w") as f:
-            f.write(package.__path__[0] + "\n")
+        self._log_sources_path.mkdir()
         self._map_block = np.zeros(1, dtype=map_block_dt(0))
         self._index_block = np.zeros(1, dtype=index_block_dt())
         self._last_timestamp = None
         self._idle_period = IdlePeriod.NONE
         self._pid = getpid()
+        (dir_path / "pid").write_text(f"{self._pid}\n")
 
     def _recursive_call_stack_init(self, frame):
         # recurse first (register bottom calls of the stack first)
@@ -59,7 +60,11 @@ class TrackExecRecorder(LogAbstractManagement):
         sys.settrace(self._trace_function)
 
     def _register_filename(self, filename):
-        with self._log_sources_path.open("a") as f:
+        src = Path(self._prefix + filename)
+        dst = self._log_sources_path / filename
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        dst.write_bytes(src.read_bytes())
+        with self._log_sources_order_path.open("a") as f:
             f.write(filename + "\n")
 
     def _init_block(self):

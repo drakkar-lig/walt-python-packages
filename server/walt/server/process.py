@@ -95,6 +95,25 @@ def fix_pdb():
     pdb.Pdb = BetterPdb
 
 
+def update_trackexec_symlink_latest(target_dir):
+    symlink_latest = TRACKEXEC_LOG_DIR / "latest"
+    try:
+        if symlink_latest.readlink() == target_dir:
+            # symlink has been created by another concurrent process
+            # nothing to do
+            return
+        else:
+            # symlink must be updated, remove it first
+            # (set missing_ok=True to deal with concurrent processes)
+            symlink_latest.unlink(missing_ok=True)
+    except Exception:
+        pass  # symlink did not exist, continue below
+    try:
+        symlink_latest.symlink_to(target_dir)
+    except Exception:
+        pass  # a concurrent process did it
+
+
 class EvProcess(Process):
     def __init__(self, manager, name, level):
         Process.__init__(self, name=name)
@@ -136,9 +155,9 @@ class EvProcess(Process):
             if TRACKEXEC_LOG_DIR.exists():
                 import walt
                 from walt.server.trackexec.recorder import TrackExecRecorder
-                start_time = self.start_time.strftime("%y%m%d-%H%M")
-                pid = getpid()
-                log_dir_path = TRACKEXEC_LOG_DIR / start_time / f"{self.name}-{pid}"
+                start_time_dir = self.start_time.strftime("%y%m%d-%H%M%S")
+                update_trackexec_symlink_latest(start_time_dir)
+                log_dir_path = TRACKEXEC_LOG_DIR / start_time_dir / self.name
                 TrackExecRecorder.record(walt, log_dir_path)
                 self.ev_loop.idle_period_recorder = \
                     TrackExecRecorder.idle_period_recorder
