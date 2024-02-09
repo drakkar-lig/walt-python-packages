@@ -21,9 +21,6 @@ def is_event_ok(ev):
     return ev & (POLL_OPS_READ | POLL_OPS_WRITE) > 0
 
 
-def is_read_event(ev):
-    return ev & POLL_OPS_READ > 0
-
 
 # This object allows to implement ev_loop.do(<cmd>, <callback>)
 class ProcessListener:
@@ -150,9 +147,6 @@ class EventLoop(object):
         return loop_condition()
 
     def reordering_allowed(self, fd):
-        events = self.events_per_fd[fd]
-        if not is_read_event(events):
-            return True
         listener = self.listeners_per_fd[fd]
         return getattr(listener, "allow_reordering", False)
 
