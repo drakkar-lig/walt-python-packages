@@ -95,7 +95,16 @@ def fix_pdb():
     pdb.Pdb = BetterPdb
 
 
-def update_trackexec_symlink_latest(target_dir):
+def _instanciate_ev_loop():
+    ev_loop = EventLoop()
+    if TRACKEXEC_LOG_DIR.exists():
+        from walt.server.trackexec.recorder import TrackExecRecorder
+        ev_loop.idle_period_recorder = \
+            TrackExecRecorder.idle_period_recorder
+    return ev_loop
+
+
+def _update_trackexec_symlink_latest(target_dir):
     symlink_latest = TRACKEXEC_LOG_DIR / "latest"
     try:
         if symlink_latest.readlink() == target_dir:
@@ -112,6 +121,16 @@ def update_trackexec_symlink_latest(target_dir):
         symlink_latest.symlink_to(target_dir)
     except Exception:
         pass  # a concurrent process did it
+
+
+def _init_trackexec(name, start_time):
+    if TRACKEXEC_LOG_DIR.exists():
+        import walt
+        from walt.server.trackexec.recorder import TrackExecRecorder
+        start_time_dir = start_time.strftime("%y%m%d-%H%M%S")
+        _update_trackexec_symlink_latest(start_time_dir)
+        log_dir_path = TRACKEXEC_LOG_DIR / start_time_dir / name
+        TrackExecRecorder.record(walt, log_dir_path)
 
 
 class EvProcess(Process):
@@ -146,21 +165,13 @@ class EvProcess(Process):
             # print(self.name, 'closing fd not for us:', f)
             f.close()
         # run
-        self.ev_loop = EventLoop()
+        self.ev_loop = _instanciate_ev_loop()
         self.ev_loop.register_listener(self)
         try:
             self.prepare()
             # if the admin created directory /var/log/walt/trackexec,
             # enable execution tracking
-            if TRACKEXEC_LOG_DIR.exists():
-                import walt
-                from walt.server.trackexec.recorder import TrackExecRecorder
-                start_time_dir = self.start_time.strftime("%y%m%d-%H%M%S")
-                update_trackexec_symlink_latest(start_time_dir)
-                log_dir_path = TRACKEXEC_LOG_DIR / start_time_dir / self.name
-                TrackExecRecorder.record(walt, log_dir_path)
-                self.ev_loop.idle_period_recorder = \
-                    TrackExecRecorder.idle_period_recorder
+            _init_trackexec(self.name, self.start_time)
             # run the event loop
             self.ev_loop.loop()
         except BreakLoopRequested:
@@ -338,9 +349,6 @@ class RPCService:
         else:
             return handler
 
-    def __setattr__(self, service_name, service_handler):
-        self.service_handlers[service_name] = service_handler
-
     def __delattr__(self, service_name):
         del self.service_handlers[service_name]
 
@@ -351,8 +359,6 @@ class RPCSession(object):
         self.do_async = AttrCallAggregator(self.async_runner)
         self.do_sync = AttrCallAggregator(self.sync_runner)
         self.remote_req_id = remote_req_id
-        if local_service is None:
-            local_service = RPCService()
         self.local_service = local_service
 
     def async_runner(self, path, args, kwargs):
@@ -419,6 +425,7 @@ class RPCProcessConnector(ProcessConnector):
         self.do_sync = None
         self.local_context = local_context
         self.label = label
+        self.ev_loop = None
 
     def __getstate__(self):
         assert self.default_service is None, \
@@ -430,9 +437,13 @@ class RPCProcessConnector(ProcessConnector):
 
     def configure(self, default_local_service=None):
         self.default_service = AttrCallRunner(default_local_service)
-        self.default_session = self.create_session(-1, default_local_service)
+        self.default_session = self.create_session(default_local_service)
         self.do_async = self.default_session.do_async
         self.do_sync = self.default_session.do_sync
+        # instanciate a local ev_loop which will wait for results of this
+        # process connector only (see self.sync_runner)
+        self.ev_loop = _instanciate_ev_loop()
+        self.ev_loop.register_listener(self)
 
     def __repr__(self):
         if self.label is not None:
@@ -440,8 +451,8 @@ class RPCProcessConnector(ProcessConnector):
         else:
             return "<connector>"
 
-    def create_session(self, remote_req_id=-1, local_service=None):
-        return RPCSession(self, remote_req_id, local_service)
+    def create_session(self, local_service=None):
+        return RPCSession(self, -1, local_service)
 
     def handle_event(self, ts):
         return self.handle_next_event()
@@ -519,11 +530,19 @@ class RPCProcessConnector(ProcessConnector):
             remote_req_id, local_service, path, args, kwargs, True
         )
 
-        # resume the event loop until we get the expected result
         def loop_condition():
             return local_req_id not in self.results
 
-        current_process().ev_loop.loop(loop_condition)
+        # check if calling the remote service may involve remote calls
+        # back to a local service
+        if local_service is not None:
+            # if yes, then resume the whole process event loop until we get
+            # the expected result
+            current_process().ev_loop.loop(loop_condition)
+        else:
+            # otherwise, limit reentrance code complexity by blocking on
+            # this call only
+            self.ev_loop.loop(loop_condition)
         result = self.results.pop(local_req_id)
         if isinstance(result, Exception):
             print(current_process().name + ": Remote exception returned here.")
@@ -536,8 +555,10 @@ class RPCProcessConnector(ProcessConnector):
             self.ids_generator = itertools.count()
         local_req_id = next(self.ids_generator)
         self.last_req_id = local_req_id
+        if local_service is not None:
+            local_service = AttrCallRunner(local_service)
         self.submitted_tasks[local_req_id] = SimpleContainer(
-            local_service=AttrCallRunner(local_service),
+            local_service=local_service,
             path=path,
             args=args,
             kwargs=kwargs,
