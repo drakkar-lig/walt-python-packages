@@ -45,9 +45,15 @@ start_background_processes()
 }
 
 update_mounts_rootfs_to_finalfs() {
-    busybox mkdir -p /persist /run/walt/rootfs/mnt/finalfs
+    busybox mkdir -p /run/walt/rootfs/mnt/finalfs
     cd /run/walt/rootfs
-    busybox mount -o bind mnt/persist /persist
+    # note: /persist may be disabled by using "walt node config"
+    # in this case walt-init-rootfs does not create mnt/persist
+    if [ -d "mnt/persist" ]
+    then
+        busybox mkdir -p /persist
+        busybox mount -o bind mnt/persist /persist
+    fi
     busybox mount -o bind /dev dev  # needed for walt-log-script & walt-fs-watchdog
     [ -d mnt/hm_part ] && busybox umount mnt/hm_part
     cd /
