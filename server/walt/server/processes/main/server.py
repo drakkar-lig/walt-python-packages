@@ -212,6 +212,7 @@ class Server(object):
         self.db.forget_device(device.name)
         self.dhcpd.update()
         self.named.update()
+        self.nodes.forget_device(device.mac)
         wf.next()
 
     def wf_unblock_client(self, wf, task, **env):

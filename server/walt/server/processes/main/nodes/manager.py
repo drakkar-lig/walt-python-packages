@@ -48,15 +48,21 @@ class NodesManager(object):
         self.status_manager = NodeBootupStatusManager(server.tcp_server, self)
         self.filesystems = FilesystemsCache(server.ev_loop, FS_CMD_PATTERN)
         self.vnodes = {}
+        self.booted_macs = set()
         self.powersave = PowersaveManager(server)
         self.node_register_kwargs = dict(
             images=server.images.store, dhcpd=server.dhcpd,
             named=server.named, registry=server.registry
         )
 
+    def is_booted_node_mac(self, mac):
+        return mac in self.booted_macs
+
+    def forget_device(self, mac):
+        self.booted_macs.discard(mac)  # if ever it was inside
+
     def prepare(self):
-        # set booted flag of all nodes to False for now
-        self.db.execute("UPDATE nodes SET booted = false;")
+        pass
 
     def restore(self):
         # init powersave
@@ -121,7 +127,7 @@ class NodesManager(object):
         node_request(self.ev_loop, (node,), req, self.blink_callback, cb_kwargs)
 
     def show(self, username, show_all, names_only):
-        return show(self.db, username, show_all, names_only)
+        return show(self, username, show_all, names_only)
 
     def generate_vnode_info(self):
         # random mac address generation
@@ -294,14 +300,17 @@ class NodesManager(object):
                     continue
                 nodes.append(node_info)
         for node_info in nodes:
-            if node_info.booted != booted:
-                # update booted flag in db
-                self.db.update("nodes", "mac", mac=node_info.mac, booted=booted)
-                self.db.commit()
-                # generate a log line
+            # note: change_nodes_bootup_status() may be called as a callback
+            # of the netservice.py procedure, thus the "nodes" parameter may be
+            # outdated regarding the "booted" attribute. So we recompute it.
+            old_booted = (node_info.mac in self.booted_macs)
+            if old_booted != booted:
+                # add or remove from self.booted_macs and generate a log line
                 if booted:
+                    self.booted_macs.add(node_info.mac)
                     status = "booted"
                 else:
+                    self.booted_macs.discard(node_info.mac)
                     status = "down"
                 if cause is None:
                     suffix = ""
@@ -310,6 +319,7 @@ class NodesManager(object):
                 self.logs.platform_log(
                     "nodes", f"node {node_info.name} is {status}{suffix}"
                 )
+                node_info.booted = booted
                 # unblock any related "walt node wait" command.
                 if booted:
                     self.wait_info.node_bootup_event(node_info)

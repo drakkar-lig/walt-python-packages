@@ -99,6 +99,7 @@ CMD_ADD_SSH_KNOWN_HOST = (
 
 class DevicesManager(object):
     def __init__(self, server):
+        self.server = server
         self.db = server.db
         self.logs = server.logs
         self.server_mac = get_mac_address(const.WALT_INTF)
@@ -168,8 +169,10 @@ class DevicesManager(object):
                 gateway = self.server_ip
             else:
                 gateway = ""
+            booted = self.server.nodes.is_booted_node_mac(mac)
             node_info = to_named_tuple(node_info._asdict())
-            node_info = node_info.update(gateway=gateway, netmask=self.netmask)
+            node_info = node_info.update(
+                    gateway=gateway, netmask=self.netmask, booted=booted)
             device_info = merge_named_tuples(device_info, node_info)
         elif device_type == "switch":
             switch_info = self.db.select_unique("switches", mac=mac)
