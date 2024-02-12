@@ -13,9 +13,8 @@ NODE_SHOW_QUERY = """
         split_part(n.image, '/', 2) as image_name,
         d.virtual as virtual, d.mac as mac,
         d.ip as ip, COALESCE((d.conf->'netsetup')::int, 0) as netsetup,
-        (CASE WHEN n.booted THEN 'yes'
-              WHEN n.mac in (SELECT mac FROM powersave_macs) THEN 'no (powersave)'
-              ELSE 'NO' END) as booted
+        (CASE WHEN n.mac in (SELECT mac FROM powersave_macs)
+              THEN 1 ELSE 0 END) as powersave
     FROM devices d, nodes n
     WHERE   d.type = 'node'
     AND     d.mac = n.mac
@@ -62,7 +61,7 @@ def node_type(mac, virtual):
         return "physical"
 
 
-def get_table_value(record, col_title):
+def get_table_value(booted_macs, record, col_title):
     if col_title == "type":
         return node_type(record.mac, record.virtual)
     elif col_title == "image":
@@ -71,22 +70,30 @@ def get_table_value(record, col_title):
         return NetSetup(record.netsetup).readable_string()
     elif col_title == "clonable_image_link":
         return "walt:%s/%s" % (record.image_owner, short_image_name(record.image_name))
+    elif col_title == "booted":
+        booted = (record.mac in booted_macs)
+        if booted:
+            return "yes"
+        elif record.powersave == 1:
+            return "no (powersave)"
+        else:
+            return 'NO'
     else:
         return getattr(record, col_title)
 
 
-def generate_table(title, footnote, records, *col_titles):
+def generate_table(booted_macs, title, footnote, records, *col_titles):
     table = [
-        tuple(get_table_value(record, col_title) for col_title in col_titles)
+        tuple(get_table_value(booted_macs, record, col_title) for col_title in col_titles)
         for record in records
     ]
     header = list(col_titles)
     return format_paragraph(title, columnate(table, header=header), footnote)
 
 
-def show(db, username, show_all, names_only):
+def show(manager, username, show_all, names_only):
     res_user, res_free, res_other = [], [], []
-    res = db.execute(NODE_SHOW_QUERY)
+    res = manager.db.execute(NODE_SHOW_QUERY)
     for record in res:
         if record.image_owner == username:
             res_user.append(record)
@@ -112,6 +119,7 @@ def show(db, username, show_all, names_only):
             if not show_all:
                 footnotes += (MSG_RERUN_WITH_ALL,)
             result_msg += generate_table(
+                manager.booted_macs,
                 TITLE_NODE_SHOW_USER_NODES_PART,
                 None,
                 res_user,
@@ -129,6 +137,7 @@ def show(db, username, show_all, names_only):
             if len(res_free) > 0:
                 # display free nodes
                 result_msg += generate_table(
+                    manager.booted_macs,
                     TITLE_NODE_SHOW_FREE_NODES_PART,
                     None,
                     res_free,
@@ -142,6 +151,7 @@ def show(db, username, show_all, names_only):
             if len(res_other) > 0:
                 # display nodes of other users
                 result_msg += generate_table(
+                    manager.booted_macs,
                     TITLE_NODE_SHOW_OTHER_NODES_PART,
                     None,
                     res_other,

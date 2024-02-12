@@ -44,8 +44,7 @@ class ServerDB(PostgresDB):
         self.execute("""CREATE TABLE IF NOT EXISTS nodes (
                     mac TEXT REFERENCES devices(mac),
                     image TEXT REFERENCES images(fullname),
-                    model TEXT,
-                    booted BOOLEAN DEFAULT FALSE);""")
+                    model TEXT);""")
         self.execute("""CREATE TABLE IF NOT EXISTS switches (
                     mac TEXT REFERENCES devices(mac),
                     model TEXT);""")
@@ -128,6 +127,9 @@ class ServerDB(PostgresDB):
                          ON devices ( ip );""")
         self.execute("""CREATE INDEX IF NOT EXISTS checkpoints_username_idx
                          ON checkpoints ( username );""")
+        # migration v8.2 -> v8.3
+        if self.column_exists("nodes", "booted"):
+            self.execute("""ALTER TABLE nodes DROP COLUMN booted;""")
         # fix server entry
         self.fix_server_device_entry()
         # commit
