@@ -284,7 +284,7 @@ class NodesManager(object):
         return device_set
 
     def change_nodes_bootup_status(
-        self, nodes_ip=None, nodes=None, booted=True, cause=None
+        self, nodes_ip=None, nodes=None, booted=True, **details
     ):
         if nodes is None:
             nodes = []
@@ -312,13 +312,12 @@ class NodesManager(object):
                 else:
                     self.booted_macs.discard(node_info.mac)
                     status = "down"
-                if cause is None:
-                    suffix = ""
-                else:
-                    suffix = f" (cause: {cause})"
-                self.logs.platform_log(
-                    "nodes", f"node {node_info.name} is {status}{suffix}"
-                )
+                logline = f"node {node_info.name} is {status}"
+                if len(details) > 0:
+                    s_details = ", ".join(
+                        f"{k}: {v}" for k, v, in details.items())
+                    logline += f" ({s_details})"
+                self.logs.platform_log("nodes", logline)
                 node_info.booted = booted
                 # unblock any related "walt node wait" command.
                 if booted:

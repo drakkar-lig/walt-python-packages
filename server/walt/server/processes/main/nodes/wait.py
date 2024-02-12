@@ -52,7 +52,6 @@ class WaitInfo(object):
         self.flush()
 
     def node_bootup_event(self, node):
-        print("node bootup", node.name)
         tids = self.mac_to_tids[node.mac]
         if len(tids) > 0:
             del self.mac_to_tids[node.mac]

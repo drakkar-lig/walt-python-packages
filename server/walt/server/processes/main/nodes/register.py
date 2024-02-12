@@ -7,11 +7,6 @@ def decapitalize(msg):
     return msg[0].lower() + msg[1:]
 
 
-def dup_msg(msg, stdstream, logs):
-    stdstream.write(msg + "\n")
-    logs.platform_log("devices", decapitalize(msg))
-
-
 def handle_registration_request(
     db, logs, blocking, exports, mac, images, model, image_fullname=None, **kwargs
 ):
@@ -34,19 +29,13 @@ def handle_registration_request(
         # we have to pull an image, that will be long,
         # let's inform the user (by logs) and do this asynchronously
         db_info = db.select_unique("devices", mac=mac)
-        dup_msg(
-            f"Device {db_info.name} pretends to be a walt node of type '{model}'.",
-            sys.stdout,
-            logs,
-        )
-        dup_msg(
+        logs.platform_log("devices",
+            f"Device {db_info.name} pretends to be a walt node of type '{model}'.")
+        logs.platform_log("devices",
             (
                 f"Trying to download a default image for '{model}' nodes:"
                 f" {image_fullname}..."
-            ),
-            sys.stdout,
-            logs,
-        )
+            ))
         wf_steps += [wf_pull_image, wf_after_pull_image]
     wf_steps += [wf_update_device_in_db, exports.wf_update_persist_exports,
                  images.wf_update_image_mounts, wf_dhcpd_named_update]
@@ -61,23 +50,19 @@ def wf_pull_image(wf, blocking, image_fullname, **env):
 def wf_after_pull_image(wf, pull_result, image_fullname, model, logs, **env):
     if pull_result[0]:
         # ok
-        dup_msg(
-            f"Image {image_fullname} was downloaded successfully.", sys.stdout, logs
-        )
+        logs.platform_log("devices",
+            f"Image {image_fullname} was downloaded successfully.")
         wf.next()
     else:
         failure = pull_result[1]
         # not being able to download default images for nodes
         # is a rather important issue
-        dup_msg(failure, sys.stderr, logs)
-        dup_msg(
+        logs.platform_log("devices", decapitalize(failure), error=True)
+        logs.platform_log("devices",
             (
                 f"New {model} nodes will be seen as devices of type 'unknown' until"
                 " this is solved."
-            ),
-            sys.stderr,
-            logs,
-        )
+            ), error=True)
 
 
 def wf_update_device_in_db(wf, devices, mac, model, image_fullname, **env):
