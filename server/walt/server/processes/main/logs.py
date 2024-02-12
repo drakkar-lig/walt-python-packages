@@ -35,8 +35,10 @@ class LogsToDBHandler(object):
         pending = self.pending
         self.pending = []
         if len(pending) > 0:
-            # print(f'__DEBUG__ self.db.insert_multiple {repr(pending)}')
-            self.db.insert_multiple_logs(pending)
+            # print(f'__DEBUG__ self.db.do_async.insert_multiple {repr(pending)}')
+            # for performance we use an async call for not blocking since
+            # we are not expecting a response
+            self.db.do_async.insert_multiple_logs(pending)
 
 
 class LogsHub(object):
