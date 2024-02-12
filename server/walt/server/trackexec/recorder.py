@@ -2,6 +2,7 @@ import gzip
 import numpy as np
 import sys
 
+from contextlib import nullcontext
 from os import getpid
 from pathlib import Path
 from time import time
@@ -222,6 +223,8 @@ class TrackExecRecorder(LogAbstractManagement):
     def idle_period_recorder(cls):
         if cls._instance is not None:
             return cls._instance
+        else:
+            return nullcontext()
 
     @classmethod
     def stop(cls):
