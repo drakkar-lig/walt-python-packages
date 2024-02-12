@@ -488,7 +488,11 @@ class LogsManager(object):
             % stream_id
         )[0]._asdict()
 
-    def platform_log(self, stream_name, line):
+    def platform_log(self, stream_name, line, error=False):
+        # print at stdout / stderr too
+        std = sys.__stderr__ if error else sys.__stdout__
+        std.write(line + "\n")
+        # record as log
         self.server_log("platform." + stream_name, line)
 
     def server_log(self, stream_name, line):

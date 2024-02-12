@@ -36,7 +36,8 @@ def wf_hard_reboot_virtual_nodes(wf, nodes_manager, remaining_nodes, reboot_caus
             # restart VM
             nodes_manager.vnode_hard_reboot(node.mac)
             nodes_manager.change_nodes_bootup_status(
-                    nodes=[node], booted=False, cause=reboot_cause)
+                    nodes=[node], booted=False,
+                    cause=reboot_cause, method="vnode hard-reboot")
             # move node to 'vmrebooted' category
             remaining_nodes.remove(node)
             vmrebooted.append(node.name)
@@ -72,7 +73,7 @@ def wf_softreboot_callback(results, wf, remaining_nodes, nodes_manager, reboot_c
                 remaining_nodes.remove(node)
                 softrebooted.append(node.name)
             nodes_manager.change_nodes_bootup_status(
-                    nodes=nodes, booted=False, cause=reboot_cause)
+                nodes=nodes, booted=False, cause=reboot_cause, method="soft-reboot")
         else:
             for node in nodes:
                 softreboot_errors[node.name] = result_msg.lower()
@@ -97,10 +98,17 @@ def wf_hard_reboot_nodes(wf, requester, remaining_nodes, **env):
     wf.next()
 
 
-def wf_client_hard_reboot(wf, requester, remaining_nodes, **env):
+def wf_client_hard_reboot(wf, requester, remaining_nodes, nodes_manager, reboot_cause,
+                          hard_reboot_method_name, **env):
     mac_to_name = {node.mac: node.name for node in remaining_nodes}
+    mac_to_node = {node.mac: node for node in remaining_nodes}
     node_macs = tuple(mac_to_name.keys())
     mac_hardrebooted, mac_hardreboot_errors = requester.hard_reboot_nodes(node_macs)
+    hardrebooted = [mac_to_node[mac] for mac in mac_hardrebooted]
+    if len(hardrebooted) > 0:
+        nodes_manager.change_nodes_bootup_status(
+            nodes=hardrebooted, booted=False,
+            cause=reboot_cause, method=hard_reboot_method_name)
     wf.update_env(
         hardrebooted=[mac_to_name[mac] for mac in mac_hardrebooted],
         hardreboot_errors={
@@ -163,7 +171,8 @@ def wf_poe_poweroff(wf, ev_loop, blocking, not_already_off, hardreboot_errors,
                     nodes_manager, reboot_cause, **env):
     blocking.nodes_set_poe(wf.next, not_already_off, False, "hard-reboot")
     nodes_manager.change_nodes_bootup_status(
-                    nodes=not_already_off, booted=False, cause=reboot_cause)
+        nodes=not_already_off, booted=False,
+        cause=reboot_cause, method="PoE hard-reboot")
 
 
 def wf_poe_after_poweroff(wf, poweroff_result, ev_loop, hardreboot_errors, **env):

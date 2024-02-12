@@ -120,7 +120,11 @@ class PowersaveManager:
                 if requester is not None:
                     requester.stderr.write(f"{sentence}\n")
                 else:
-                    self.server.logs.platform_log("powersave.error", sentence)
+                    self.server.logs.platform_log(
+                            "powersave.error", sentence, error=True)
+        self.server.nodes.change_nodes_bootup_status(
+                nodes=toggled, booted=False,
+                cause="powersave", method="PoE")
         self._plan_check()
         wf.next()
 
