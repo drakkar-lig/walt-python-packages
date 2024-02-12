@@ -319,7 +319,8 @@ class Server(object):
                 "nodes",
             )
         )
-        self.nodes.reboot_nodes(requester, task_callback, nodes, False)
+        self.nodes.reboot_nodes(requester, task_callback, nodes, False,
+                "image change")
 
     def image_shell_session_save(
         self, requester, cb_return, session, image_fullname, name_confirmed
