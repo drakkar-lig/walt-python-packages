@@ -247,16 +247,10 @@ class NodesManager(object):
         if nodes is None:
             return None  # error already reported
         task.set_async()
-        self.reboot_nodes(requester, task.return_result, nodes, hard_only)
+        reboot_cause = "reboot requested"
+        self.reboot_nodes(requester, task.return_result, nodes, hard_only, reboot_cause)
 
-    def reboot_nodes(self, requester, task_callback, nodes, hard_only):
-        # first, we pass the 'booted' flag of all nodes to false
-        # (if we manage to reboot them, they will be unreachable
-        #  for a little time; if we do not manage to reboot them,
-        #  this probably means they are down, thus not booted...)
-        self.change_nodes_bootup_status(
-            nodes=nodes, booted=False, cause="reboot requested"
-        )
+    def reboot_nodes(self, requester, task_callback, nodes, hard_only, reboot_cause):
         reboot_nodes(
             nodes_manager=self,
             blocking=self.blocking,
@@ -267,6 +261,7 @@ class NodesManager(object):
             task_callback=task_callback,
             nodes=nodes,
             hard_only=hard_only,
+            reboot_cause=reboot_cause,
         )
 
     def parse_node_set(self, requester, node_set):
