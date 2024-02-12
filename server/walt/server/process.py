@@ -557,6 +557,3 @@ class SyncRPCProcessConnector(RPCProcessConnector):
             return getattr(self.default_session.do_sync, attr)
         else:
             raise AttributeError
-
-    def is_valid(self):
-        return True

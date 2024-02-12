@@ -72,7 +72,6 @@ class EventLoop(object):
         self.listeners_per_fd = {}
         self.events_per_fd = {}
         self.fd_per_listener_id = {}
-        self.fd_of_listeners_with_is_valid_method = set()
         self.planned_events = []
         self.poller = poll()
         self.recursion_depth = 0
@@ -114,8 +113,6 @@ class EventLoop(object):
         self.listeners_per_fd[fd] = listener
         self.events_per_fd[fd] = events
         self.fd_per_listener_id[id(listener)] = fd
-        if hasattr(listener, "is_valid"):
-            self.fd_of_listeners_with_is_valid_method.add(fd)
         self.poller.register(fd, events)
         # print 'new listener:', listener
 
@@ -127,7 +124,6 @@ class EventLoop(object):
         del self.listeners_per_fd[fd]
         del self.events_per_fd[fd]
         del self.fd_per_listener_id[listener_id]
-        self.fd_of_listeners_with_is_valid_method.discard(fd)
         self.poller.unregister(fd)
         if not should_close:
             return True  # done
@@ -182,17 +178,6 @@ class EventLoop(object):
                         break  # this will just break the inner while loop
                 if not should_continue:
                     break  # break the outer while loop
-            # if a listener provides a method is_valid(),
-            # check it and remove it if result is False
-            for fd in tuple(self.fd_of_listeners_with_is_valid_method):
-                listener = self.listeners_per_fd[fd]
-                if listener.is_valid() is False:
-                    # some data may have been buffered, we check this.
-                    # (if this is the case, then we will delay the
-                    # removal of this listener)
-                    r, w, x = select([listener], [], [], 0)
-                    if len(r) == 0:  # ok, no data
-                        self.remove_listener(listener)
             # stop the loop if no more listeners
             if len(self.listeners_per_fd) == 0:
                 break
