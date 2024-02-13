@@ -114,7 +114,7 @@ _do_reboot() {
         # we have booted on a local disk, let the init system follow
         # its shutdown procedure.
         echo "Calling 'reboot' command." >&2
-        if walt-timeout $REBOOT_CMD_TIMEOUT reboot
+        if walt-timeout $REBOOT_CMD_TIMEOUT $(which reboot)
         then
             # the OS should now be shutting down its services
             _wait_for_os_shutdown
