@@ -27,7 +27,11 @@ TIP_DEVICE_ADMIN_2 = (
     "use 'walt device config ...' (see walt help show device-config)"
     " to let WalT explore forbidden switches"
 )
-TIPS_MIN = (TIP_DEVICE_SHOW, TIP_DEVICE_ADMIN_2, TIP_DEVICE_RESCAN)
+TIP_DEVICE_ADMIN_3 = (
+    "use 'walt device port-config ...' (see walt help show device-port-config)"
+    " to give sensible names to switch ports"
+)
+TIPS_MIN = (TIP_DEVICE_SHOW, TIP_DEVICE_ADMIN_2, TIP_DEVICE_ADMIN_3, TIP_DEVICE_RESCAN)
 
 NOTE_LAST_NETWORK_SCAN = (
     "this view comes from last network scan, issued %s ago"
@@ -441,6 +445,7 @@ class LinkLayerTopology(object):
         device_labels,
         device_types,
         lldp_forbidden,
+        port_names,
         show_all,
     ):
         t = Tree(stdout_encoding)
@@ -471,6 +476,8 @@ class LinkLayerTopology(object):
             ):
                 if device_types[parent_mac] == "switch":
                     if show_all or device_types[node_mac] != "unknown":
+                        parent_port = port_names.get(
+                                (parent_mac, parent_port), parent_port)
                         t.add_child(parent_mac, parent_port, node_mac)
         # prune parts of the tree
         self.prune(t, root_mac, device_types, lldp_forbidden, show_all)
@@ -830,6 +837,8 @@ class TopologyManager(object):
             for d in db.select("devices", type="switch")
             if d.conf.get("lldp.explore", False) is False
         )
+        # get optional switch port names
+        port_names = {(sp.mac, sp.port): sp.name for sp in db.select("switchports")}
         # compute and return the topology tree
         stdout_encoding = requester.stdout.get_encoding()
         return db_topology.printed_tree(
@@ -839,6 +848,7 @@ class TopologyManager(object):
             device_labels,
             device_types,
             lldp_forbidden,
+            port_names,
             show_all,
         )
 

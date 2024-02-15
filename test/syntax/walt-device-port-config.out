@@ -1,0 +1,8 @@
+view and edit switch port config and names
+
+Usage:
+    walt device port-config [SWITCHES] switch_name [port_id=None] configuration...
+
+Meta-switches:
+    -h, --help      Prints this help message and quits
+

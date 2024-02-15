@@ -10,6 +10,14 @@ def complete_device(server, partial_token):
     )
 
 
+def complete_switch(server, partial_token):
+    return tuple(
+        dev.name
+        for dev in server.db.select("devices", type="switch")
+        if dev.name.startswith(partial_token)
+    )
+
+
 def complete_set(possible_items, partial_token):
     set_items = partial_token.split(",")
     partial_item = set_items[-1]
@@ -167,6 +175,14 @@ def complete_device_config_param(server, requester, argv):
     return tuple(f"{name}=" for name in setting_names)
 
 
+def complete_port_config_param(server, partial_token):
+    # we will just help the user with the setting names, not the values
+    if "=" in partial_token:
+        return ()
+    return tuple(f"{name}=" for name in
+                 server.port_settings.get_writable_setting_names())
+
+
 def get_walt_clone_urls(server, username):
     # faster than using server.registry
     return tuple(
@@ -248,12 +264,16 @@ def shell_autocomplete_switch(server, requester, username, argv):
         return complete_device_config_param(server, requester, argv)
     elif arg_type == "DEVICE":
         return complete_device(server, partial_token)
+    elif arg_type == "SWITCH":
+        return complete_switch(server, partial_token)
     elif arg_type == "SET_OF_DEVICES":
         return complete_set_of_devices(server, partial_token)
     elif arg_type == "RESCAN_SET_OF_DEVICES":
         return complete_rescan_set_of_devices(server, partial_token)
     elif arg_type == "DEVICE_CONFIG_PARAM":
         return complete_device_config_param(server, requester, argv)
+    elif arg_type == "PORT_CONFIG_PARAM":
+        return complete_port_config_param(server, partial_token)
     elif arg_type == "IMAGE_CLONE_URL":
         return complete_image_clone_url(server, username, partial_token)
     elif arg_type == "LOG_CHECKPOINT":

@@ -19,7 +19,7 @@ from walt.server.processes.main.network.dhcpd import DHCPServer
 from walt.server.processes.main.network.named import DNSServer
 from walt.server.processes.main.nodes.manager import NodesManager
 from walt.server.processes.main.registry import WalTLocalRegistry
-from walt.server.processes.main.settings import SettingsManager
+from walt.server.processes.main.settings import SettingsManager, PortSettingsManager
 from walt.server.processes.main.devices.expose import ExposeManager
 from walt.server.processes.main.transfer import (
     TransferManager,
@@ -53,6 +53,7 @@ class Server(object):
         self.transfer = TransferManager(self.tcp_server, self.ev_loop)
         self.nodes = NodesManager(self)
         self.settings = SettingsManager(server=self)
+        self.port_settings = PortSettingsManager(server=self)
         self.vpn = VPNManager()
         self.expose = ExposeManager(server=self)
 
