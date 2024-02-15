@@ -288,6 +288,16 @@ class CSAPI(APISession):
         context.server.settings.get_device_config(context.requester, device_set)
 
     @api_expose_method
+    def set_port_config(self, context, switch_name, port_id, configuration):
+        context.server.port_settings.set_config(context.requester,
+                switch_name, port_id, configuration)
+
+    @api_expose_method
+    def get_port_config(self, context, switch_name, port_id):
+        context.server.port_settings.get_config(context.requester,
+                switch_name, port_id)
+
+    @api_expose_method
     def get_device_config_data(self, context, device_set):
         return context.server.settings.get_device_config_data(
             context.requester, device_set

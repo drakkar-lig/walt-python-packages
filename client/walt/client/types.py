@@ -76,3 +76,11 @@ class DIRECTORY(str):
 
 class IMAGE_BUILD_NAME(str):
     pass
+
+
+class SWITCH(str):
+    pass
+
+
+class PORT_CONFIG_PARAM(str):
+    pass

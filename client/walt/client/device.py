@@ -8,6 +8,8 @@ from walt.client.types import (
     DEVICE_CONFIG_PARAM,
     RESCAN_SET_OF_DEVICES,
     SET_OF_DEVICES,
+    SWITCH,
+    PORT_CONFIG_PARAM,
 )
 
 
@@ -124,6 +126,22 @@ class WalTRenameDevice(WalTApplication):
     def main(self, old_name: DEVICE, new_name):
         with ClientToServerLink() as server:
             server.rename(old_name, new_name)
+
+
+@WalTDevice.subcommand("port-config")
+class WalTDevicePortConfig(WalTApplication):
+    """view and edit switch port config and names"""
+
+    ORDERING = 10
+
+    def main(self, switch_name: SWITCH, port_id: int = None,
+             *configuration: PORT_CONFIG_PARAM):
+        with ClientToServerLink() as server:
+            if len(configuration) > 0:
+                server.set_port_config(switch_name, port_id, configuration)
+            else:
+                # no settings specified => list current settings
+                server.get_port_config(switch_name, port_id)
 
 
 @WalTDevice.subcommand("ping")

@@ -25,6 +25,19 @@ def pprint_bool(bool_val):
     return str(bool_val).lower()
 
 
+def parse_settings_args(requester, settings_args):
+    all_settings = {}
+    for arg in settings_args:
+        parts = arg.split("=", maxsplit=1)
+        if len(parts) != 2:
+            requester.stderr.write(
+                "Please provide settings as `<setting name>=<setting value>` arguments.\n"
+            )
+            return None
+        all_settings[parts[0]] = parts[1]
+    return all_settings
+
+
 class SettingsManager:
     def __init__(self, server):
         self.server = server
@@ -471,15 +484,9 @@ class SettingsManager:
 
     def set_device_config(self, requester, device_set, settings_args):
         # parse settings
-        all_settings = {}
-        for arg in settings_args:
-            parts = arg.split("=", maxsplit=1)
-            if len(parts) != 2:
-                requester.stderr.write(
-                    "Provide settings as `<setting name>=<setting value>` arguments.\n"
-                )
-                return
-            all_settings[parts[0]] = parts[1]
+        all_settings = parse_settings_args(requester, settings_args)
+        if all_settings is None:
+            return
 
         # ensure the device set is correct
         device_infos = self.server.devices.parse_device_set(requester, device_set)
@@ -696,3 +703,150 @@ class SettingsManager:
                     msg += "%s=%s\n" % (setting_name, pprinted_value)
                 parts.append(msg)
         requester.stdout.write("\n\n".join(parts) + "\n")
+
+
+class PortSettingsManager:
+    def __init__(self, server):
+        self.server = server
+
+    def _get_topology_ports(self, switch_mac):
+        return self.server.db.execute(
+            """select port1 as port, d2.name as peer
+               from topology, devices d2
+               where mac1 = %s
+                 and port1 is not null
+                 and d2.mac = mac2
+               union
+               select port2 as port, d1.name as peer
+               from topology, devices d1
+               where mac2=%s
+                 and port2 is not null
+                 and d1.mac = mac1""",
+            (switch_mac, switch_mac))
+
+    def _get_poeoff_ports(self, switch_mac):
+        return self.server.db.select("poeoff", mac=switch_mac)
+
+    def _get_named_ports(self, switch_mac):
+        return self.server.db.select("switchports", mac=switch_mac)
+
+    def _get_switch_info(self, requester, switch_name):
+        device_info = self.server.devices.get_device_info(requester, switch_name)
+        if device_info is None:
+            return None
+        if device_info.type != "switch":
+            requester.stderr.write(f"Failed: {switch_name} is not a switch.\n")
+            return None
+        if not device_info.conf.get("lldp.explore", False):
+            requester.stderr.write(f"Failed: cannot detect switch ports of {switch_name} "
+                                   "because \"lldp.explore\" config option is not enabled.\n"
+                                   "See: walt help show device-config\n")
+            return None
+        return device_info
+
+    def get_writable_setting_names(self):
+        return ("name",)
+
+    def set_config(self, requester, switch_name, port_id, settings_args):
+        # parse settings
+        all_settings = parse_settings_args(requester, settings_args)
+        if all_settings is None:
+            return False
+        port_name = None
+        for k, v in all_settings.items():
+            if k == "name":
+                port_name = v
+            else:
+                requester.stderr.write(
+                    "Failed: the only writable config item is `name=<port-name>`.\n"
+                )
+                return False
+        # check name
+        port_name_is_port_id = False
+        if not re.match("^[a-zA-Z0-9-]+$", port_name):
+            requester.stderr.write("Failed: the port name can only be made of digits, "
+                                   "letters, and dashes (minus signs).\n")
+            return False
+        if re.match("^[0-9]+$", port_name):
+            port_num = int(port_name)
+            if port_num == port_id:
+                port_name_is_port_id = True
+            else:
+                requester.stderr.write("Failed: to avoid confusion, the only "
+                    f"""integer allowed for this port name is "{port_id}", """
+                    "the ID of the port in the switch.\n")
+                return False
+        # check switch device
+        device_info = self._get_switch_info(requester, switch_name)
+        if device_info is None:
+            return False
+        switch_mac = device_info.mac
+        # ok do the change
+        if port_name_is_port_id:
+            # table switchports only list names which are not the default
+            self.server.db.delete("switchports", mac=switch_mac, port=port_id)
+        else:
+            curr_record = self.server.db.select_unique("switchports",
+                    mac=switch_mac, port=port_id)
+            if curr_record is None:
+                self.server.db.insert("switchports",
+                        mac=switch_mac, port=port_id, name=port_name)
+            else:
+                self.server.db.execute(
+                        "UPDATE switchports "
+                        "SET name = %s "
+                        "WHERE mac = %s "
+                        "  AND port = %s",
+                        (port_name, switch_mac, port_id))
+        requester.stdout.write("Done.\n")
+
+    def get_config(self, requester, switch_name, port_id):
+        device_info = self._get_switch_info(requester, switch_name)
+        if device_info is None:
+            return False
+        footer_notes = []
+        switch_mac = device_info.mac
+        ports_info = defaultdict(dict)
+        for topo in self._get_topology_ports(switch_mac):
+            ports_info[topo.port]['peer'] = topo.peer
+        for poeoff in self._get_poeoff_ports(switch_mac):
+            ports_info[poeoff.port]['poeoff'] = poeoff.reason
+        for swport in self._get_named_ports(switch_mac):
+            ports_info[swport.port]['name'] = swport.name
+        if port_id is None:
+            port_ids = sorted(ports_info.keys())
+            if len(port_ids) == 0:
+                requester.stdout.write(f"WalT did not detect traffic going through this switch yet.\n")
+                requester.stdout.write(f"Use 'walt device rescan' to probe again.\n")
+                return
+            requester.stdout.write(f"WalT currently uses the following ports of {switch_name}:\n")
+            footer_notes.append("The other switch ports are in their default configuration.")
+        else:
+            requester.stdout.write(f"Port {port_id} of {switch_name} has the following config:\n")
+            port_ids = [port_id]
+        if device_info.conf.get("poe.reboots", False):
+            poe_default = "on"
+        else:
+            poe_default = "unavailable"
+            footer_notes.append(
+                "PoE status is unavailable because the switch has its \"poe.reboots\" "
+                "config option disabled "
+                "(see: walt help show device-config).")
+        for port_id in port_ids:
+            notes = []
+            peer = ports_info[port_id].get("peer", "unknown")
+            poeoff_reason = ports_info[port_id].get("poeoff", None)
+            if poeoff_reason is not None:
+                poe = "off"
+                notes.append(poeoff_reason)
+            else:
+                poe = poe_default
+            name = ports_info[port_id].get("name", str(port_id))
+            status = f"""{port_id}: name="{name}" poe={poe} peer={peer}"""
+            if len(notes) > 0:
+                notes = "; ".join(notes)
+                status += f"  # {notes}"
+            requester.stdout.write(status + '\n')
+        if len(footer_notes) > 0:
+            footer_notes = '\n'.join(footer_notes)
+            requester.stdout.write(footer_notes + '\n')

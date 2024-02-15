@@ -124,3 +124,6 @@ $ walt device config <switch-name> snmp.version=2 snmp.community='private' lldp.
 ```
 
 For general information about this command, see [`walt help show device-config`](device-config.md).
+
+Last note: to make the network view (output by `walt device tree`) of a large building more readable, its is possible to rename the switch ports.
+See [`walt help show device-port-config`](device-port-config.md).

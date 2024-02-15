@@ -53,10 +53,12 @@ class Tree(object):
     def sort_children(self):
         if not self.up_to_date:
             # sort children by child_pos
+            # child_pos may be None, an integer or a string,
+            # so include the class name in the ordering
             for node in self.nodes.values():
                 node["children"] = sorted(
                     node["children"],
-                    key=lambda t: (-1, t[1]) if t[0] is None else (t[0], t[1]),
+                    key=lambda t: (t[0].__class__.__name__,) + tuple(t)
                 )
             self.up_to_date = True
 
@@ -94,9 +96,9 @@ class Tree(object):
                 label = "?: %s" % label
                 subtree_offset = 3
             else:
-                label = "%d: %s" % (child_pos, label)
+                label = "%s: %s" % (child_pos, label)
                 # align to 2nd letter of the name
-                subtree_offset = len("%d" % child_pos) + 2
+                subtree_offset = len("%s" % child_pos) + 2
             if last_child:
                 sep_char_item = self.charset.UPPER_V_RIGHT_H
                 sep_char_child = self.charset.SPACE
