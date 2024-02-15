@@ -58,14 +58,17 @@ class NodeBootupStatusListener:
             if len(c) == 1:
                 # all is fine
                 return True  # continue
-        except Exception:
-            pass
+            else:
+                err = "empty read"
+        except Exception as e:
+            err = str(e)
         # If we are here, there was an Exception or an empty read, which means
         # the connection was lost.
         # however, detecting a lost connection might take time and actually
         # happen after the node has rebooted and established a new connection.
         # thus we verify that we are managing the latest connection of this node.
         if self.sock_files_per_ip[self.node_ip] is self.sock_file:
+            print(f"bootup status listener of {self.node_ip}:", err)
             self.nodes_manager.change_nodes_bootup_status(
                 nodes_ip=[self.node_ip], booted=False
             )
