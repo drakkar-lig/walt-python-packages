@@ -57,6 +57,7 @@ Full table of Contents
 
    device-sets
    device-config
+   device-port-config
    device-expose
    device-netsetup
    unmanaged-devices

@@ -48,6 +48,11 @@ class ServerDB(PostgresDB):
         self.execute("""CREATE TABLE IF NOT EXISTS switches (
                     mac TEXT REFERENCES devices(mac),
                     model TEXT);""")
+        self.execute("""CREATE TABLE IF NOT EXISTS switchports (
+                    mac TEXT REFERENCES devices(mac),
+                    port INTEGER,
+                    name TEXT,
+                    PRIMARY KEY (mac, port));""")
         self.execute("""CREATE TABLE IF NOT EXISTS logstreams (
                     id SERIAL PRIMARY KEY,
                     issuer_mac TEXT REFERENCES devices(mac),
@@ -347,13 +352,14 @@ class ServerDB(PostgresDB):
             DELETE FROM logstreams s USING devices d
                 WHERE d.name = %s AND s.issuer_mac = d.mac;
             DELETE FROM nodes n USING devices d WHERE d.name = %s AND d.mac = n.mac;
+            DELETE FROM switchports sp USING devices d WHERE d.name = %s AND d.mac = sp.mac;
             DELETE FROM switches s USING devices d WHERE d.name = %s AND d.mac = s.mac;
             DELETE FROM topology t USING devices d WHERE d.name = %s AND d.mac = t.mac1;
             DELETE FROM topology t USING devices d WHERE d.name = %s AND d.mac = t.mac2;
             DELETE FROM poeoff po USING devices d WHERE d.name = %s AND d.mac = po.mac;
             DELETE FROM devices d WHERE d.name = %s;
         """,
-            (dev_name,) * 8,
+            (dev_name,) * 9,
         )
         self.commit()
 
