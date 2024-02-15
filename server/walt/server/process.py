@@ -462,7 +462,7 @@ class RPCProcessConnector(ProcessConnector):
             events = [self.read()]
             while self.poll():
                 events.append(self.read())
-        except EOFError:
+        except (EOFError, ConnectionResetError):
             print(f"{repr(self)}: closed on remote end, self-removing from loop.")
             return False
         events.sort(key=lambda x: PRIORITIES[x[0]])
