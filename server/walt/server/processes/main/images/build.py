@@ -72,3 +72,4 @@ class ImageBuildSession(object):
 
     def wf_return_result(self, wf, result, task, **env):
         task.return_result(result)
+        wf.next()

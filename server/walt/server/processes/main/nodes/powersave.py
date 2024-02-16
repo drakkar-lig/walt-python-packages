@@ -74,6 +74,7 @@ class PowersaveManager:
     def _wf_recurse_check(self, wf, **env):
         # resurse in case things would have changed during the SNMP communication delay
         self._check()
+        wf.next()
 
     def _wf_toggle_power_on_nodes(
         self, wf, requester, poe_toggle_nodes, poe_toggle_value, **env
@@ -130,6 +131,7 @@ class PowersaveManager:
 
     def _wf_forget_obsolete_topology_entry(self, wf, obsolete_mac_in_topology, **env):
         self.server.db.forget_topology_entry_for_mac(obsolete_mac_in_topology)
+        wf.next()
 
     def restore(self):
         # init attributes considering nodes having their default image

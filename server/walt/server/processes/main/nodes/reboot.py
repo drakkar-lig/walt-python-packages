@@ -245,3 +245,4 @@ def wf_reply_requester(
             )
         # unblock client
         task_callback("FAILED")
+    wf.next()
