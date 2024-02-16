@@ -105,6 +105,7 @@ class ImageShellSession(object):
             status = "OK_SAVED"
         cb_return_status(status)
         self.cleanup()
+        wf.next()
 
     def cleanup(self):
         if self.container_name is not None:

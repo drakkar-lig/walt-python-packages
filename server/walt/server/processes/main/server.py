@@ -71,7 +71,9 @@ class Server(object):
         # the topology.
         self.dhcpd.update(force=True)
         self.named.update(force=True)
-        self.exports.update_persist_exports()
+        # nfsd will be restarted after image mounts,
+        # no need to restart it twice
+        self.exports.update_persist_exports(nfsd_restart=False)
         self.images.prepare()
         self.devices.prepare()
         self.nodes.prepare()
@@ -89,7 +91,10 @@ class Server(object):
     def cleanup(self):
         APISession.cleanup_all()
         tftp.cleanup(self.db)
-        self.exports.update_persist_exports(cleanup=True)
+        # nfsd will be restarted before image unmounts,
+        # no need to restart it twice
+        self.exports.update_persist_exports(
+                cleanup=True, nfsd_restart=False)
         self.images.cleanup()
         self.nodes.cleanup()
         self.devices.cleanup()

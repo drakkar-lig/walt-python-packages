@@ -249,8 +249,8 @@ class DHCPServer(object):
         if conf != old_conf:
             DHCPD_CONF_FILE.parent.mkdir(parents=True, exist_ok=True)
             DHCPD_CONF_FILE.write_text(conf)
-            force = True  # perform the restart below
-        if force is True:
+            self.restarter.inc_config_version()
+        if (not self.restarter.uptodate()) or force:
             self.restarter.restart(cb=cb)
         else:
             if cb is not None:

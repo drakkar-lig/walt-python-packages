@@ -53,8 +53,10 @@ class FilesystemsExporter:
         wf.insert_steps([self.nfs.wf_update_persist_exports])
         wf.next()
 
-    def update_persist_exports(self, cleanup=False):
+    def update_persist_exports(self, cleanup=False, **env):
         wf = Workflow(
-            [self.wf_update_persist_exports], cleanup=cleanup
+            [self.wf_update_persist_exports],
+            cleanup=cleanup,
+            **env
         )
         wf.run()

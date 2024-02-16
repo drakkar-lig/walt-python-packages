@@ -63,6 +63,7 @@ def wf_after_pull_image(wf, pull_result, image_fullname, model, logs, **env):
                 f"New {model} nodes will be seen as devices of type 'unknown' until"
                 " this is solved."
             ), error=True)
+        wf.interrupt()
 
 
 def wf_update_device_in_db(wf, devices, mac, model, image_fullname, **env):
