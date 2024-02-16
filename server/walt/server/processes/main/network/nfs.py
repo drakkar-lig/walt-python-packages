@@ -61,17 +61,22 @@ class NFSExporter(object):
     def wf_update_image_exports(self, wf, root_paths, subnet, **env):
         prev_content = self._get_prev_content_or_init(WALT_IMAGE_EXPORTS_PATH)
         content = generate_image_exports_file_content(root_paths, subnet)
-        if content == prev_content:  # no changes
+        if content != prev_content:
+            WALT_IMAGE_EXPORTS_PATH.write_text(content)
+            self.restarter.inc_config_version()
+        if not self.restarter.uptodate():
+            self.restarter.restart(wf.next)
+        else:
             wf.next()
-            return
-        WALT_IMAGE_EXPORTS_PATH.write_text(content)
-        self.restarter.restart(wf.next)
 
-    def wf_update_persist_exports(self, wf, persist_paths, subnet, **env):
+    def wf_update_persist_exports(self, wf,
+            persist_paths, subnet, nfsd_restart=True, **env):
         prev_content = self._get_prev_content_or_init(WALT_PERSIST_EXPORTS_PATH)
         content = generate_persist_exports_file_content(persist_paths, subnet)
-        if content == prev_content:  # no changes
+        if content != prev_content:
+            WALT_PERSIST_EXPORTS_PATH.write_text(content)
+            self.restarter.inc_config_version()
+        if nfsd_restart and (not self.restarter.uptodate()):
+            self.restarter.restart(wf.next)
+        else:
             wf.next()
-            return
-        WALT_PERSIST_EXPORTS_PATH.write_text(content)
-        self.restarter.restart(wf.next)

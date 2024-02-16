@@ -195,7 +195,9 @@ class DNSServer:
                         if ip(item.ip) in subnet
         ]
         changed = update_named_conf(devices)
-        if changed | force:
+        if changed:
+            self.restarter.inc_config_version()
+        if (not self.restarter.uptodate()) or force:
             self.restarter.restart(cb=cb)
         else:
             if cb is not None:

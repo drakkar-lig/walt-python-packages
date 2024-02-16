@@ -31,11 +31,16 @@ class ServiceRestarter:
         self.restarting = False
         self.callbacks = {}
 
-    def restart(self, cb=None):
+    def inc_config_version(self):
         self.config_version += 1
         print(
             f"{self.short_service_name} conf updated (version {self.config_version})."
         )
+
+    def uptodate(self):
+        return self.config_version == self.service_version
+
+    def restart(self, cb=None):
         if cb is not None:
             self.callbacks[self.config_version] = cb
         if not self.restarting:
@@ -55,13 +60,8 @@ class ServiceRestarter:
             )
 
             def callback():
-                # call user provided callbacks
-                for v in range(self.service_version + 1, next_service_version + 1):
-                    cb = self.callbacks.get(v, None)
-                    if cb is not None:
-                        del self.callbacks[v]
-                        cb()
                 # update service version
+                prev_service_version = self.service_version
                 self.service_version = next_service_version
                 # compute time of next call
                 target_ts = time() + MIN_DELAY_BETWEEN_SERVICE_RESTARTS
@@ -69,6 +69,12 @@ class ServiceRestarter:
                 self.ev_loop.plan_event(
                     ts=target_ts, callback=self.restart_service_loop
                 )
+                # call user provided callbacks
+                for v in range(prev_service_version + 1, next_service_version + 1):
+                    cb = self.callbacks.get(v, None)
+                    if cb is not None:
+                        del self.callbacks[v]
+                        cb()
 
             self.ev_loop.do(
                     f"systemctl {self.systemd_op} {self.systemd_service_name}",

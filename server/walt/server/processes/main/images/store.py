@@ -260,6 +260,7 @@ class NodeImageStore(object):
     def _wf_after_plan_next_update_wf(self, wf, **env):
         self._planned_update_wf = None
         self._plan_next_update_wf()
+        wf.next()
 
     def _plan_next_update_wf(self):
         if self._planned_update_wf is None and len(self.deadlines) > 0:
@@ -282,7 +283,7 @@ class NodeImageStore(object):
             wf.next()
         else:
             # wait for the update workflow to be completed
-            wf.wait_for_other_workflow(self._update_wf)
+            wf.continue_after_other_workflow(self._update_wf)
 
     def _wf_update_image_mounts(self, update_wf, **env):
         new_mounts = set()
@@ -369,16 +370,16 @@ class NodeImageStore(object):
         self.filesystems.cleanup()
         if len(self.mounts) > 0:
             # release nfs mounts and unmount images
+            to_be_unmounted = list(self.mounts)
             wf = Workflow(
-                [self.exports.wf_update_image_exports], images_info=[]
+                [
+                    self.exports.wf_update_image_exports,
+                    self._wf_unmount_images,
+                ], images_info=[], to_be_unmounted=to_be_unmounted
             )
+            # run and wait for completion
             wf.run()
-            # Since we are cleaning up, we cannot use a callback
-            # because the event loop will be stopped.
-            # So we just let the unmount procedure actively wait
-            # for the nfsd service to release the mounted images.
-            for image_id in self.mounts.copy():
-                self.unmount(image_id)
+            wf.join(self.server.ev_loop)
 
     def get_images_in_use(self):
         res = set(
