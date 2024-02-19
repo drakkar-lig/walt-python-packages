@@ -70,15 +70,14 @@ Take care on puchasing the right model for powering your board:
 - rpi 4B boards need a splitter model with a USB-C connector,
 - rpi 3B+ boards need a splitter model with a USB micro-B connector.
 
-You will also need at least one SD card for the first bootup (see below). You may use the same SD card to
-perform this first bootup of each node.
+Raspberry Pi models earlier than 3B+ require a SD card for bootup.
+Newer models can run with or without a SD card (see below).
 
 
 ### Standard boot method: using a SD card
 
 Download archive `rpi-sd-files.tar.gz` at https://github.com/drakkar-lig/walt-project/releases/latest.
 Extract and copy files to a USB flash drive formatted the usual way (1 single partition, FAT32 fileystem).
-A small one is enough, total size of files is just a few tens of megabytes.
 
 Then:
 * insert this SD card in its slot
@@ -90,27 +89,32 @@ The board will boot as a walt node.
 ### Network boot method: no SD card
 
 Raspberry Pi 3B+ and 4B boards have a more advanced firmware that may be used to boot over the network.
-In this case, the SD card is no longer needed. However, due to incorrect firmware behavior (3B+ model),
-eeprom flashing requirement (4B model), and to the fact walt server has to detect the board model, you
-must boot the board at least once using a SD card (see previous subsection).
-Once done, you can remove the SD card, and next bootups should work without it.
+In this case, the SD card is no longer needed.
+But you can still use a SD card if you wish, see below for advice.
 
-Important notes:
-* If using a 4B board, the eeprom has to be flashed to allow network boot. This should be done
-  automatically when the board is first booted (with the SD card), thanks to appropriate boot files in
-  `rpi-sd-files.tar.gz`. However, in order to prevent this operation to repeat each time the board is
-  rebooted, the firmware renames `recovery.bin` to `RECOVERY.000`. Thus, if you want to use the same SD
-  card for the first boot of several 4B boards, after each boot rename `RECOVERY.000` back to
-  `recovery.bin` on the SD card before inserting it in another board.
-* This boot method is not as robust as the previous one: if, for any reason, communication with
-  the server is temporarily broken, the board may fail to reboot and hang. (With the other boot method,
-  the board would reboot as many times as required until the communication with the server is recovered.)
-  If PoE is used to power the board, and PoE reboots are allowed on the switch, then walt will allow you
-  to "hard-reboot" (i.e. power-cycle) the board remotely. Otherwise, one would have to manually disconnect
-  and reconnect the power source of the board to unblock it.
-* The SD card is the most fragile part of a raspberry pi board, thus working without it prevents most
-  common hardware problems. Note, however, that the smart bootup mechanism used in walt allows to keep
-  the SD card readonly, which greatly improves its lifetime anyway.
+
+### Advices for selecting a boot method
+
+On the hardware side, the SD card is the most fragile part of a raspberry pi board, thus working without
+it prevents most common hardware problems. Note, however, that the smart bootup mechanism used in walt
+allows to keep the SD card readonly, which greatly improves its lifetime.
+
+On the software side, the boot procedure based on the SD card is slightly more robust: if, for any
+reason, network communication with the server is temporarily broken, the SD card boot procedure will
+take care of rebooting as many times as required until the communication with the server is recovered.
+The board firmware is not as smart and may hang forever in this case. If PoE is used to power the board,
+and PoE reboots are allowed on the switch, then walt will allow you to "hard-reboot" (i.e. power-cycle)
+the board remotely. Otherwise, one would have to manually disconnect and reconnect the power source of
+the board to unblock it.
+
+If using a 4B board, the eeprom can be flashed to select a specific boot order. Thanks to appropriate
+boot files in `rpi-sd-files.tar.gz` this is done automatically when the board is first booted with
+a SD card. The boot order we select is "try network boot, if it fails, try SD card boot, and if it
+fails too, restart". This can improve the robustness of the boot without a SD card.
+However, in order to prevent this eeprom flashing operation to repeat each time the board is rebooted
+with the SD card, the firmware renames `recovery.bin` to `RECOVERY.000`. Thus, if you want to use the
+same SD card to update the boot order of several 4B boards, after each boot rename `RECOVERY.000` back
+to `recovery.bin` on the SD card before inserting it in another board.
 
 
 ## Google Coral Dev Boards
