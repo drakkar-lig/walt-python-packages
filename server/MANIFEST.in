@@ -1,6 +1,6 @@
 include walt/server/processes/main/images/walt-*
 include walt/server/processes/main/network/walt-*.kpxe
-include walt/server/processes/main/network/tftp-standby.tar.gz
+include walt/server/processes/main/network/tftp-static.tar.gz
 include walt/server/processes/main/vpn-proxy-setup.sh
 include walt/server/setup/*.service
 include walt/server/setup/*.socket
