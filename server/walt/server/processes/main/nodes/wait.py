@@ -29,7 +29,7 @@ class WaitInfo(object):
         while len(self.completed_tasks) > 0:
             task = self.completed_tasks[0]
             self.completed_tasks = self.completed_tasks[1:]
-            task.return_result(0)  # unblock the client
+            task.end(0)  # unblock the client
         # send status messages
         while len(self.message_log) > 0:
             requester, message = self.message_log[0]
@@ -40,10 +40,15 @@ class WaitInfo(object):
 
     def wf_wait(self, wf, requester, task, nodes, **env):
         not_booted = [node for node in nodes if not node.booted]
+        def end(res):
+            task.return_result(res)  # unblock the client
+            wf.next()                # continue (probably end) the workflow
         if len(not_booted) == 0:
-            task.return_result(0)  # unblock the client
+            end(0)
+            return
         tid = id(task)
         self.tasks[tid] = task
+        task.end = end
         for node in not_booted:
             self.mac_to_tids[node.mac].add(tid)
             self.tid_to_macs[tid].add(node.mac)

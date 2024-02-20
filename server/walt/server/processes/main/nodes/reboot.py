@@ -74,6 +74,7 @@ def wf_softreboot_callback(results, wf, remaining_nodes, nodes_manager, reboot_c
                 softrebooted.append(node.name)
             nodes_manager.change_nodes_bootup_status(
                 nodes=nodes, booted=False, cause=reboot_cause, method="soft-reboot")
+            nodes_manager.record_nodes_boot_start(nodes)
         else:
             for node in nodes:
                 softreboot_errors[node.name] = result_msg.lower()
@@ -83,7 +84,7 @@ def wf_softreboot_callback(results, wf, remaining_nodes, nodes_manager, reboot_c
 
 def wf_hard_reboot_nodes(wf, requester, remaining_nodes, **env):
     if len(remaining_nodes) > 0:
-        if requester.has_hook("client_hard_reboot"):
+        if requester is not None and requester.has_hook("client_hard_reboot"):
             hard_reboot_method_name = requester.get_hard_reboot_method_name()
             hard_reboot_steps = [wf_client_hard_reboot]
         else:
@@ -109,6 +110,7 @@ def wf_client_hard_reboot(wf, requester, remaining_nodes, nodes_manager, reboot_
         nodes_manager.change_nodes_bootup_status(
             nodes=hardrebooted, booted=False,
             cause=reboot_cause, method=hard_reboot_method_name)
+        nodes_manager.record_nodes_boot_start(hardrebooted)
     wf.update_env(
         hardrebooted=[mac_to_name[mac] for mac in mac_hardrebooted],
         hardreboot_errors={
@@ -136,7 +138,7 @@ def wf_filter_poe_rebootable(wf, nodes_manager, remaining_nodes, **env):
 
 
 def wf_poe_reboot(
-    wf, requester, db, blocking, remaining_nodes, hardreboot_errors, **env
+    wf, db, blocking, remaining_nodes, hardreboot_errors, **env
 ):
     if len(remaining_nodes) == 0:
         # nothing to do here
@@ -190,8 +192,9 @@ def wf_poe_poweron(
     blocking.nodes_set_poe(wf.next, all_off, True)
 
 
-def wf_poe_after_poweron(wf, poweron_result, hardreboot_errors, **env):
+def wf_poe_after_poweron(wf, poweron_result, hardreboot_errors, nodes_manager, **env):
     powered_on, in_hardreboot_errors = poweron_result
+    nodes_manager.record_nodes_boot_start(powered_on)
     hardreboot_errors.update(**in_hardreboot_errors)
     wf.update_env(hardrebooted=[n.name for n in powered_on])
     wf.next()
@@ -200,6 +203,7 @@ def wf_poe_after_poweron(wf, poweron_result, hardreboot_errors, **env):
 def wf_reply_requester(
     wf,
     requester,
+    nodes_manager,
     task_callback,
     hard_only,
     vmrebooted,
@@ -212,9 +216,11 @@ def wf_reply_requester(
 ):
     rebooted = tuple(vmrebooted) + tuple(softrebooted) + tuple(hardrebooted)
     if len(rebooted) > 0:
-        requester.stdout.write(
-            format_sentence_about_nodes("%s: rebooted OK.\n", rebooted)
-        )
+        logline = format_sentence_about_nodes("%s: rebooted OK.", rebooted)
+        if requester is None:
+            nodes_manager.logs.platform_log("nodes", logline)
+        else:
+            requester.stdout.write(f"{logline}\n")
     if len(hardreboot_errors) == 0:
         # hard reboot is the last step, and it was applied to all nodes still not
         # rebooted at this time => having no hard reboot error means we could
@@ -240,9 +246,11 @@ def wf_reply_requester(
                     hard_reboot_method_name,
                     hard_error,
                 )
-            requester.stderr.write(
-                format_sentence_about_nodes("%s: " + explain + "\n", node_names)
-            )
+            logline = format_sentence_about_nodes("%s: " + explain, node_names)
+            if requester is None:
+                nodes_manager.logs.platform_log("nodes", logline, error=True)
+            else:
+                requester.stderr.write(f"{logline}\n")
         # unblock client
         task_callback("FAILED")
     wf.next()

@@ -10,8 +10,10 @@ import sys
 import termios
 import time
 
-TTY_ROWS = 50
-TTY_COLS = 190
+# consider a large terminal, to avoid getting
+# tab-tab completions on several lines
+TTY_ROWS = 77
+TTY_COLS = 309
 
 buf = b""
 t0 = time.time()

@@ -32,6 +32,8 @@ Here is the set of settings currently allowed:
 | Name           | possible values         | Applies to:         | Notes |
 |----------------|-------------------------|---------------------|-------|
 | boot.delay     | e.g. 2 or 'random'      | virtual nodes       |       |
+| boot.retries   | e.g. 0 or 9             | virtual nodes       | (8)   |
+| boot.timeout   | e.g. 'none' or 180      | nodes               | (8)   |
 | cpu.cores      | e.g. 1 or 4             | virtual nodes       |       |
 | disks          | e.g. '8G' or '32G,1T'   | virtual nodes       | (4)   |
 | expose         | e.g. '80:8080,443:8443' | devices of walt-net | (7)   |
@@ -53,3 +55,4 @@ Notes:
 5. See [`walt help show vnode-networks`](vnode-networks.md)
 6. Default is true: allow kexec-rebooting if the optional script `[walt-image]:/bin/walt-reboot` implements it.
 7. See [`walt help show device-expose`](device-expose.md)
+8. Settings allowing WalT to detect and automatically hard-reboot nodes failing to boot.
