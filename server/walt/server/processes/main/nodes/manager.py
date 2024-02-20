@@ -1,6 +1,8 @@
 import base64
 import random
 
+from time import time
+
 from walt.server.const import SSH_COMMAND
 from walt.server.popen import BetterPopen
 from walt.server.processes.main.filesystem import FilesystemsCache
@@ -21,6 +23,9 @@ VNODE_DEFAULT_CPU_CORES = 4
 VNODE_DEFAULT_DISKS = "none"
 VNODE_DEFAULT_NETWORKS = "walt-net"
 VNODE_DEFAULT_BOOT_DELAY = "random"
+NODE_DEFAULT_BOOT_RETRIES = 9
+NODE_DEFAULT_BOOT_TIMEOUT = 180
+NODE_MIN_BOOT_TIMEOUT = 60
 
 MSG_NOT_VIRTUAL = "WARNING: %s is not a virtual node. IGNORED.\n"
 
@@ -54,12 +59,16 @@ class NodesManager(object):
             images=server.images.store, dhcpd=server.dhcpd,
             named=server.named, registry=server.registry
         )
+        self.pending_boot_info = {}
+        self.next_boot_check = None
 
     def is_booted_node_mac(self, mac):
         return mac in self.booted_macs
 
     def forget_device(self, mac):
         self.booted_macs.discard(mac)  # if ever it was inside
+        if mac in self.pending_boot_info:
+            del self.pending_boot_info[mac]
 
     def prepare(self):
         pass
@@ -67,10 +76,107 @@ class NodesManager(object):
     def restore(self):
         # init powersave
         self.powersave.restore()
+        # initialize pending_boot_info
+        now = time()
+        for node in self.db.select("devices", type="node"):
+            boot_timeout = node.conf.get("boot.timeout", NODE_DEFAULT_BOOT_TIMEOUT)
+            boot_retries = node.conf.get("boot.retries", NODE_DEFAULT_BOOT_RETRIES)
+            self.pending_boot_info[node.mac] = dict(
+                    timeout=boot_timeout,
+                    retries=boot_retries,
+                    remaining_retries=boot_retries,
+                    cause="startup",
+                    boot_start_time=now
+            )
+        self._plan_pending_boot_check()
         # start virtual nodes
         for vnode in self.db.select("devices", type="node", virtual=True):
             node = self.devices.get_complete_device_info(vnode.mac)
             self.start_vnode(node)
+
+    def update_node_boot_retries(self, node_mac, retries):
+        old_retries = self.pending_boot_info[node_mac]["retries"]
+        old_remaining_retries = self.pending_boot_info[node_mac]["remaining_retries"]
+        remaining_retries = old_remaining_retries + retries - old_retries
+        if remaining_retries < 0:
+            remaining_retries = 0
+        self.pending_boot_info[node_mac].update(
+                retries=retries,
+                remaining_retries=remaining_retries
+        )
+        self._plan_pending_boot_check()
+
+    def update_node_boot_timeout(self, node_mac, timeout):
+        self.pending_boot_info[node_mac].update(timeout=timeout)
+        self._plan_pending_boot_check()
+
+    def record_nodes_boot_start(self, nodes):
+        now = time()
+        for node in nodes:
+            if node.mac not in self.booted_macs:
+                self.pending_boot_info[node.mac].update(boot_start_time=now)
+        self._plan_pending_boot_check()
+
+    def _get_node_boot_timeout(self, mac):
+        if mac in self.booted_macs:
+            return None
+        info = self.pending_boot_info[mac]
+        if info["timeout"] is None:
+            return None
+        if info["remaining_retries"] == 0:
+            return None
+        if info.get("cause") == "powersave":
+            return None
+        return info["boot_start_time"] + info["timeout"]
+
+    def _plan_pending_boot_check(self):
+        next_boot_check = self.next_boot_check
+        for mac in self.pending_boot_info.keys():
+            node_boot_check = self._get_node_boot_timeout(mac)
+            if node_boot_check is None:
+                continue
+            if next_boot_check is None:
+                next_boot_check = node_boot_check
+            else:
+                next_boot_check = min(node_boot_check, next_boot_check)
+        if next_boot_check is None:
+            return  # nothing to monitor
+        if self.next_boot_check is None or self.next_boot_check > next_boot_check:
+            self.next_boot_check = next_boot_check
+            self.ev_loop.plan_event(ts=next_boot_check, callback=self._boot_check)
+
+    def _boot_check(self):
+        self.next_boot_check = None
+        now = time()
+        failing_nodes = []
+        for mac, info in self.pending_boot_info.items():
+            node_boot_timeout = self._get_node_boot_timeout(mac)
+            if node_boot_timeout is None:
+                continue
+            if now >= node_boot_timeout:
+                node = self.devices.get_complete_device_info(mac)
+                info["remaining_retries"] -= 1
+                remaining_retries = info["remaining_retries"]
+                logline = f"{node.name}: boot timeout reached, trying hard-reboot "
+                if remaining_retries > 0:
+                    logline += f"({remaining_retries} retries left)."
+                else:
+                    logline += "(last try)."
+                self.logs.platform_log("nodes", logline)
+                failing_nodes.append(node)
+                # We will hard reboot this node below, but if hard-reboot fails,
+                # boot start time will not be updated. So we artificially set it
+                # now to force a delay of NODE_DEFAULT_BOOT_TIMEOUT before the next
+                # hard-reboot try, in this failure case.
+                info["boot_start_time"] = now
+        # reboot nodes if needed and then plan next check
+        if len(failing_nodes) > 0:
+            def cb(status):
+                self._plan_pending_boot_check()
+            self.reboot_nodes(None, cb, failing_nodes, True, "bootup timeout",
+                              reset_boot_retries=False)
+        else:
+            self._plan_pending_boot_check()
 
     def try_kill_vnode(self, node_mac):
         if node_mac in self.vnodes:
@@ -93,6 +199,14 @@ class NodesManager(object):
         # about this vnode (see server.py)
 
     def register_node(self, mac, model, image_fullname=None):
+        self.pending_boot_info[mac] = dict(
+            timeout=NODE_DEFAULT_BOOT_TIMEOUT,
+            retries=NODE_DEFAULT_BOOT_RETRIES,
+            remaining_retries=NODE_DEFAULT_BOOT_RETRIES,
+            cause="startup",
+            boot_start_time=time()
+        )
+        self._plan_pending_boot_check()
         handle_registration_request(
             db=self.db,
             devices=self.devices,
@@ -256,7 +370,12 @@ class NodesManager(object):
         reboot_cause = "reboot requested"
         self.reboot_nodes(requester, task.return_result, nodes, hard_only, reboot_cause)
 
-    def reboot_nodes(self, requester, task_callback, nodes, hard_only, reboot_cause):
+    def reboot_nodes(self, requester, task_callback, nodes, hard_only, reboot_cause,
+                     reset_boot_retries=True):
+        if reset_boot_retries:
+            for node in nodes:
+                retries = self.pending_boot_info[node.mac]["retries"]
+                self.pending_boot_info[node.mac].update(remaining_retries=retries)
         reboot_nodes(
             nodes_manager=self,
             blocking=self.blocking,
@@ -299,19 +418,33 @@ class NodesManager(object):
                     # when tcp connection timeout is reached we get here. ignore.
                     continue
                 nodes.append(node_info)
+        now = time()
         for node_info in nodes:
+            mac = node_info.mac
             # note: change_nodes_bootup_status() may be called as a callback
             # of the netservice.py procedure, thus the "nodes" parameter may be
             # outdated regarding the "booted" attribute. So we recompute it.
-            old_booted = (node_info.mac in self.booted_macs)
+            old_booted = (mac in self.booted_macs)
             if old_booted != booted:
                 # add or remove from self.booted_macs and generate a log line
                 if booted:
-                    self.booted_macs.add(node_info.mac)
+                    self.booted_macs.add(mac)
                     status = "booted"
                 else:
-                    self.booted_macs.discard(node_info.mac)
+                    self.booted_macs.discard(mac)
                     status = "down"
+                    cause = details.get("cause", None)
+                    # note: if this node went down unexpectedly, we have no idea
+                    # when it started to reboot, so set boot_start_time to now
+                    # (i.e., the time when we detect it is down).
+                    # if it was expected, then boot_start_time will be updated
+                    # again shortly (e.g., in the case of a hard-reboot, when PoE
+                    # is re-enabled).
+                    self.pending_boot_info[mac].update(
+                        remaining_retries=self.pending_boot_info[mac]["retries"],
+                        boot_start_time=now,
+                        cause=cause
+                    )
                 logline = f"node {node_info.name} is {status}"
                 if len(details) > 0:
                     s_details = ", ".join(
@@ -323,6 +456,7 @@ class NodesManager(object):
                 if booted:
                     self.wait_info.node_bootup_event(node_info)
                     self.powersave.node_bootup_event(node_info)
+        self._plan_pending_boot_check()
 
     def develop_node_set(self, requester, node_set):
         nodes = self.parse_node_set(requester, node_set)

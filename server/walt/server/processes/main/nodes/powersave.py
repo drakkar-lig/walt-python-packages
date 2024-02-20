@@ -123,7 +123,10 @@ class PowersaveManager:
                 else:
                     self.server.logs.platform_log(
                             "powersave.error", sentence, error=True)
-        self.server.nodes.change_nodes_bootup_status(
+        if poe_toggle_value is True:
+            self.server.nodes.record_nodes_boot_start(toggled)
+        else:
+            self.server.nodes.change_nodes_bootup_status(
                 nodes=toggled, booted=False,
                 cause="powersave", method="PoE")
         self._plan_check()

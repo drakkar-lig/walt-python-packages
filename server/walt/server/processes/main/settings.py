@@ -13,6 +13,9 @@ from walt.server.processes.main.nodes.manager import (
     VNODE_DEFAULT_NETWORKS,
     VNODE_DEFAULT_RAM,
     VNODE_DEFAULT_BOOT_DELAY,
+    NODE_DEFAULT_BOOT_RETRIES,
+    NODE_DEFAULT_BOOT_TIMEOUT,
+    NODE_MIN_BOOT_TIMEOUT,
 )
 from walt.server.tools import ip_in_walt_network
 
@@ -36,6 +39,16 @@ def parse_settings_args(requester, settings_args):
             return None
         all_settings[parts[0]] = parts[1]
     return all_settings
+
+
+def positive_int(s):
+    try:
+        i = int(s)
+        if i >= 0:
+            return True
+    except ValueError:
+        pass
+    return False
 
 
 class SettingsManager:
@@ -67,6 +80,16 @@ class SettingsManager:
                 "category": "virtual-nodes",
                 "value-check": self.correct_boot_delay,
                 "default": VNODE_DEFAULT_BOOT_DELAY,
+            },
+            "boot.retries": {
+                "category": "nodes",
+                "value-check": self.correct_boot_retries,
+                "default": NODE_DEFAULT_BOOT_RETRIES,
+            },
+            "boot.timeout": {
+                "category": "nodes",
+                "value-check": self.correct_boot_timeout,
+                "default": NODE_DEFAULT_BOOT_TIMEOUT,
             },
             "networks": {
                 "category": "virtual-nodes",
@@ -245,15 +268,13 @@ class SettingsManager:
     def correct_cpu_value(
         self, requester, device_infos, setting_name, setting_value, all_settings
     ):
-        try:
-            int(setting_value)
+        if positive_int(setting_value):
             return True
-        except ValueError:
-            requester.stderr.write(
-                "Failed: '%s' is not a valid value for cpu.cores (expecting for"
-                " instance 1 or 4).\n" % setting_value
-            )
-            return False
+        requester.stderr.write(
+            "Failed: '%s' is not a valid value for cpu.cores (expecting for"
+            " instance 1 or 4).\n" % setting_value
+        )
+        return False
 
     def correct_ram_value(
         self, requester, device_infos, setting_name, setting_value, all_settings
@@ -284,18 +305,51 @@ class SettingsManager:
     ):
         if (setting_value == 'random'):
             return True
-        try:
-            setting_value = int(setting_value)
-            if setting_value >= 0:
-                return True
-        except ValueError:
-            pass
+        if positive_int(setting_value):
+            return True
         requester.stderr.write(
             f"Failed: '{setting_value}' is not a valid value for option 'boot.delay'.\n"
             "        Use for example '2' for 2s, '0' to disable, "
             "'random' for a random delay between 1 and 10s.\n"
         )
         return False
+
+    def correct_boot_retries(
+        self, requester, device_infos, setting_name, setting_value, all_settings
+    ):
+        if positive_int(setting_value):
+            return True
+        requester.stderr.write(
+            f"Failed: '{setting_value}' is not a valid value for option "
+            "'boot.retries'.\n"
+            "        Use for example '2' for retrying twice after a failed boot, "
+            "'0' to disable.\n"
+        )
+        return False
+
+    def correct_boot_timeout(
+        self, requester, device_infos, setting_name, setting_value, all_settings
+    ):
+        if setting_value == "none":
+            return True
+        if not positive_int(setting_value):
+            requester.stderr.write(
+                f"Failed: '{setting_value}' is not a valid value for option "
+                "'boot.timeout'.\n"
+                "        Use for example '180' for waiting 3 minutes before "
+                "considering the node is stuck and force-rebooting it, "
+                "or 'none' to disable.\n"
+            )
+            return False
+        if int(setting_value) < NODE_MIN_BOOT_TIMEOUT:
+            requester.stderr.write(
+                f"Failed: A boot timeout of {setting_value}s is probably too small "
+                "for some OS images.\n"
+                f"        Only \"none\" and values higher than {NODE_MIN_BOOT_TIMEOUT}"
+                " are allowed for this setting.\n"
+            )
+            return False
+        return True
 
     def correct_networks_value(
         self, requester, device_infos, setting_name, setting_value, all_settings
@@ -563,6 +617,20 @@ class SettingsManager:
             elif setting_name == "boot.delay":
                 self.update_vnodes_vm_setting(device_infos, "boot_delay", setting_value)
                 should_reboot_devices = True
+            elif setting_name == "boot.retries":
+                retries = int(setting_value)
+                db_settings["boot.retries"] = retries
+                for node_info in device_infos:
+                    self.server.nodes.update_node_boot_retries(node_info.mac, retries)
+            elif setting_name == "boot.timeout":
+                timeout = setting_value
+                if timeout == "none":
+                    timeout = None
+                else:
+                    timeout = int(timeout)
+                db_settings["boot.timeout"] = timeout
+                for node_info in device_infos:
+                    self.server.nodes.update_node_boot_timeout(node_info.mac, timeout)
             elif setting_name == "networks":
                 self.update_vnodes_vm_setting(device_infos, "networks", setting_value)
                 should_reboot_devices = True
