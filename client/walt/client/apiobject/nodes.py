@@ -93,7 +93,7 @@ class Tools:
         return image_name_or_default
 
     @staticmethod
-    def boot_image(nodes, image, force=False, ownership_mode="owned-or-free"):
+    def boot_image(nodes, image, cause, force=False, ownership_mode="owned-or-free"):
         image_name_or_default = Tools.get_image_name_or_default(image)
         for n in nodes:
             n._check_owned_or_force(force, ownership_mode)
@@ -101,7 +101,7 @@ class Tools:
         with silent_server_link() as server:
             if not server.set_image(nodeset, image_name_or_default):
                 return
-            server.reboot_nodes(nodeset)
+            server.reboot_nodes(nodeset, cause=cause)
         # update node info cache to print the correct image name
         # on this node
         __info_cache__.refresh()
@@ -127,7 +127,7 @@ class Tools:
                 if not server.set_image(image_node_set, image):
                     return  # unexpected issue
             # reboot
-            server.reboot_nodes(nodeset)
+            server.reboot_nodes(nodeset, cause="acquire")
         # update node info cache to print the correct image name
         # on this node
         __info_cache__.refresh()
@@ -203,7 +203,7 @@ class APINodeFactory:
                 """Reboot this node"""
                 self._check_owned_or_force(force)
                 with silent_server_link() as server:
-                    server.reboot_nodes(self.name, hard_only)
+                    server.reboot_nodes(self.name, hard_only=hard_only)
 
             def wait(self, timeout=-1):
                 """Wait until node is booted"""
@@ -253,11 +253,11 @@ class APINodeFactory:
 
             def boot(self, image, force=False):
                 """Boot the specified WalT image"""
-                Tools.boot_image((self,), image, force=force)
+                Tools.boot_image((self,), image, "image change", force=force)
 
             def release(self):
                 """Release ownership of this node"""
-                Tools.boot_image((self,), "default", ownership_mode="owned")
+                Tools.boot_image((self,), "default", "release", ownership_mode="owned")
 
             def acquire(self, force=False):
                 """Get ownership of this node"""
@@ -294,7 +294,8 @@ class APISetOfNodesFactory:
                 for n in self:
                     n._check_owned_or_force(force)
                 with silent_server_link() as server:
-                    server.reboot_nodes(Tools.get_comma_nodeset(self), hard_only)
+                    server.reboot_nodes(Tools.get_comma_nodeset(self),
+                                        hard_only=hard_only)
 
             def wait(self, timeout=-1):
                 """Wait until all nodes of this set are booted"""
@@ -313,11 +314,11 @@ class APISetOfNodesFactory:
 
             def boot(self, image, force=False):
                 """Boot the specified image on all nodes of this set"""
-                Tools.boot_image(self, image, force=force)
+                Tools.boot_image(self, image, "image change", force=force)
 
             def release(self):
                 """Release ownership of all nodes in this set"""
-                Tools.boot_image(self, "default", ownership_mode="owned")
+                Tools.boot_image(self, "default", "release", ownership_mode="owned")
 
             def acquire(self, force=False):
                 """Get ownership of all nodes in this set"""

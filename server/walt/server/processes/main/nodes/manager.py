@@ -362,12 +362,11 @@ class NodesManager(object):
     def get_node_models_using_image(self, image_fullname):
         return set(node.model for node in self.db.select("nodes", image=image_fullname))
 
-    def reboot_node_set(self, requester, task, node_set, hard_only):
+    def reboot_node_set(self, requester, task, node_set, hard_only, reboot_cause):
         nodes = self.parse_node_set(requester, node_set)
         if nodes is None:
             return None  # error already reported
         task.set_async()
-        reboot_cause = "reboot requested"
         self.reboot_nodes(requester, task.return_result, nodes, hard_only, reboot_cause)
 
     def reboot_nodes(self, requester, task_callback, nodes, hard_only, reboot_cause,
