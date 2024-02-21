@@ -102,9 +102,10 @@ class CSAPI(APISession):
         return context.devices.develop_device_set(context.requester, device_set)
 
     @api_expose_method
-    def reboot_nodes(self, context, node_set, hard_only=False):
+    def reboot_nodes(self, context, node_set,
+                     hard_only=False, cause="reboot requested"):
         return context.nodes.reboot_node_set(
-            context.requester, context.task, node_set, hard_only
+            context.requester, context.task, node_set, hard_only, cause
         )
 
     @api_expose_method

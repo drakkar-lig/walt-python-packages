@@ -98,7 +98,8 @@ class WalTNode(WalTCategoryApplication):
             run_node_console(server, node_info)
 
     @staticmethod
-    def boot_nodes(node_set, image_name_or_default, ownership_mode="owned-or-free"):
+    def boot_nodes(node_set, image_name_or_default, cause,
+                   ownership_mode="owned-or-free"):
         with ClientToServerLink() as server:
             if server.has_image(image_name_or_default, True):
                 # the list of nodes keywords "my-nodes" or "free-nodes" refers to
@@ -113,7 +114,7 @@ class WalTNode(WalTCategoryApplication):
                 if not server.set_image(node_set, image_name_or_default):
                     return
                 server.set_busy_label("Rebooting")
-                server.reboot_nodes(node_set)
+                server.reboot_nodes(node_set, cause=cause)
 
     @staticmethod
     def check_nodes_ownership(
@@ -275,7 +276,7 @@ class WalTNodeReboot(WalTApplication):
         with ClientToServerLink() as server:
             if not WalTNode.check_nodes_ownership(server, node_set):
                 return
-            server.reboot_nodes(node_set, self._hard_only)
+            server.reboot_nodes(node_set, hard_only=self._hard_only)
 
     @cli.autoswitch(help="allow PoE-reboots only (power-cycle)")
     def hard(self):
@@ -316,7 +317,7 @@ class WalTNodeAcquire(WalTApplication):
                     return False  # unexpected issue
             # reboot
             server.set_busy_label("Rebooting")
-            server.reboot_nodes(node_set)
+            server.reboot_nodes(node_set, cause="acquire")
 
 
 @WalTNode.subcommand("release")
@@ -326,7 +327,7 @@ class WalTNodeRelease(WalTApplication):
     ORDERING = 3
 
     def main(self, node_set: SET_OF_NODES):
-        return WalTNode.boot_nodes(node_set, "default", "owned")
+        return WalTNode.boot_nodes(node_set, "default", "release", "owned")
 
 
 @WalTNode.subcommand("boot")
@@ -336,7 +337,7 @@ class WalTNodeBoot(WalTApplication):
     ORDERING = 4
 
     def main(self, node_set: SET_OF_NODES, image_name_or_default: IMAGE_OR_DEFAULT):
-        return WalTNode.boot_nodes(node_set, image_name_or_default)
+        return WalTNode.boot_nodes(node_set, image_name_or_default, "image change")
 
 
 @WalTNode.subcommand("deploy")
@@ -346,7 +347,7 @@ class WalTNodeDeploy(WalTApplication):
     ORDERING = 18
 
     def main(self, node_set: SET_OF_NODES, image_name_or_default: IMAGE_OR_DEFAULT):
-        return WalTNode.boot_nodes(node_set, image_name_or_default)
+        return WalTNode.boot_nodes(node_set, image_name_or_default, "image change")
 
 
 @WalTNode.subcommand("ping")
