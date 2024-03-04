@@ -72,7 +72,7 @@ load_modules() {
     # ata_piix & sd_mod: useful for local disk detection (hybrid modes)
     # if other modules are needed, the image may provide a file /bin/walt-preinit
     # to load them.
-    for mod in ata_piix sd_mod overlay overlayfs ext4
+    for mod in ata_piix sd_mod overlay overlayfs ext4 nfs nfsv3
     do
         busybox modprobe $mod >/dev/null 2>&1 || true
     done
