@@ -5,7 +5,20 @@ echo "[walt:bg] walt-fs-watchdog started."
 
 while [ 1 ]
 do
-    walt-timeout 20 ls -l /mnt/nfsroot/bin/walt-init >/dev/null || {
+    # note: compared to NFS, NBFS has a better ability to cache reply data,
+    # since it considers the remote share cannot be modified unless it
+    # receives related notifications.
+    # However, it is then harder to detect that the network share is lost,
+    # because the kernel may respond from its own cache with values NBFS
+    # requested to cache indefinitely.
+    # However, the FUSE NBFS process cache readdir values in its own cache,
+    # not in kernel cache (see comment at the top of fuse-client/fs_ops.c
+    # in NBFS source for the reason why), so performing a readdir of the
+    # root dir ensures the kernel cannot answer directly from its cache.
+    # If the connection to the server is lost, the FUSE NBFS process is no
+    # longer alive, so the "ls" command will error out (with message
+    # "Transport endpoint is not connected").
+    walt-timeout 20 ls /mnt/nfsroot/ >/dev/null || {
         echo "[walt:bg] Network filesystem share was lost! Will reboot."
         trigger_walt_reboot reboot
         exit 1
