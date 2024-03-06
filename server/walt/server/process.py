@@ -440,10 +440,7 @@ class RPCProcessConnector(ProcessConnector):
         self.default_session = self.create_session(default_local_service)
         self.do_async = self.default_session.do_async
         self.do_sync = self.default_session.do_sync
-        # instanciate a local ev_loop which will wait for results of this
-        # process connector only (see self.sync_runner)
-        self.ev_loop = _instanciate_ev_loop()
-        self.ev_loop.register_listener(self)
+        self.ev_loop = current_process().ev_loop
 
     def __repr__(self):
         if self.label is not None:
@@ -534,15 +531,12 @@ class RPCProcessConnector(ProcessConnector):
             return local_req_id not in self.results
 
         # check if calling the remote service may involve remote calls
-        # back to a local service
-        if local_service is not None:
-            # if yes, then resume the whole process event loop until we get
-            # the expected result
-            current_process().ev_loop.loop(loop_condition)
-        else:
-            # otherwise, limit reentrance code complexity by blocking on
-            # this call only
-            self.ev_loop.loop(loop_condition)
+        # back to a local service; if not, limit reentrance code complexity
+        # by blocking on this call only.
+        opts = {}
+        if local_service is None:
+            opts.update(single_listener = self)
+        self.ev_loop.loop(loop_condition, **opts)
         result = self.results.pop(local_req_id)
         if isinstance(result, Exception):
             print(current_process().name + ": Remote exception returned here.")
