@@ -1,3 +1,5 @@
+import numpy as np
+
 # MAP_BLOCK_UINT16_SIZE and MAP_BLOCK_ID_SHIFT were selected
 # according to tests giving high compressability of the resulting
 # MAP_FILE_SIZE chunks.
@@ -16,8 +18,8 @@ DAY_AS_TS = 24 * HOUR_AS_TS
 
 
 class OpCodes:
-    CALL = 65535
-    RETURN = 65534
-    TIMESTAMP = 65533
-    END = 0  # end of block
+    CALL = np.uint16(65535)
+    RETURN = np.uint16(65534)
+    TIMESTAMP = np.uint16(65533)
+    END = np.uint16(0)  # end of block
     # other opcodes are line numbers

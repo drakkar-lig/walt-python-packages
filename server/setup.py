@@ -82,6 +82,7 @@ setup_info = {
             "walt-server-lldpd = walt.server.services.lldpd:run",
             "walt-server-ptpd = walt.server.services.ptpd:run",
             "walt-server-trackexec-replay = walt.server.trackexec.player:run",
+            "walt-server-trackexec-analyse = walt.server.trackexec.analyse:run",
             "walt-dhcp-event = walt.server.dhcpevent:run",
             "walt-net-config = walt.server.netconfig:run",
             "walt-image-check = walt.server.imagecheck:run",
