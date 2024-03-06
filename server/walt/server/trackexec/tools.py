@@ -5,14 +5,17 @@ from walt.server.trackexec.const import MAP_BLOCK_UINT16_SIZE
 
 def _map_block_max_bytecode_size(stack_size):
     # stack_size         -- 1 uint16 large
-    # stack              -- <stack_size> uint16 large
+    # stack              -- 2*<stack_size> uint16 large
     # bytecode           -- up to the MAP_BLOCK_UINT16_SIZE limit
-    return MAP_BLOCK_UINT16_SIZE - (stack_size + 1)
+    return MAP_BLOCK_UINT16_SIZE - ((stack_size << 1) + 1)
 
 
 def map_block_dt(stack_size):
     return np.dtype([('stack_size', np.uint16),
-                     ('stack', np.uint16, (stack_size,)),
+                     ('stack', [
+                         ('file_id', np.uint16),
+                         ('lineno', np.uint16)
+                      ], (stack_size,)),
                      ('bytecode', np.uint16, (
                          _map_block_max_bytecode_size(stack_size),))])
 

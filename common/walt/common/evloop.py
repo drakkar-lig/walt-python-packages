@@ -77,9 +77,10 @@ class EventLoop(object):
         self.single_listener_pollers = {}
         self.recursion_depth = 0
         self.pending_events = {}
-        # by default self.idle_period_recorder does nothing, but
-        # the caller can update this attribute if needed.
-        self.idle_period_recorder = contextlib.nullcontext
+        # by default self.idle_section_hook does nothing, but
+        # the caller can set this attribute with a context
+        # manager object if needed.
+        self.idle_section_hook = contextlib.nullcontext
 
     def get_poller(self, single_listener=None):
         if single_listener is None:
@@ -244,7 +245,7 @@ class EventLoop(object):
                         # status may have changed.
                         if not self.should_continue(loop_condition):
                             break
-                        with self.idle_period_recorder():
+                        with self.idle_section_hook():
                             res = poller.poll(timeout)
                 if len(res) == 0:
                     continue  # poll() was stopped because of the timeout
