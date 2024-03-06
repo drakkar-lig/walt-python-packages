@@ -32,8 +32,8 @@ class Pager:
         self.tty = TTYSettings()
         self.parser = commonmark.Parser()
         self.renderer = MarkdownRenderer()
-        self.scroll_index = None
         self.error_message = None
+        self._scroll_index = 0
 
     def start_display(self, **env):
         exc = None
@@ -47,6 +47,9 @@ class Pager:
             self.tty.restore()
             if exc is not None:
                 raise exc
+
+    def set_scroll_index(self, value):
+        self._scroll_index = value
 
     def parse_topic_links(self, ast):
         # in order to handle <tab> / <shift>-<tab> navigation we have to
@@ -148,7 +151,56 @@ class Pager:
             else:
                 break  # ok proceed
         footer = "\n".join(footer_lines)
-        return footer_lines_number, footer
+        if self.error_message is None:
+            real_footer_lines_number = footer_lines_number
+        else:
+            real_footer_lines_number = footer_lines_number -1
+        return real_footer_lines_number, footer_lines_number, footer
+
+    def advanced_input(self, prompt, prefill_text=None, completer=None):
+        hook_enabled = False
+        if prefill_text is not None:
+            try:
+                import readline
+                def hook():
+                    readline.insert_text(prefill_text)
+                    readline.redisplay()
+                readline.set_pre_input_hook(hook)
+                hook_enabled = True
+            except:
+                pass
+        completion_enabled = False
+        if completer is not None:
+            try:
+                import readline
+                saved_completion = (readline.get_completer_delims(),
+                                    readline.get_completer())
+                readline.set_completer_delims('')
+                readline.set_completer(completer.complete)
+                readline.parse_and_bind('tab: complete')
+                def no_display(*args, **kwargs):
+                    return
+                readline.set_completion_display_matches_hook(no_display)
+                completion_enabled = True
+            except Exception:
+                pass
+        result = input(prompt)
+        # revert
+        if hook_enabled:
+            readline.set_pre_input_hook()
+        if completion_enabled:
+            readline.set_completer_delims(saved_completion[0])
+            readline.set_completer(saved_completion[1])
+        return result
+
+    def prompt_command(self, **kwargs):
+        prompt_row_num = self.tty.rows - self.real_footer_height -1
+        sys.stdout.write(f"\x1b[H\x1b[{prompt_row_num}B\x1b[K")
+        sys.stdout.flush()
+        self.tty.restore()
+        cmd = self.advanced_input("> ", **kwargs)
+        self.tty.set_raw_no_echo()
+        return cmd
 
     def pager_main_loop(self, **env):
         # activate the pager
@@ -172,12 +224,13 @@ class Pager:
                 num_lines = len(lines)
                 # adapt footer help
                 header_height, header = self.format_header(**env)
-                footer_height, footer = self.format_footer(
+                real_footer_height, footer_height, footer = self.format_footer(
                     num_lines=num_lines,
                     topic_links=topic_links,
                     **env
                 )
                 page_height = self.tty.rows - (footer_height + header_height)
+                self.real_footer_height = real_footer_height  # save
                 should_render_markdown = False
             if should_redraw:
                 # ensure the text after the index is long enough to fill the

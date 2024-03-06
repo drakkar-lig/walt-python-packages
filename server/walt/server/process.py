@@ -98,9 +98,8 @@ def fix_pdb():
 def _instanciate_ev_loop():
     ev_loop = EventLoop()
     if TRACKEXEC_LOG_DIR.exists():
-        from walt.server.trackexec.recorder import TrackExecRecorder
-        ev_loop.idle_period_recorder = \
-            TrackExecRecorder.idle_period_recorder
+        from walt.server.trackexec import precise_timestamping
+        ev_loop.idle_section_hook = precise_timestamping
     return ev_loop
 
 
@@ -126,11 +125,11 @@ def _update_trackexec_symlink_latest(target_dir):
 def _init_trackexec(name, start_time):
     if TRACKEXEC_LOG_DIR.exists():
         import walt
-        from walt.server.trackexec.recorder import TrackExecRecorder
+        from walt.server.trackexec import record
         start_time_dir = start_time.strftime("%y%m%d-%H%M%S")
         _update_trackexec_symlink_latest(start_time_dir)
         log_dir_path = TRACKEXEC_LOG_DIR / start_time_dir / name
-        TrackExecRecorder.record(walt, log_dir_path)
+        record(walt, log_dir_path)
 
 
 class EvProcess(Process):
@@ -210,8 +209,8 @@ class EvProcess(Process):
             self.cleanup()
             print(f"exit: cleanup function has ended")
             if TRACKEXEC_LOG_DIR.exists():
-                from walt.server.trackexec.recorder import TrackExecRecorder
-                TrackExecRecorder.stop()
+                from walt.server.trackexec import stop
+                stop()
         except Exception:
             traceback.print_exc()
 
