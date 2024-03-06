@@ -182,17 +182,17 @@ def get_contiguous_ranges(ips):
 
 def generate_dhcpd_conf(subnet, devices):
     confs_per_category = defaultdict(list)
-    free_ips = set(subnet.hosts())
-    server_ip = get_server_ip()
-    free_ips.discard(ip(server_ip))
     for device_info in devices:
-        conf = HOST_CONF_PATTERN % device_info
+        conf = HOST_CONF_PATTERN % device_info._asdict()
         conf_category_list = confs_per_category[
-            (device_info["netsetup"], device_info["type"])
+            (device_info.netsetup, device_info.type)
         ]
         conf_category_list.append(conf)
-        if device_info["ip"] in free_ips:
-            free_ips.discard(device_info["ip"])
+    # compute free ips
+    server_ip = get_server_ip()
+    free_ips = set(subnet.hosts())
+    free_ips.discard(ip(server_ip))
+    free_ips -= set(ip(d.ip) for d in devices)
     range_confs = []
     for r in get_contiguous_ranges(free_ips):
         first, last = r
@@ -214,9 +214,13 @@ def generate_dhcpd_conf(subnet, devices):
 
 
 QUERY_DEVICES_WITH_IP = """
-    SELECT devices.mac, ip, name, type, COALESCE((conf->'netsetup')::int, 0) as netsetup
-    FROM devices LEFT JOIN nodes ON devices.mac = nodes.mac
-    WHERE ip IS NOT NULL ORDER BY devices.mac;
+    SELECT d.mac, ip, name as hostname, type,
+        COALESCE((conf->'netsetup')::int, 0) as netsetup
+    FROM devices d LEFT JOIN nodes n ON d.mac = n.mac
+    WHERE ip IS NOT NULL
+      AND type != 'server'
+      AND ip::inet << %s::cidr
+    ORDER BY d.mac;
 """
 
 
@@ -227,21 +231,7 @@ class DHCPServer(object):
 
     def update(self, force=False, cb=None):
         subnet = get_walt_subnet()
-        devices = []
-        for item in self.db.execute(QUERY_DEVICES_WITH_IP):
-            device_ip = ip(item.ip)
-            if device_ip not in subnet:
-                continue
-            if item.type != "server":
-                devices.append(
-                    dict(
-                        type=item.type,
-                        hostname=item.name,
-                        ip=device_ip,
-                        mac=item.mac,
-                        netsetup=item.netsetup,
-                    )
-                )
+        devices = list(self.db.execute(QUERY_DEVICES_WITH_IP, (str(subnet),)))
         conf = generate_dhcpd_conf(subnet, devices)
         old_conf = ""
         if DHCPD_CONF_FILE.exists():
