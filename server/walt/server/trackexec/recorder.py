@@ -15,10 +15,12 @@ from walt.server.trackexec.tools import (
 )
 
 
-class IdlePeriod:
+# status for Precise Timestamping sections
+class PTStatus:
     NONE = 0
-    PENDING_IDLE_INSTRUCTION = 1
-    PENDING_IDLE_END = 2
+    START_OF_SECTION = 1
+    PENDING_END = 2
+    END_OF_SECTION = 3
 
 
 class TrackExecRecorder(LogAbstractManagement):
@@ -37,7 +39,7 @@ class TrackExecRecorder(LogAbstractManagement):
         self._map_block = np.zeros(1, dtype=map_block_dt(0))
         self._index_block = np.zeros(1, dtype=index_block_dt())
         self._last_timestamp = None
-        self._idle_period = IdlePeriod.NONE
+        self._pt_status = PTStatus.NONE
         self._pid = getpid()
         (dir_path / "pid").write_text(f"{self._pid}\n")
 
@@ -156,23 +158,25 @@ class TrackExecRecorder(LogAbstractManagement):
                 self._file_ids_stack.level
             )
         elif event == "line":
-            # idle period management:
-            # considering the idle period is made of the instruction I,
+            # management of precise timestamping sections:
+            # considering the section is made of a single instruction I,
             # we want to write the following bytecode
             # <lineno-of-I><ts-before-running-I><ts-after-running-I><next-lineno>
             # this way, <lineno-of-I> will be associated to a timestamp
             # very close to <ts-before-running-I>, and <next-lineno> to
             # a timestamp very close to <ts-after-running-I>, reflecting
-            # the fact instruction I took a long delay to complete.
+            # the fact instruction I took a given delay to complete.
             # code section --A-- takes care of recording <ts-after-running-I>.
             # code section --B-- records instruction lines such as <lineno-of-I>,
-            # <next-lineno>, and others not related to idle periods.
+            # <next-lineno>, and others not related to these PT sections.
             # code section --C-- takes care of recording <ts-before-running-I>.
             #
             # section --A--
-            if self._idle_period == IdlePeriod.PENDING_IDLE_END:
+            if self._pt_status in (PTStatus.PENDING_END,
+                                     PTStatus.END_OF_SECTION):
                 self._record_timestamp()
-                self._idle_period = IdlePeriod.NONE
+                if self._pt_status == PTStatus.END_OF_SECTION:
+                    self._pt_status = PTStatus.NONE
             # section --B--
             lineno = frame.f_lineno
             if lineno != self._old_line:
@@ -180,9 +184,10 @@ class TrackExecRecorder(LogAbstractManagement):
                 self._bytecode.add(lineno)
                 self._old_line = lineno
             # section --C--
-            if self._idle_period == IdlePeriod.PENDING_IDLE_INSTRUCTION:
+            if self._pt_status in (PTStatus.START_OF_SECTION,
+                                     PTStatus.PENDING_END):
                 self._record_timestamp()
-                self._idle_period = IdlePeriod.PENDING_IDLE_END
+                self._pt_status = PTStatus.PENDING_END
 
     def _record_timestamp(self):
         self._ensure_block_has_room(5)
@@ -199,13 +204,13 @@ class TrackExecRecorder(LogAbstractManagement):
             ts_offset >>= 15
 
     def __enter__(self):
-        """Idle period start boundary function"""
-        self._idle_period = IdlePeriod.PENDING_IDLE_INSTRUCTION
+        """PT section start boundary function"""
+        self._pt_status = PTStatus.START_OF_SECTION
         return self
 
     def __exit__(self, *args):
-        """Idle period end boundary function"""
-        pass
+        """PT section end boundary function"""
+        self._pt_status = PTStatus.END_OF_SECTION
 
     def _stop(self):
         """Function for stopping and flushing"""
@@ -220,7 +225,7 @@ class TrackExecRecorder(LogAbstractManagement):
         cls._instance.start(sys._getframe().f_back)
 
     @classmethod
-    def idle_period_recorder(cls):
+    def precise_timestamping(cls):
         if cls._instance is not None:
             return cls._instance
         else:
