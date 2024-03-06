@@ -73,11 +73,38 @@ class EventLoop(object):
         self.events_per_fd = {}
         self.fd_per_listener_id = {}
         self.planned_events = []
-        self.poller = poll()
+        self.general_poller = poll()
+        self.single_listener_pollers = {}
         self.recursion_depth = 0
+        self.pending_events = {}
         # by default self.idle_period_recorder does nothing, but
         # the caller can update this attribute if needed.
         self.idle_period_recorder = contextlib.nullcontext
+
+    def get_poller(self, single_listener=None):
+        if single_listener is None:
+            return self.general_poller
+        else:
+            fd = single_listener.fileno()
+            poller = self.single_listener_pollers.get(fd, None)
+            if poller is None:
+                events = self.events_per_fd[fd]
+                poller = poll()
+                poller.register(fd, events)
+                self.single_listener_pollers[fd] = poller
+            return poller
+
+    def pop_pending_event(self, single_listener=None):
+        if single_listener is None:
+            if len(self.pending_events) == 0:
+                return None, None, None
+            fd = next(iter(self.pending_events.keys()))
+        else:
+            fd = single_listener.fileno()
+            if fd not in self.pending_events:
+                return None, None, None
+        ev, ts = self.pending_events.pop(fd)
+        return fd, ev, ts
 
     def plan_event(self, ts, target=None, callback=None, repeat_delay=None, **kwargs):
         # Note: We have the risk of planning several events at the same time.
@@ -91,11 +118,15 @@ class EventLoop(object):
         assert callback is not None, "Must specify either target or callback"
         heappush(self.planned_events, (ts, id(kwargs), callback, repeat_delay, kwargs))
 
-    def waiting_for_events(self):
-        return len(self.planned_events) > 0
+    def waiting_for_planned_events(self, single_listener=None):
+        if single_listener is None:
+            return len(self.planned_events) > 0
+        else:
+            # do not handle planned events in single listener mode
+            return False
 
-    def get_timeout(self):
-        if not self.waiting_for_events():
+    def get_timeout(self, **opts):
+        if not self.waiting_for_planned_events(**opts):
             return EventLoop.MAX_TIMEOUT_MS
         else:
             delay_ms = (self.planned_events[0][0] - time()) * 1000
@@ -113,7 +144,7 @@ class EventLoop(object):
         self.listeners_per_fd[fd] = listener
         self.events_per_fd[fd] = events
         self.fd_per_listener_id[id(listener)] = fd
-        self.poller.register(fd, events)
+        self.general_poller.register(fd, events)
         # print 'new listener:', listener
 
     def remove_listener(self, listener, should_close=True):
@@ -124,7 +155,12 @@ class EventLoop(object):
         del self.listeners_per_fd[fd]
         del self.events_per_fd[fd]
         del self.fd_per_listener_id[listener_id]
-        self.poller.unregister(fd)
+        if fd in self.pending_events:
+            del self.pending_events[fd]
+        if fd in self.single_listener_pollers:
+            self.single_listener_pollers[fd].unregister(fd)
+            del self.single_listener_pollers[fd]
+        self.general_poller.unregister(fd)
         if not should_close:
             return True  # done
         # do no fail in case of issue in listener.close()
@@ -146,15 +182,25 @@ class EventLoop(object):
         listener = self.listeners_per_fd[fd]
         return getattr(listener, "allow_reordering", False)
 
-    def loop(self, loop_condition=None):
+    @contextlib.contextmanager
+    def signals_allowed(self):
+        signal.pthread_sigmask(signal.SIG_UNBLOCK, [signal.SIGHUP, signal.SIGCHLD])
+        try:
+            yield
+        finally:
+            signal.pthread_sigmask(signal.SIG_BLOCK, [signal.SIGHUP, signal.SIGCHLD])
+
+    def loop(self, loop_condition=None, single_listener=None):
         self.recursion_depth += 1
+        opts = dict(single_listener=single_listener)
+        poller = self.get_poller(**opts)
         # print(f'__DEBUG__ {current_process().name} loop depth={self.recursion_depth}')
         while True:
             # if previous listener callback fulfilled the condition, quit
             if not self.should_continue(loop_condition):
                 break
             # handle any expired planned event
-            if self.waiting_for_events():
+            if self.waiting_for_planned_events(**opts):
                 should_continue = True
                 now = time()
                 while len(self.planned_events) > 0 and self.planned_events[0][0] <= now:
@@ -178,37 +224,39 @@ class EventLoop(object):
                         break  # this will just break the inner while loop
                 if not should_continue:
                     break  # break the outer while loop
-            # stop the loop if no more listeners
-            if len(self.listeners_per_fd) == 0:
-                break
-            # let selected signals possibly interrupt the wait
-            signal.pthread_sigmask(signal.SIG_UNBLOCK, [signal.SIGHUP, signal.SIGCHLD])
-            # if signals were pending, signal handlers were called immediately by
-            # pthread_sigmask(), and loop_condition status may have changed.
-            if not self.should_continue(loop_condition):
-                break
-            # we will wait for an event
-            # first check if we have pending events we should process right away
-            res = self.poller.poll(0)   # timeout = 0
-            if len(res) == 0:
-                # compute timeout
-                timeout = self.get_timeout()
-                if timeout > 0:
-                    with self.idle_period_recorder():
-                        res = self.poller.poll(timeout)
-            # re-block signals while we are processing
-            signal.pthread_sigmask(signal.SIG_BLOCK, [signal.SIGHUP, signal.SIGCHLD])
-            # save the time of the event as soon as possible
-            ts = time()
-            if len(res) == 0:
-                continue  # poll() was stopped because of the timeout
+            fd, ev, ts = self.pop_pending_event(**opts)
+            if fd is None:
+                # stop the loop if no more listeners
+                if len(self.listeners_per_fd) == 0:
+                    break
+                # first check if we have pending file descriptor notifications
+                # we should process right away
+                res = poller.poll(0)   # timeout = 0
+                if len(res) == 0:
+                    # compute timeout
+                    timeout = self.get_timeout(**opts)
+                    if timeout == 0:
+                        continue    # we are late, run planned events
+                    # we known we will really wait, allow signals to interrupt
+                    with self.signals_allowed():
+                        # if signals were pending, signal handlers were called
+                        # immediately after we allowed them, so loop_condition
+                        # status may have changed.
+                        if not self.should_continue(loop_condition):
+                            break
+                        with self.idle_period_recorder():
+                            res = poller.poll(timeout)
+                if len(res) == 0:
+                    continue  # poll() was stopped because of the timeout
+                # save the time of the events
+                ts = time()
+                for fd, ev in res:
+                    self.pending_events[fd] = (ev, ts)
+                fd, ev, ts = self.pop_pending_event(**opts)
             # Process an event.
-            # We only process one event since we now allow resursive calls to the
-            # event loop, so some of the other events might already be processed
-            # when we return here.
-            # After first event is processed, we let poll() recall us for the next
-            # one if needed.
-            fd, ev = res[0]
+            # Note: we have to keep in mind the possible resursive calls to the
+            # event loop, causing self.pending_events to be modified while we run
+            # listener.handle_event() below.
             listener = self.listeners_per_fd[fd]
             # if error, we will remove the listener below
             should_close = not is_event_ok(ev)
