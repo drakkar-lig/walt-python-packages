@@ -30,11 +30,8 @@ class NodeBootupStatusListener:
         self.nodes_manager = nodes_manager
         self.node_ip, _ = self.sock_file.getpeername()
         self.sock_files_per_ip[self.node_ip] = self.sock_file
-        self.nodes_manager.change_nodes_bootup_status(
-            nodes_ip=[self.node_ip], booted=True
-        )
-        self.set_keepalive()
         self.sock_file.write(b'OK\n')
+        self._confirmed = False
 
     def set_keepalive(self):
         self.sock_file.setsockopt(SOL_SOCKET, SO_KEEPALIVE, 1)
@@ -50,6 +47,13 @@ class NodeBootupStatusListener:
             return None
         return self.sock_file.fileno()
 
+    def confirm_bootup(self):
+        self._confirmed = True
+        self.set_keepalive()
+        self.nodes_manager.change_nodes_bootup_status(
+            nodes_ip=[self.node_ip], booted=True
+        )
+
     # handle_event() will be called when the event loop detects
     # something for us
     def handle_event(self, ts):
@@ -57,6 +61,8 @@ class NodeBootupStatusListener:
             c = self.sock_file.read(1)
             if len(c) == 1:
                 # all is fine
+                if not self._confirmed:
+                    self.confirm_bootup()
                 return True  # continue
             else:
                 err = "empty read"
@@ -67,7 +73,10 @@ class NodeBootupStatusListener:
         # however, detecting a lost connection might take time and actually
         # happen after the node has rebooted and established a new connection.
         # thus we verify that we are managing the latest connection of this node.
-        if self.sock_files_per_ip[self.node_ip] is self.sock_file:
+        if (
+                self._confirmed and
+                self.sock_files_per_ip[self.node_ip] is self.sock_file
+           ):
             print(f"bootup status listener of {self.node_ip}:", err)
             self.nodes_manager.change_nodes_bootup_status(
                 nodes_ip=[self.node_ip], booted=False
