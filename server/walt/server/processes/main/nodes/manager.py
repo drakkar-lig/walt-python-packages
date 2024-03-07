@@ -35,6 +35,7 @@ CMD_START_VNODE = (
     "walt-virtual-node --hostname %(name)s --mac %(mac)s --ip %(ip)s --model %(model)s"
     "                  --server-ip %(server_ip)s --cpu-cores %(cpu_cores)d"
     "                  --ram %(ram)s --disks %(disks)s --networks %(networks)s"
+  """                  --netmask %(netmask)s --gateway "%(gateway)s" """
     "                  --boot-delay %(boot_delay)s --managed"
 )
 
@@ -278,6 +279,8 @@ class NodesManager(object):
             disks=node.conf.get("disks", VNODE_DEFAULT_DISKS),
             networks=node.conf.get("networks", VNODE_DEFAULT_NETWORKS),
             boot_delay=node.conf.get("boot.delay", VNODE_DEFAULT_BOOT_DELAY),
+            netmask=node.netmask,
+            gateway=node.gateway,
         )
         print(cmd)
         popen = BetterPopen(
