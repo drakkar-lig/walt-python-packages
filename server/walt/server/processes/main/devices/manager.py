@@ -216,7 +216,10 @@ class DevicesManager(object):
                     i += 1
 
     def add_or_update(self, requester=None, **args_data):
-        """Returns whether a new equipment (node, switch) was identified"""
+        """Add or update a device in db given **args_data arguments
+
+           Returns a boolean indicating if something really changed.
+        """
         if "type" not in args_data:
             args_data["type"] = "unknown"
         new_equipment = False
@@ -302,14 +305,9 @@ class DevicesManager(object):
             info = f"name={db_data.name}{details} mac={db_data.mac} ip={db_data.ip}"
             logline = f"new {dtype}{ident_log_line} {info}"
             self.logs.platform_log("devices", logline)
-        else:  # otherwise update them
-            if db_data.type == "switch":
-                self.db.update("switches", "mac", **args_data)
-            elif db_data.type == "node":
-                self.db.update("nodes", "mac", **args_data)
         if modified:
             self.db.commit()
-        return new_equipment
+        return modified
 
     def show_device_table(self, unknown_or_not):
         unknown_op = "=" if unknown_or_not else "!="

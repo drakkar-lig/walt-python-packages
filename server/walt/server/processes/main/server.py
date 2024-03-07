@@ -151,11 +151,11 @@ class Server(object):
             image_fullname = self.images.store.get_default_image_fullname(info["model"])
             if image_fullname not in self.images.store:
                 kwargs["type"] = "unknown"
-        self.devices.add_or_update(ip=ip, mac=mac, **kwargs)
+        modified = self.devices.add_or_update(ip=ip, mac=mac, **kwargs)
         if status in ("new", "unknown") and info["type"] == "node":
             # register the walt node or convert the unknown device to a walt node
             self.nodes.register_node(mac=mac, model=info.get("model"))
-        else:
+        elif modified:
             # note: if registering a node (other if case, just above),
             # self.nodes.register_node() takes care of updating dhcpd and named
             # at the end of its procedure.
