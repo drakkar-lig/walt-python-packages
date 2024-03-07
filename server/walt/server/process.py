@@ -504,6 +504,8 @@ class RPCProcessConnector(ProcessConnector):
             args = (context,) + args
         try:
             res = local_service.do(path, args, kwargs)
+        except BreakLoopRequested:
+            raise
         except BaseException as e:
             context.task.return_exception(e)
             return
