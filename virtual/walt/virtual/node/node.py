@@ -395,6 +395,8 @@ def get_env_start(info):
     env.attach_usb = info._attach_usb
     env.reboot_command = info._reboot_command
     env.managed = info._managed
+    env.netmask = info._netmask
+    env.gateway = info._gateway
     if info._managed:
         env.waiter = select.poll()
         env.waiter.register(0, select.POLLIN)   # listen on stdin
@@ -517,8 +519,13 @@ def boot_kvm_unmanaged(env):
 
 @contextmanager
 def api_fake_netboot(env):
-    send_register_request(env)
-    add_network_info(env)
+    # if this program is managed by walt-server-daemon, then
+    # we know the walt server already has all the information
+    # about this node, so we bypass registration
+    if not env.managed:
+        send_register_request(env)
+    if env.netmask is None or env.gateway is None:
+        add_network_info(env)
     yield True
     # nothing to release when leaving the context, in this case
 
@@ -534,8 +541,10 @@ def add_network_info(env):
         print(info)
         if info is None:
             return False
-        env.netmask = info["netmask"]
-        env.gateway = info["gateway"]
+        if env.netmask is None:
+            env.netmask = info["netmask"]
+        if env.gateway is None:
+            env.gateway = info["gateway"]
 
 
 def random_wait():
@@ -601,6 +610,8 @@ class WalTVirtualNode(LoggedApplication):
     _disks = DEFAULT_QEMU_DISKS
     _networks = DEFAULT_QEMU_NETWORKS
     _boot_delay = DEFAULT_BOOT_DELAY
+    _netmask = None
+    _gateway = None
     _managed = False
 
     """run a virtual node"""
@@ -652,6 +663,16 @@ class WalTVirtualNode(LoggedApplication):
     def ip(self, ip):
         """specify node's ip"""
         self._ip = ip
+
+    @cli.switch("--netmask", str)
+    def netmask(self, netmask):
+        """specify node's netmask"""
+        self._netmask = netmask
+
+    @cli.switch("--gateway", str)
+    def gateway(self, gateway):
+        """specify node's gateway"""
+        self._gateway = gateway
 
     @cli.switch("--server-ip", str)
     def server_ip(self, server_ip):
