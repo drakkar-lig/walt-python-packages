@@ -80,6 +80,7 @@ QEMU_ARGS = (
     "             -kernel %(boot_kernel)s"
 )
 STATE = dict(QEMU_PID=None, STOPPING=False)
+STDOUT_BUFFERING_TIME = 0.05
 
 
 # This script is usually called from a terminal in raw mode,
@@ -433,13 +434,15 @@ def boot_kvm_managed(env):
     # start the VM
     args = get_vm_args(env)
     qemu_stdin_r, qemu_stdin_w = os.pipe()
+    qemu_stdout_r, qemu_stdout_w = os.pipe()
     pid = os.fork()
     if pid == 0:
         # child
         os.dup2(qemu_stdin_r, 0)  # set stdin
+        os.dup2(qemu_stdout_w, 1) # set stdout
         os.dup2(1, 2)  # duplicate stdout on stderr
         # cleanup file descriptors
-        for fd in qemu_stdin_r, qemu_stdin_w:
+        for fd in qemu_stdin_r, qemu_stdin_w, qemu_stdout_r, qemu_stdout_w:
             os.close(fd)
         # the qemu process should not automatically receive signals
         # targetting its parent process, thus we run it in a different
@@ -449,17 +452,30 @@ def boot_kvm_managed(env):
     # parent
     STATE["QEMU_PID"] = pid
     # cleanup unused file descriptors
-    os.close(qemu_stdin_r)
+    for fd in qemu_stdin_r, qemu_stdout_w:
+        os.close(fd)
     # open qemu_pid_fd
     qemu_pid_fd = os.pidfd_open(pid)
-    # add qemu_pid_fd to the waiter
+    # add qemu_pid_fd and qemu_stdout_r to the waiter
     env.waiter.register(qemu_pid_fd, select.POLLIN)
+    env.waiter.register(qemu_stdout_r, select.POLLIN)
     while not STATE["STOPPING"]:
-        events = env.waiter.poll(5)
+        events = env.waiter.poll(0.5)
         for fd, event in events:
             if fd == 0:
                 env.stdin_buffer += os.read(0, 256)
-            else:
+            elif qemu_stdout_r is not None and fd == qemu_stdout_r:
+                # we bufferize a little to avoid logging many small
+                # vnode console chunks
+                time.sleep(STDOUT_BUFFERING_TIME)
+                chunk = os.read(qemu_stdout_r, 4096)
+                if len(chunk) == 0:  # empty read
+                    env.waiter.unregister(qemu_stdout_r)
+                    os.close(qemu_stdout_r)
+                    qemu_stdout_r = None
+                else:
+                    os.write(1, chunk)
+            elif qemu_pid_fd is not None and fd == qemu_pid_fd:
                 # qemu process has ended
                 env.waiter.unregister(qemu_pid_fd)
                 os.waitpid(STATE["QEMU_PID"], 0)
