@@ -1,6 +1,9 @@
+import numpy as np
 import pickle
+import psycopg2.extras
 import re
 from datetime import datetime, timedelta
+from psycopg2.extensions import register_adapter, AsIs
 from time import time
 
 from walt.common.tools import get_mac_address
@@ -8,19 +11,19 @@ from walt.server import const
 from walt.server.processes.db.postgres import PostgresDB
 from walt.server.tools import get_server_ip
 
+# allow psycopg2 to interpret numpy types properly
+register_adapter(np.int32, AsIs)
+register_adapter(np.float64, AsIs)
+
 EV_AUTO_COMMIT = 0
 EV_AUTO_COMMIT_PERIOD = 2
 LOGS_AGGREGATION_THRESHOLD_SECS = 0.002
-ONE_SECOND = timedelta(seconds=1)
-ONE_MINUTE = timedelta(minutes=1)
 
 
 class ServerDB(PostgresDB):
     def __init__(self):
         # parent constructor
         PostgresDB.__init__(self)
-        # timestamp for logs deframentation
-        self.timestamp_last_logs = None
 
     def prepare(self):
         PostgresDB.prepare(self)  # parent method
@@ -209,53 +212,7 @@ class ServerDB(PostgresDB):
 
     def handle_planned_event(self, ev_type):
         assert ev_type == EV_AUTO_COMMIT
-        if self.timestamp_last_logs is not None:
-            self.defragment_last_logs(self.timestamp_last_logs)
-            self.timestamp_last_logs = None
         self.commit()
-
-    def defragment_last_logs(self, timestamp_last_logs):
-        self.execute(
-            """
-            WITH q1 AS (
-                    SELECT l.*,
-                      EXTRACT(EPOCH FROM(timestamp - (lag(timestamp, 1) OVER w))) > %s \
-                        AS high_delay
-                    FROM logs l, logstreams s
-                    WHERE l.stream_id = s.id
-                      AND s.mode = 'chunk'
-                      AND timestamp >= %s
-                    WINDOW w AS (PARTITION BY l.stream_id ORDER BY timestamp ASC)),
-                 q2 AS (
-                    SELECT *, (sum(coalesce(high_delay::int, 0)) OVER w) AS group_id
-                    FROM q1
-                    WINDOW w AS (PARTITION BY stream_id ORDER BY timestamp ASC))
-            SELECT stream_id, min(timestamp) AS timestamp,
-                   replace(string_agg(line, '+' ORDER BY timestamp), '''+b''', '') \
-                     AS line
-            INTO TEMPORARY TABLE aggregated_logs
-            FROM q2
-            GROUP BY stream_id, group_id;
-        """,
-            (LOGS_AGGREGATION_THRESHOLD_SECS, timestamp_last_logs),
-        )
-        self.execute(
-            """
-            DELETE FROM logs l
-            WHERE l.timestamp >= %s
-              AND l.stream_id IN (
-                SELECT id FROM logstreams WHERE mode = 'chunk'
-            );
-        """,
-            (timestamp_last_logs,),
-        )
-        self.execute("""
-            INSERT INTO logs
-            SELECT * FROM aggregated_logs;
-        """)
-        self.execute("""
-            DROP TABLE aggregated_logs;
-        """)
 
     def create_server_logs_cursor(self, **kwargs):
         sql, args = self.format_logs_query("l.*", ordering="l.timestamp", **kwargs)
@@ -364,40 +321,18 @@ class ServerDB(PostgresDB):
         self.commit()
 
     def insert_multiple_logs(self, records):
-        if len(records) > 0:
-            record = records[0]
-            ts = record["timestamp"]
-            now = datetime.now()
-            if ts < now - ONE_MINUTE or ts > now + ONE_SECOND:
-                # heavily desynchronized, do not consider this log line
-                # for defragmentation
-                pass
-            else:
-                if self.timestamp_last_logs is None:
-                    self.timestamp_last_logs = ts
-                else:
-                    self.timestamp_last_logs = min(
-                        self.timestamp_last_logs, ts
-                    )
         # due to buffering, we might still get stream_ids of a device
         # recently forgotten, which could lead to a foreign constraint violation
         # (stream_id no longer exists in the logstream table).
-        # we just ignore those log records.
-        cols, formats, values = self.get_insert_cols_and_values("logs", records)
-        l_dot_cols = ",".join(("l." + col) for col in cols.split(","))
-        sql = """INSERT INTO logs(%s)
-                 SELECT %s
-                 FROM (
+        # the following query just ignores those log records.
+        psycopg2.extras.execute_values(self.c, """
+                INSERT INTO logs(timestamp,line,stream_id)
+                SELECT TO_TIMESTAMP(l.timestamp),l.line,l.stream_id
+                FROM (
                     VALUES %s
-                 ) l (%s), logstreams s
-                 WHERE l.stream_id = s.id""" % (
-            cols,
-            l_dot_cols,
-            formats,
-            cols,
-        )
-        self.c.execute(sql + ";", values)
-        # print(f'Inserted {self.c.rowcount} log records')
+                ) l (timestamp,line,stream_id), logstreams s
+                WHERE l.stream_id = s.id""",
+                records)
 
     def get_user_images(self, username):
         sql = f"""  SELECT i.fullname, count(n.mac)>0 as in_use
