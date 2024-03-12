@@ -103,7 +103,7 @@ class APISessionManager(object):
         for task in reversed(self.stack_of_client_tasks):
             self.handle_requester_failed_task(task)
         if self.sent_tasks:
-            self.rpc_session.do_sync.destroy_session(self.session_id)
+            self.rpc_session.do_async.destroy_session(self.session_id)
         self.sock_file.close()
 
     def forward_requester_request(self, path, args, kwargs):
