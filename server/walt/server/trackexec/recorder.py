@@ -15,21 +15,18 @@ from walt.server.trackexec.tools import (
 )
 
 
-# status for Precise Timestamping sections
-class PTStatus:
-    NONE = 0
-    START_OF_SECTION = 1
-    PENDING_END = 2
-    END_OF_SECTION = 3
-
-
 class TrackExecRecorder(LogAbstractManagement):
     _instance = None
 
-    def __init__(self, package, dir_path):
+    def __init__(self, mod_or_package, dir_path):
         super().__init__(dir_path)
         dir_path.mkdir(parents=True, exist_ok=True)
-        self._prefix = package.__path__[0] + '/'
+        if hasattr(mod_or_package, "__path__"):
+            self._prefix = mod_or_package.__path__[0] + '/'
+            self._module_file = None
+        else:
+            self._prefix = None
+            self._module_file = mod_or_package.__file__
         self._filenames = []
         self._id_per_filename = {}
         self._file_ids_stack = Uint16Stack()
@@ -39,7 +36,7 @@ class TrackExecRecorder(LogAbstractManagement):
         self._map_block = np.zeros(1, dtype=map_block_dt(0))
         self._index_block = np.zeros(1, dtype=index_block_dt())
         self._last_timestamp = None
-        self._pt_status = PTStatus.NONE
+        self._pt_section = False   # precise-timestamping sections
         self._pid = getpid()
         (dir_path / "pid").write_text(f"{self._pid}\n")
 
@@ -63,8 +60,8 @@ class TrackExecRecorder(LogAbstractManagement):
         sys.settrace(self._trace_function)
 
     def _register_filename(self, filename):
-        src = Path(self._prefix + filename)
-        dst = self._log_sources_path / filename
+        src = Path(filename)
+        dst = self._log_sources_path / ("." + filename)
         dst.parent.mkdir(parents=True, exist_ok=True)
         dst.write_bytes(src.read_bytes())
         with self._log_sources_order_path.open("a") as f:
@@ -114,15 +111,21 @@ class TrackExecRecorder(LogAbstractManagement):
     def _trace_function(self, frame, event, arg):
         if event == "call":
             filename = frame.f_code.co_filename
-            if not filename.startswith(self._prefix):
-                return  # only trace our own code
             if filename == __file__:
                 return  # avoid this trackexec recorder code too
             if frame.f_code.co_name == "<module>":
                 return  # do not trace module level loading code
+            # only trace selected code
+            if self._prefix is None:
+                # module mode
+                if filename != self._module_file:
+                    return
+            else:
+                # package mode
+                if not filename.startswith(self._prefix):
+                    return
             if self._pid != getpid():
                 return  # this is the code of a forked child, bypass
-            filename = filename[len(self._prefix):]
             file_id = self._id_per_filename.get(filename)
             if file_id is None:
                 file_id = len(self._filenames)
@@ -158,36 +161,16 @@ class TrackExecRecorder(LogAbstractManagement):
                 self._file_ids_stack.level
             )
         elif event == "line":
-            # management of precise timestamping sections:
-            # considering the section is made of a single instruction I,
-            # we want to write the following bytecode
-            # <lineno-of-I><ts-before-running-I><ts-after-running-I><next-lineno>
-            # this way, <lineno-of-I> will be associated to a timestamp
-            # very close to <ts-before-running-I>, and <next-lineno> to
-            # a timestamp very close to <ts-after-running-I>, reflecting
-            # the fact instruction I took a given delay to complete.
-            # code section --A-- takes care of recording <ts-after-running-I>.
-            # code section --B-- records instruction lines such as <lineno-of-I>,
-            # <next-lineno>, and others not related to these PT sections.
-            # code section --C-- takes care of recording <ts-before-running-I>.
-            #
-            # section --A--
-            if self._pt_status in (PTStatus.PENDING_END,
-                                     PTStatus.END_OF_SECTION):
+            # if traversing a precise timestamping section,
+            # record the timestamp of each instruction
+            if self._pt_section:
                 self._record_timestamp()
-                if self._pt_status == PTStatus.END_OF_SECTION:
-                    self._pt_status = PTStatus.NONE
-            # section --B--
+            # record the line number
             lineno = frame.f_lineno
             if lineno != self._old_line:
                 self._ensure_block_has_room(1)
                 self._bytecode.add(lineno)
                 self._old_line = lineno
-            # section --C--
-            if self._pt_status in (PTStatus.START_OF_SECTION,
-                                     PTStatus.PENDING_END):
-                self._record_timestamp()
-                self._pt_status = PTStatus.PENDING_END
 
     def _record_timestamp(self):
         self._ensure_block_has_room(5)
@@ -205,16 +188,20 @@ class TrackExecRecorder(LogAbstractManagement):
 
     def __enter__(self):
         """PT section start boundary function"""
-        self._pt_status = PTStatus.START_OF_SECTION
+        self._pt_section = True
         return self
 
     def __exit__(self, *args):
         """PT section end boundary function"""
-        self._pt_status = PTStatus.END_OF_SECTION
+        # record a timestamp to know how much time the last
+        # instruction of the context took
+        self._record_timestamp()
+        self._pt_section = False
 
     def _stop(self):
         """Function for stopping and flushing"""
         sys.settrace(None)                              # stop tracing
+        self._record_timestamp()                        # record a final timestamp
         self._write_block(force_flush_map_file=True)    # flush
 
     @classmethod

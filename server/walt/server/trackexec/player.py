@@ -70,8 +70,6 @@ class TrackExecPlayer(Pager, LogAbstractManagement):
         self._index_blocks = np.memmap(self._log_index_path,
                                        dtype=index_block_dt(),
                                        mode='r')
-        self._index_blocks_endtime = int(
-                self._log_index_path.lstat().st_mtime * SEC_AS_TS)
         self._src_index = None
         self._map_blocks = None
         self._pending = ""
@@ -79,17 +77,29 @@ class TrackExecPlayer(Pager, LogAbstractManagement):
         self._timestamps_per_pos = None
         self._breakpoints = set()
         self._num_breakpoints_per_block_id = defaultdict(int)
-        self._load_source_index()
-        self._discard_block_data()
+        self._endtime = self._init_compute_endtime()
+        self._init_load_source_index()
+        # start with block 0
         self._block_id = 0
         self._read_block()
         self._update_scrolling = True
+
+    def _init_compute_endtime(self):
+        # compute self._endtime by reading timestamps of the last block
+        self._block_id = len(self._index_blocks) -1
+        self._read_block(compute_timestamps=False)
+        block_ts_start = self._index_blocks[self._block_id]['timestamp']
+        last_ts = None
+        for pos, ts in self._iterate_block_pos_timestamps(block_ts_start):
+            last_ts = ts
+        self._discard_block_data()  # cleanup
+        return last_ts
 
     def _discard_block_data(self):
         self._bytecode = None
         self._map_blocks = None
 
-    def _load_source_index(self):
+    def _init_load_source_index(self):
         # Even if the source index file exists, the trace may be longer now.
         # Let's point self._block_id to the first block not yet indexed.
         # Note: the source index file encodes a tuple of 2 values:
@@ -120,6 +130,7 @@ class TrackExecPlayer(Pager, LogAbstractManagement):
                 f_w.write(cache_content)
             # reset current line number
             self._lineno = None
+        self._discard_block_data()  # cleanup
 
     def _toggle_breakpoint(self, lineno):
         bp = (self._file_id, lineno)
@@ -221,9 +232,8 @@ class TrackExecPlayer(Pager, LogAbstractManagement):
         if compute_timestamps:
             self._compute_pos_timestamps()
 
-    def _compute_pos_timestamps(self):
-        ts_start, ts_end = self._get_block_ts_boundaries()
-        timestamps = [(-1, ts_start)]
+    def _iterate_block_pos_timestamps(self, ts_start, ts_end=None):
+        yield (-1, ts_start)
         last_timestamp = ts_start
         for pos in (self._bytecode == OpCodes.TIMESTAMP).nonzero()[0]:
             # decode the timestamp (was encoded in recorder.py)
@@ -232,21 +242,39 @@ class TrackExecPlayer(Pager, LogAbstractManagement):
                 ts_offset <<= 15
                 ts_offset += n - 1
             ts = last_timestamp + ts_offset
-            timestamps.append((pos, ts))
+            yield (pos, ts)
             last_timestamp = ts
-        timestamps.append((MAP_BLOCK_UINT16_SIZE, ts_end))
+        if ts_end is not None:
+            yield (MAP_BLOCK_UINT16_SIZE, ts_end)
+
+    def _compute_pos_timestamps(self):
+        ts_start, ts_end = self._get_block_ts_boundaries()
+        timestamps = self._iterate_block_pos_timestamps(ts_start, ts_end)
+        # Each timestamp is assigned to the next lineno instruction of
+        # the bytecode. Timestamps of other lineno instructions are
+        # linearly interpolated.
+        next_ts_pos, next_ts = next(timestamps)
         self._timestamps_per_pos = {}
         for lineno in self._browse_block_line_numbers(preserve_state=True):
             pos = self._bytecode_pos - 1  # self._bytecode_pos is actually the next pos
-            insert_pos = bisect.bisect_left(timestamps, (pos,))
-            prev_pos, prev_ts = timestamps[insert_pos-1]
-            next_pos, next_ts = timestamps[insert_pos]
-            ts_offset = int(next_ts - prev_ts)
-            ts_offset *= (pos - prev_pos)
-            ts_offset /= (next_pos - prev_pos)
-            ts = int(prev_ts + ts_offset)
+            if pos > next_ts_pos:
+                # 1st lineno after the timestamp, assign
+                ts = next_ts
+                # prepare linear interpolation for next linenos
+                prev_ts = ts
+                prev_ts_1st_lineno_pos = pos
+                # update info about next timestamp
+                while pos > next_ts_pos:
+                    next_ts_pos, next_ts = next(timestamps)
+            else:
+                # linear interpolation
+                ts_offset = int(next_ts - prev_ts)
+                ts_offset *= (pos - prev_ts_1st_lineno_pos)
+                ts_offset /= (next_ts_pos - prev_ts_1st_lineno_pos)
+                ts = int(prev_ts + ts_offset)
+            # save
             self._timestamps_per_pos[pos] = ts
-        # restore this
+        # restore modified state
         self._bytecode_pos = 0
 
     def _read_ushort(self):
@@ -344,6 +372,8 @@ class TrackExecPlayer(Pager, LogAbstractManagement):
         self._block_id = np.searchsorted(self._index_blocks['timestamp'], target_ts) - 1
         if self._block_id < 0:
             self._block_id = 0
+        if self._block_id >= len(self._index_blocks):
+            self._block_id = len(self._index_blocks) -1
         # discard current block data
         self._map_blocks = None
         self._bytecode = None
@@ -397,7 +427,7 @@ class TrackExecPlayer(Pager, LogAbstractManagement):
     def _get_block_ts_boundaries(self):
         block_ts_start = self._index_blocks[self._block_id]['timestamp']
         if self._is_last_block():
-            block_ts_end = self._index_blocks_endtime
+            block_ts_end = self._endtime
         else:
             block_ts_end = self._index_blocks[self._block_id+1]['timestamp']
         return block_ts_start, block_ts_end
