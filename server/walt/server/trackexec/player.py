@@ -19,6 +19,42 @@ from walt.server.trackexec.tools import (
 )
 
 
+MD_HELP_SCREEN = """
+Shortcut keys:
+* <q>: quit
+* <h>: toggle this help screen
+* <n>/<s>/<c>: next/step/continue like in a debugger
+
+Scrolling in source files:
+* Use arrow keys or page-up / page-down.
+
+Other keys start a full-line command prompt.
+Sample full-line commands:
+```bash
+> b                     # toggle breakpoint at current line
+> b 12                  # toggle breakpoint at line 12
+> j 12:00:16.552353     # jump to selected time
+> j 2024-01-27          # jump to selected date (for long-running programs)
+> j +2s                 # fast-forward 2 seconds
+> j +0.003s             # fast-forward 3 milliseconds
+> j -3m                 # fast-rewind 3 minutes
+> j +1h                 # fast-forward 1 hour
+> j -15d                # fast-rewind 15 days
+> f uniquemod.py        # display file <somewhere>/uniquemod.py
+> f /mod/submod.py      # display file <somewhere>/mod/submod.py
+```
+
+Jumps in time (`j` command) select the last instruction before the exact \
+target time.
+By default, the file displayed reflects the current execution replay
+section. But using `f` command one may display another file, set
+breakpoints on it using `b <line>`, and then press `<c>` (i.e., continue)
+to fast-forward to one of these breakpoints.
+
+Press <h> again to leave this help screen.
+"""
+
+
 # This function is called for each block when building the
 # source index. There may be many blocks to read, depending
 # on how long the process execution has been. For this reason,
@@ -63,7 +99,7 @@ class TrackExecPlayer(Pager, LogAbstractManagement):
         LogAbstractManagement.__init__(self, dir_path)
         self._filenames = []
         self._file_ids_stack = Uint16Stack()
-        self._old_filename = None
+        self._old_display_filename = None
         self._lineno = None
         self._filenames = list(self._log_sources_order_path.read_text().splitlines())
         self._block_id = 0
@@ -83,6 +119,8 @@ class TrackExecPlayer(Pager, LogAbstractManagement):
         self._block_id = 0
         self._read_block()
         self._update_scrolling = True
+        self._help_screen = False
+        self._explicit_display_file_id = None
 
     def _init_compute_endtime(self):
         # compute self._endtime by reading timestamps of the last block
@@ -133,7 +171,7 @@ class TrackExecPlayer(Pager, LogAbstractManagement):
         self._discard_block_data()  # cleanup
 
     def _toggle_breakpoint(self, lineno):
-        bp = (self._file_id, lineno)
+        bp = (self._display_file_id, lineno)
         if bp in self._breakpoints:
             self._breakpoints.discard(bp)
             for block_id in self._src_index[bp]:
@@ -154,23 +192,24 @@ class TrackExecPlayer(Pager, LogAbstractManagement):
         return True
 
     @property
-    def _filename(self):
-        if len(self._file_ids_stack) == 0:
-            return None
-        else:
-            return self._filenames[self._file_ids_stack.top()]
+    def _display_filename(self):
+        return self._filenames[self._display_file_id]
 
     @property
-    def _file_id(self):
-        if len(self._file_ids_stack) == 0:
-            return None
+    def _exec_file_id(self):
+        return self._file_ids_stack.top()
+
+    @property
+    def _display_file_id(self):
+        if self._explicit_display_file_id is not None:
+            return self._explicit_display_file_id
         else:
-            return self._file_ids_stack.top()
+            return self._exec_file_id
 
     @property
     def _state(self):
         """Save the player state"""
-        return (self._file_ids_stack.copy(), self._lineno, self._old_filename,
+        return (self._file_ids_stack.copy(), self._lineno, self._old_display_filename,
                 self._scroll_index, self._block_id, self._bytecode_pos)
 
     @_state.setter
@@ -181,7 +220,7 @@ class TrackExecPlayer(Pager, LogAbstractManagement):
         self._block_id = value[4]
         self._read_block()
         # restore other state attributes
-        (self._file_ids_stack, self._lineno, self._old_filename,
+        (self._file_ids_stack, self._lineno, self._old_display_filename,
          self._scroll_index, self._block_id, self._bytecode_pos) = value
 
     def _bytecode_has_lineno(self, start_pos, end_pos):
@@ -344,7 +383,7 @@ class TrackExecPlayer(Pager, LogAbstractManagement):
                 if len(self._file_ids_stack) <= init_stack_depth:
                     return True
                 # test if we should stop because of a breakpoint
-                if (self._file_id, self._lineno) in self._breakpoints:
+                if (self._exec_file_id, self._lineno) in self._breakpoints:
                     return True
                 # test if we should stop because of reaching the end
                 if self._is_end_of_trace():
@@ -359,7 +398,7 @@ class TrackExecPlayer(Pager, LogAbstractManagement):
             if self._is_last_block() or self._block_has_breakpoints():
                 for lineno in self._browse_block_line_numbers():
                     # test if we should stop because of a breakpoint
-                    if (self._file_id, self._lineno) in self._breakpoints:
+                    if (self._exec_file_id, self._lineno) in self._breakpoints:
                         return True
                     # test if we should stop because of reaching the end
                     if self._is_end_of_trace():
@@ -389,19 +428,22 @@ class TrackExecPlayer(Pager, LogAbstractManagement):
         return True
 
     def get_md_content(self, rows, **env):
-        if self._lineno is None:
-            self._step_file_and_lineno()
+        if self._help_screen:
+            return MD_HELP_SCREEN, 0
         breakpoints = tuple(
                 str(lineno) for (file_id, lineno) in self._breakpoints
-                if file_id == self._file_id)
-        code_flags = f"linenos highlight-line={self._lineno}"
-        code_flags += " breakpoints=" + ",".join(breakpoints)
-        source_text = (self._log_sources_path / self._filename).read_text()
+                if file_id == self._display_file_id)
+        code_flags = "linenos breakpoints=" + ",".join(breakpoints)
+        if self._display_file_id == self._exec_file_id:
+            if self._lineno is None:
+                self._step_file_and_lineno()
+            code_flags += f" highlight-line={self._lineno}"
+        source_text = (self._log_sources_path / self._display_filename).read_text()
         md_text = (f"""
 ```python3 {code_flags}
 {source_text}```
 """)
-        if self._update_scrolling:
+        if self._update_scrolling and self._lineno is not None:
             # by default, we compute the index (scrolling position) to have
             # the highlighted line at one 5th of the screen (or upper if
             # targetting one of the first lines of the file).
@@ -410,7 +452,7 @@ class TrackExecPlayer(Pager, LogAbstractManagement):
             # is still fine.
             scroll_index = max(0, self._lineno - (rows//5))
             if (
-                    self._filename == self._old_filename and
+                    self._display_filename == self._old_display_filename and
                     self._lineno - self._scroll_index > 5 and
                     self._scroll_index + rows - self._lineno > 5
                ):
@@ -439,7 +481,9 @@ class TrackExecPlayer(Pager, LogAbstractManagement):
         return datetime.fromtimestamp(float(ts) / SEC_AS_TS)
 
     def get_header_text(self, cols, **env):
-        location = f"{self._log_sources_path}/{self._filename}:{self._lineno}"
+        if self._help_screen:
+            return ""  # no header
+        location = f"{self._display_filename}:{self._lineno}"
         location_maxlen = cols - len("location: ")
         if len(location) > location_maxlen:
             location = "..." + location[len(location)-location_maxlen+3:]
@@ -452,131 +496,179 @@ class TrackExecPlayer(Pager, LogAbstractManagement):
             flag = ""
         return f"approx. time: {ts}{flag}\nlocation: {location}"
 
-    def get_footer_help_keys(self, scrollable, **env):
-        help_keys = (
-            "<n>: next", "<s>: step", "<q>: quit", "<c>: continue",
-            "<b>, <13b>, <56b>, ...: toggle breakpoints",
-            "<+0.2s>, <-2d>, <2024-01-23@>, <14:52:07.10354@>...: jump in time"
+    def get_footer_help_keys(self, **env):
+        return (
+            '"q": quit', '"h": help about all commands'
         )
-        if scrollable:
-            help_keys += (SCROLL_HELP,)
-        return help_keys
+
+    def _suffix_matches(self, prefix, fragment):
+        for f in self._filenames:
+            idx = 0
+            while True:
+                idx = f.find(fragment, idx)
+                if idx == -1:
+                    break
+                yield prefix + f[idx:]
+                idx += 1
+
+    def complete(self, text, state):
+        if state == 0:  # on first trigger, build possible matches
+            words = text.split()
+            if len(words) != 2 or words[0] != "f" or len(words[1]) < 2:
+                self._compl_matches = []
+            else:
+                fragment = words[1]
+                prefix = text[:-len(fragment)]
+                self._compl_matches = list(set(
+                    self._suffix_matches(prefix, fragment)))
+        # return match indexed by state
+        try:
+            return self._compl_matches[state]
+        except IndexError:
+            return None
 
     def handle_keypress(self, c, **env):
-        if c in "~":                # ignored chars
+        # ignored chars
+        if c in "~\x1b[":
             return
-        state = self._state  # save state
-        command_chars = "bcdhmnqs@"  # these chars mark the end of a command
-        esc_command_chars = "AB56"   # these chars mark the end of an esc command
-        other_chars = "+-\x1b[01234789.:"
-        self.error_message = None  # init
-        invalid_command = False
-        self._pending += c
-        cmd = self._pending
-        if c not in (command_chars + esc_command_chars + other_chars):
-            invalid_command = True
-        elif cmd[:2] == "\x1b[":
-            if len(cmd) > 2:
-                self._pending = ""   # next chars should start from an empty buffer
-                if c == "A":  # up   (we get '\x1b[A')
-                    return Pager.SCROLL_UP
-                elif c == "B":  # down
-                    return Pager.SCROLL_DOWN
-                elif c == "5":  # up
-                    return Pager.SCROLL_PAGE_UP
-                elif c == "6":  # down
-                    return Pager.SCROLL_PAGE_DOWN
-        elif c in command_chars:
-            self._pending = ""   # next chars should start from an empty buffer
-            if cmd[0] in "+-":
-                if c in "dhms":
-                    try:
-                        offset = float(cmd[:-1])
-                    except Exception:
-                        invalid_command = True
-                    if not invalid_command:
+        # set default values, update below when relevant
+        self.error_message = None
+        self._update_scrolling = False
+        exec_cmds = {
+            "n": self._next_file_and_lineno,
+            "s": self._step_file_and_lineno,
+            "c": self._continue
+        }
+        # <h>: toggle help screen
+        if c == "h":
+            self._help_screen = not self._help_screen
+            # if leaving the help screen, recompute appropriate
+            # scrolling position for displaying the source file
+            # (it was set to zero when entering help)
+            if not self._help_screen:
+                self._update_scrolling = True
+            return Pager.UPDATE_MD_CONTENT_NO_RETURN
+        elif self._help_screen:
+            return  # only <h> allows to quit the help screen
+        # <q>: quit
+        if c == "q":
+            return Pager.QUIT
+        # arrow keys, page up / down: scroll
+        if c == "A":  # up   (we get '\x1b[A')
+            return Pager.SCROLL_UP
+        if c == "B":  # down
+            return Pager.SCROLL_DOWN
+        if c == "5":  # up
+            return Pager.SCROLL_PAGE_UP
+        if c == "6":  # down
+            return Pager.SCROLL_PAGE_DOWN
+        if c in exec_cmds:
+            # next/step/continue
+            state = self._state  # save state
+            self._old_display_filename = self._display_filename
+            if exec_cmds[c]():
+                # next/step/continue worked
+                # if a different file was displayed, return
+                # to the one related to the executed section.
+                self._explicit_display_file_id = None
+                # let the pager update the screen
+                self._update_scrolling = True
+                return Pager.UPDATE_MD_CONTENT_NO_RETURN
+            else:  # failed
+                self._state = state   # restore previous state
+        else:
+            # full-line commands
+            prefill = None
+            if c.isalpha() and c.lower() == c:
+                # <b> => prefill "b "; <f> => prefill "f "; etc.
+                prefill = c + " "
+            cmd = self.prompt_command(prefill_text=prefill,
+                                      completer=self).strip()
+            if cmd == "":
+                return Pager.UPDATE_MD_CONTENT_NO_RETURN
+            cmd_args = cmd.split()
+            try:
+                if cmd_args[0] == "b":
+                    # toggle a breakpoint
+                    if len(cmd_args) == 1:
+                        if self._display_file_id != self._exec_file_id:
+                            self.error_message = (
+                                "Error: explicit line number needed. "
+                                "The current execution line is in another file."
+                            )
+                            lineno = -1
+                        else:
+                            lineno = self._lineno
+                    else:
+                        lineno = int(cmd_args[1])
+                    if lineno > 0 and self._toggle_breakpoint(lineno):
+                        return Pager.UPDATE_MD_CONTENT_NO_RETURN
+                elif cmd_args[0] == "j":
+                    # jump in time
+                    time_spec = cmd_args[1]
+                    curr_ts = self._approximate_timestamp()
+                    if time_spec[0] in "+-":
+                        # relative jump
+                        offset, unit = time_spec[:-1], time_spec[-1]
+                        offset = float(offset)
                         offset *= {
                                 "s": SEC_AS_TS,
                                 "m": MIN_AS_TS,
                                 "h": HOUR_AS_TS,
                                 "d": DAY_AS_TS,
-                        }[c]
-                        if self._jump(self._approximate_timestamp() + offset):
-                            self._update_scrolling = True
-                            return Pager.UPDATE_MD_CONTENT_NO_RETURN
+                        }[unit]
+                        ts = curr_ts + offset
+                    else:
+                        curr_unix_ts = curr_ts / SEC_AS_TS
+                        if ':' in time_spec:
+                            # set time
+                            h, m, s = time_spec.split(':')
+                            h, m, s = int(h), int(m), float(s)
+                            curr_date = date.fromtimestamp(curr_unix_ts)
+                            dt = datetime.combine(curr_date, midnight())
+                            dt += timedelta(hours=h, minutes=m, seconds=s)
                         else:
-                            self._state = state   # restore previous state
-            elif cmd[-1] == "@":
-                curr_ts = self._approximate_timestamp()
-                curr_unix_ts = curr_ts / SEC_AS_TS
-                try:
-                    if ':' in cmd:
-                        h, m, s = cmd[:-1].split(':')
-                        h, m, s = int(h), int(m), float(s)
-                        curr_date = date.fromtimestamp(curr_unix_ts)
-                        dt = datetime.combine(curr_date, midnight())
-                        dt += timedelta(hours=h, minutes=m, seconds=s)
+                            # set date
+                            y, m, d = time_spec.split('-')
+                            y, m, d = int(y), int(m), int(d)
+                            curr_time = datetime.fromtimestamp(curr_unix_ts).time()
+                            selected_date = date(year=y, month=m, day=d)
+                            dt = datetime.combine(selected_date, curr_time)
+                        ts = int(dt.timestamp() * SEC_AS_TS)
+                    self._jump(ts)
+                    # if a different file was displayed, ignore and display
+                    # the one related to the point in time we jumped to.
+                    self._explicit_display_file_id = None
+                    self._update_scrolling = True
+                    return Pager.UPDATE_MD_CONTENT_NO_RETURN
+                elif cmd_args[0] == "f":
+                    file_suffix = cmd_args[1]
+                    matching_file_ids = [
+                        i for i, f in enumerate(self._filenames)
+                        if f.endswith(file_suffix)
+                    ]
+                    num_matches = len(matching_file_ids)
+                    if num_matches > 1:
+                        self.error_message = (
+                            f"Error: {num_matches} different file paths could match.")
+                    elif num_matches == 0:
+                        self.error_message = (
+                            f"Error: could not find a matching file path "
+                            "in the exec trace.")
                     else:
-                        y, m, d = cmd[:-1].split('-')
-                        y, m, d = int(y), int(m), int(d)
-                        curr_time = datetime.fromtimestamp(curr_unix_ts).time()
-                        selected_date = date(year=y, month=m, day=d)
-                        dt = datetime.combine(selected_date, curr_time)
-                    ts = int(dt.timestamp() * SEC_AS_TS)
-                except Exception:
-                    invalid_command = True
-                if not invalid_command:
-                    if self._jump(ts):
-                        self._update_scrolling = True
+                        # ok
+                        self._explicit_display_file_id = matching_file_ids[0]
+                        self._scroll_index = 0
                         return Pager.UPDATE_MD_CONTENT_NO_RETURN
-                    else:
-                        self._state = state   # restore previous state
-            elif cmd == "q":
-                return Pager.QUIT
-            elif cmd == "b":
-                if self._toggle_breakpoint(self._lineno):
-                    self._update_scrolling = False
-                    return Pager.UPDATE_MD_CONTENT_NO_RETURN
-            elif cmd[-1] == "b":
-                try:
-                    lineno = int(cmd[:-1])
-                except Exception:
-                    invalid_command = True
-                if lineno < 1:
-                    invalid_command = True
-                if not invalid_command:
-                    if self._toggle_breakpoint(lineno):
-                        self._update_scrolling = False
-                        return Pager.UPDATE_MD_CONTENT_NO_RETURN
-            elif cmd == "n":
-                self._old_filename = self._filename
-                if self._next_file_and_lineno():
-                    self._update_scrolling = True
-                    return Pager.UPDATE_MD_CONTENT_NO_RETURN
-                else:
-                    self._state = state   # restore previous state
-            elif cmd == "s":
-                self._old_filename = self._filename
-                if self._step_file_and_lineno():
-                    self._update_scrolling = True
-                    return Pager.UPDATE_MD_CONTENT_NO_RETURN
-                else:
-                    self._state = state   # restore previous state
-            elif cmd == "c":
-                self._old_filename = self._filename
-                if self._continue():
-                    self._update_scrolling = True
-                    return Pager.UPDATE_MD_CONTENT_NO_RETURN
-                else:
-                    self._state = state   # restore previous state
-            else:
-                invalid_command = True
-        if invalid_command:
-            self.error_message = f"Invalid command: {repr(cmd)}"
-            self._pending = ""  # reset
-        if self.error_message is not None:
-            self._update_scrolling = False
-            return Pager.UPDATE_MD_CONTENT_NO_RETURN
+            except Exception:
+                pass    # invalid, the default
+            if self.error_message is None:
+                self.error_message = (
+                    f"Invalid command: {repr(cmd)} -- press <h> for help")
+        # if we get here, something went wrong
+        assert self.error_message is not None
+        self._update_scrolling = False
+        return Pager.UPDATE_MD_CONTENT_NO_RETURN
 
     @classmethod
     def replay(cls, log_file):

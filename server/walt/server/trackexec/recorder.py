@@ -4,6 +4,7 @@ import sys
 
 from contextlib import nullcontext
 from os import getpid
+from os.path import dirname
 from pathlib import Path
 from time import time
 from walt.server.trackexec.const import (
@@ -13,6 +14,8 @@ from walt.server.trackexec.tools import (
         Uint16Stack, map_block_dt, index_block_dt,
         LogAbstractManagement
 )
+
+TRACKEXEC_SRC_PREFIX = dirname(__file__) + "/"
 
 
 class TrackExecRecorder(LogAbstractManagement):
@@ -111,7 +114,7 @@ class TrackExecRecorder(LogAbstractManagement):
     def _trace_function(self, frame, event, arg):
         if event == "call":
             filename = frame.f_code.co_filename
-            if filename == __file__:
+            if filename.startswith(TRACKEXEC_SRC_PREFIX):
                 return  # avoid this trackexec recorder code too
             if frame.f_code.co_name == "<module>":
                 return  # do not trace module level loading code
