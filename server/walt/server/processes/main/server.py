@@ -215,7 +215,7 @@ class Server(object):
 
     def wf_forget_device_other_steps(self, wf, task, device, **env):
         self.logs.forget_device(device)
-        self.db.forget_device(device.name)
+        self.db.forget_device(device.mac)
         self.dhcpd.update()
         self.named.update()
         self.nodes.forget_device(device.mac)
