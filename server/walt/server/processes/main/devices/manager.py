@@ -296,6 +296,8 @@ class DevicesManager(object):
                 dtype = "switch"
                 details = ""
             elif db_data.type == "node":
+                assert "model" in args_data
+                assert "image" in args_data
                 self.db.insert("nodes", **args_data)
                 dtype = "node"
                 details = f" model={args_data['model']}"

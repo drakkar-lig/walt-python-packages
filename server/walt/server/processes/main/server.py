@@ -287,7 +287,8 @@ class Server(object):
     def create_vnode_using_image(self, name, mac, ip, model, image_fullname):
         # declare node in db
         self.devices.add_or_update(
-            type="node", model=model, ip=ip, mac=mac, name=name, virtual=True
+            type="node", model=model, ip=ip, mac=mac, name=name, virtual=True,
+            image=image_fullname
         )
         self.nodes.register_node(mac=mac, model=model, image_fullname=image_fullname)
         # start background vm
