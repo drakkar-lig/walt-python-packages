@@ -129,6 +129,8 @@ class ServerDB(PostgresDB):
         # indexes
         self.execute("""CREATE INDEX IF NOT EXISTS logs_timestamp_idx
                          ON logs ( timestamp );""")
+        self.execute("""CREATE INDEX IF NOT EXISTS logs_stream_id_idx
+                         ON logs ( stream_id );""")
         self.execute("""CREATE INDEX IF NOT EXISTS logstreams_issuer_mac_name_idx
                          ON logstreams ( issuer_mac, name );""")
         self.execute("""CREATE INDEX IF NOT EXISTS devices_ip_idx
