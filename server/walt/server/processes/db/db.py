@@ -303,22 +303,20 @@ class ServerDB(PostgresDB):
             args,
         )
 
-    def forget_device(self, dev_name):
+    def forget_device(self, mac):
         self.execute(
             """
-            DELETE FROM logs l USING devices d, logstreams s
-                WHERE d.name = %s AND s.issuer_mac = d.mac AND l.stream_id = s.id;
-            DELETE FROM logstreams s USING devices d
-                WHERE d.name = %s AND s.issuer_mac = d.mac;
-            DELETE FROM nodes n USING devices d WHERE d.name = %s AND d.mac = n.mac;
-            DELETE FROM switchports sp USING devices d WHERE d.name = %s AND d.mac = sp.mac;
-            DELETE FROM switches s USING devices d WHERE d.name = %s AND d.mac = s.mac;
-            DELETE FROM topology t USING devices d WHERE d.name = %s AND d.mac = t.mac1;
-            DELETE FROM topology t USING devices d WHERE d.name = %s AND d.mac = t.mac2;
-            DELETE FROM poeoff po USING devices d WHERE d.name = %s AND d.mac = po.mac;
-            DELETE FROM devices d WHERE d.name = %s;
+            DELETE FROM logs l USING logstreams s
+                WHERE s.issuer_mac = %s AND l.stream_id = s.id;
+            DELETE FROM logstreams s WHERE s.issuer_mac = %s;
+            DELETE FROM nodes n WHERE n.mac = %s;
+            DELETE FROM switchports sp WHERE sp.mac = %s;
+            DELETE FROM switches s WHERE s.mac = %s;
+            DELETE FROM topology t WHERE t.mac1 = %s OR t.mac2 = %s;
+            DELETE FROM poeoff po WHERE po.mac = %s;
+            DELETE FROM devices d WHERE d.mac = %s;
         """,
-            (dev_name,) * 9,
+            (mac,) * 9,
         )
         self.commit()
 
