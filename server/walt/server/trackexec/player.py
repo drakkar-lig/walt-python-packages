@@ -88,8 +88,8 @@ def _fast_get_block_line_numbers(startup_stack, bytecode,
             results[results_pos] = (file_id << 16) + opcode
             results_pos += 1
     mask = (1<<16) -1
-    results = np.unique(results[:results_pos])
-    return (results >> 16), (results & mask)
+    results, counts = np.unique(results[:results_pos], return_counts=True)
+    return (results >> 16), (results & mask), counts
 
 
 class TrackExecPlayer(Pager, LogAbstractManagement):
@@ -142,13 +142,13 @@ class TrackExecPlayer(Pager, LogAbstractManagement):
         # Let's point self._block_id to the first block not yet indexed.
         # Note: the source index file encodes a tuple of 2 values:
         # 1. the number of blocks encoded (= the next block_id to encode)
-        # 2. a dictionary (<fild_id>,<lineno>) -> set(<block_ids>)
+        # 2. a dictionary (<fild_id>,<lineno>) -> [set(<block_ids>), <num-occurences>]
         if self._log_sources_index_gz_path.exists():
             with gzip.open(str(self._log_sources_index_gz_path), 'rb') as f_r:
                 cache_content = f_r.read()
             self._block_id, self._src_index = pickle.loads(cache_content)
         else:
-            self._block_id, self._src_index = (0, defaultdict(set))
+            self._block_id, self._src_index = (0, defaultdict(lambda: [set(), 0]))
         num_added_blocks = len(self._index_blocks) - self._block_id
         if num_added_blocks > 0:
             # Analyse blocks which were added to the trace.
@@ -156,11 +156,13 @@ class TrackExecPlayer(Pager, LogAbstractManagement):
                 op_num = block_id + num_added_blocks + 1 - len(self._index_blocks)
                 print(f"Updating source index... {op_num}/{num_added_blocks}\r", end="")
                 self._read_block(compute_timestamps=False)
-                file_ids, linenos = _fast_get_block_line_numbers(
+                file_ids, linenos, counts = _fast_get_block_line_numbers(
                         self._file_ids_stack.view(), self._bytecode,
                         OpCodes.CALL, OpCodes.RETURN, OpCodes.END, OpCodes.TIMESTAMP)
-                for file_id, lineno in zip(file_ids, linenos):
-                    self._src_index[(file_id, lineno)].add(block_id)
+                for file_id, lineno, count in zip(file_ids, linenos, counts):
+                    l = self._src_index[(file_id, lineno)]
+                    l[0].add(block_id)
+                    l[1] += count
             print()
             # Update the source index file
             cache_content = pickle.dumps((self._block_id, self._src_index))
@@ -174,11 +176,11 @@ class TrackExecPlayer(Pager, LogAbstractManagement):
         bp = (self._display_file_id, lineno)
         if bp in self._breakpoints:
             self._breakpoints.discard(bp)
-            for block_id in self._src_index[bp]:
+            for block_id in self._src_index[bp][0]:
                 self._num_breakpoints_per_block_id[block_id] -= 1
         else:
             valid_line = False
-            for block_id in self._src_index[bp]:
+            for block_id in self._src_index[bp][0]:
                 valid_line = True
                 self._num_breakpoints_per_block_id[block_id] += 1
             if valid_line:
@@ -483,7 +485,12 @@ class TrackExecPlayer(Pager, LogAbstractManagement):
     def get_header_text(self, cols, **env):
         if self._help_screen:
             return ""  # no header
-        location = f"{self._display_filename}:{self._lineno}"
+        location = f"{self._display_filename}"
+        if self._display_file_id == self._exec_file_id:
+            location += f":{self._lineno}"
+            location_count = self._src_index[(self._display_file_id, self._lineno)]
+        else:
+            location_count = None
         location_maxlen = cols - len("location: ")
         if len(location) > location_maxlen:
             location = "..." + location[len(location)-location_maxlen+3:]
@@ -494,7 +501,10 @@ class TrackExecPlayer(Pager, LogAbstractManagement):
             flag = " [END OF TRACE]"
         else:
             flag = ""
-        return f"approx. time: {ts}{flag}\nlocation: {location}"
+        header_text = f"approx. time: {ts}{flag}\nlocation: {location}"
+        if location_count is not None:
+            header_text += f"\nThis location appears {location_count} times in the trace."
+        return header_text
 
     def get_footer_help_keys(self, **env):
         return (
