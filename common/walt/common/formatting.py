@@ -80,19 +80,26 @@ def char_len(line):
 def pad_right(text, text_length, width):
     return text + (width - text_length) * " "
 
+def pad_left(text, text_length, width):
+    return (width - text_length) * " " + text
 
-def columnate_format_row(row, row_lengths, colwidths):
+def columnate_format_row(row, row_lengths, colwidths, padding):
     col_spacing = " " * COLUMNATE_SPACING
     return col_spacing.join(
-        pad_right(text, text_length, width)
-        for text, text_length, width in zip(row, row_lengths, colwidths)
+        pad_func(text, text_length, width)
+        for text, text_length, width, pad_func in
+            zip(row, row_lengths, colwidths, padding)
     )
 
 
-def columnate(tabular_data, header=None, shrink_empty_cols=False):
+def columnate(tabular_data, header=None, shrink_empty_cols=False, align=None):
     tabular_data = tuple(columnate_sanitize_data(tabular_data))
     if len(tabular_data) == 0:
         return ""
+    # align cell content on the left if not specified
+    if align is None:
+        align = "<" * len(tabular_data[0])
+    padding = [pad_right if c == "<" else pad_left for c in align]
     if shrink_empty_cols:
         dropped_cols = [
             max(len(cell) for cell in column) == 0 for column in zip(*tabular_data)
@@ -103,6 +110,7 @@ def columnate(tabular_data, header=None, shrink_empty_cols=False):
         ]
         if header is not None:
             header = [t for i, t in enumerate(header) if not dropped_cols[i]]
+        padding = [p for i, p in enumerate(padding) if not dropped_cols[i]]
     all_cells = list(tabular_data)
     if header is not None:
         header = columnate_sanitize_header(header)
@@ -118,7 +126,7 @@ def columnate(tabular_data, header=None, shrink_empty_cols=False):
         all_cell_lengths[1:1] = [sep_line_lengths]
         all_cells[1:1] = [sep_line_row]
     return "\n".join(
-        columnate_format_row(row, row_lengths, colwidths)
+        columnate_format_row(row, row_lengths, colwidths, padding)
         for row, row_lengths in zip(all_cells, all_cell_lengths)
     )
 
