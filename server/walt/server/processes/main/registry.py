@@ -153,7 +153,10 @@ class WalTLocalRegistry:
         )
 
     def image_exists(self, fullname):
-        return self.get_podman_image(fullname) is not None
+        if fullname in self.names_cache:
+            return True
+        else:  # slow path
+            return self.get_podman_image(fullname) is not None
 
     def get_podman_image(self, fullname):
         try:
