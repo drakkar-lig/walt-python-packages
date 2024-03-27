@@ -122,9 +122,11 @@ def wf_client_hard_reboot(wf, requester, remaining_nodes, nodes_manager, reboot_
 
 def wf_filter_poe_rebootable(wf, nodes_manager, remaining_nodes, **env):
     hardreboot_errors = {}
+    connectivity = nodes_manager.devices.get_multiple_connectivity_info(
+            tuple(node.mac for node in remaining_nodes))
     for node in remaining_nodes.copy():
-        sw_info, sw_port = nodes_manager.devices.get_connectivity_info(node.mac)
-        if sw_info:
+        sw_info, sw_port = connectivity.get(node.mac, (None, None))
+        if sw_info is not None and sw_port is not None:
             if sw_info.conf.get("poe.reboots", False) is True:
                 pass  # ok, allowed
             else:
@@ -189,7 +191,11 @@ def wf_poe_poweron(
     wf, ev_loop, blocking, already_off, powered_off, hardreboot_errors, **env
 ):
     all_off = already_off + powered_off
-    blocking.nodes_set_poe(wf.next, all_off, True)
+    if len(all_off) > 0:
+        blocking.nodes_set_poe(wf.next, all_off, True)
+    else:
+        wf.update_env(poweron_result=([], {}))
+        wf.next()
 
 
 def wf_poe_after_poweron(wf, poweron_result, hardreboot_errors, nodes_manager, **env):

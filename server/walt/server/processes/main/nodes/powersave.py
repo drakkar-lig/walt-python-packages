@@ -79,9 +79,12 @@ class PowersaveManager:
     def _wf_toggle_power_on_nodes(
         self, wf, requester, poe_toggle_nodes, poe_toggle_value, **env
     ):
+        connectivity = self.server.devices.get_multiple_connectivity_info(
+            tuple(node.mac for node in poe_toggle_nodes))
         for node in poe_toggle_nodes.copy():
-            sw_info, sw_port = self.server.devices.get_connectivity_info(node.mac)
-            if sw_info and sw_info.conf.get("poe.reboots", False) is True:
+            sw_info, sw_port = connectivity.get(node.mac, (None, None))
+            if (sw_info is not None and sw_port is not None and
+                    sw_info.conf.get("poe.reboots", False) is True):
                 pass  # ok, allowed
             else:  # unknown network position or forbidden on switch
                 poe_toggle_nodes.remove(node)

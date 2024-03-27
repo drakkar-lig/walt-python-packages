@@ -1,3 +1,4 @@
+import numpy as np
 import re
 
 from walt.common.formatting import columnate, format_paragraph
@@ -7,9 +8,7 @@ from walt.server import const
 from walt.server.tools import (
     get_server_ip,
     get_walt_subnet,
-    ip_in_walt_network,
-    merge_named_tuples,
-    to_named_tuple,
+    ip_in_walt_network
 )
 
 DEVICE_NAME_NOT_FOUND = """No device with name '%s' found.\n"""
@@ -155,29 +154,49 @@ class DevicesManager(object):
         return device_info
 
     def get_complete_device_info(self, mac):
-        device_info = self.db.select_unique("devices", mac=mac)
-        if device_info is None:
+        infos = list(self.get_multiple_complete_device_info((mac,)).values())
+        if len(infos) == 0:
             return None
-        device_type = device_info.type
-        if device_type == "node":
-            node_info = self.db.select_unique("nodes", mac=mac)
+        else:
+            return infos[0][0]
+
+    def get_multiple_complete_device_info(self, macs):
+        info = self.db.get_multiple_complete_device_info(macs)
+        if "node" in info:
+            nodes_info = info["node"]
+            # The db function returned node records with all needed fields,
+            # but some of them where returned as NULL; we fill them now.
             # netsetup=NAT can actually be applied to all devices, not only
             # nodes. However, considering only nodes ensures these devices
             # will really boot in walt-net and the netmask + gateway pair
             # will be correct. So we only expose this information to nodes.
-            if device_info.conf.get("netsetup", 0) == NetSetup.NAT:
-                gateway = self.server_ip
-            else:
-                gateway = ""
-            booted = self.server.nodes.is_booted_node_mac(mac)
-            node_info = to_named_tuple(node_info._asdict())
-            node_info = node_info.update(
-                    gateway=gateway, netmask=self.netmask, booted=booted)
-            device_info = merge_named_tuples(device_info, node_info)
-        elif device_type == "switch":
-            switch_info = self.db.select_unique("switches", mac=mac)
-            device_info = merge_named_tuples(device_info, switch_info)
-        return device_info
+            nodes_info.netmask = self.netmask
+            nat_mask = (nodes_info.netsetup == NetSetup.NAT)
+            nodes_info.gateway[nat_mask] = self.server_ip
+            booted_mask = np.isin(nodes_info.mac, list(self.server.nodes.booted_macs))
+            nodes_info.booted = booted_mask
+        return info
+
+    def get_flat_multiple_complete_device_info(self, macs, sortby=None):
+        if len(macs) == 0:
+            return []
+        info = self.get_multiple_complete_device_info(macs)
+        # info is a dictionary with 0 to 4 entries
+        # "node", "switch", "server", and "unknown"
+        # depending on the type of selected devices.
+        # we want a flat list now.
+        if len(info) == 1:
+            # single type, return the numpy array
+            arr = list(info.values())[0]
+            if sortby is not None:
+                arr.sort(order=sortby)
+            return arr
+        else:
+            # return a list of all elements of all arrays
+            l = sum((list(arr) for arr in info.values()), [])
+            if sortby is not None:
+                l = sorted(l, key=(lambda x: getattr(x, sortby)))
+            return l
 
     def get_name_from_ip(self, ip):
         device_info = self.db.select_unique("devices", ip=ip)
@@ -350,17 +369,35 @@ class DevicesManager(object):
     def parse_device_set(
         self, requester, device_set, allowed_device_set=None, allow_empty=False
     ):
-        devices = []
+        device_macs = self.get_device_set_macs(requester, device_set)
+        if device_macs is None:
+            return None
+        # verify selected devices are allowed
+        if allowed_device_set is not None:
+            allowed_dev_macs = self.get_device_set_macs(requester, allowed_device_set)
+            if len(set(device_macs) - set(allowed_dev_macs)) > 0:
+                requester.stderr.write(
+                    f"Invalid value '{device_set}'; allowed devices belong to"
+                    f" '{allowed_device_set}'\n"
+                )
+                return None
+        if len(device_macs) == 0 and not allow_empty:
+            requester.stderr.write(
+                "No matching devices found! (tip: walt help show node-ownership)\n"
+            )
+            return None
+        return self.get_flat_multiple_complete_device_info(device_macs, sortby="name")
+
+    def get_device_set_macs(self, requester, device_set):
+        device_macs = []
         if "," in device_set:
             for subset in device_set.split(","):
-                subset_devices = self.parse_device_set(
-                    requester, subset, allow_empty=True
-                )
-                if subset_devices is None:
+                subset_macs = self.get_device_set_macs(requester, subset)
+                if subset_macs is None:
                     return None
-                devices += subset_devices
+                device_macs += subset_macs
         elif device_set == "server":
-            devices = [self.get_complete_device_info(self.server_mac)]
+            device_macs += [self.server_mac]
         else:
             username = requester.get_username()
             if not username:
@@ -373,34 +410,15 @@ class DevicesManager(object):
                 sql = DEVICE_SET_QUERIES[device_set]
             if sql is not None:
                 # retrieve devices from database
-                device_macs = [record[0] for record in self.db.execute(sql)]
+                device_macs += [record[0] for record in self.db.execute(sql)]
             else:
                 # otherwise a specific device is requested by name
                 dev_name = device_set
                 dev_info = self.get_device_info(requester, dev_name)
                 if dev_info is None:
                     return None
-                device_macs = [dev_info.mac]
-            # get complete devices info
-            devices = [self.get_complete_device_info(mac) for mac in device_macs]
-        # verify selected devices are allowed
-        if allowed_device_set is not None:
-            allowed_dev_names = set(
-                d.name for d in self.parse_device_set(requester, allowed_device_set)
-            )
-            for d in devices:
-                if d.name not in allowed_dev_names:
-                    requester.stderr.write(
-                        f"Invalid value '{device_set}'; allowed devices belong to"
-                        f" '{allowed_device_set}'\n"
-                    )
-                    return None
-        if len(devices) == 0 and not allow_empty:
-            requester.stderr.write(
-                "No matching devices found! (tip: walt help show node-ownership)\n"
-            )
-            return None
-        return sorted(devices)
+                device_macs += [dev_info.mac]
+        return device_macs
 
     def as_device_set(self, names):
         return ",".join(sorted(names))
@@ -411,19 +429,14 @@ class DevicesManager(object):
             return None
         return self.as_device_set(d.name for d in devices)
 
-    def get_connectivity_info(self, device_mac):
-        # we look for a record where mac1 or mac2 equals device_mac
-        records = list(self.db.select("topology", mac1=device_mac))
-        records += list(self.db.select("topology", mac2=device_mac))
-        if len(records) != 1:
-            return (None, None)
-        record = records[0]
-        if record.mac1 == device_mac:
-            switch_mac, switch_port = record.mac2, record.port2
-        else:
-            switch_mac, switch_port = record.mac1, record.port1
-        switch_info = self.get_complete_device_info(switch_mac)
-        return switch_info, switch_port
+    def get_multiple_connectivity_info(self, device_macs):
+        assert len(device_macs) > 0
+        arr = self.db.get_multiple_connectivity_info(device_macs)
+        sw_info_fields = set(arr.dtype.names) - {"device_mac", "port"}
+        sw_infos = arr[list(sw_info_fields)]
+        sw_info_it = (None if sw_info.mac is None else sw_info for sw_info in sw_infos)
+        it = zip(arr.device_mac, sw_info_it, arr.port)
+        return {mac: (sw_info, sw_port) for (mac, sw_info, sw_port) in it}
 
     def prepare_netsetup(self):
         # force-create the chain WALT and assert it is empty

@@ -162,9 +162,6 @@ class Server(object):
             self.dhcpd.update()
             self.named.update()
 
-    def get_device_info(self, device_mac):
-        return dict(self.devices.get_complete_device_info(device_mac)._asdict())
-
     def rename_device(self, requester, old_name, new_name):
         result = self.devices.rename(requester, old_name, new_name)
         if result is True:

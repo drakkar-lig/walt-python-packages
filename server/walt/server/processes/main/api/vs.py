@@ -1,5 +1,6 @@
 from walt.common.api import api, api_expose_method
 from walt.server.processes.main.apisession import APISession
+from walt.server.tools import np_record_to_dict
 
 # Virtual component -> Server API (thus the name VSAPI)
 # Provides remote calls performed from a virtual component to the server.
@@ -13,7 +14,8 @@ class VSAPI(APISession):
 
     @api_expose_method
     def get_device_info(self, context, device_mac):
-        return context.server.get_device_info(device_mac)
+        return np_record_to_dict(
+                context.server.devices.get_complete_device_info(device_mac))
 
     @api_expose_method
     def vpn_request_grant(self, context, device_mac):

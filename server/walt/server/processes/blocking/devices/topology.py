@@ -881,10 +881,13 @@ class TopologyManager(object):
     def nodes_set_poe(self, server, db, nodes, poe_status, reason=None):
         # turning off a PoE port without giving a reason is not allowed
         assert not (poe_status is False and reason is None)
+        assert len(nodes) > 0
         nodes_ok, errors = [], {}
+        # we have to know on which PoE switch port each node is
+        connectivity = server.devices.get_multiple_connectivity_info(
+            tuple(node.mac for node in nodes))
         for node in nodes:
-            # we have to know on which PoE switch port the node is
-            switch_info, switch_port = server.devices.get_connectivity_info(node.mac)
+            switch_info, switch_port = connectivity[node.mac]
             # let's request the switch to enable or disable the PoE
             result = self.sw_port_set_poe(
                 db, switch_info, switch_port, poe_status, reason=reason
