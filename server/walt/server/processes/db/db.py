@@ -231,6 +231,76 @@ class ServerDB(PostgresDB):
                           AND d.name IN %s;""" % issuer_names
             return self.execute(sql)
 
+    def _sql_condition_mac_in_set(self, var, macs):
+        return (f"{var} in (" + ",".join(["%s"] * len(macs)) + ")")
+
+    def get_multiple_complete_device_info(self, macs):
+        sql = ("SELECT * FROM devices WHERE " +
+               self._sql_condition_mac_in_set("mac", macs) +
+               " ORDER BY type")
+        devices_info = self.execute(sql, macs)
+        result = {}
+        while len(devices_info) > 0:
+            t = devices_info[0].type
+            max_idx = np.argwhere(devices_info.type == t).ravel().max()
+            if t == "node":
+                nodes_macs = devices_info[:max_idx+1].mac
+                # gateway, netmask and booted flag will be filled in
+                # by main process, but we reserve these attributes
+                # right away.
+                result["node"] = self.execute(
+                    "SELECT d.*, n.image, n.model, "
+                      "false as booted, '' as gateway, NULL as netmask, "
+                      "COALESCE((d.conf->'netsetup')::int, 0) as netsetup "
+                    "FROM devices d, nodes n "
+                    "WHERE d.mac = n.mac AND " +
+                    self._sql_condition_mac_in_set("d.mac", nodes_macs),
+                    nodes_macs)
+            elif t == "switch":
+                switches_macs = devices_info[:max_idx+1].mac
+                result["switch"] = self.execute(
+                    "SELECT d.*, s.model "
+                    "FROM devices d, switches s "
+                    "WHERE d.mac = s.mac AND " +
+                    self._sql_condition_mac_in_set("d.mac", switches_macs),
+                    switches_macs)
+            else:
+                result[t] = devices_info[:max_idx+1]
+            devices_info = devices_info[max_idx+1:]
+        return result
+
+    def get_multiple_connectivity_info(self, device_macs):
+        # we look for records where mac1 or mac2 equals device_mac.
+        # we return a numpy table with fields "device_mac", "port",
+        # and other fields describing the switch.
+        # cte2 allows to filter out cases where a device has multiple
+        # connection points in the topology table (this may occur
+        # because of an internal switch cache, when we move a device
+        # from one network position to another), preferring any
+        # position with flag confirmed=True.
+        row_values_placeholder = ",".join(["(%s)"] * len(device_macs))
+        return self.execute(f"""
+            with cte0 as (
+                select * from (values {row_values_placeholder}) as t(device_mac)),
+            cte1 as (
+                select device_mac, mac2 as mac, port2 as port, confirmed
+                from topology, cte0
+                where mac1 = device_mac
+                union
+                select device_mac, mac1 as mac, port1 as port, confirmed
+                from topology, cte0
+                where mac2 = device_mac),
+            cte2 as (
+                select *,
+                    ROW_NUMBER() OVER(
+                        PARTITION BY device_mac ORDER BY confirmed desc, device_mac)
+                    AS rownum from cte1)
+            select t.device_mac, t.port, d.*, s.model
+            from cte2 t
+            left join switches s on s.mac = t.mac
+            left join devices d on d.mac = s.mac
+            where rownum = 1""", device_macs)
+
     def count_logs(
         self, history, streams=None, issuers=None, stream_mode=None, **kwargs
     ):
