@@ -1,3 +1,6 @@
+from walt.server.tools import np_record_to_dict
+
+
 def stream_db_logs(db, logs_handler, **params):
     # ensure all past logs are commited
     db.commit()
@@ -11,7 +14,7 @@ def stream_db_logs(db, logs_handler, **params):
         record = db.step_server_cursor(cursor_name)
         if record is None:
             break
-        d = record._asdict()
+        d = np_record_to_dict(record)
         if logs_handler.write_to_client(issuers_filtered=True, **d) is False:
             break
     # delete server cursor

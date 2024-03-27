@@ -1,82 +1,11 @@
-import pickle
 from ipaddress import IPv4Address, ip_address, ip_network
 from typing import Union
 
 DEFAULT_JSON_HTTP_TIMEOUT = 10
 
 
-# wrapper to make a named tuple serializable using pickle
-# even if it was built from a local class
-class SerializableNT:
-    def __init__(self, nt=None):
-        self.nt = nt
-
-    def __getstate__(self):
-        return self.nt._asdict()
-
-    def __setstate__(self, d):
-        self.nt = to_named_tuple(d)
-
-    def __getattr__(self, attr):
-        return getattr(self.nt, attr)
-
-    def __iter__(self):
-        return iter(self.nt)
-
-    def __len__(self):
-        return len(self.nt)
-
-    def __getitem__(self, i):
-        return self.nt[i]
-
-    def __lt__(self, other):
-        return self.nt < other
-
-    def __gt__(self, other):
-        return self.nt > other
-
-    def __eq__(self, other):
-        return self.nt == other
-
-    @staticmethod
-    def get_factory(nt_cls):
-        def create(*args, **kwargs):
-            nt = nt_cls(*args, **kwargs)
-            return SerializableNT(nt)
-
-        return create
-
-
-nt_index = 0
-nt_classes = {}
-
-
-def build_named_tuple_cls(d):
-    global nt_index
-    from collections import namedtuple
-    code = pickle.dumps(tuple(d.keys()))
-    if code not in nt_classes:
-        base = namedtuple("NamedTuple_%d" % nt_index, list(d.keys()))
-
-        class NT(base):
-            def update(self, **kwargs):
-                d = self._asdict()
-                d.update(**kwargs)
-                return to_named_tuple(d)
-
-        nt_classes[code] = SerializableNT.get_factory(NT)
-        nt_index += 1
-    return nt_classes[code]
-
-
-def to_named_tuple(d):
-    return build_named_tuple_cls(d)(**d)
-
-
-def merge_named_tuples(nt1, nt2):
-    d = nt1._asdict()
-    d.update(nt2._asdict())
-    return to_named_tuple(d)
+def np_record_to_dict(record):
+    return dict(zip(record.dtype.names,record))
 
 
 def update_template(path, template_env):
@@ -259,35 +188,6 @@ def get_registry_labels():
 
 def get_clone_url_locations():
     return ("docker", "walt") + get_registry_labels()
-
-
-# we wrap database record objects otherwise they cannot be pickled
-class DBRecord(SerializableNT):
-    pass
-
-
-class DBRecordSet:
-    def __init__(self, records=None):
-        self.records = records
-
-    def __getstate__(self):
-        return [row._asdict() for row in self.records]
-
-    def __setstate__(self, dict_records):
-        if len(dict_records) == 0:
-            self.records = []
-        else:
-            nt_cls = build_named_tuple_cls(dict_records[0])
-            self.records = [nt_cls(**row) for row in dict_records]
-
-    def __iter__(self):
-        return iter(self.records)
-
-    def __len__(self):
-        return len(self.records)
-
-    def __getitem__(self, i):
-        return self.records[i]
 
 
 # parse_date() handles the following example formats:

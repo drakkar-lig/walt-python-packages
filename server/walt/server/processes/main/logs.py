@@ -9,7 +9,7 @@ from time import time
 from walt.common.constants import WALT_SERVER_NETCONSOLE_PORT
 from walt.common.tcp import PICKLE_VERSION, Requests, read_pickle, write_pickle
 from walt.common.udp import udp_server_socket
-from walt.server.tools import get_server_ip
+from walt.server.tools import get_server_ip, np_record_to_dict
 
 TEN_YEARS = 3600 * 24 * 365 * 10
 LOG_DT = np.dtype([('timestamp', np.float64),
@@ -266,7 +266,8 @@ class LogsToSocketHandler(object):
     def write_to_client(self, stream_id, issuers_filtered=False, **record):
         try:
             if stream_id not in self.cache:
-                self.cache[stream_id] = self.manager.get_stream_info(stream_id)
+                self.cache[stream_id] = np_record_to_dict(
+                        self.manager.get_stream_info(stream_id))
             stream_info = self.cache[stream_id]
             # when data comes from the db, issuers are already filtered,
             # while data coming from the hub has to be filtered.
@@ -446,7 +447,7 @@ class LogsManager(object):
                      AND s.issuer_mac = d.mac
                 """
             % stream_id
-        )[0]._asdict()
+        )[0]
 
     def platform_log(self, stream_name, line, error=False):
         # print at stdout / stderr too

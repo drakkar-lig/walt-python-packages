@@ -6,6 +6,7 @@ from walt.common.tcp import PICKLE_VERSION
 from walt.common.tools import format_image_fullname
 from walt.server.processes.main.apisession import APISession
 from walt.server.processes.main.images.image import validate_image_name
+from walt.server.tools import np_record_to_dict
 
 # Client -> Server API (thus the name CSAPI)
 # Provides remote calls performed from a client to the server.
@@ -53,7 +54,7 @@ class CSAPI(APISession):
     @api_expose_method
     def get_nodes_info(self, context, node_set):
         return tuple(
-            info._asdict()
+            np_record_to_dict(info)
             for info in context.nodes.get_nodes_info(context.requester, node_set)
         )
 
@@ -78,7 +79,7 @@ class CSAPI(APISession):
     @api_expose_method
     def parse_set_of_nodes(self, context, node_set):
         nodes = context.nodes.parse_node_set(context.requester, node_set)
-        if nodes:
+        if nodes is not None:
             return tuple(n.name for n in nodes)
 
     @api_expose_method
@@ -86,7 +87,7 @@ class CSAPI(APISession):
         devices = context.devices.parse_device_set(
             context.requester, device_set, allowed_device_set=allowed_device_set
         )
-        if devices:
+        if devices is not None:
             return tuple(d.name for d in devices)
 
     @api_expose_method
@@ -149,7 +150,7 @@ class CSAPI(APISession):
         device_info = context.devices.get_device_info(context.requester, device_name)
         if device_info is None:
             return None
-        return device_info._asdict()
+        return np_record_to_dict(device_info)
 
     @api_expose_method
     def fix_image_owner(self, context, other_user):

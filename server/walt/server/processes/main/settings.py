@@ -17,7 +17,7 @@ from walt.server.processes.main.nodes.manager import (
     NODE_DEFAULT_BOOT_TIMEOUT,
     NODE_MIN_BOOT_TIMEOUT,
 )
-from walt.server.tools import ip_in_walt_network
+from walt.server.tools import ip_in_walt_network, np_record_to_dict
 
 
 def uncapitalize(s):
@@ -650,7 +650,7 @@ class SettingsManager:
                 pass  # update in DB (below) is enough
             elif setting_name == "type":
                 for device_info in device_infos:
-                    device_info = device_info._asdict()
+                    device_info = np_record_to_dict(device_info)
                     device_info.update(type=setting_value)
                     self.server.devices.add_or_update(
                         requester=requester, **device_info
