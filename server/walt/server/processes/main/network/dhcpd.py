@@ -183,7 +183,7 @@ def get_contiguous_ranges(ips):
 def generate_dhcpd_conf(subnet, devices):
     confs_per_category = defaultdict(list)
     for device_info in devices:
-        conf = HOST_CONF_PATTERN % device_info._asdict()
+        conf = HOST_CONF_PATTERN % device_info
         conf_category_list = confs_per_category[
             (device_info.netsetup, device_info.type)
         ]

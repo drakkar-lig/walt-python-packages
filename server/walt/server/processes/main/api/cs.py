@@ -6,6 +6,7 @@ from walt.common.tcp import PICKLE_VERSION
 from walt.common.tools import format_image_fullname
 from walt.server.processes.main.apisession import APISession
 from walt.server.processes.main.images.image import validate_image_name
+from walt.server.tools import np_record_to_dict
 
 # Client -> Server API (thus the name CSAPI)
 # Provides remote calls performed from a client to the server.
@@ -53,7 +54,7 @@ class CSAPI(APISession):
     @api_expose_method
     def get_nodes_info(self, context, node_set):
         return tuple(
-            info._asdict()
+            np_record_to_dict(info) VOIR si on peut faire mieux, recuperer un array et les traiter en global
             for info in context.nodes.get_nodes_info(context.requester, node_set)
         )
 

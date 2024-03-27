@@ -7,9 +7,7 @@ from walt.server import const
 from walt.server.tools import (
     get_server_ip,
     get_walt_subnet,
-    ip_in_walt_network,
-    merge_named_tuples,
-    to_named_tuple,
+    ip_in_walt_network
 )
 
 DEVICE_NAME_NOT_FOUND = """No device with name '%s' found.\n"""
@@ -155,29 +153,24 @@ class DevicesManager(object):
         return device_info
 
     def get_complete_device_info(self, mac):
-        device_info = self.db.select_unique("devices", mac=mac)
-        if device_info is None:
+        info = self.db.get_complete_device_info(mac)
+        if info is None:
             return None
-        device_type = device_info.type
+        device_type = info.type
         if device_type == "node":
-            node_info = self.db.select_unique("nodes", mac=mac)
+            # The db function returned a record with all needed fields,
+            # but some of them where returned as NULL; we fill them now.
             # netsetup=NAT can actually be applied to all devices, not only
             # nodes. However, considering only nodes ensures these devices
             # will really boot in walt-net and the netmask + gateway pair
             # will be correct. So we only expose this information to nodes.
-            if device_info.conf.get("netsetup", 0) == NetSetup.NAT:
-                gateway = self.server_ip
+            if info.conf.get("netsetup", 0) == NetSetup.NAT:
+                info.gateway = self.server_ip
             else:
-                gateway = ""
-            booted = self.server.nodes.is_booted_node_mac(mac)
-            node_info = to_named_tuple(node_info._asdict())
-            node_info = node_info.update(
-                    gateway=gateway, netmask=self.netmask, booted=booted)
-            device_info = merge_named_tuples(device_info, node_info)
-        elif device_type == "switch":
-            switch_info = self.db.select_unique("switches", mac=mac)
-            device_info = merge_named_tuples(device_info, switch_info)
-        return device_info
+                info.gateway = ""
+            info.booted = self.server.nodes.is_booted_node_mac(mac)
+            info.netmask = self.netmask
+        return info
 
     def get_name_from_ip(self, ip):
         device_info = self.db.select_unique("devices", ip=ip)
@@ -400,7 +393,7 @@ class DevicesManager(object):
                 "No matching devices found! (tip: walt help show node-ownership)\n"
             )
             return None
-        return sorted(devices)
+        return sorted(devices, key=lambda x: x.name)
 
     def as_device_set(self, names):
         return ",".join(sorted(names))

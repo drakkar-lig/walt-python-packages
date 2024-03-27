@@ -1,3 +1,4 @@
+import numpy as np
 import shlex
 import uuid
 from subprocess import PIPE, Popen
@@ -7,7 +8,6 @@ import psycopg2
 from psycopg2.extras import NamedTupleCursor
 from walt.common.formatting import columnate
 from walt.server.const import WALT_DBNAME, WALT_DBUSER
-from walt.server.tools import DBRecord, DBRecordSet
 
 
 class PostgresDB:
@@ -50,11 +50,15 @@ class PostgresDB:
     def commit(self):
         self.conn.commit()
 
+    def _np_recordset(self, cursor):
+        dt = np.dtype([(col.name, object) for col in cursor.description])
+        return np.array(cursor.fetchall(), dt).view(np.recarray)
+
     def execute(self, query, query_args=None):
         self.c.execute(query, query_args)
         if self.c.description is None:  # it was not a select query
             return None
-        return DBRecordSet(self.c.fetchall())
+        return self._np_recordset(self.c)
 
     # with server cursors, the resultset is not sent all at once to the client.
     def create_server_cursor(self, sql, args):
@@ -66,18 +70,20 @@ class PostgresDB:
             name=name, cursor_factory=NamedTupleCursor, withhold=True
         )
         cursor.execute(sql, args)
-        self.server_cursors[name] = cursor
+        dt = np.dtype([(col.name, object) for col in cursor.description])
+        self.server_cursors[name] = (cursor, dt)
         return name
 
     def step_server_cursor(self, name):
-        row = self.server_cursors[name].fetchone()
+        row = self.server_cursors[name][0].fetchone()
         if row is None:
             return None
         else:
-            return DBRecord(row)
+            # construct a recarray with a single row, return this row
+            return np.array([row], self.server_cursors[name][1]).view(np.recarray)[0]
 
     def delete_server_cursor(self, name):
-        self.server_cursors[name].close()
+        self.server_cursors[name][0].close()
         del self.server_cursors[name]
 
     def get_column_names(self, table):
@@ -195,29 +201,28 @@ class PostgresDB:
     # allow statements like:
     # mem_db.select("network", ip=ip)
     def select(self, table, **kwargs):
-        return DBRecordSet(self.select_no_fetch(table, **kwargs).fetchall())
+        c = self.select_no_fetch(table, **kwargs)
+        return self._np_recordset(c)
 
     # same as above but expect only one matching record
     # and return it.
     def select_unique(self, table, **kwargs):
-        record_list = self.select(table, **kwargs)
-        if len(record_list) == 0:
+        recordset = self.select(table, **kwargs)
+        if len(recordset) == 0:
             return None
         else:
-            return DBRecord(record_list[0])
+            return recordset[0]
 
     def pretty_printed_table(self, table):
         return self.pretty_printed_select("select * from %s;" % table)
 
     def pretty_printed_select(self, *args):
-        self.c.execute(*args)
-        col_names = [col_desc[0] for col_desc in self.c.description]
-        return columnate(self.c.fetchall(), header=col_names)
+        resultset = self.execute(*args)
+        return columnate(resultset, header=resultset.dtype.names)
 
     def pretty_print_select_info(self, *args):
-        self.c.execute(*args)
-        col_names = [col_desc[0] for col_desc in self.c.description]
-        return DBRecordSet(self.c.fetchall()), col_names
+        resultset = self.execute(*args)
+        return resultset, resultset.dtype.names
 
     def pretty_printed_resultset(self, res):
         if len(res) == 0:

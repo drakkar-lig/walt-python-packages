@@ -231,6 +231,32 @@ class ServerDB(PostgresDB):
                           AND d.name IN %s;""" % issuer_names
             return self.execute(sql)
 
+    def get_complete_device_info(self, mac):
+        device_info = self.select_unique("devices", mac=mac)
+        if device_info is None:
+            return None
+        device_type = device_info.type
+        if device_type == "node":
+            # gateway, netmask and booted flag will be filled in
+            # by main process, but we reserve these attributes
+            # right away.
+            resultset = self.execute(
+                "SELECT d.*, n.image, n.model, "
+                  "NULL as booted, NULL as gateway, NULL as netmask "
+                "FROM devices d, nodes n "
+                "WHERE d.mac = n.mac AND d.mac = %s",
+                (mac,))
+            return resultset[0]
+        elif device_type == "switch":
+            resultset = self.execute(
+                "SELECT d.*, s.model "
+                "FROM devices d, switches s "
+                "WHERE d.mac = s.mac AND d.mac = %s",
+                (mac,))
+            return resultset[0]
+        else:
+            return device_info
+
     def count_logs(
         self, history, streams=None, issuers=None, stream_mode=None, **kwargs
     ):
