@@ -189,7 +189,6 @@ def validate_cp(image_or_node_label, server, requester, src, dst):
         src_path=src_path,
         client_operand_index=client_operand_index,
     )
-    print(info)
     return info
 
 
