@@ -77,6 +77,7 @@ class EventLoop(object):
         self.single_listener_pollers = {}
         self.recursion_depth = 0
         self.pending_events = {}
+        self.disabled_listener = None
         # by default self.idle_section_hook does nothing, but
         # the caller can set this attribute with a context
         # manager object if needed.
@@ -193,6 +194,16 @@ class EventLoop(object):
 
     def loop(self, loop_condition=None, single_listener=None):
         self.recursion_depth += 1
+        # in case of a recursive call to loop() while processing
+        # listener.handle_event() with a listener that disallow
+        # event reordering, we temporarily remove the listener
+        # during this recursive call.
+        disabled_listener_info = self.disabled_listener
+        if disabled_listener_info is not None:
+            disabled_listener, _ = disabled_listener_info
+            # print(f'__DEBUG__ temp remove {listener}')
+            self.remove_listener(disabled_listener, should_close=False)
+            self.disabled_listener = None
         opts = dict(single_listener=single_listener)
         poller = self.get_poller(**opts)
         # print(f'__DEBUG__ {current_process().name} loop depth={self.recursion_depth}')
@@ -265,23 +276,29 @@ class EventLoop(object):
                 # unless the listener allows event reordering, we prevent the event loop
                 # to process a future event recursively (while processing
                 # listener.handle_event(ts)) on the same listener by temporarily
-                # removing it from the event loop.
+                # disabling it. For performance, we actually call remove_listener()
+                # (and then register_listener() to restore it) lazily in the recursive
+                # call, if any, because those recursive calls are rare.
                 allow_reordering = self.reordering_allowed(fd)
                 if not allow_reordering:
-                    events = self.events_per_fd[fd]  # save for reuse below
-                    # print(f'__DEBUG__ temp remove {listener}')
-                    self.remove_listener(listener, should_close=False)
+                    events = self.events_per_fd[fd]
+                    self.disabled_listener = (listener, events)
                 # let the listener handle the event
                 res = listener.handle_event(ts)
                 # restore listener is it was temporarily removed
                 if not allow_reordering:
-                    # print(f'__DEBUG__ temp restore {listener}')
-                    self.register_listener(listener, events)
+                    self.disabled_listener = None
                 # if False was returned, we will
                 # close this listener.
                 should_close = res is False
             if should_close:
                 self.remove_listener(listener)
+        # restore the temporarily disabled listener if any
+        if disabled_listener_info is not None:
+            disabled_listener, events = disabled_listener_info
+            self.register_listener(disabled_listener, events)
+            self.disabled_listener = disabled_listener_info
+            # print(f'__DEBUG__ temp restore {disabled_listener}')
         # print(f'__DEBUG__ {current_process().name} end depth={self.recursion_depth}')
         self.recursion_depth -= 1
 
