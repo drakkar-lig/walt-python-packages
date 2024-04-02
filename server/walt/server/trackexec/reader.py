@@ -1,8 +1,10 @@
 import gzip
 import numpy as np
 import pickle
+import tarfile
 
 from collections import defaultdict
+from functools import cache
 
 from walt.server.trackexec.const import (
         MAP_BLOCK_ID_MASK, MAP_BLOCK_ID_SHIFT, OpCodes
@@ -110,8 +112,10 @@ class LogsReader(LogAbstractManagement):
     @property
     def filenames(self):
         if self._filenames is None:
-            self._filenames = list(
-                    self._log_sources_order_path.read_text().splitlines())
+            with tarfile.open(self._log_sources_archive_path, "r") as t_r:
+                self._filenames = list(
+                        ("/" + tar_member.name)
+                        for tar_member in t_r.getmembers())
         return self._filenames
 
     def _short_file_location(self, path_items, lineno, maxlen,
@@ -251,6 +255,8 @@ class LogsReader(LogAbstractManagement):
     def next(self):
         self.seek(self._block_id + 1)
 
+    @cache
     def read_source_file(self, file_id):
-        filename = self.filenames[file_id]
-        return (self._log_sources_path / filename).read_text()
+        with tarfile.open(self._log_sources_archive_path, "r") as t_r:
+            tar_member = t_r.getmembers()[file_id]
+            return t_r.extractfile(tar_member).read().decode("UTF-8")

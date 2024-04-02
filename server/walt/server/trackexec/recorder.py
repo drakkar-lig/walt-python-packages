@@ -1,6 +1,7 @@
 import gzip
 import numpy as np
 import sys
+import tarfile
 
 from contextlib import nullcontext
 from os import getpid
@@ -31,13 +32,13 @@ class TrackExecRecorder(LogAbstractManagement):
             self._prefix = None
             self._module_file = mod_or_package.__file__
         self._filenames = []
+        self._num_saved_filenames = 0
         self._file_id_per_code_id = {}
         self._id_per_filename = {}
         self._stack = np.empty(MAP_BLOCK_UINT16_SIZE,
                 np.dtype([('file_id', np.uint16), ('lineno', np.uint16)]))
         self._stack_size = 0
         self._bytecode = Uint16Stack()
-        self._log_sources_path.mkdir()
         self._map_block = np.zeros(1, dtype=map_block_dt(0))
         self._index_block = np.zeros(1, dtype=index_block_dt())
         self._last_timestamp = None
@@ -70,13 +71,10 @@ class TrackExecRecorder(LogAbstractManagement):
         # enable our trace function for next calls
         sys.settrace(self._trace_call_function)
 
-    def _register_filename(self, filename):
-        src = Path(filename)
-        dst = self._log_sources_path / ("." + filename)
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        dst.write_bytes(src.read_bytes())
-        with self._log_sources_order_path.open("a") as f:
-            f.write(filename + "\n")
+    def _update_log_sources_archive(self):
+        with tarfile.open(self._log_sources_archive_path, "w:gz") as t_w:
+            for filename in self._filenames:
+                t_w.add(filename)
 
     def _init_block(self):
         # update the log_index file
@@ -95,6 +93,9 @@ class TrackExecRecorder(LogAbstractManagement):
         self._bytecode.reset()
 
     def _write_block(self, force_flush_map_file=False):
+        if self._num_saved_filenames < len(self._filenames):
+            self._update_log_sources_archive()
+            self._num_saved_filenames = len(self._filenames)
         self._bytecode.pad(OpCodes.END, self._max_bytecode_len)
         self._map_block[0]['bytecode'] = self._bytecode.view()
         self._log_map_path.parent.mkdir(exist_ok=True)
@@ -144,7 +145,6 @@ class TrackExecRecorder(LogAbstractManagement):
                     # no, first time with this file
                     file_id = len(self._filenames)
                     self._filenames += [filename]
-                    self._register_filename(filename)
                     self._id_per_filename[filename] = file_id
             # in any case, record to avoid these checks next time
             self._file_id_per_code_id[id(f_code)] = file_id
