@@ -73,8 +73,7 @@ class LogAbstractManagement:
     def __init__(self, dir_path):
         self._dir_path = dir_path
         self._log_index_path = dir_path / "log_index"
-        self._log_sources_path = dir_path / "log_sources"
-        self._log_sources_order_path = dir_path / "log_sources_order"
+        self._log_sources_archive_path = dir_path / "log_sources.tar.gz"
         self._log_sources_index_gz_path = dir_path / "log_sources_index.gz"
         self._log_map_num = 0
 
