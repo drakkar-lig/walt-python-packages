@@ -93,6 +93,7 @@ setup_info = {
     "scripts": [
         "sh/walt-image-shell-helper",
         "sh/walt-image-build-helper",
+        "sh/walt-image-fs-helper",
         "sh/walt-server-cleanup",
     ],
 }

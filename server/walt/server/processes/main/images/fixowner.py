@@ -60,7 +60,6 @@ def fix_owner(images, registry: WalTLocalRegistry, requester, other_user):
         return
     # ok, let's do it
     for image in candidates:
-        image.filesystem.close()
         # rename the image
         old_fullname = image.fullname
         new_fullname = username + old_fullname.split("/")[1]
