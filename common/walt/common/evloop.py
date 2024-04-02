@@ -138,8 +138,8 @@ class EventLoop(object):
                 return min(EventLoop.MAX_TIMEOUT_MS, delay_ms)
 
     def update_listener(self, listener, events=POLL_OPS_READ):
-        if self.remove_listener(listener, should_close=False):
-            self.register_listener(listener, events)
+        fd = listener.fileno()
+        self.events_per_fd[fd] = events
 
     def register_listener(self, listener, events=POLL_OPS_READ):
         fd = listener.fileno()
