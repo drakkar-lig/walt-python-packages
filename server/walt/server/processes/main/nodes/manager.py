@@ -182,8 +182,8 @@ class NodesManager(object):
     def try_kill_vnode(self, node_mac):
         if node_mac in self.vnodes:
             popen, listener = self.vnodes[node_mac]
-            listener.close()
             popen.close()
+            listener.close()
             del self.vnodes[node_mac]
 
     def cleanup(self):

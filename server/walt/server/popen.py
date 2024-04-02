@@ -3,25 +3,21 @@ import shlex
 import signal
 from time import time
 
-# indicate delays between polls and when to send signals when
-# terminating the child process.
+# indicate delays between checks and when to send signals when
+# force-terminating the child process.
 TERMINATE_EVENTS = (
-    ((0.1, None),) * 9
-    + ((0.1, signal.SIGTERM),)
-    + ((0.1, None),) * 10
-    + ((1, None),) * 4
-    + ((0.1, signal.SIGKILL),)
-    + ((0.1, None),) * 10
+    (3.0, signal.SIGTERM),
+    (5.0, signal.SIGKILL),
+    (2.0, None)  # detect failure to kill
 )
 
 
 class BetterPopen:
     def __init__(
-        self, ev_loop, cmd, kill_function, shell=True, synchronous_close=False
+        self, ev_loop, cmd, kill_function, shell=True
     ):
         self.ev_loop = ev_loop
         self.kill_function = kill_function
-        self._synchronous_close = synchronous_close
         self.cmd = cmd
         stdin_r, stdin_w = os.pipe()
         stdout_r, stdout_w = os.pipe()
@@ -48,12 +44,27 @@ class BetterPopen:
             os.close(stdin_r)
             os.close(stdout_w)
             self.child_pid = pid
+            self.child_pidfd = os.pidfd_open(pid, 0)
+            self.child_stopped = False
             self.stdin = os.fdopen(stdin_w, mode="wb", buffering=0)
             self.stdout = os.fdopen(stdout_r, mode="rb", buffering=0)
             self._closing = False
             self._closing_callbacks = []
+            ev_loop.register_listener(self)
+
+    def fileno(self):
+        return self.child_pidfd
+
+    def is_alive(self):
+        return not self.child_stopped
+
+    def handle_event(self, ts):
+        # the event loop calls this when the child is stopped
+        self.child_stopped = True
+        return False  # let the event loop remove us and call close()
 
     def send_signal(self, sig):
+        assert self.child_pid is not None
         try:
             os.kill(self.child_pid, sig)
         except OSError:
@@ -62,32 +73,28 @@ class BetterPopen:
                 " probably gone already."
             )
 
-    def poll(self):
-        try:
-            os.kill(self.child_pid, 0)
-            return True
-        except OSError:
-            return False
-
     def __del__(self):
-        # print(f'__del__ {os.getpid()}')
-        self.close()
+        if not self.child_stopped:
+            print(f"Popen object not cleanly terminated: {self.cmd}")
 
     def close(self, cb=None):
         if cb is not None:
             self._closing_callbacks.append(cb)
+        if self.child_stopped:
+            self.real_end()
+            return
         if self._closing:
             # already closing
             return
         self._closing = True
-        print("close", self.cmd)
         # call kill function
-        if self.poll():
-            try:
-                self.kill_function(self)
-            except Exception as e:
-                print("popen.close() -- ignored exception:", e)
-        # close our ends of the pipes
+        try:
+            self.kill_function(self)
+        except Exception as e:
+            print("popen.close() -- ignored exception:", e)
+        self.plan_terminate(TERMINATE_EVENTS)
+
+    def real_end(self):
         for f in self.stdin, self.stdout:
             if f is not None:
                 try:
@@ -95,16 +102,9 @@ class BetterPopen:
                 except Exception as e:
                     print("popen.close() -- ignored exception:", e)
         self.stdin, self.stdout = None, None
-        # if child is still alive, fallback to terminate()
-        if self.poll():
-            if self._synchronous_close:
-                print("popen synchronous close")
-                # run event loop until self.poll() returns False
-                self.ev_loop.loop(self.poll)
-                print("popen synchronous close completed")
-            else:
-                self.plan_terminate(TERMINATE_EVENTS)
-                return
+        if self.child_pidfd is not None:
+            os.close(self.child_pidfd)
+            self.child_pidfd = None
         self.call_closing_callbacks()
 
     def plan_terminate(self, terminate_events):
@@ -117,28 +117,22 @@ class BetterPopen:
         )
 
     def terminate(self, terminate_events):
-        if self.poll():  # if child is still alive
+        if self.is_alive():  # if child is still alive
             try:
                 evt, next_evts = terminate_events[0], terminate_events[1:]
                 delay, sig = evt
                 if sig is not None:
                     self.send_signal(sig)
                 if len(next_evts) == 0:
-                    print("popen end of termination events")
-                    # run event loop until self.poll() returns False
-                    self.ev_loop.loop(self.poll)
-                    print("popen end completed")
+                    raise Exception("Could not terminate popen child!")
                 else:
                     # recall self.terminate() with next events after a delay
                     self.plan_terminate(next_evts)
                     return
             except Exception as e:
                 print("popen.terminate() -- ignored exception:", e)
-        self.call_closing_callbacks()
 
     def call_closing_callbacks(self):
-        while len(self._closing_callbacks) > 0:
-            cb, self._closing_callbacks = (
-                self._closing_callbacks[0], self._closing_callbacks[1:]
-            )
+        self._closing_callbacks, callbacks = ([], self._closing_callbacks)
+        for cb in callbacks:
             cb()

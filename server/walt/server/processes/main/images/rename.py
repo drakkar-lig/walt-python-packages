@@ -12,7 +12,6 @@ if typing.TYPE_CHECKING:
 def do_rename(images, registry: WalTLocalRegistry, image, new_name):
     new_fullname = format_image_fullname(image.user, new_name)
     # rename the image
-    image.filesystem.close()
     registry.tag(image.fullname, new_fullname)
     registry.rmi(image.fullname)
     # update the store

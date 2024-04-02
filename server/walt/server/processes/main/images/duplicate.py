@@ -10,7 +10,6 @@ if typing.TYPE_CHECKING:
 
 
 def do_duplicate(images, registry: WalTLocalRegistry, image, new_name):
-    image.filesystem.close()
     new_fullname = format_image_fullname(image.user, new_name)
     # add a tag to the image
     registry.tag(image.fullname, new_fullname)

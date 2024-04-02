@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# walt-image-fs-helper is a shell script run when the server
+# has to explore the content of an image, for validating
+# "walt image cp" commands or helping completion.
+
+if [ -z "$1" ]
+then
+	echo "Usage: $0 <image_id>" >&2
+	exit
+fi
+
+image_id="$1"
+image_name="localhost/walt/fs:$image_id"
+container_name="walt-fs-$image_id"
+
+# We tag the image with a new temporary name, run a container
+# using this new image name, and then use rmi on the temporary
+# name.
+# This workflow properly handles cases where:
+# 1. a filesystem process is started to help with walt image cp <my-image>
+# 2. shortly after that, <my-image> is removed or renamed
+# In this case, the filesystem process (podman run, below) is
+# still running, so <image_id> is still is use. Operation 2
+# translates to "podman rmi <my-image>". If we had started podman run
+# directly on <my-image>, "podman rmi <my-image>" would fail. But here,
+# since we tagged the image to <image_name>, "podman rmi <my-image>" will
+# succeed, and just remove the tag <my-image> on <image_id>.
+# Then, "podman rmi <image_name>" (see below) will remove the tag <image_name>
+# and really remove <image_id>.
+podman tag $image_id $image_name
+podman run -i --rm -w /root --entrypoint /bin/sh --name "$container_name" "$image_name"
+podman rmi $image_name
