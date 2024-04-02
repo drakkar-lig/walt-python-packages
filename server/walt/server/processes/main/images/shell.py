@@ -64,9 +64,6 @@ class ImageShellSession(object):
                 and event["Name"] == self.container_name
             ):
                 break
-        # if overriding, ensure the filesystem is not locking the image
-        if self.image.fullname == image_fullname:
-            self.image.filesystem.close()
         fullname, username, new_image_name = parse_image_fullname(image_fullname)
         wf = Workflow(
             [

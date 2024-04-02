@@ -17,11 +17,8 @@ class Filesystem:
     def check_bg_process_ok(self):
         # check if the running background process is still alive
         if self.popen is not None:
-            try:
-                if self.popen.poll():
-                    return True  # bg process still alive
-            except Exception:
-                pass
+            if self.popen.is_alive():
+                return True  # bg process still alive
             # background process stopped
             self.close()
         return False
@@ -34,7 +31,6 @@ class Filesystem:
                 self.ev_loop,
                 self.cmd_interpreter,
                 self.kill_function,
-                synchronous_close=True,
             )
             self.popen.stdin.write(self.wrap_cmd("echo STARTED").encode("ascii"))
         self.popen.stdin.write(self.wrap_cmd(cmd).encode("ascii"))

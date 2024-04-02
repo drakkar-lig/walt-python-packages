@@ -199,7 +199,6 @@ def verify_compatibility_issue(
 
 def remove_ws_image(image_store, walt_local_repo, ws_image_fullname, **args):
     ws_image = image_store[ws_image_fullname]
-    ws_image.filesystem.close()
     walt_local_repo.untag(ws_image_fullname)
 
 

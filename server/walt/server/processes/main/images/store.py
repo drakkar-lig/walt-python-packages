@@ -29,7 +29,7 @@ if typing.TYPE_CHECKING:
 # If ever an image is reused before the grace time is expired, then the
 # deadline is removed.
 
-FS_CMD_PATTERN = "podman run -i --rm -w /root --entrypoint /bin/sh %(fs_id)s"
+FS_CMD_PATTERN = "walt-image-fs-helper %(fs_id)s"
 
 MOUNT_GRACE_TIME = 60
 MOUNT_GRACE_TIME_MARGIN = 10
@@ -329,10 +329,6 @@ class NodeImageStore(object):
             images_info = set(
                 (image_id, self.get_mount_path(image_id)) for image_id in all_mounts
             )
-            # release filesystem interpreters before unmounting images
-            for image_id in to_be_unmounted:
-                if image_id in self.filesystems:
-                    del self.filesystems[image_id]
             # next steps:
             # 1. nfs mount / unmount
             # 2. unmount images
