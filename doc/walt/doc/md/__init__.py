@@ -10,7 +10,8 @@ def get_md_content(topic, err_out=False):
         return resource_string(__name__, topic + ".md").decode("utf-8")
     except Exception:
         if err_out:
-            print('Sorry, no such help topic. (tip: use "walt help list")')
+            print('Sorry, no such help topic. (tip: use "walt help list")',
+                  file=sys.stderr)
         return
 
 
@@ -19,7 +20,9 @@ def display_doc(topic):
         pager = DocPager(get_md_content)
         pager.display_topic(topic)
     else:
-        print(get_md_content(topic, err_out=True))
+        content = get_md_content(topic, err_out=True)
+        if content is not None:
+            print(content)
 
 
 def get_topics():
