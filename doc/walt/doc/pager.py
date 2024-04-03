@@ -336,7 +336,7 @@ class DocPager(Pager):
         self._get_md_content = get_md_content
 
     def display_topic(self, topic):
-        content = self.get_md_content(topic, err_out=True)
+        content = self._get_md_content(topic, err_out=True)
         if content is None:
             return
         if os.isatty(sys.stdout.fileno()):
