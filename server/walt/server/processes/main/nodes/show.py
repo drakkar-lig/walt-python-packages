@@ -1,3 +1,5 @@
+import numpy as np
+
 from walt.common.formatting import columnate, format_paragraph
 from walt.common.netsetup import NetSetup
 
@@ -12,9 +14,11 @@ NODE_SHOW_QUERY = """
         split_part(n.image, '/', 1) as image_owner,
         split_part(n.image, '/', 2) as image_name,
         d.virtual as virtual, d.mac as mac,
-        d.ip as ip, COALESCE((d.conf->'netsetup')::int, 0) as netsetup,
+        d.ip as ip, COALESCE((d.conf->'netsetup')::int, 0) as netsetup_int,
         (CASE WHEN n.mac in (SELECT mac FROM powersave_macs)
-              THEN 1 ELSE 0 END) as powersave
+              THEN 1 ELSE 0 END) as powersave,
+        false as booted, 'physical' as type,
+        '' as image, '' as clonable_image_link, '' as netsetup
     FROM devices d, nodes n
     WHERE   d.type = 'node'
     AND     d.mac = n.mac
@@ -45,68 +49,51 @@ MSG_NO_OTHER_NODES = """\
 No other nodes were detected (apart from the ones listed above)."""
 
 
-def short_image_name(image_name):
-    if image_name.endswith(":latest"):
-        image_name = image_name[:-7]
-    return image_name
+def generate_table(title, footnote, records, *col_titles):
+    col_titles = list(col_titles)
+    table = records[col_titles]
+    return format_paragraph(title, columnate(table, header=col_titles), footnote)
 
 
-def node_type(mac, virtual):
-    if mac.startswith("52:54:00"):
-        if virtual:
-            return "virtual"
-        else:
-            return "vpn"
-    else:
-        return "physical"
-
-
-def get_table_value(booted_macs, record, col_title):
-    if col_title == "type":
-        return node_type(record.mac, record.virtual)
-    elif col_title == "image":
-        return short_image_name(record.image_name)
-    elif col_title == "netsetup":
-        return NetSetup(record.netsetup).readable_string()
-    elif col_title == "clonable_image_link":
-        return "walt:%s/%s" % (record.image_owner, short_image_name(record.image_name))
-    elif col_title == "booted":
-        booted = (record.mac in booted_macs)
-        if booted:
-            return "yes"
-        elif record.powersave == 1:
-            return "no (powersave)"
-        else:
-            return 'NO'
-    else:
-        return getattr(record, col_title)
-
-
-def generate_table(booted_macs, title, footnote, records, *col_titles):
-    table = [
-        tuple(get_table_value(booted_macs, record, col_title) for col_title in col_titles)
-        for record in records
-    ]
-    header = list(col_titles)
-    return format_paragraph(title, columnate(table, header=header), footnote)
+def user_subsets(res, username):
+    # compute user, free and other subsets
+    mask_u = (res.image_owner == username)        # user
+    mask_f = (res.image_owner == "waltplatform")  # free
+    mask_o = ~mask_u & ~mask_f                    # other
+    return res[mask_u], res[mask_f], res[mask_o]
 
 
 def show(manager, username, show_all, names_only):
-    res_user, res_free, res_other = [], [], []
     res = manager.db.execute(NODE_SHOW_QUERY)
-    for record in res:
-        if record.image_owner == username:
-            res_user.append(record)
-        elif record.image_owner == "waltplatform":
-            res_free.append(record)
-        else:
-            res_other.append(record)
+    # if returning only names, we can return quickly
     if names_only:
         if show_all:
-            all_records = res_user + res_free + res_other
+            names = res.name
         else:
-            all_records = res_user
-        return "\n".join(record.name for record in all_records)
+            res_user, res_free, res_other = user_subsets(res, username)
+            names = res_user.name
+        return "\n".join(names)
+    # compute res.type (the db query initialized to "physical" by default)
+    mask_virt_mac = np.char.startswith(res.mac.astype(str), "52:54:00")
+    mask_virt = res.virtual.astype(bool)
+    res.type[mask_virt & mask_virt_mac] = "virtual"
+    res.type[mask_virt & ~mask_virt_mac] = "vpn"
+    # compute compact res.image name
+    res.image = np.char.replace(res.image_name.astype(str), ":latest", "")
+    # compute res.clonable_image_link
+    res.clonable_image_link = ("walt:" + res.image_owner + "/" + res.image)
+    # compute res.netsetup label
+    res.netsetup[res.netsetup_int == NetSetup.LAN] = "LAN"
+    res.netsetup[res.netsetup_int == NetSetup.NAT] = "NAT"
+    # compute res.booted
+    mask_booted = np.isin(res.mac, list(manager.booted_macs))
+    mask_powersave = (res.powersave == 1)
+    res.booted[mask_booted] = "yes"
+    res.booted[~mask_booted & mask_powersave] = "no (powersave)"
+    res.booted[~mask_booted & ~mask_powersave] = "NO"
+    # compute "user", "free" and "other" subsets
+    res_user, res_free, res_other = user_subsets(res, username)
+    # format output
     result_msg = ""
     footnotes = ()
     if len(res_user) == 0 and not show_all:
@@ -119,7 +106,6 @@ def show(manager, username, show_all, names_only):
             if not show_all:
                 footnotes += (MSG_RERUN_WITH_ALL,)
             result_msg += generate_table(
-                manager.booted_macs,
                 TITLE_NODE_SHOW_USER_NODES_PART,
                 None,
                 res_user,
@@ -137,7 +123,6 @@ def show(manager, username, show_all, names_only):
             if len(res_free) > 0:
                 # display free nodes
                 result_msg += generate_table(
-                    manager.booted_macs,
                     TITLE_NODE_SHOW_FREE_NODES_PART,
                     None,
                     res_free,
@@ -151,7 +136,6 @@ def show(manager, username, show_all, names_only):
             if len(res_other) > 0:
                 # display nodes of other users
                 result_msg += generate_table(
-                    manager.booted_macs,
                     TITLE_NODE_SHOW_OTHER_NODES_PART,
                     None,
                     res_other,

@@ -207,18 +207,33 @@ class WalTLocalRegistry:
         self.get_metadata(fullname)
 
     def get_metadata(self, fullname):
-        image_id = self.names_cache.get(fullname)
-        if image_id is None:
-            im = self.get_podman_image(fullname)
-            if im is not None:
-                self.refresh_names_cache_for_image(im)
-                image_id = self.names_cache.get(fullname)
-        if image_id is None:
-            print(f"get_metadata() failed for {fullname}: image not found")
-            return None
-        if image_id not in self.metadata_cache:
-            self.metadata_cache[image_id] = self.deep_inspect(image_id)
-        return self.metadata_cache[image_id]
+        return self.get_multiple_metadata((fullname,))[0]
+
+    def get_multiple_metadata(self, fullnames):
+        image_ids = list(map(self.names_cache.get, fullnames))
+        if None in image_ids:
+            # slow path
+            for idx, info in enumerate(zip(fullnames, image_ids.copy())):
+                fullname, image_id = info
+                if image_id is None:
+                    im = self.get_podman_image(fullname)
+                    if im is not None:
+                        self.refresh_names_cache_for_image(im)
+                        image_id = self.names_cache.get(fullname)
+                    if image_id is None:
+                        print(f"get_metadata() failed for {fullname}: image not found")
+                    else:
+                        image_ids[idx] = image_id
+        images_metadata = list(map(self.metadata_cache.get, image_ids))
+        if None in images_metadata:
+            # slow path
+            for idx, info in enumerate(zip(image_ids, images_metadata.copy())):
+                image_id, metadata = info
+                if image_id is not None and metadata is None:
+                    metadata = self.deep_inspect(image_id)
+                    self.metadata_cache[image_id] = metadata
+                    images_metadata[idx] = metadata
+        return images_metadata
 
     def stop_container(self, cont_name):
         podman.rm("-f", "-i", cont_name)
