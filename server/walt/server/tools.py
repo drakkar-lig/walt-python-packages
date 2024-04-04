@@ -8,6 +8,21 @@ def np_record_to_dict(record):
     return dict(zip(record.dtype.names,record))
 
 
+def np_recarray_to_tuple_of_dicts(arr_src):
+    if len(arr_src) == 0:
+        return ()
+    fields = arr_src.dtype.names
+    num_fields, num_items = len(fields), arr_src.size
+    arr = np.empty((2*num_fields, num_items), object)
+    col = 0
+    for f in fields:
+        arr[col] = f
+        arr[col+1] = arr_src[f]
+        col += 2
+    arr = arr.T.reshape((num_items, num_fields, 2))
+    return tuple(dict(i) for i in arr)
+
+
 def update_template(path, template_env):
     with open(path, "r+") as f:
         template_content = f.read()

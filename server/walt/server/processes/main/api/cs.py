@@ -6,7 +6,7 @@ from walt.common.tcp import PICKLE_VERSION
 from walt.common.tools import format_image_fullname
 from walt.server.processes.main.apisession import APISession
 from walt.server.processes.main.images.image import validate_image_name
-from walt.server.tools import np_record_to_dict
+from walt.server.tools import np_record_to_dict, np_recarray_to_tuple_of_dicts
 
 # Client -> Server API (thus the name CSAPI)
 # Provides remote calls performed from a client to the server.
@@ -53,9 +53,8 @@ class CSAPI(APISession):
 
     @api_expose_method
     def get_nodes_info(self, context, node_set):
-        return tuple(
-            np_record_to_dict(info)
-            for info in context.nodes.get_nodes_info(context.requester, node_set)
+        return np_recarray_to_tuple_of_dicts(
+            context.nodes.get_nodes_info(context.requester, node_set)
         )
 
     @api_expose_method
@@ -189,9 +188,12 @@ class CSAPI(APISession):
 
     @api_expose_method
     def get_images_tabular_data(self, context, username, refresh, fields=None):
+        # clients running "walt image show" or "api.images.get_images()" call this,
+        # and they may not have numpy, so use to_list() to convert to a list
+        # of tuples.
         return context.images.get_tabular_data(
             context.requester, username, refresh, fields
-        )
+        ).tolist()
 
     @api_expose_method
     def create_image_shell_session(self, context, image_name, task_label):
