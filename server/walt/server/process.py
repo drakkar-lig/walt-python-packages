@@ -278,6 +278,7 @@ class EvProcessesManager(object):
                     # the process may have crashed without a possibility to notify
                     # this process manager
                     self.graceful_exit = False
+                    break
             for t in self.processes:
                 if t.pipe_manager is r[0]:
                     self.initial_failing_process = t
