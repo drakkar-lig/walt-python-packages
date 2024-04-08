@@ -10,6 +10,10 @@ class Filesystem:
         self.kill_function = lambda popen: popen.stdin.write(b"exit\n")
         self.popen = None
         self.popen_started = False
+        self.wf_response_handler = None
+
+    def fileno(self):
+        return self.popen.stdout.fileno()
 
     def wrap_cmd(self, cmd):
         return f"{cmd} 2>/dev/null || true\n"
@@ -33,35 +37,55 @@ class Filesystem:
                 self.kill_function,
             )
             self.popen.stdin.write(self.wrap_cmd("echo STARTED").encode("ascii"))
+            self.ev_loop.register_listener(self)
         self.popen.stdin.write(self.wrap_cmd(cmd).encode("ascii"))
 
-    def read_reply_line(self):
-        for _ in range(100):
-            line = self.popen.stdout.readline().decode("ascii").strip()
-            if line == "FAILED":
-                self.close()
-                return ""
-            if self.popen_started:
-                return line
-            if line == "STARTED":
-                self.popen_started = True
-                continue
-            if line == "":
-                if not self.check_bg_process_ok():
-                    return ""
-        return ""
+    def handle_event(self, ts):
+        line = self.popen.stdout.readline()
+        if len(line) == 0:
+            # empty read, close
+            return False
+        line = line.decode("ascii").strip()
+        if line == "FAILED":
+            return False  # error
+        if line == "STARTED":
+            self.popen_started = True
+        elif self.wf_response_handler is None:
+            # we are no longer waiting for a response!
+            return False  # error
+        else:
+            assert self.popen_started
+            self.wf_response_handler.update_env(line=line)
+            self.wf_response_handler.next()
 
-    def ping(self, retries=1):
-        self.send_cmd("echo ok")
-        alive = self.read_reply_line() == "ok"
+    def _wf_handle_ping_reply_line(self, wf, line, retries, **env):
+        alive = (line == "ok")
         if not alive:
             self.close()
             if retries > 0:
-                return self.ping(retries - 1)
-        return alive
+                wf.update_env(retries=retries-1)
+                wf.insert_steps([wf_ping])
+                wf.next()
+                return
+        self.wf_response_handler = None
+        wf.update_env(alive=alive)
+        wf.next()
 
-    def get_file_type(self, path):
-        # f: regular; d: directory; o: other; m: missing
+    def wf_ping(self, wf, retries=1, **env):
+        self.send_cmd("echo ok")
+        wf.update_env(retries=retries)
+        self.wf_response_handler = wf
+        wf.insert_steps([self._wf_handle_ping_reply_line])
+
+    def _wf_handle_file_type_reply_line(self, wf, line, **env):
+        ftype = line
+        if ftype == "m":  # missing
+            ftype = None
+        self.wf_response_handler = None
+        wf.update_env(ftype=ftype)
+        wf.next()
+
+    def wf_get_file_type(self, wf, path, **env):
         self.send_cmd(
             f'if [ -f "{path}" ]; '
             + 'then echo "f"; '
@@ -72,15 +96,20 @@ class Filesystem:
             + 'else echo "m"; '
             + "fi; fi; fi"
         )
-        ftype = self.read_reply_line()
-        if ftype == "m":  # missing
-            return None
-        else:
-            return ftype
+        self.wf_response_handler = wf
+        wf.insert_steps([self._wf_handle_file_type_reply_line])
 
-    def get_completions(self, partial_path):
-        """complete a partial path remotely"""
-        # the following process allows to add an ending slash to dir entries
+    def _wf_handle_completion_reply_line(self, wf, line, remote_completions, **env):
+        path = line
+        if path == "":  # empty line marks the end (cf. "echo" below)
+            self.wf_response_handler = None
+            wf.next()
+        else:
+            remote_completions.append(path)
+            # continue with next reply line
+            wf.insert_steps([self._wf_handle_completion_reply_line])
+
+    def wf_get_completions(self, wf, partial_path, **env):
         self.send_cmd(
             f'find -L {partial_path}* -maxdepth 0 "!" -type d -exec echo "{{}}" \\;'
         )
@@ -88,19 +117,21 @@ class Filesystem:
             f'find -L {partial_path}* -maxdepth 0 -type d -exec echo "{{}}/" \\;'
         )
         self.send_cmd("echo")
-        possible = []
-        while True:
-            path = self.read_reply_line()
-            if path == "":  # empty line marks the end (cf. "echo" above)
-                break
-            possible.append(path)
-        return tuple(possible)
+        self.wf_response_handler = wf
+        wf.update_env(remote_completions=[])
+        wf.insert_steps([self._wf_handle_completion_reply_line])
 
     def close(self, cb=None):
+        if self.wf_response_handler is not None:
+            self.wf_response_handler.interrupt()
         if self.popen is not None:
             self.popen.close(cb=cb)
             self.popen = None
             self.popen_started = False
+            self.ev_loop.remove_listener(self)
+
+    def busy(self):
+        return self.wf_response_handler is not None
 
 
 class FilesystemsCache:
@@ -137,8 +168,9 @@ class FilesystemsCache:
         now = time()
         for fs_id, fs_info in tuple(self.fs_info.items()):
             if fs_info["last_use"] + FilesystemsCache.MIN_CACHE_TIME < now:
-                fs_info["fs"].close()
-                del self.fs_info[fs_id]
+                if not fs_info["fs"].busy():
+                    fs_info["fs"].close()
+                    del self.fs_info[fs_id]
         # plan to redo it
         self.plan_fs_releases()
 

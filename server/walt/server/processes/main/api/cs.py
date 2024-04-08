@@ -110,7 +110,8 @@ class CSAPI(APISession):
 
     @api_expose_method
     def validate_node_cp(self, context, src, dst):
-        return context.server.validate_cp(context.requester, "node", src, dst)
+        return context.server.validate_cp(
+                context.task, context.requester, "node", src, dst)
 
     @api_expose_method
     def node_cp_to_booted_image(self, context, node_name, **path_info):
@@ -242,7 +243,8 @@ class CSAPI(APISession):
 
     @api_expose_method
     def validate_image_cp(self, context, src, dst):
-        return context.server.validate_cp(context.requester, "image", src, dst)
+        return context.server.validate_cp(context.task,
+                context.requester, "image", src, dst)
 
     @api_expose_method
     def squash_image(self, context, image_name, confirmed):
@@ -322,7 +324,7 @@ class CSAPI(APISession):
     @api_expose_method
     def shell_autocomplete(self, context, username, argv, debug=False):
         return context.server.shell_autocomplete(
-            context.requester, username, argv, debug=debug
+            context.task, context.requester, username, argv, debug=debug
         )
 
     @api_expose_method
