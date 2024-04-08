@@ -395,12 +395,12 @@ class DevicesManager(object):
         elif device_set == "server":
             device_macs += [self.server_mac]
         else:
-            username = requester.get_username()
-            if not username:
-                return None  # client already disconnected, give up
             # check keywords
             sql = None
             if device_set is None or device_set == "my-nodes":
+                username = requester.get_username()
+                if not username:
+                    return None  # client already disconnected, give up
                 sql = MY_NODES_QUERY % username
             elif device_set in DEVICE_SET_QUERIES:
                 sql = DEVICE_SET_QUERIES[device_set]
