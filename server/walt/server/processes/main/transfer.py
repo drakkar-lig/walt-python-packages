@@ -5,10 +5,12 @@ from walt.common.tcp import Requests
 from walt.server.const import SSH_COMMAND
 from walt.server.processes.main.images.setup import script_path
 from walt.server.processes.main.parallel import ParallelProcessSocketListener
+from walt.server.processes.main.workflow import Workflow
 
 TYPE_CLIENT = 0
 TYPE_IMAGE_OR_NODE = 1
 TYPE_BOOTED_IMAGE = 2
+RESPONSE_BAD = {"status": "FAILED"}
 
 HELP_INVALID = dict(
     node="""\
@@ -39,30 +41,42 @@ Regular files as well as directories are accepted.
 NODE_TFTP_ROOT = "/var/lib/walt/nodes/%(node_id)s/tftp"
 
 
+class ClientFilesystemWorkflow:
+    def __init__(self, filesystem):
+        self._filesystem = filesystem
+
+    def wf_get_file_type(self, wf, path, **env):
+        ftype = self._filesystem.get_file_type(path)
+        wf.update_env(ftype=ftype)
+        wf.next()
+
+    def wf_get_completions(self, wf, partial_path, **env):
+        completions = self._filesystem.get_completions(partial_path)
+        wf.update_env(remote_completions=completions)
+        wf.next()
+
+
 def get_random_suffix():
     return "".join(random.choice("0123456789ABCDEF") for i in range(8))
 
 
-def analyse_file_types(
-    requester, operand_types, src_path, src_fs, dst_path, dst_fs, **kwargs
-):
-    bad = dict(valid=False)
+def _wf_analyse_file_types(wf, task, requester, operand_types, info,
+        src_path, src_type, dst_path, dst_type, dst_parent_type=None, **kwargs):
     dst_dir = None
-    src_type = src_fs.get_file_type(src_path)
-    dst_type = dst_fs.get_file_type(dst_path)
     if dst_type is None:
-        # maybe this is just the target filename, let's verify that the parent
-        # directory exists
-        parent_path = os.path.dirname(dst_path)
-        if dst_fs.get_file_type(parent_path) == "d":
-            # walt node cp <path> <node>:<existing_dir>/<new_entry>
+        # we might be in this case:
+        # $ walt node cp <path> <node>:<existing_dir>/<new_entry>
+        # so let's verify <existing_dir>.
+        if dst_parent_type == "d":
             dst_type = "d"
             dst_name = os.path.basename(dst_path)
-            dst_dir = parent_path
+            dst_dir = os.path.dirname(dst_path)
     for ftype, path in [(src_type, src_path), (dst_type, dst_path)]:
         if ftype is None:
             requester.stderr.write("No such file or directory: %s\n" % path)
-            return bad
+            task.return_result(RESPONSE_BAD)
+            wf.interrupt()
+            return
     if dst_type == "f":
         if src_type == "d":
             requester.stderr.write(
@@ -70,7 +84,9 @@ def analyse_file_types(
                 + "Overwriting regular file %s with directory %s is not allowed.\n"
                 % (dst_path, src_path)
             )
-            return bad
+            task.return_result(RESPONSE_BAD)
+            wf.interrupt()
+            return
         # overwriting a file
         dst_type = "d"
         dst_name = os.path.basename(dst_path)
@@ -91,8 +107,15 @@ def analyse_file_types(
             # we have to keep the source name
             dst_name = os.path.basename(src_path)
             dst_dir = dst_path
-    kwargs.update(valid=True, dst_dir=dst_dir, dst_name=dst_name)
-    return kwargs
+    # all seems fine
+    info.update(
+        valid=True,
+        dst_dir=dst_dir,
+        dst_name=dst_name,
+        src_path=src_path
+    )
+    task.return_result(info)
+    wf.next()
 
 
 def get_manager(server, image_or_node_label):
@@ -102,14 +125,14 @@ def get_manager(server, image_or_node_label):
         return server.images
 
 
-def validate_cp(image_or_node_label, server, requester, src, dst):
+def validate_cp(task, image_or_node_label, server, requester, src, dst):
     invalid = False
     operand_types = []
-    client_operand_index = -1
     filesystems = []
     paths = []
     needs_confirm = False
     info = {}
+    node_fs = None
     for index, operand in enumerate([src, dst]):
         parts = operand.rsplit(":", 1)  # caution, we may have <image>:<tag>:<path>
         if operand == "booted-image" or len(parts) > 1:
@@ -120,13 +143,13 @@ def validate_cp(image_or_node_label, server, requester, src, dst):
                         "Keyword 'booted-image' is only available with command"
                         " 'walt node cp'.\n"
                     )
-                    return {"status": "FAILED"}
+                    return RESPONSE_BAD
                 elif index == 0:
                     requester.stderr.write(
                         "Keyword 'booted-image' can only be used as destination,"
                         " not source.\n"
                     )
-                    return {"status": "FAILED"}
+                    return RESPONSE_BAD
                 elif operand_types[0] != TYPE_IMAGE_OR_NODE:
                     invalid = True
                     break
@@ -140,17 +163,14 @@ def validate_cp(image_or_node_label, server, requester, src, dst):
                 requester, image_tag_or_node, index, **info
             )
             if status == "FAILED":
-                return {"status": "FAILED"}
+                return RESPONSE_BAD
             elif status == "NEEDS_CONFIRM":
                 needs_confirm = True
             filesystem = manager.get_cp_entity_filesystem(
                 requester, image_tag_or_node, **info
             )
-            if not filesystem.ping():
-                requester.stderr.write(
-                    "Could not reach %s. Try again later.\n" % image_tag_or_node
-                )
-                return {"status": "FAILED"}
+            if image_or_node_label == "node":
+                node_fs = filesystem
             info.update(
                 **manager.get_cp_entity_attrs(requester, image_tag_or_node, **info)
             )
@@ -158,9 +178,9 @@ def validate_cp(image_or_node_label, server, requester, src, dst):
             paths.append(path.rstrip("/"))
         else:
             operand_type = TYPE_CLIENT
-            filesystems.append(requester.filesystem)
+            filesystems.append(ClientFilesystemWorkflow(requester.filesystem))
             paths.append(operand.rstrip("/"))
-            client_operand_index = index
+            info.update(client_operand_index=index)
         operand_types.append(operand_type)
     if not invalid:
         if tuple(operand_types) not in (
@@ -171,25 +191,76 @@ def validate_cp(image_or_node_label, server, requester, src, dst):
             invalid = True
     if invalid:
         requester.stderr.write(HELP_INVALID[image_or_node_label])
-        return {"status": "FAILED"}
+        return RESPONSE_BAD
     src_fs, dst_fs = filesystems
     src_path, dst_path = [
         path if path.startswith("/") else "./" + path for path in paths
     ]
-    info.update(
-        **analyse_file_types(
-            requester, operand_types, src_path, src_fs, dst_path, dst_fs
-        )
-    )
-    if info.pop("valid") is False:
-        return {"status": "FAILED"}
-    # all seems fine
-    info.update(
-        status=("NEEDS_CONFIRM" if needs_confirm else "OK"),
-        src_path=src_path,
-        client_operand_index=client_operand_index,
-    )
-    return info
+    info.update(status=("NEEDS_CONFIRM" if needs_confirm else "OK"))
+    task.set_async()
+    steps = []
+    if node_fs is not None:
+        steps += [node_fs.wf_ping, _wf_after_fs_ping]
+    steps += [
+       _wf_get_src_type,
+       _wf_get_dst_type,
+       _wf_analyse_file_types
+    ]
+    wf = Workflow(steps,
+                  operand_types=operand_types,
+                  src_fs=src_fs,
+                  dst_fs=dst_fs,
+                  src_path=src_path,
+                  dst_path=dst_path,
+                  task=task,
+                  requester=requester,
+                  info=info)
+    wf.run()
+
+
+def _wf_after_fs_ping(wf, task, requester, alive, **env):
+    if alive:
+        wf.next()
+    else:
+        requester.stderr.write("Could not reach this node. Try again later.\n")
+        wf.interrupt()
+        task.return_result({"status": "FAILED"})
+
+
+def _wf_get_src_type(wf, src_fs, src_path, **env):
+    wf.update_env(path=src_path)
+    wf.insert_steps([src_fs.wf_get_file_type, _wf_save_src_type])
+    wf.next()
+
+
+def _wf_save_src_type(wf, ftype, **env):
+    wf.update_env(src_type=ftype)
+    wf.next()
+
+
+def _wf_get_dst_type(wf, dst_fs, dst_path, **env):
+    wf.update_env(path=dst_path)
+    wf.insert_steps([dst_fs.wf_get_file_type, _wf_analyse_dst_type])
+    wf.next()
+
+
+def _wf_analyse_dst_type(wf, dst_fs, dst_path, ftype, **env):
+    wf.update_env(dst_type=ftype)
+    if ftype is not None:
+        wf.next()
+    else:
+        # no file at dst_path
+        # maybe dst_path specifies a new name for the destination file,
+        # so let's verify that the parent directory exists.
+        parent_path = os.path.dirname(dst_path)
+        wf.update_env(path=parent_path)
+        wf.insert_steps([dst_fs.wf_get_file_type, _wf_save_dst_parent_type])
+        wf.next()
+
+
+def _wf_save_dst_parent_type(wf, ftype, **env):
+    wf.update_env(dst_parent_type=ftype)
+    wf.next()
 
 
 def docker_wrap_cmd(cmd, input_needed=False):

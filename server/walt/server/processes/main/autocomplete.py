@@ -1,3 +1,8 @@
+from time import time
+
+from walt.server.processes.main.workflow import Workflow
+
+
 def complete_node(server, username):
     return server.nodes.show(username, show_all=True, names_only=True).split()
 
@@ -79,7 +84,8 @@ def complete_image(server, requester, username):
     return names + implicit_names
 
 
-def fs_remote_completions(server, requester, entity_type, entity, partial_token):
+def wf_fs_remote_completions(wf, server, requester,
+        entity_type, entity, partial_token, possible, **env):
     # '<entity>:<remote-path>' pattern
     # we need to complete the remote path
     # caution: images may have a tag, i.e. pattern is '<name>:<tag>:<remote-path>'
@@ -88,16 +94,29 @@ def fs_remote_completions(server, requester, entity_type, entity, partial_token)
     # exploring a possible 'teleworker' image (with its implicit ':latest' tag)
     # looking for files starting with 'test:/'...
     if ":" in partial_remote_path:
-        return ()
+        wf.next()   # nothing more to add to "possible" list
+        return
     fs = None
     if entity_type == "node":
         fs = server.nodes.get_node_filesystem(requester, entity)
     elif entity_type == "image":
         fs = server.images.get_image_filesystem(requester, entity)
-    if fs is None or not fs.ping():
-        raise Exception(f"Connot communicate with {entity}")
-    remote_completions = fs.get_completions(partial_remote_path)
-    return tuple(f"{entity}:{path}" for path in remote_completions)
+    if fs is not None:
+        wf.update_env(filesystem=fs, partial_path=partial_remote_path)
+        wf.insert_steps([fs.wf_ping, wf_fs_after_ping])
+    wf.next()
+
+
+def wf_fs_after_ping(wf, alive, filesystem, **env):
+    if alive:
+        wf.insert_steps([filesystem.wf_get_completions,
+                         wf_after_get_completions])
+    wf.next()
+
+
+def wf_after_get_completions(wf, entity, possible, remote_completions, **env):
+    possible.extend(f"{entity}:{path}" for path in remote_completions)
+    wf.next()
 
 
 def get_cp_entities(server, requester, username, entity_type):
@@ -107,40 +126,40 @@ def get_cp_entities(server, requester, username, entity_type):
         return complete_image(server, requester, username)
 
 
-def complete_cp_src(server, requester, username, entity_type, partial_token):
-    possible = ()
+def wf_complete_cp_src(wf, server, requester, username,
+        entity_type, partial_token, **env):
+    possible = []
     if ":" not in partial_token:
-        possible += requester.filesystem.get_completions(partial_token)
+        possible += list(requester.filesystem.get_completions(partial_token))
     possible_entities = get_cp_entities(server, requester, username, entity_type)
     for entity in possible_entities:
         if partial_token.startswith(f"{entity}:"):
-            possible += fs_remote_completions(
-                server, requester, entity_type, entity, partial_token
-            )
+            wf.update_env(entity=entity)
+            wf.insert_steps([wf_fs_remote_completions])
         elif entity.startswith(partial_token):
-            possible += (f"{entity}:",)
-    return possible
+            possible += [f"{entity}:"]
+    wf.update_env(possible=possible)
+    wf.next()
 
 
-def complete_cp_dst(
-    server, requester, username, entity_type, src_token, partial_dst_token
-):
-    possible = ()
+def wf_complete_cp_dst(wf, server, requester, username,
+        entity_type, src_token, partial_dst_token, **env):
+    possible = []
     src_is_remote = ":" in src_token
     dst_is_remote = not src_is_remote
     if dst_is_remote:
         possible_entities = get_cp_entities(server, requester, username, entity_type)
         for entity in possible_entities:
             if partial_dst_token.startswith(f"{entity}:"):
-                possible += fs_remote_completions(
-                    server, requester, entity_type, entity, partial_dst_token
-                )
+                wf.update_env(entity=entity, partial_token=partial_dst_token)
+                wf.insert_steps([wf_fs_remote_completions])
             elif entity.startswith(partial_dst_token):
-                possible += (f"{entity}:",)
+                possible += [f"{entity}:"]
     else:
-        possible += requester.filesystem.get_completions(partial_dst_token)
-        possible += ("booted-image",)
-    return possible
+        possible += list(requester.filesystem.get_completions(partial_dst_token))
+        possible += ["booted-image"]
+    wf.update_env(possible=possible)
+    wf.next()
 
 
 def complete_device_config_param(server, requester, argv):
@@ -236,56 +255,61 @@ def complete_image_registry(partial_token):
     return get_registry_labels() + ("auto",)
 
 
-def shell_autocomplete_switch(server, requester, username, argv):
+def wf_shell_autocomplete_switch(wf, task, server, requester, username, argv, **env):
     arg_type = argv[0]
     partial_token = argv[-1]
-    prev_token = argv[-2]
-    if arg_type == "NODE":
-        return complete_node(server, username)
-    elif arg_type == "SET_OF_NODES":
-        return complete_set_of_nodes(server, username, partial_token)
-    elif arg_type == "IMAGE":
-        return complete_image(server, requester, username)
-    elif arg_type == "IMAGE_OR_DEFAULT":
-        return ("default",) + complete_image(server, requester, username)
-    elif arg_type == "NODE_CP_SRC":
-        return complete_cp_src(server, requester, username, "node", partial_token)
-    elif arg_type == "NODE_CP_DST":
-        return complete_cp_dst(
-            server, requester, username, "node", prev_token, partial_token
-        )
-    elif arg_type == "IMAGE_CP_SRC":
-        return complete_cp_src(server, requester, username, "image", partial_token)
-    elif arg_type == "IMAGE_CP_DST":
-        return complete_cp_dst(
-            server, requester, username, "image", prev_token, partial_token
-        )
-    elif arg_type == "NODE_CONFIG_PARAM":
-        return complete_device_config_param(server, requester, argv)
-    elif arg_type == "DEVICE":
-        return complete_device(server, partial_token)
-    elif arg_type == "SWITCH":
-        return complete_switch(server, partial_token)
-    elif arg_type == "SET_OF_DEVICES":
-        return complete_set_of_devices(server, partial_token)
-    elif arg_type == "RESCAN_SET_OF_DEVICES":
-        return complete_rescan_set_of_devices(server, partial_token)
-    elif arg_type == "DEVICE_CONFIG_PARAM":
-        return complete_device_config_param(server, requester, argv)
-    elif arg_type == "PORT_CONFIG_PARAM":
-        return complete_port_config_param(server, partial_token)
-    elif arg_type == "IMAGE_CLONE_URL":
-        return complete_image_clone_url(server, username, partial_token)
-    elif arg_type == "LOG_CHECKPOINT":
-        return complete_log_checkpoint(server, username)
-    elif arg_type == "HISTORY_RANGE":
-        return complete_history_range(server, username, partial_token)
-    elif arg_type == "SET_OF_ISSUERS":
-        return complete_set_of_emitters(server, partial_token)
-    elif arg_type == "REGISTRY":
-        return complete_image_registry(partial_token)
+    if arg_type in ("NODE_CP_SRC", "NODE_CP_DST", "IMAGE_CP_SRC", "IMAGE_CP_DST"):
+        entity_type, _, src_or_dst = arg_type.lower().split("_")
+        if src_or_dst == "src":
+            wf.update_env(
+                entity_type=entity_type,
+                partial_token=partial_token)
+            wf.insert_steps([wf_complete_cp_src])
+        else:
+            prev_token = argv[-2]
+            wf.update_env(
+                entity_type=entity_type,
+                src_token=prev_token,
+                partial_dst_token=partial_token)
+            wf.insert_steps([wf_complete_cp_dst])
+        wf.next()
     else:
-        return ()
+        if arg_type == "NODE":
+            possible = complete_node(server, username)
+        elif arg_type == "SET_OF_NODES":
+            possible = complete_set_of_nodes(server, username, partial_token)
+        elif arg_type == "IMAGE":
+            possible = complete_image(server, requester, username)
+        elif arg_type == "IMAGE_OR_DEFAULT":
+            possible = ("default",) + complete_image(server, requester, username)
+        elif arg_type == "NODE_CONFIG_PARAM":
+            possible = complete_device_config_param(server, requester, argv)
+        elif arg_type == "DEVICE":
+            possible = complete_device(server, partial_token)
+        elif arg_type == "SWITCH":
+            possible = complete_switch(server, partial_token)
+        elif arg_type == "SET_OF_DEVICES":
+            possible = complete_set_of_devices(server, partial_token)
+        elif arg_type == "RESCAN_SET_OF_DEVICES":
+            possible = complete_rescan_set_of_devices(server, partial_token)
+        elif arg_type == "DEVICE_CONFIG_PARAM":
+            possible = complete_device_config_param(server, requester, argv)
+        elif arg_type == "PORT_CONFIG_PARAM":
+            possible = complete_port_config_param(server, partial_token)
+        elif arg_type == "IMAGE_CLONE_URL":
+            possible = complete_image_clone_url(server, username, partial_token)
+        elif arg_type == "LOG_CHECKPOINT":
+            possible = complete_log_checkpoint(server, username)
+        elif arg_type == "HISTORY_RANGE":
+            possible = complete_history_range(server, username, partial_token)
+        elif arg_type == "SET_OF_ISSUERS":
+            possible = complete_set_of_emitters(server, partial_token)
+        elif arg_type == "REGISTRY":
+            possible = complete_image_registry(partial_token)
+        else:
+            possible = ()
+        wf.update_env(possible=possible)
+        wf.next()
 
 
 # in some cases, we want to prevent bash to print a trailing space
@@ -296,15 +320,21 @@ def mark_incomplete(token):
     return (f"{token}a", f"{token}b")
 
 
-def shell_autocomplete_process(server, requester, username, argv, debug):
-    arg_type = argv[0]
-    partial_token = argv[-1]
+def wf_shell_autocomplete(wf, task, debug, **env):
+    # autocompletion should not print failure messages
+    wf.insert_steps([wf_shell_autocomplete_switch])
     try:
-        possible = shell_autocomplete_switch(server, requester, username, argv)
+        wf.next()
     except Exception:
         if debug:
             raise
-        return None  # autocompletion should not print failure messages
+        wf.interrupt()
+        task.return_result("")
+
+
+def wf_filter_possible(wf, argv, possible, **env):
+    arg_type = argv[0]
+    partial_token = argv[-1]
     possible = tuple(item for item in possible if item.startswith(partial_token))
     # if only one possible match...
     if len(possible) == 1:
@@ -334,15 +364,33 @@ def shell_autocomplete_process(server, requester, username, argv, debug):
             and possible[1] == f"{possible[0]}:latest"
         ):
             possible = (possible[0],)
-    return " ".join(possible)
+    wf.update_env(possible=possible)
+    wf.next()
 
 
-def shell_autocomplete(server, requester, username, argv, debug=False):
-    if debug:
-        from time import time
-
-        t0 = time()
-    result = shell_autocomplete_process(server, requester, username, argv, debug=debug)
+def wf_return_result(wf, task, possible, debug, t0=None, **env):
+    result = " ".join(possible)
     if debug:
         print(f"{time()-t0:.2}s -- returning: {result}")
-    return result
+    task.return_result(result)
+    wf.next()
+
+
+def shell_autocomplete(server, task, requester, username, argv, debug=False):
+    env=dict(
+        server=server,
+        task=task,
+        requester=requester,
+        username=username,
+        argv=argv,
+        debug=debug,
+    )
+    if debug:
+        env.update(t0=time())
+    task.set_async()
+    wf = Workflow([wf_shell_autocomplete,
+                   wf_filter_possible,
+                   wf_return_result],
+                   **env
+    )
+    wf.run()

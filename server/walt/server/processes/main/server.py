@@ -375,8 +375,8 @@ class Server(object):
             confirmed=confirmed,
         )
 
-    def validate_cp(self, requester, image_or_node_label, src, dst):
-        return validate_cp(image_or_node_label, self, requester, src, dst)
+    def validate_cp(self, task, requester, image_or_node_label, src, dst):
+        return validate_cp(task, image_or_node_label, self, requester, src, dst)
 
     def node_cp_to_booted_image(
         self, requester, task, api_session, node_name, **path_info
@@ -413,5 +413,5 @@ class Server(object):
         requester.set_busy_label("Transfering")
         self.blocking.run_shell_cmd(requester, cb, cmd, shell=True)
 
-    def shell_autocomplete(self, requester, username, argv, debug=False):
-        return shell_autocomplete(self, requester, username, argv, debug=debug)
+    def shell_autocomplete(self, task, requester, username, argv, debug=False):
+        return shell_autocomplete(self, task, requester, username, argv, debug=debug)
