@@ -204,7 +204,7 @@ class EvProcess(Process):
         pass  # optionally override in subclass
 
     def failsafe_cleanup(self):
-        print(f"exit: calling cleanup function for {self.name}")
+        print(f"exit: entering cleanup function for {self.name}")
         try:
             self.cleanup()
             print(f"exit: cleanup function has ended")
@@ -278,6 +278,7 @@ class EvProcessesManager(object):
                     # the process may have crashed without a possibility to notify
                     # this process manager
                     self.graceful_exit = False
+                    break
             for t in self.processes:
                 if t.pipe_manager is r[0]:
                     self.initial_failing_process = t
@@ -293,6 +294,7 @@ class EvProcessesManager(object):
             processes = self.process_levels[level]
             for t in processes:
                 if t is not self.initial_failing_process:
+                    print(f"exit: propagating exit to {t.name}")
                     try:
                         t.pipe_manager.send("PROPAGATED_EXIT")
                     except Exception:
