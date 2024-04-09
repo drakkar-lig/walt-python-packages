@@ -224,10 +224,8 @@ class NodeImageStore(object):
         if not username:
             return None  # client already disconnected, give up
         fullname = format_image_fullname(username, image_name)
-        for image in self.images.values():
-            if image.fullname == fullname:
-                found = image
-        if fullname not in self.images and self.count_images_of_user(username) == 0:
+        found = self.images.get(fullname)
+        if found is None and not self.user_has_images(username):
             # new user, try to make his life easier by cloning
             # default images of node models present on the platform.
             self.get_clones_of_default_images(requester, "all-nodes")
@@ -240,8 +238,11 @@ class NodeImageStore(object):
             requester.stderr.write("Error: Image '%s' already exists.\n" % image_name)
         return found
 
-    def count_images_of_user(self, username):
-        return sum(1 for image in self.images.values() if image.user == username)
+    def user_has_images(self, username):
+        for image in self.images.values():
+            if image.user == username:
+                return True
+        return False
 
     def get_user_unused_image_from_name(self, requester, image_name):
         image = self.get_user_image_from_name(requester, image_name)
@@ -378,10 +379,7 @@ class NodeImageStore(object):
             wf.join(self.server.ev_loop)
 
     def get_images_in_use(self):
-        res = set(
-            [item.image for item in self.db.execute("SELECT DISTINCT image FROM nodes")]
-        )
-        return res
+        return set(self.db.execute("SELECT DISTINCT image FROM nodes")["image"])
 
     def get_default_image_fullname(self, node_model):
         return "waltplatform/%s-default:latest" % node_model
