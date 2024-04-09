@@ -453,7 +453,6 @@ class NodesManager(object):
                         f"{k}: {v}" for k, v, in details.items())
                     logline += f" ({s_details})"
                 self.logs.platform_log("nodes", logline)
-                node_info.booted = booted
                 # unblock any related "walt node wait" command.
                 if booted:
                     self.wait_info.node_bootup_event(node_info)
