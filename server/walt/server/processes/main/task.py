@@ -14,6 +14,9 @@ class APISessionTask(object):
         self.context = api_session.context.copy().update(
             task=self, requester=rpc_context.remote_service.do_sync.requester
         )
+        # use the get_username() function of the session object
+        # to avoid multiple remote calls
+        self.context.requester.get_username = api_session.get_username
 
     def set_async(self):
         self.rpc_context.task.set_async()

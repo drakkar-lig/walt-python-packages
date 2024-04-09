@@ -1,3 +1,5 @@
+from functools import cache
+
 from walt.common.tools import SimpleContainer
 from walt.server.processes.main.task import APISessionTask
 
@@ -48,10 +50,16 @@ class APISession(object):
         self.context = APISession.SERVER_CONTEXT.copy().update(
             remote_ip=remote_ip,
         )
+        self.cur_rpc_context = None
 
     def run_task(self, rpc_context, attr, args, kwargs):
+        self.cur_rpc_context = rpc_context
         task = APISessionTask(rpc_context, self, attr, args, kwargs)
         return task.run()
+
+    @cache
+    def get_username(self):
+        return self.cur_rpc_context.remote_service.do_sync.requester.get_username()
 
     def register_session_object(self, obj):
         obj_id = len(self.session_objects)
