@@ -149,7 +149,9 @@ class Server(object):
         # image may fail.
         if status in ("new", "unknown") and kwargs["type"] == "node":
             image_fullname = self.images.store.get_default_image_fullname(info["model"])
-            if image_fullname not in self.images.store:
+            if image_fullname in self.images.store:
+                kwargs["image"] = image_fullname
+            else:
                 kwargs["type"] = "unknown"
         modified = self.devices.add_or_update(ip=ip, mac=mac, **kwargs)
         if status in ("new", "unknown") and info["type"] == "node":
