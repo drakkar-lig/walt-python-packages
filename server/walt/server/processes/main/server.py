@@ -90,7 +90,7 @@ class Server(object):
 
     def cleanup(self):
         APISession.cleanup_all()
-        tftp.cleanup(self.db)
+        tftp.update(self.db, self.images.store, cleanup=True)
         # nfsd will be restarted before image unmounts,
         # no need to restart it twice
         self.exports.update_persist_exports(
