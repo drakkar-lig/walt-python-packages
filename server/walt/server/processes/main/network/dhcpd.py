@@ -1,12 +1,15 @@
 import os
 from collections import defaultdict
+from ipaddress import ip_address
 from itertools import groupby
+import numpy as np
 from operator import itemgetter
 from pathlib import Path
 
 from walt.common.netsetup import NetSetup
 from walt.server.processes.main.network.service import ServiceRestarter
 from walt.server.tools import get_server_ip, get_walt_subnet, ip
+from walt.server.tools import np_str_pattern, np_apply_str_pattern
 
 # STATE_DIRECTORY is set by systemd to the daemon's state directory.  By
 # default, it is /var/lib/walt
@@ -160,43 +163,39 @@ group {
 
 RANGE_CONF_PATTERN = "    range %(first)s %(last)s;"
 
-HOST_CONF_PATTERN = """\
+
+HOST_CONF_PATTERN = np_str_pattern("""\
     host %(hostname)s {
         hardware ethernet %(mac)s;
         fixed-address %(ip)s;
         option host-name "%(hostname)s";
         set dev_type = "%(type)s";
     }
-"""
+""")
 
 
-# see https://stackoverflow.com/a/2154437
 def get_contiguous_ranges(ips):
-    ips = sorted(ips)
-    ranges = []
-    for k, g in groupby(enumerate(ips), lambda i_x: i_x[0] - int(i_x[1])):
-        group = list(map(itemgetter(1), g))
-        ranges.append((group[0], group[-1]))
+    arr = np.array(sorted(ips), dtype=int)
+    breaks = (arr[1:] - arr[:-1] - 1).nonzero()[0]
+    ranges, start_intvl = [], 0
+    for br in list(breaks) + [len(arr) -1]:
+        ranges.append((int(arr[start_intvl]), int(arr[br])))
+        start_intvl = br+1
     return ranges
 
 
 def generate_dhcpd_conf(subnet, devices):
-    confs_per_category = defaultdict(list)
-    for device_info in devices:
-        conf = HOST_CONF_PATTERN % device_info
-        conf_category_list = confs_per_category[
-            (device_info.netsetup, device_info.type)
-        ]
-        conf_category_list.append(conf)
     # compute free ips
     server_ip = get_server_ip()
-    free_ips = set(subnet.hosts())
-    free_ips.discard(ip(server_ip))
-    free_ips -= set(ip(d.ip) for d in devices)
+    free_ips = set(int(h) for h in subnet.hosts())
+    free_ips.discard(int(ip(server_ip)))
+    free_ips -= set(devices.ip_int)
+    # compute conf of unallocated ip ranges
     range_confs = []
-    for r in get_contiguous_ranges(free_ips):
-        first, last = r
-        range_confs.append(RANGE_CONF_PATTERN % dict(first=first, last=last))
+    for first, last in get_contiguous_ranges(free_ips):
+        info = dict(first=ip_address(first), last=ip_address(last))
+        range_confs.append(RANGE_CONF_PATTERN % info)
+    # format configuration file
     infos = dict(
         walt_server_ip=server_ip,
         subnet_ip=subnet.network_address,
@@ -206,7 +205,9 @@ def generate_dhcpd_conf(subnet, devices):
     )
     for netsetup, netsetup_label in ((NetSetup.LAN, "lan"), (NetSetup.NAT, "nat")):
         for dev_type in ("node", "switch", "unknown"):
-            confs = confs_per_category[(netsetup, dev_type)]
+            dev_mask = (devices.netsetup == netsetup)
+            dev_mask &= (devices.type == dev_type)
+            confs = devices.formatted_conf[dev_mask]
             infos.update(
                 {f"walt_registered_{netsetup_label}_{dev_type}_conf": "\n".join(confs)}
             )
@@ -215,7 +216,9 @@ def generate_dhcpd_conf(subnet, devices):
 
 QUERY_DEVICES_WITH_IP = """
     SELECT d.mac, ip, name as hostname, type,
-        COALESCE((conf->'netsetup')::int, 0) as netsetup
+        COALESCE((conf->'netsetup')::int, 0) as netsetup,
+        (ip::inet - '0.0.0.0'::inet) as ip_int,
+        '' as formatted_conf
     FROM devices d LEFT JOIN nodes n ON d.mac = n.mac
     WHERE ip IS NOT NULL
       AND type != 'server'
@@ -231,7 +234,8 @@ class DHCPServer(object):
 
     def update(self, force=False, cb=None):
         subnet = get_walt_subnet()
-        devices = list(self.db.execute(QUERY_DEVICES_WITH_IP, (str(subnet),)))
+        devices = self.db.execute(QUERY_DEVICES_WITH_IP, (str(subnet),))
+        devices.formatted_conf = np_apply_str_pattern(HOST_CONF_PATTERN, devices)
         conf = generate_dhcpd_conf(subnet, devices)
         old_conf = ""
         if DHCPD_CONF_FILE.exists():
