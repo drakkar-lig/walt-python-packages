@@ -446,9 +446,6 @@ class NodeImageStore(object):
         os.rmdir(mount_path)
         print("done")
 
-    def __del__(self):
-        self.cleanup()
-
     def get_clones_of_default_images(self, requester, node_set):
         # returns a tuple of 3 values:
         # 1: whether the request was valid
