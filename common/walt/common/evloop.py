@@ -1,10 +1,11 @@
 #!/usr/bin/env python
 import contextlib
+import os
 import signal
 from heapq import heappop, heappush
 from multiprocessing import current_process  # noqa: F401
 from select import POLLIN, POLLOUT, POLLPRI, poll, select
-from subprocess import PIPE, Popen
+from subprocess import PIPE, Popen, DEVNULL
 from time import time
 
 
@@ -21,38 +22,60 @@ def is_event_ok(ev):
     return ev & (POLL_OPS_READ | POLL_OPS_WRITE) > 0
 
 
+# This object allows to implement ev_loop.auto_waitpid(<pid>, <wait_cb>=None)
+class PIDListener:
+    def __init__(self, pid, wait_cb=None):
+        self._pid = pid
+        self._pidfd = None
+        self._wait_cb = wait_cb
+
+    def start(self):
+        self._pidfd = os.pidfd_open(self._pid, 0)
+
+    def fileno(self):
+        return self._pidfd
+
+    def handle_event(self, ts):
+        # the event loop calls this when the child is stopped
+        return False  # let the event loop remove us and call close()
+
+    def close(self):
+        os.close(self._pidfd)
+        if self._wait_cb is None:
+            os.waitpid(self._pid, 0)
+        else:
+            self._wait_cb()
+
 
 # This object allows to implement ev_loop.do(<cmd>, <callback>)
 class ProcessListener:
-    def __init__(self, cmd, callback):
-        # command should indicate when it is completed
-        self.cmd = cmd + "; echo; echo __eventloop.ProcessListener.DONE__"
-        self.callback = callback
-        self.cmd_output = b""
+    def __init__(self, cmd, callback, silent):
+        self._cmd = cmd
+        self._callback = callback
+        self._silent = silent
+        self._popen = None
+        self._pidfd = None
 
-    def run(self):
-        self.popen = Popen(self.cmd, stdout=PIPE, shell=True)
+    def start(self):
+        if self._silent:
+            stdout = DEVNULL
+        else:
+            stdout = None   # no redirection, print to parent stdout
+        self._popen = Popen(self._cmd, stdout=stdout, shell=True)
+        self._pidfd = os.pidfd_open(self._popen.pid, 0)
 
     def fileno(self):
-        return self.popen.stdout.fileno()
+        return self._pidfd
 
-    # handle_event() will be called when the event loop detects
-    # new input data for us.
     def handle_event(self, ts):
-        data = self.popen.stdout.read(1024)
-        if len(data) > 0:
-            self.cmd_output += data
-        if len(data) == 0 or self.cmd_output.endswith(
-            b"__eventloop.ProcessListener.DONE__\n"
-        ):
-            # command terminated
-            if self.callback is not None:
-                self.callback()
-            return False  # let event loop remove us
+        # the event loop calls this when the child is stopped
+        return False  # let the event loop remove us and call close()
 
     def close(self):
-        if self.popen is not None:
-            self.popen.wait()
+        os.close(self._pidfd)
+        retcode = self._popen.wait()
+        if self._callback is not None:
+            self._callback(retcode)
 
 
 # EventLoop allows to monitor incoming data on a set of
@@ -186,11 +209,11 @@ class EventLoop(object):
 
     @contextlib.contextmanager
     def signals_allowed(self):
-        signal.pthread_sigmask(signal.SIG_UNBLOCK, [signal.SIGHUP, signal.SIGCHLD])
+        signal.pthread_sigmask(signal.SIG_UNBLOCK, [signal.SIGHUP])
         try:
             yield
         finally:
-            signal.pthread_sigmask(signal.SIG_BLOCK, [signal.SIGHUP, signal.SIGCHLD])
+            signal.pthread_sigmask(signal.SIG_BLOCK, [signal.SIGHUP])
 
     def loop(self, loop_condition=None, single_listener=None):
         self.recursion_depth += 1
@@ -302,7 +325,12 @@ class EventLoop(object):
         # print(f'__DEBUG__ {current_process().name} end depth={self.recursion_depth}')
         self.recursion_depth -= 1
 
-    def do(self, cmd, callback=None):
-        p = ProcessListener(cmd, callback)
-        p.run()
+    def do(self, cmd, callback=None, silent=True):
+        p = ProcessListener(cmd, callback, silent)
+        p.start()
+        self.register_listener(p)
+
+    def auto_waitpid(self, pid, wait_cb=None):
+        p = PIDListener(pid, wait_cb)
+        p.start()
         self.register_listener(p)

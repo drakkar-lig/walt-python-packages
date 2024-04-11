@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import shutil
+import signal
 import sys
-from subprocess import PIPE, Popen, run
+from multiprocessing import current_process
+from subprocess import PIPE, STDOUT, Popen, run
 
 
 class ExtTool:
@@ -40,6 +42,7 @@ class ExtTool:
             *args, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
         )
         output = await popen.stdout.read()
+        await popen.wait()
         return output.decode(sys.stdout.encoding)
 
     def __getattr__(self, attr):
@@ -50,12 +53,12 @@ class ExtTool:
 
     def __call__(self, *args, input=None):
         return run(
-            self.path + args,
-            check=True,
-            input=input,
-            stdout=PIPE,
-            encoding=sys.stdout.encoding,
-        ).stdout.strip()
+                self.path + args,
+                check=True,
+                input=input,
+                stdout=PIPE,
+                encoding=sys.stdout.encoding,
+            ).stdout.strip()
 
 
 class StreamExtTool:
@@ -77,10 +80,11 @@ class StreamExtTool:
         popen = Popen(
             self.path + args,
             encoding=sys.stdout.encoding,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT,
+            stdout=PIPE,
+            stderr=STDOUT,
         )
         stream = popen.stdout
+        current_process().ev_loop.auto_waitpid(popen.pid, popen.wait)
 
         def read_stream():
             while True:
