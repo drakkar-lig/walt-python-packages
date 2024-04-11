@@ -60,6 +60,7 @@ class BetterPopen:
 
     def handle_event(self, ts):
         # the event loop calls this when the child is stopped
+        os.waitpid(self.child_pid, 0)
         self.child_stopped = True
         return False  # let the event loop remove us and call close()
 
