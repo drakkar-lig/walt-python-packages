@@ -225,3 +225,25 @@ def parse_date(created_at):
     # remove last 3 decimals of this number
     created_at = re.sub(r"([0-9]{6})[0-9]*", r"\1", created_at)
     return datetime.strptime(created_at, "%Y-%m-%d %H:%M:%S.%f %z")
+
+
+def np_str_pattern(pattern):
+    analysis = ()
+    while True:
+        parts = pattern.split("%(", maxsplit=1)
+        analysis += (parts[0],)
+        if len(parts) == 1:
+            break
+        field, pattern = parts[1].split(")s", maxsplit=1)
+        analysis += (field,)
+    return analysis
+
+
+def np_apply_str_pattern(pattern, data):
+    result = ""
+    while True:
+        result += pattern[0]
+        if len(pattern) == 1:
+            return result
+        field, pattern = pattern[1], pattern[2:]
+        result += data[field]
