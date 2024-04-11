@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import contextlib
+import os
 import signal
 from heapq import heappop, heappush
 from multiprocessing import current_process  # noqa: F401
@@ -19,7 +20,6 @@ POLL_OPS_WRITE = POLLOUT
 def is_event_ok(ev):
     # check that there is something to read or write
     return ev & (POLL_OPS_READ | POLL_OPS_WRITE) > 0
-
 
 
 # This object allows to implement ev_loop.do(<cmd>, <callback>)
@@ -53,6 +53,31 @@ class ProcessListener:
     def close(self):
         if self.popen is not None:
             self.popen.wait()
+
+
+# This object allows to implement ev_loop.auto_waitpid(<pid>, <callback>=None)
+class PIDListener:
+    def __init__(self, pid, callback=None):
+        self._pid = pid
+        self._pidfd = None
+        self._callback = callback
+
+    def start(self):
+        self._pidfd = os.pidfd_open(self._pid, 0)
+
+    def fileno(self):
+        return self._pidfd
+
+    def handle_event(self, ts):
+        # the event loop calls this when the child is stopped
+        return False  # let the event loop remove us and call close()
+
+    def close(self):
+        os.close(self._pidfd)
+        retcode = os.waitpid(self._pid, 0)
+        if self._callback is not None:
+            self._callback(os.waitstatus_to_exitcode(retcode))
+
 
 
 # EventLoop allows to monitor incoming data on a set of
@@ -186,11 +211,11 @@ class EventLoop(object):
 
     @contextlib.contextmanager
     def signals_allowed(self):
-        signal.pthread_sigmask(signal.SIG_UNBLOCK, [signal.SIGHUP, signal.SIGCHLD])
+        signal.pthread_sigmask(signal.SIG_UNBLOCK, [signal.SIGHUP])
         try:
             yield
         finally:
-            signal.pthread_sigmask(signal.SIG_BLOCK, [signal.SIGHUP, signal.SIGCHLD])
+            signal.pthread_sigmask(signal.SIG_BLOCK, [signal.SIGHUP])
 
     def loop(self, loop_condition=None, single_listener=None):
         self.recursion_depth += 1
@@ -305,4 +330,9 @@ class EventLoop(object):
     def do(self, cmd, callback=None):
         p = ProcessListener(cmd, callback)
         p.run()
+        self.register_listener(p)
+
+    def auto_waitpid(self, pid, callback=None):
+        p = PIDListener(pid, callback)
+        p.start()
         self.register_listener(p)

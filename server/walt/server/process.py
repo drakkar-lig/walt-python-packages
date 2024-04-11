@@ -50,30 +50,6 @@ def transmit_sighup_to_main(main_pid):
     signal.signal(signal.SIGHUP, signal_handler)
 
 
-def on_sigchld_call_waitpid():
-    def signal_handler(sig, frame):
-        while True:
-            try:
-                waitstatus = os.waitpid(-1, os.WNOHANG)
-            except ChildProcessError:
-                return
-            pid = waitstatus[0]
-            if pid > 0:
-                # import pdb; pdb.set_trace()
-                # interrupt_print(f'process pid={pid} has stopped.')
-                continue
-            else:
-                return
-
-    signal.signal(signal.SIGCHLD, signal_handler)
-
-
-def block_sighup_and_sigchld():
-    # these signals should only be able to interrupt us at chosen times
-    # (cf. event loop)
-    signal.pthread_sigmask(signal.SIG_BLOCK, [signal.SIGHUP, signal.SIGCHLD])
-
-
 def fix_pdb():
     # Monkey patch pdb for usage in a subprocess.
     # For this, it will call current_process().readline(), which
@@ -157,8 +133,8 @@ class EvProcess(Process):
         # its subprocesses
         signal.signal(signal.SIGINT, signal.SIG_IGN)
         signal.signal(signal.SIGTERM, signal.SIG_IGN)
-        block_sighup_and_sigchld()  # unblock those only when idle in evloop
-        on_sigchld_call_waitpid()
+        # SIGHUP will be allowed only when idle in evloop
+        signal.pthread_sigmask(signal.SIG_BLOCK, [signal.SIGHUP])
         # close file descriptors that were opened for other Process objects
         for f in self._auto_close_files:
             # print(self.name, 'closing fd not for us:', f)

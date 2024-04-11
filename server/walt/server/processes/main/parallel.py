@@ -78,6 +78,8 @@ class ParallelProcessSocketListener(object):
             if "win_size" in self.params:
                 set_tty_size_raw(sys.stdout.fileno(), self.params["win_size"])
             os.execvpe(cmd_args[0], cmd_args, env)
+        # let the event loop detect the end and call waitpid()
+        self.ev_loop.auto_waitpid(slave_pid)
         # the parent should communicate.
         # use unbuffered communication with the slave process
         self.slave_r = os.fdopen(os.dup(fd_slave), "rb", 0)
@@ -91,7 +93,8 @@ class ParallelProcessSocketListener(object):
         # For efficiency, we fork a child process which will read & write directly
         # on the socket.
         # print(f'{self.client_sock_file.fileno()}: start_popen {cmd_args}')
-        if os.fork() == 0:
+        pid = os.fork()
+        if pid == 0:
             # - child -
             sock_fd = self.client_sock_file.fileno()
             for std_fd in (0, 1, 2):
@@ -100,7 +103,9 @@ class ParallelProcessSocketListener(object):
             os.execvpe(cmd_args[0], cmd_args, env)
         # - parent -
         # the child will do the work, we are no longer needed,
-        # so let the event loop remove us.
+        # so let the event loop remove us and call waitpid()
+        # at the end.
+        self.ev_loop.auto_waitpid(pid)
         return False
 
     # let the event loop know what we are reading on
