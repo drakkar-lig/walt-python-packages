@@ -334,6 +334,10 @@ class ProcessConnector:
     def poll(self):
         return self.pipe.poll()
 
+    @property
+    def closed(self):
+        return self.pipe.closed
+
 
 PRIORITIES = {"RESULT": 0, "EXCEPTION": 1, "API_CALL": 2}
 
@@ -391,7 +395,8 @@ class RPCTask(object):
             not self._completed
         ), f"{current_process().name} Returning twice from the same task"
         # print(current_process().name, 'RESULT', self.remote_req_id, res)
-        self.connector.write(("RESULT", self.remote_req_id, res))
+        if not self.connector.closed:
+            self.connector.write(("RESULT", self.remote_req_id, res))
         self._completed = True
 
     def return_exception(self, e, print_exc=True):
@@ -404,7 +409,8 @@ class RPCTask(object):
                 + ": Exception occured while performing API request:"
             )
             sys.excepthook(*sys.exc_info())
-        self.connector.write(("RESULT", self.remote_req_id, Exception(str(e))))
+        if not self.connector.closed:
+            self.connector.write(("RESULT", self.remote_req_id, Exception(str(e))))
         self._completed = True
 
 
