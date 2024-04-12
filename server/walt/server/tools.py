@@ -1,5 +1,8 @@
+import numpy as np
 from ipaddress import IPv4Address, ip_address, ip_network
 from typing import Union
+
+from walt.common.formatting import COLUMNATE_SPACING
 
 DEFAULT_JSON_HTTP_TIMEOUT = 10
 
@@ -247,3 +250,57 @@ def np_apply_str_pattern(pattern, data):
             return result
         field, pattern = pattern[1], pattern[2:]
         result += data[field]
+
+
+def np_columnate(tabular_data, shrink_empty_cols=False, align=None):
+    if len(tabular_data) == 0:
+        return ""
+    # align cell content on the left if not specified
+    if align is None:
+        align = "<" * len(tabular_data[0])
+    align = np.array(list(align))
+    # turn tabular_data into a 2-dimensions str array
+    col_names = np.array(tabular_data.dtype.names)
+    data = np.concatenate(
+            [tabular_data[field].astype(str) for field in col_names])
+    data = data.reshape(len(col_names), len(tabular_data))
+    # sanitize
+    data[data == 'None'] = ""
+    # add col name and sep lines (empty for now)
+    data = np.insert(data, 0, "", axis=1)
+    data = np.insert(data, 0, col_names, axis=1)
+    # compute lengths
+    lengths = np.char.str_len(data)
+    # remove empty cols
+    if shrink_empty_cols:
+        max_data_lengths = np.max(lengths[:,2:], axis=1)
+        if not max_data_lengths.all():
+            # at least one column is empty
+            cols_mask = (max_data_lengths > 0)
+            lengths = lengths[cols_mask]
+            data = data[cols_mask]
+            col_names = col_names[cols_mask]
+            align = align[cols_mask]
+    # some steps below may add 3 more chars at most to
+    # each cell (two spaces and a carriage return)
+    # so let's define a larger data type
+    cols_width = np.max(lengths, axis=1)
+    max_cell_width = cols_width.max() + COLUMNATE_SPACING + 1
+    data = data.T.astype(f"<U{max_cell_width}")
+    # set header sep line
+    data[1] = np.char.ljust(data[1], cols_width, "-")
+    # align
+    cols_align_left = (align == "<")
+    if cols_align_left.any():
+        data[:,cols_align_left] = np.char.ljust(
+                data[:,cols_align_left], cols_width[cols_align_left])
+    cols_align_right = (align == ">")
+    if cols_align_right.any():
+        data[:,cols_align_right] = np.char.rjust(
+                data[:,cols_align_right], cols_width[cols_align_right])
+    # separate columns with two spaces
+    spaces = COLUMNATE_SPACING * " "
+    data[:,1:] = np.char.add(spaces, data[:,1:])
+    # finalize formatting
+    data[:-1,-1] = np.char.add(data[:-1,-1], "\n")
+    return "".join(data.flat)

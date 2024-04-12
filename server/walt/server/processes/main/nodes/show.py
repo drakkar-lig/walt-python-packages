@@ -1,7 +1,8 @@
 import numpy as np
 
-from walt.common.formatting import columnate, format_paragraph
+from walt.common.formatting import format_paragraph
 from walt.common.netsetup import NetSetup
+from walt.server.tools import np_columnate
 
 NODE_SHOW_QUERY = """
     WITH powersave_macs AS (
@@ -52,7 +53,7 @@ No other nodes were detected (apart from the ones listed above)."""
 def generate_table(title, footnote, records, *col_titles):
     col_titles = list(col_titles)
     table = records[col_titles]
-    return format_paragraph(title, columnate(table, header=col_titles), footnote)
+    return format_paragraph(title, np_columnate(table), footnote)
 
 
 def user_subsets(res, username):
