@@ -186,16 +186,8 @@ class EventLoop(object):
             self.single_listener_pollers[fd].unregister(fd)
             del self.single_listener_pollers[fd]
         self.general_poller.unregister(fd)
-        if not should_close:
-            return True  # done
-        # do no fail in case of issue in listener.close()
-        # because anyway we do not need this listener anymore
-        try:
+        if should_close:
             listener.close()
-        except BreakLoopRequested:
-            raise
-        except Exception as e:
-            print("warning: got exception in listener.close():", repr(e))
         return True  # done
 
     def should_continue(self, loop_condition):
