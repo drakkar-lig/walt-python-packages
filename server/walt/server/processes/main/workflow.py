@@ -28,7 +28,7 @@ class Workflow:
             #print(f"<Workflow{self._id}>.next()", step)
             step(self, *args, **env)
         else:
-            #print(f"<Workflow{self._id}> terminated")
+            #print(f"<Workflow{self._id}> end")
             end_callbacks = self._end_callbacks
             self._end_callbacks = None
             for cb in end_callbacks:
