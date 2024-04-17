@@ -1,18 +1,14 @@
 import json
-import os
-import shutil
 from pathlib import Path
-from subprocess import CalledProcessError
 
 from podman import PodmanClient
 from podman.errors.exceptions import ImageNotFound
-from walt.server.exttools import buildah, findmnt, mount, podman, umount
+from walt.server.exttools import podman
 from walt.server.tools import add_image_repo, format_node_models_list
 from walt.server.tools import parse_date
 
 MAX_IMAGE_LAYERS = 128
 METADATA_CACHE_FILE = Path("/var/cache/walt/images.metadata")
-IMAGE_LAYERS_DIR = "/var/lib/containers/storage/overlay"
 PODMAN_API_SOCKET = "unix:///run/walt/podman/podman.socket"
 
 
@@ -21,49 +17,6 @@ def date_to_str_local(dt):
     dt = dt.replace(microsecond=0)
     # convert to local time
     return str(dt.astimezone().replace(tzinfo=None))
-
-
-# 'buildah mount' does not mount the overlay filesystem with appropriate options to
-# allow nfs export. let's fix this.
-def remount_with_nfs_export_option(mountpoint):
-    # retrieve mount info
-    json_info = findmnt("--json", mountpoint)
-    mount_info = json.loads(json_info)["filesystems"][0]
-    source = mount_info["source"]
-    fstype = mount_info["fstype"]
-    options = mount_info["options"].split(",")
-    # update options
-    new_options = ["rw", "relatime", "index=on", "nfs_export=on"] + [
-        opt
-        for opt in options
-        if opt.startswith("lowerdir")
-        or opt.startswith("upperdir")
-        or opt.startswith("workdir")
-    ]
-    # umount
-    umount(mountpoint)
-    # overlay has a check in place to prevent mounting the same file system
-    # twice if volatile was already specified.
-    for opt in options:
-        if opt.startswith("workdir"):
-            workdir = Path(opt[len("workdir=") :])
-            incompat_volatile = workdir / "work" / "incompat" / "volatile"
-            if incompat_volatile.exists():
-                shutil.rmtree(incompat_volatile)
-            break
-    # when having many layers, podman specifies them relative to the
-    # following directory
-    os.chdir(IMAGE_LAYERS_DIR)
-    # re-mount
-    mount("-t", fstype, "-o", ",".join(new_options), source, mountpoint)
-
-
-def mount_exists(mountpoint):
-    try:
-        findmnt("--json", mountpoint)
-    except CalledProcessError:
-        return False
-    return True
 
 
 class WalTLocalRegistry:
@@ -242,42 +195,3 @@ class WalTLocalRegistry:
         return podman.events.stream(
             "--format", "json", converter=(lambda line: json.loads(line))
         )
-
-    def get_mount_container_name(self, image_id):
-        return "mount:" + image_id[:12]
-
-    def get_mount_image_name(self, image_id):
-        return "localhost/walt/mounts:" + image_id[:12]
-
-    def image_mount(self, image_id, mount_path):
-        # if server daemon was killed and restarted, the mount may still be there
-        if mount_exists(mount_path):
-            return False  # nothing to do
-        # in some cases the code may remove the last tag of an image whilst it is
-        # still mounted, waiting for grace time expiry. this fails.
-        # in order to avoid this we attach a new tag to all images we mount.
-        image_name = self.get_mount_image_name(image_id)
-        if not self.image_exists(image_name):
-            self.ll_podman_tag(str(image_id), image_name)
-        # create a buildah container and use the buildah mount command
-        cont_name = self.get_mount_container_name(image_id)
-        try:
-            buildah("from", "--pull-never", "--name", cont_name, image_id)
-        except CalledProcessError:
-            print(
-                "Note: walt server was probably not stopped properly and container"
-                " still exists. Going on."
-            )
-        dir_name = buildah.mount(cont_name)
-        remount_with_nfs_export_option(dir_name)
-        mount("--bind", dir_name, mount_path)
-        return True
-
-    def image_umount(self, image_id, mount_path):
-        cont_name = self.get_mount_container_name(image_id)
-        if mount_exists(mount_path):
-            umount("-lf", mount_path)
-        buildah.umount(cont_name)
-        buildah.rm(cont_name)
-        image_name = self.get_mount_image_name(image_id)
-        self.p.images.remove(image_name)

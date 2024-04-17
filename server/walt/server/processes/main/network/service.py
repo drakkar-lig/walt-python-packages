@@ -59,7 +59,7 @@ class ServiceRestarter:
                 f" {next_service_version}."
             )
 
-            def callback():
+            def callback(retcode):
                 # update service version
                 prev_service_version = self.service_version
                 self.service_version = next_service_version

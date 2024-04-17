@@ -118,6 +118,8 @@ PACKAGE_SPECIFIC_INFO = {
                     "walt-net-config = walt.server.netconfig:run",
                     "walt-image-check = walt.server.imagecheck:run",
                     "walt-annotate-cmd = walt.server.annotatecmd:run",
+                    "walt-image-mount = walt.server.mount.mount:run",
+                    "walt-image-umount = walt.server.mount.umount:run",
                 ]
             },
             scripts=["sh/walt-image-shell-helper",

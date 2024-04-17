@@ -54,6 +54,26 @@ class Workflow:
     def append_steps(self, steps):
         self._steps = self._steps + list(steps)
 
+    @staticmethod
+    def _wf_run_parallel_steps(wf, _parallel_steps, **env):
+        num_parallel_steps = len(_parallel_steps)
+        wf.update_env(_remaining_parallel_steps = num_parallel_steps)
+        wf.insert_steps([wf._wf_after_one_parallel_step] * num_parallel_steps)
+        for step in _parallel_steps:
+            step(wf, **env)
+
+    @staticmethod
+    def _wf_after_one_parallel_step(wf, _remaining_parallel_steps, **env):
+        _remaining_parallel_steps -= 1
+        if _remaining_parallel_steps == 0:
+            wf.next()  # all parallel steps are done
+        else:
+            wf.update_env(_remaining_parallel_steps = _remaining_parallel_steps)
+
+    def insert_parallel_steps(self, steps):
+        self.update_env(_parallel_steps = steps)
+        self.insert_steps([self._wf_run_parallel_steps])
+
     def continue_after_other_workflow(self, other_wf):
         #print("continue_after_other_workflow")
         other_wf._end_callbacks.append(self.next)

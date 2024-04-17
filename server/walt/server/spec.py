@@ -6,10 +6,34 @@ from pathlib import Path
 from plumbum.cmd import chroot
 from walt.common.config import load_conf
 from walt.common.tools import failsafe_makedirs
-from walt.server.processes.main.spec import SERVER_SPEC_PATH, get_server_features
 from walt.server.tools import update_template
 
+SERVER_SPEC_PATH = Path("/etc/walt/server.spec")
+SERVER_SPEC = None
 IMAGE_SPEC_PATH = "/etc/walt/image.spec"
+
+
+def get_server_spec():
+    global SERVER_SPEC
+    if SERVER_SPEC is None:
+        SERVER_SPEC = load_conf(SERVER_SPEC_PATH, optional=True)
+        if SERVER_SPEC is None:
+            SERVER_SPEC = {}
+    return SERVER_SPEC
+
+
+def reload_server_spec():
+    global SERVER_SPEC
+    SERVER_SPEC = None
+    get_server_spec()
+
+
+def get_server_features():
+    return set(get_server_spec().get("features", []))
+
+
+def server_has_feature(feature):
+    return feature in get_server_features()
 
 
 def read_image_spec(image_path):
@@ -21,7 +45,7 @@ def do_chroot(mount_path, cmd):
     return chroot(mount_path, *args, retcode=None).strip()
 
 
-def enable_matching_features(mount_path, image_spec):
+def enable_matching_features(mount_path, image_spec, img_print=print):
     try:
         server_feature_set = get_server_features()
         image_feature_set = set(image_spec.get("features", []))
@@ -29,10 +53,10 @@ def enable_matching_features(mount_path, image_spec):
         available_feature_set = server_feature_set & image_feature_set
         for feature in available_feature_set:
             enabling_cmd = image_spec["features"][feature]
-            print(
+            img_print(
                 """enabling '%s' feature by running '%s'.""" % (feature, enabling_cmd)
             )
-            print(do_chroot(mount_path, enabling_cmd))
+            img_print(do_chroot(mount_path, enabling_cmd))
     except Exception as e:
         print("""WARNING: Caught exception '%s'""" % str(e))
 

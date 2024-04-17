@@ -3,7 +3,7 @@ import random
 
 from walt.common.tcp import Requests
 from walt.server.const import SSH_COMMAND
-from walt.server.processes.main.images.setup import script_path
+from walt.server.mount.setup import script_path
 from walt.server.processes.main.parallel import ParallelProcessSocketListener
 from walt.server.processes.main.workflow import Workflow
 

@@ -11,8 +11,8 @@ from walt.common.constants import (
     WALT_SERVER_TCP_PORT,
 )
 from walt.common.tools import do, failsafe_makedirs, failsafe_symlink, get_mac_address
+from walt.server import spec
 from walt.server.const import WALT_INTF, WALT_NODE_NET_SERVICE_PORT
-from walt.server.processes.main.images import spec
 from walt.server.tools import get_server_ip, update_template
 
 # List scripts to be installed on the node and indicate
@@ -113,7 +113,7 @@ def remove_if_link(path):
         os.remove(path)
 
 
-def fix_ptp(mount_path):
+def fix_ptp(mount_path, img_print):
     changed = False
     if not os.path.exists(mount_path + "/etc/ptpd.conf"):
         return
@@ -126,14 +126,14 @@ def fix_ptp(mount_path):
         confname, confval = confline.split("=")
         conf[confname.strip()] = confval.strip()
     if "ptpengine:ip_mode" not in conf or conf["ptpengine:ip_mode"] != "hybrid":
-        print("Forcing hybrid ip_mode in ptp configuration.")
+        img_print("forcing hybrid ip_mode in ptp configuration.")
         conf["ptpengine:ip_mode"] = "hybrid"
         changed = True
     if (
         "ptpengine:log_delayreq_interval" not in conf
         or int(conf["ptpengine:log_delayreq_interval"]) < 3
     ):
-        print("Setting delayreq_interval to 8s in ptp configuration.")
+        img_print("setting delayreq_interval to 8s in ptp configuration.")
         conf["ptpengine:log_delayreq_interval"] = "3"
         changed = True
     if changed:
@@ -148,25 +148,25 @@ def fix_ptp(mount_path):
 # Function fix_absolute_symlinks() replaces them with relative
 # symlinks targeting the expected file taking the image root
 # as reference.
-def fix_if_absolute_symlink(image_root, path):
+def fix_if_absolute_symlink(image_root, path, img_print):
     if os.path.islink(path):
         target = os.readlink(path)
         if target.startswith("/"):
-            print(("fixing " + path + " target (" + target + ")"))
+            img_print(("fixing " + path + " target (" + target + ")"))
             target = image_root + target
             failsafe_symlink(target, path, force_relative=True)
         # recursively fix the target if it is a symlink itself
-        fix_if_absolute_symlink(image_root, target)
+        fix_if_absolute_symlink(image_root, target, img_print)
 
 
-def fix_absolute_symlinks(image_root, dirpath):
+def fix_absolute_symlinks(image_root, dirpath, img_print):
     for root, dirs, files in os.walk(dirpath):
         for name in files:
             path = os.path.join(root, name)
-            fix_if_absolute_symlink(image_root, path)
+            fix_if_absolute_symlink(image_root, path, img_print)
 
 
-def setup(image_id, mount_path, image_size_kib):
+def setup(image_id, mount_path, image_size_kib, img_print):
     # ensure FILES var is completely defined
     if FILES["/root/.ssh/authorized_keys"] is None:
         # ensure server has a pub key
@@ -199,7 +199,7 @@ def setup(image_id, mount_path, image_size_kib):
     ):
         os.remove(mount_path + "/etc/hostname")  # probably a residual of image build
     # fix absolute symlinks in /boot
-    fix_absolute_symlinks(mount_path, mount_path + "/boot")
+    fix_absolute_symlinks(mount_path, mount_path + "/boot", img_print)
     # fix compatbility with old walt-node packages
     if os.path.exists(mount_path + "/usr/local/bin/walt-echo"):
         os.remove(mount_path + "/usr/local/bin/walt-echo")
@@ -226,8 +226,8 @@ def setup(image_id, mount_path, image_size_kib):
         # update template files specified there
         spec.update_templates(mount_path, image_spec, env)
         # update features matching those of the server
-        spec.enable_matching_features(mount_path, image_spec)
+        spec.enable_matching_features(mount_path, image_spec, img_print)
     # copy server spec file, just in case
     spec.copy_server_spec_file(mount_path)
     # fix PTP conf regarding unicast default mode too verbose on LAN
-    fix_ptp(mount_path)
+    fix_ptp(mount_path, img_print)
