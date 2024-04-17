@@ -2,7 +2,7 @@ import os
 import signal
 from pathlib import Path
 
-from walt.server.processes.main.spec import server_has_feature
+from walt.server.spec import server_has_feature
 
 NBFSD_PID_PATH = Path("/var/lib/nbfsd/nbfsd.pid")
 NBFS_EXPORTS_PATH = Path("/etc/nbfsd/exports.d/walt.exports")

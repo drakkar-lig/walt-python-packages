@@ -5,7 +5,7 @@ from walt.server.process import EvProcess
 from walt.server.process import SyncRPCProcessConnector
 from walt.server.processes.main.hub import HubRPCProcessConnector
 from walt.server.processes.main.blocking import BlockingTasksManager
-from walt.server.processes.main.spec import reload_server_spec
+from walt.server.spec import reload_server_spec
 
 
 def on_sighup_reload_conf():

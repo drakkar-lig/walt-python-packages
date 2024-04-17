@@ -1,15 +1,16 @@
 from __future__ import annotations
 
+import functools
 import os
 import sys
 import typing
 from time import time
 
-from walt.common.tools import failsafe_makedirs, format_image_fullname
+from walt.common.tools import format_image_fullname
+from walt.server.mount.tools import get_mount_path
 from walt.server.processes.main.exports import FilesystemsExporter
 from walt.server.processes.main.filesystem import FilesystemsCache
 from walt.server.processes.main.images.image import NodeImage
-from walt.server.processes.main.images.setup import setup
 from walt.server.processes.main.network import tftp
 from walt.server.processes.main.workflow import Workflow
 
@@ -50,12 +51,6 @@ NOTE: Pulling image %s from docker daemon to podman storage (migration v4->v5)."
 MSG_WOULD_REBOOT_NODES = """\
 This operation would reboot %d node(s) currently using the image.
 """
-
-IMAGE_MOUNT_PATH = "/var/lib/walt/images/%s/fs"
-
-
-def get_mount_path(image_id):
-    return IMAGE_MOUNT_PATH % image_id
 
 
 class NodeImageStore(object):
@@ -288,6 +283,7 @@ class NodeImageStore(object):
 
     def _wf_update_image_mounts(self, update_wf, **env):
         new_mounts = set()
+        to_be_mounted = set()
         to_be_unmounted = set()
         changes = False
         # ensure all needed images are mounted
@@ -300,7 +296,7 @@ class NodeImageStore(object):
                 img = self.images[fullname]
                 if not img.mounted:
                     changes = True
-                    self.mount(img)
+                    to_be_mounted.add((img.image_id, img.size_kib))
                 new_mounts.add(img.image_id)
                 # if image was re-mounted while it was waiting grace time
                 # expiry, remove the deadline
@@ -328,23 +324,27 @@ class NodeImageStore(object):
         if changes:
             # retrieve info for next steps
             images_info = set(
-                (image_id, self.get_mount_path(image_id)) for image_id in all_mounts
+                (image_id, get_mount_path(image_id)) for image_id in all_mounts
             )
             # next steps:
-            # 1. nfs mount / unmount
-            # 2. unmount images
-            # 3. recurse in case something changed during the run
-            # note: step 1 is before step 2 otherwise directories would be locked by
+            # 1. mount images
+            # 2. nfs export / unexport
+            # 3. unmount images
+            # 4. recurse in case something changed during the run
+            # note: step 2 is before step 3 otherwise directories would be locked by
             # the NFS export
             update_wf.insert_steps(
                 [
+                    self._wf_mount_images,
                     self.exports.wf_update_image_exports,
                     self._wf_unmount_images,
                     self._wf_update_image_mounts,
                 ]
             )
             update_wf.update_env(
-                to_be_unmounted=to_be_unmounted, images_info=images_info
+                to_be_mounted=to_be_mounted,
+                to_be_unmounted=to_be_unmounted,
+                images_info=images_info
             )
         else:
             # finalize this update
@@ -356,10 +356,24 @@ class NodeImageStore(object):
             self._plan_next_update_wf()
         update_wf.next()
 
+    def _wf_mount_images(self, update_wf, to_be_mounted, **env):
+        if len(to_be_mounted) > 0:
+            steps = []
+            for image_id, image_kib in to_be_mounted:
+                step = functools.partial(self._wf_mount,
+                                         image_id=image_id,
+                                         image_kib=image_kib)
+                steps.append(step)
+            update_wf.insert_parallel_steps(steps)
+        update_wf.next()
+
     def _wf_unmount_images(self, update_wf, to_be_unmounted, **env):
-        for image_id in to_be_unmounted:
-            self.unmount(image_id)
-            self.deadlines.pop(image_id, None)
+        if len(to_be_unmounted) > 0:
+            steps = []
+            for image_id in to_be_unmounted:
+                step = functools.partial(self._wf_unmount, image_id=image_id)
+                steps.append(step)
+            update_wf.insert_parallel_steps(steps)
         update_wf.next()
 
     def cleanup(self):
@@ -412,39 +426,34 @@ class NodeImageStore(object):
     def image_is_mounted(self, image_id):
         return image_id in self.mounts
 
-    def get_mount_path(self, image_id):
-        if image_id in self.mounts:
-            return get_mount_path(image_id)
-        else:
-            return None
-
     def get_filesystem(self, image_id):
         return self.filesystems[image_id]
 
-    def mount(self, img):
-        image_id = img.image_id
+    def _wf_mount(self, wf, image_id, image_kib, **env):
         if image_id in self.mounts:
-            return  # already mounted
+            wf.next()  # already mounted, nothing to do
+            return
         self.mounts.add(image_id)
-        fullname = img.fullname
-        desc = fullname if fullname else image_id
-        print("Mounting %s..." % desc)
-        mount_path = get_mount_path(image_id)
-        failsafe_makedirs(mount_path)
-        self.registry.image_mount(image_id, mount_path)
-        setup(image_id, mount_path, img.size_kib)
-        print("Mounting %s... done" % desc)
+        self.server.ev_loop.do(
+                f"walt-image-mount {image_id} {image_kib}",
+                functools.partial(self._wf_check_retcode, wf, "mount"),
+                silent=False)
 
-    def unmount(self, image_id, fullname=None):
+    def _wf_unmount(self, wf, image_id, **env):
+        self.deadlines.pop(image_id, None)
         if image_id not in self.mounts:
-            return  # not mounted
+            wf.next()  # not mounted, nothing to do
+            return
         self.mounts.remove(image_id)
-        desc = fullname if fullname else image_id
-        print("Un-mounting %s..." % desc, end=" ")
-        mount_path = get_mount_path(image_id)
-        self.registry.image_umount(image_id, mount_path)
-        os.rmdir(mount_path)
-        print("done")
+        self.server.ev_loop.do(
+                f"walt-image-umount {image_id}",
+                functools.partial(self._wf_check_retcode, wf, "umount"),
+                silent=False)
+
+    def _wf_check_retcode(self, wf, verb, retcode, **env):
+        if retcode != 0:
+            raise Exception(f"Failed to {verb} an image")
+        wf.next()
 
     def get_clones_of_default_images(self, requester, node_set):
         # returns a tuple of 3 values:
