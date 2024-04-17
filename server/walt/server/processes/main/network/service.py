@@ -1,3 +1,4 @@
+from collections import defaultdict
 from time import time
 
 # The DHCP & NFS services are restarted (not reloaded) when configuration
@@ -29,7 +30,7 @@ class ServiceRestarter:
         else:
             self.systemd_op = "restart"
         self.restarting = False
-        self.callbacks = {}
+        self.callbacks = defaultdict(list)
 
     def inc_config_version(self):
         self.config_version += 1
@@ -42,7 +43,7 @@ class ServiceRestarter:
 
     def restart(self, cb=None):
         if cb is not None:
-            self.callbacks[self.config_version] = cb
+            self.callbacks[self.config_version].append(cb)
         if not self.restarting:
             self.restarting = True
             self.restart_service_loop()
@@ -71,9 +72,7 @@ class ServiceRestarter:
                 )
                 # call user provided callbacks
                 for v in range(prev_service_version + 1, next_service_version + 1):
-                    cb = self.callbacks.get(v, None)
-                    if cb is not None:
-                        del self.callbacks[v]
+                    for cb in self.callbacks.pop(v, ()):
                         cb()
 
             self.ev_loop.do(
