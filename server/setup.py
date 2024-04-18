@@ -14,7 +14,7 @@ setup_info = {
     "install_requires": [
         "PyYAML==6.0",
         "Pygments==2.15.1",
-        "aiohttp==3.9.3",
+        "aiohttp==3.9.4",
         "aiosignal==1.3.1",
         "aiostream==0.4.5",
         "async-timeout==4.0.2",
