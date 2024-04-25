@@ -52,7 +52,7 @@ WALT_MAIN_SERVICE = "walt-server.service"
 
 OS_ACTIONS = {
     "image-install": {
-        "bullseye": (
+        "bookworm": (
             "define_server_conf",
             "install_os_on_image",
             "fix_conmon",
@@ -65,7 +65,7 @@ OS_ACTIONS = {
         ),
     },
     "install": {
-        "bullseye": (
+        "bookworm": (
             "define_server_conf",
             "install_os",
             "fix_conmon",
@@ -82,7 +82,7 @@ OS_ACTIONS = {
         ),
     },
     "upgrade": {
-        "buster": (
+        "bullseye": (
             "define_server_conf",
             "stop_services",
             "upgrade_os",
@@ -96,7 +96,7 @@ OS_ACTIONS = {
             "update_completion",
             "msg_reboot",
         ),
-        "bullseye": (
+        "bookworm": (
             "define_server_conf",
             "stop_services",
             "fix_os",

@@ -1,6 +1,5 @@
 import base64
 import datetime
-import gzip
 import json
 import os
 import shlex
@@ -27,20 +26,42 @@ DOCKER_REPO_URL = "https://download.docker.com/linux/debian"
 DOCKER_KEYRING_FILE = Path("/usr/share/keyrings/docker-archive-keyring.gpg")
 
 APT_SOURCES_LIST_CONTENT = """\
-deb http://deb.D.org/D/ R main contrib non-free
-deb-src http://deb.D.org/D/ R main contrib non-free
+deb http://deb.D.org/D/ R C
+deb-src http://deb.D.org/D/ R C
 
-deb http://security.D.org/D-security R-security main contrib non-free
-deb-src http://security.D.org/D-security R-security main contrib non-free
+deb http://deb.D.org/D-security R-security C
+deb-src http://deb.D.org/D-security R-security C
 
 # R-updates, to get updates before a point release is made;
 # see https://www.D.org/doc/manuals/D-reference/ch02.en.html#_updates_and_backports
-deb http://deb.D.org/D/ R-updates main contrib non-free
-deb-src http://deb.D.org/D/ R-updates main contrib non-free
-""".replace("D", "debian").replace("R", "bullseye")
+deb http://deb.D.org/D/ R-updates C
+deb-src http://deb.D.org/D/ R-updates C
+""".replace(
+    "D", "debian"
+).replace(
+    "R", "bookworm"
+).replace(
+    "C", "main contrib non-free non-free-firmware")
+
+APT_DEBIAN_SOURCES_CONTENT = """\
+Types: deb deb-src
+URIs: http://deb.debian.org/debian
+Suites: RELEASE RELEASE-updates
+Components: COMPONENTS
+Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
+
+Types: deb deb-src
+URIs: http://deb.debian.org/debian-security
+Suites: RELEASE-security
+Components: COMPONENTS
+Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
+""".replace(
+    "RELEASE", "bookworm"
+).replace(
+    "COMPONENTS", "main contrib non-free non-free-firmware")
 
 APT_DOCKER_LIST_CONTENT = f"""\
-deb [arch=amd64 signed-by={DOCKER_KEYRING_FILE}] {DOCKER_REPO_URL} bullseye stable
+deb [arch=amd64 signed-by={DOCKER_KEYRING_FILE}] {DOCKER_REPO_URL} bookworm stable
 """
 
 # in case of distribution upgrade, remove old versions of packages (including their
@@ -87,9 +108,26 @@ def fix_apt_sources(silent_override=False):
     # prepare backup dir
     timestamp_str = datetime.datetime.now().strftime("%m%d%y%H%M%S")
     apt_backup_dir = Path(f"/etc/apt.backups/{timestamp_str}")
-    # update /etc/apt/sources.list
+    # check which updates are needed
     sources_list = Path("/etc/apt/sources.list")
-    if sources_list.read_text() != APT_SOURCES_LIST_CONTENT:
+    sources_list_d = Path("/etc/apt/sources.list.d")
+    debian_sources = sources_list_d / "debian.sources"
+    docker_list = sources_list_d / "docker.list"
+    update_apt_sources_list, update_apt_sources_list_d = False, False
+    debian_sources_mode = debian_sources.exists()
+    if debian_sources_mode:
+        # new distribution using a deb822-style file at sources.list.d/debian.sources
+        if debian_sources.read_text() != APT_DEBIAN_SOURCES_CONTENT:
+            update_apt_sources_list_d = True
+    else:
+        # old distribution, or new distribution manually updated, using
+        # old-style sources.list
+        if sources_list.read_text() != APT_SOURCES_LIST_CONTENT:
+            update_apt_sources_list = True
+    if not docker_list.exists() or docker_list.read_text() != APT_DOCKER_LIST_CONTENT:
+        update_apt_sources_list_d = True
+    # update /etc/apt/sources.list
+    if update_apt_sources_list:
         if not silent_override:
             sources_list_backup = apt_backup_dir / "sources.list"
             print(f"Updating {sources_list} (backup at {sources_list_backup})")
@@ -97,15 +135,15 @@ def fix_apt_sources(silent_override=False):
             sources_list.rename(sources_list_backup)
         sources_list.write_text(APT_SOURCES_LIST_CONTENT)
     # update /etc/apt/sources.list.d
-    sources_list_d = Path("/etc/apt/sources.list.d")
-    docker_list = sources_list_d / "docker.list"
-    if not docker_list.exists() or docker_list.read_text() != APT_DOCKER_LIST_CONTENT:
+    if update_apt_sources_list_d:
         if not silent_override:
             sources_list_d_backup = apt_backup_dir / "sources.list.d"
             print(f"Replacing {sources_list_d} (backup at {sources_list_d_backup})")
             sources_list_d.rename(sources_list_d_backup)
             sources_list_d.mkdir()
         docker_list.write_text(APT_DOCKER_LIST_CONTENT)
+        if debian_sources_mode:
+            debian_sources.write_text(APT_DEBIAN_SOURCES_CONTENT)
 
 
 def ascii_dearmor(in_text):  # python-equivalent to: gpg --dearmor
@@ -281,23 +319,27 @@ def divert(path, diverted_path):
     )
 
 
-# 'conmon' binary distributed in bullseye has a serious issue
+def undivert(path):
+    subprocess.run(
+        f"dpkg-divert --rename --remove {path}".split(),
+        check=True,
+        stdout=subprocess.PIPE,
+    )
+
+
+# 'conmon' binary distributed in bullseye had a serious issue
 # causing possibly truncated stdout in podman [run|exec]).
-# we replace it with a more up-to-date binary statically compiled
-# using the nix-based method.
+# We used dpkg-divert to replace it with a statically compiled
+# binary. Now with bookworm, we can revert to the distribution-
+# provided binary.
 def fix_conmon():
-    if not has_diversion("/usr/bin/conmon"):
-        print("Fixing issue with conmon tool... ", end="")
+    if has_diversion("/usr/bin/conmon"):
+        print("Restoring conmon tool previously diverted... ", end="")
         sys.stdout.flush()
-        divert("/usr/bin/conmon", "/usr/bin/conmon.distrib")
-        conmon_gz_path = resource_filename(__name__, "conmon.gz")
-        conmon_gz_content = Path(conmon_gz_path).read_bytes()
-        conmon_content = gzip.decompress(conmon_gz_content)
-        conmon_fixed_path = Path("/usr/bin/conmon.fixed")
-        conmon_fixed_path.write_bytes(conmon_content)
-        conmon_fixed_path.chmod(0o755)
+        Path("/usr/bin/conmon").unlink()
+        Path("/usr/bin/conmon.fixed").unlink()
+        undivert("/usr/bin/conmon")
         print("done")
-        Path("/usr/bin/conmon").symlink_to("/usr/bin/conmon.fixed")
 
 
 # We now install walt python packages in a virtual environment
