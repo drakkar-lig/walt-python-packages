@@ -2,12 +2,14 @@ import sys
 
 class Workflow:
     _next_id = 0
+    _instances = {}
     def __init__(self, steps, **env):
         self._id = Workflow._next_id
         Workflow._next_id += 1
         self._steps = list(steps)
         self._env = env
         self._end_callbacks = []
+        Workflow._instances[self._id] = self
         #print(f"new {self}")
 
     def __repr__(self):
@@ -33,6 +35,7 @@ class Workflow:
             self._end_callbacks = None
             for cb in end_callbacks:
                 cb()
+            del Workflow._instances[self._id]
 
     def interrupt(self):
         self._steps = []
@@ -44,9 +47,18 @@ class Workflow:
     def run(self):
         self.next()
 
-    def join(self, ev_loop):
-        if not self.done:
-            ev_loop.loop(lambda: not self.done)
+    @classmethod
+    def can_end_evloop(cls):
+        return len(Workflow._instances) == 0
+
+    @classmethod
+    def cleanup_remaining_workflows(cls):
+        for wf in Workflow._instances.values():
+            if not wf.done:
+                wf.print_missed()
+                print(f"{wf} was never properly ended.", file=sys.stderr)
+                wf.interrupt()
+        Workflow._instances = {}
 
     def insert_steps(self, steps):
         self._steps = list(steps) + self._steps
@@ -78,16 +90,20 @@ class Workflow:
         #print("continue_after_other_workflow")
         other_wf._end_callbacks.append(self.next)
 
+    def print_missed(self):
+        num_steps = len(self._steps)
+        if num_steps > 0:
+            print(f"{self} missed {num_steps} steps:", file=sys.stderr)
+            for step in self._steps:
+                print(step, file=sys.stderr)
+        num_callbacks = len(self._end_callbacks)
+        if num_callbacks > 0:
+            print(f"{self} missed {num_callbacks} callbacks:", file=sys.stderr)
+            for cb in self._end_callbacks:
+                print(cb, file=sys.stderr)
+
     def __del__(self):
         if not self.done:
-            num_steps = len(self._steps)
-            if num_steps > 0:
-                print(f"{self} missed {num_steps} steps:", file=sys.stderr)
-                for step in self._steps:
-                    print(step, file=sys.stderr)
-            num_callbacks = len(self._end_callbacks)
-            if num_callbacks > 0:
-                print(f"{self} missed {num_callbacks} callbacks:", file=sys.stderr)
-                for cb in self._end_callbacks:
-                    print(cb, file=sys.stderr)
-            print(f"{self} was interrupted.", file=sys.stderr)
+            self.print_missed()
+            print(f"{self} was not ended when garbage collected.", file=sys.stderr)
+            del Workflow._instances[self._id]

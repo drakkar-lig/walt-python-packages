@@ -134,16 +134,15 @@ class TCPServer(GenericServer):
         GenericServer.__init__(self)
         self._port = port
 
-    def prepare(self, ev_loop):
-        self.s = server_socket(self._port)
-        self.join_event_loop(ev_loop)
+    def open_server_socket(self):
+        return server_socket(self._port)
 
     # when the event loop detects an event for us, this is
     # what we will do: accept the tcp connection, read
     # the request and create the appropriate listener,
     # and register this listener in the event loop.
-    def handle_event(self, ts):
-        conn_s, addr = self.s.accept()
+    def handle_server_socket_event(self, serv_s):
+        conn_s, addr = serv_s.accept()
         sock_file = RWSocketFile(conn_s)
         req_id = Requests.read_id(sock_file)
         listener = self.get_listener(req_id, sock_file=sock_file)

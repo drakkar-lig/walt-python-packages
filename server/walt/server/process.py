@@ -108,6 +108,11 @@ def _init_trackexec(name, start_time):
         record(walt, log_dir_path)
 
 
+def _log_dbg_exit(line):
+    time_label = datetime.now().strftime("%H:%M:%S.%f")[:12]
+    print(f"exit: {time_label} {line}")
+
+
 class EvProcess(Process):
     def __init__(self, manager, name, level):
         Process.__init__(self, name=name)
@@ -117,8 +122,8 @@ class EvProcess(Process):
         manager.register_process(self, level)
         self.start_time = datetime.now()
 
-    def set_auto_close(self, files):
-        self._auto_close_files = files
+    def set_startup_files_info(self, files):
+        self._startup_files_info = files
 
     def run(self):
         setproctitle.setproctitle(f"walt-server-daemon:{self.name}")
@@ -135,10 +140,15 @@ class EvProcess(Process):
         signal.signal(signal.SIGTERM, signal.SIG_IGN)
         # SIGHUP will be allowed only when idle in evloop
         signal.pthread_sigmask(signal.SIG_BLOCK, [signal.SIGHUP])
-        # close file descriptors that were opened for other Process objects
-        for f in self._auto_close_files:
-            # print(self.name, 'closing fd not for us:', f)
-            f.close()
+        # close file descriptors that were opened for other Process objects,
+        # and ensure our files are not inheritable by our future subprocesses
+        for proc_name, files in self._startup_files_info.items():
+            if proc_name == self.name:
+                for f in files:
+                    os.set_inheritable(f.fileno(), False)
+            else:
+                for f in files:
+                    f.close()
         # run
         self.ev_loop = _instanciate_ev_loop()
         self.ev_loop.register_listener(self)
@@ -155,9 +165,10 @@ class EvProcess(Process):
             # we caught the initial exception on this process, display it
             # and start the clean exit procedure
             traceback.print_exc()
-            self.failsafe_cleanup()
             # notify manager it should stop other processes
             self.pipe_process.send("START_EXIT")
+            # cleanup
+            self.failsafe_cleanup()
 
     def fileno(self):
         return self.pipe_process.fileno()
@@ -180,10 +191,16 @@ class EvProcess(Process):
         pass  # optionally override in subclass
 
     def failsafe_cleanup(self):
-        print(f"exit: entering cleanup function for {self.name}")
+        _log_dbg_exit(f"entering cleanup function for {self.name}")
         try:
             self.cleanup()
-            print(f"exit: cleanup function has ended")
+            _log_dbg_exit("cleanup function has ended")
+            # notify we ended
+            self.pipe_process.send("END_EXIT")
+            # close our files
+            for f in self._startup_files_info[self.name]:
+                f.close()
+            # stop trackexec
             if TRACKEXEC_LOG_DIR.exists():
                 from walt.server.trackexec import stop
                 stop()
@@ -216,11 +233,7 @@ class EvProcessesManager(object):
 
     def start(self):
         for t in self.processes:
-            files_to_close = []
-            for proc_name, files in self.files.items():
-                if proc_name != t.name:
-                    files_to_close += files
-            t.set_auto_close(files_to_close)
+            t.set_startup_files_info(self.files)
         with AutoCleaner(self):
             # start sub processes
             for t in self.processes:
@@ -259,9 +272,9 @@ class EvProcessesManager(object):
                 if t.pipe_manager is r[0]:
                     self.initial_failing_process = t
                     if not self.graceful_exit:
-                        print(f"exit: {t.name} seems to have crashed")
+                        _log_dbg_exit(f"{t.name} seems to have crashed")
                     else:
-                        print(f"exit: requested by {t.name}")
+                        _log_dbg_exit(f"requested by {t.name}")
                     break
 
     def cleanup(self):
@@ -270,20 +283,23 @@ class EvProcessesManager(object):
             processes = self.process_levels[level]
             for t in processes:
                 if t is not self.initial_failing_process:
-                    print(f"exit: propagating exit to {t.name}")
+                    _log_dbg_exit(f"propagating exit to {t.name}")
                     try:
                         t.pipe_manager.send("PROPAGATED_EXIT")
                     except Exception:
-                        print(f"exit: {t.name} is not responding")
-                t.join(20)
-                if t.exitcode is None:
-                    print(f"exit: sending SIGTERM to {t.name}")
+                        _log_dbg_exit(f"{t.name} is not responding")
+                #_log_dbg_exit(f"waiting for {t.name} process to end")
+                has_msg = t.pipe_manager.poll(20)
+                if not has_msg:
+                    _log_dbg_exit(f"sending SIGTERM to {t.name}")
                     t.terminate()
-                    t.join(5.0)
-                if t.exitcode is None:
-                    print(f"exit: sending SIGKILL to {t.name}")
+                    has_msg = t.pipe_manager.poll(5.0)
+                if has_msg:
+                    t.pipe_manager.recv()  # msg is probably "END_EXIT"
+                    #_log_dbg_exit(f"{t.name} process did end")
+                else:
+                    _log_dbg_exit(f"sending SIGKILL to {t.name}")
                     t.kill()
-                    t.join()
 
 
 class ProcessConnector:

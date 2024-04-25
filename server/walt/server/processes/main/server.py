@@ -1,5 +1,7 @@
+import functools
 import re
 from pathlib import Path
+from time import time
 
 from walt.common.constants import WALT_SERVER_TCP_PORT
 from walt.common.devices.registry import get_device_info_from_mac
@@ -7,6 +9,7 @@ from walt.common.formatting import format_sentence
 from walt.common.tcp import TCPServer
 from walt.common.tools import format_image_fullname, parse_image_fullname
 from walt.server import conf
+from walt.server.popen import BetterPopen
 from walt.server.processes.main.apisession import APISession
 from walt.server.processes.main.autocomplete import shell_autocomplete
 from walt.server.processes.main.devices.manager import DevicesManager
@@ -89,6 +92,8 @@ class Server(object):
         self.expose.restore()
 
     def cleanup(self):
+        self.unix_server.shutdown()
+        self.tcp_server.shutdown()
         APISession.cleanup_all()
         tftp.update(self.db, self.images.store, cleanup=True)
         # nfsd will be restarted before image unmounts,
@@ -98,7 +103,22 @@ class Server(object):
         self.images.cleanup()
         self.nodes.cleanup()
         self.devices.cleanup()
+        # continue event loop until all popens and workflows
+        # have ended
+        t0 = time()
+        loop_condition = functools.partial(self.continue_evloop, t0)
+        if loop_condition():
+            self.ev_loop.loop(loop_condition)
         self.logs.logs_to_db.flush()
+
+    def continue_evloop(self, t0):
+        if BetterPopen.can_end_evloop() and Workflow.can_end_evloop():
+            return False  # loop can be stopped
+        elif time() - t0 > 10.0:
+            Workflow.cleanup_remaining_workflows()
+            return False  # loop should be forcibly stopped
+        else:
+            return True   # loop should continue
 
     def get_registries(self):
         return tuple(
