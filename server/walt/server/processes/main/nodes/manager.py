@@ -179,7 +179,7 @@ class NodesManager(object):
         else:
             self._plan_pending_boot_check()
 
-    def try_kill_vnode(self, node_mac):
+    def terminate_vnode_process(self, node_mac):
         if node_mac in self.vnodes:
             popen, listener = self.vnodes[node_mac]
             popen.close()
@@ -190,12 +190,12 @@ class NodesManager(object):
         # stop virtual nodes
         for vnode in self.db.select("devices", type="node", virtual=True):
             print(f"stop vnode {vnode.name}")
-            self.try_kill_vnode(vnode.mac)
+            self.terminate_vnode_process(vnode.mac)
         # cleanup filesystem interpreters
         self.filesystems.cleanup()
 
     def forget_vnode(self, node_mac):
-        self.try_kill_vnode(node_mac)
+        self.terminate_vnode_process(node_mac)
         # note: the calling code takes care of discarding db data
         # about this vnode (see server.py)
 

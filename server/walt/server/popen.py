@@ -13,6 +13,7 @@ TERMINATE_EVENTS = (
 
 
 class BetterPopen:
+    _instances = {}
     def __init__(
         self, ev_loop, cmd, kill_function, shell=True
     ):
@@ -51,6 +52,7 @@ class BetterPopen:
             self._closing = False
             self._closing_callbacks = []
             ev_loop.register_listener(self)
+            BetterPopen._instances[id(self)] = self
 
     def fileno(self):
         return self.child_pidfd
@@ -107,6 +109,12 @@ class BetterPopen:
             os.close(self.child_pidfd)
             self.child_pidfd = None
         self.call_closing_callbacks()
+        if id(self) in BetterPopen._instances:
+            del BetterPopen._instances[id(self)]
+
+    @classmethod
+    def can_end_evloop(cls):
+        return len(BetterPopen._instances) == 0
 
     def plan_terminate(self, terminate_events):
         delay, sig = terminate_events[0]

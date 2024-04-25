@@ -386,9 +386,7 @@ class NodeImageStore(object):
                     self._wf_unmount_images,
                 ], images_info=[], to_be_unmounted=to_be_unmounted
             )
-            # run and wait for completion
             wf.run()
-            wf.join(self.server.ev_loop)
 
     def get_images_in_use(self):
         return set(self.db.execute("SELECT DISTINCT image FROM nodes")["image"])

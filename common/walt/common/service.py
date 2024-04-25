@@ -16,7 +16,9 @@ class ServiceRequests:
 class GenericServer:
     def __init__(self):
         self.s = None
+        self.ev_loop = None
         self.listener_classes = {}
+        self._shutting_down = False
 
     def prepare(self, ev_loop):
         self.s = self.open_server_socket()
@@ -34,7 +36,10 @@ class GenericServer:
         self.listener_classes[req_id] = dict(cls=cls, ctor_args=ctor_args)
 
     def handle_event(self, ts):
-        raise NotImplementedError  # should be handled in sub-classes
+        if self._shutting_down:
+            # let the evloop call close() and forget self
+            return False
+        return self.handle_server_socket_event(self.s)
 
     def get_listener(self, req_id, **added_kwargs):
         if req_id is None or req_id not in self.listener_classes:
@@ -47,5 +52,13 @@ class GenericServer:
         ctor_args.update(**added_kwargs)
         return cls(**ctor_args)
 
+    def shutdown(self):
+        import socket
+        if self.s is not None:
+            self.s.shutdown(socket.SHUT_RDWR)
+            self._shutting_down = True
+
     def close(self):
-        self.s.close()
+        if self.s is not None:
+            self.s.close()
+            self.s = None

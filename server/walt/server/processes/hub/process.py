@@ -18,3 +18,6 @@ class ServerHubProcess(EvProcess):
         self.tcp_server.prepare(self.ev_loop)
         self.main.configure(self)
         self.ev_loop.register_listener(self.main)
+
+    def cleanup(self):
+        self.tcp_server.shutdown()

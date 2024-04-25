@@ -48,7 +48,7 @@ class UnixServer(GenericServer):
         GenericServer.__init__(self)
         self.sock_path = Path(sock_path)
 
-    def prepare(self, ev_loop):
+    def open_server_socket(self):
         if self.sock_path.exists():
             self.sock_path.unlink()
         else:
@@ -56,20 +56,19 @@ class UnixServer(GenericServer):
         s = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
         s.bind(str(self.sock_path))
         set_close_on_exec(s, True)
-        self.s = s
         # allow only root to connect
         self.sock_path.chmod(0o600)
-        self.join_event_loop(ev_loop)
+        return s
 
     # when the event loop detects an event for us, this is
-    # what we will do: read the request and create the appropriate
-    # listener, and register this listener in the event loop.
-    def handle_event(self, ts):
-        msg, ancdata, flags, peer_addr = self.s.recvmsg(256)
+    # what we will do: read the request, create the appropriate
+    # listener, and run it.
+    def handle_server_socket_event(self, serv_s):
+        msg, ancdata, flags, peer_addr = serv_s.recvmsg(256)
         req_id, args, kwargs = pickle.loads(msg)
         listener = self.get_listener(req_id)
         if listener is not None:
-            listener.run(self.s, peer_addr, *args, **kwargs)
+            listener.run(serv_s, peer_addr, *args, **kwargs)
         # even if there was an issue when running this listener,
         # the server itself should continue running
         return True
