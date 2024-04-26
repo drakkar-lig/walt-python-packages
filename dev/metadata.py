@@ -74,12 +74,9 @@ PACKAGE_SPECIFIC_INFO = {
     "walt-server": dict(
         subdir="server",
         requires=[
-            "setuptools<60",  # "<60" for compatibility with python-apt
             "python-apt-binary",  # https://github.com/drakkar-lig/python-apt-binary
             "plumbum>=1.7.2",
-            "snimpy>=0.8.3",
-            "pysnmp==4.4.12",
-            "pyasn1==0.4.8",  # new pyasn1 0.5.0 has an issue
+            "snimpy==1.0.0",      # https://github.com/vincentbernat/snimpy/issues/111
             "ipaddress>=1.0.7",
             "requests>=2.21.0",
             "sdnotify>=0.3.0",
@@ -89,7 +86,6 @@ PACKAGE_SPECIFIC_INFO = {
             "aiohttp>=3.8.1",
             "aiostream>=0.4.4",
             "netifaces>=0.11.0",
-            "urllib3<2",  # for compatibility with podman
             "podman>=4.2.0",
             "setproctitle>=1.3.2",
             "numpy>=1.24.3",
