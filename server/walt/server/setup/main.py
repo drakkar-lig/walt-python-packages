@@ -1,3 +1,4 @@
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -117,6 +118,23 @@ OS_ACTIONS = {
 
 WALT_BASH_COMPLETION_PATH = Path("/etc/bash_completion.d/walt")
 
+APPARMOR_CONFS = {
+        "usr.sbin.dhcpd": """
+/var/lib/walt/services/dhcpd/*.conf r,
+/var/lib/walt/services/dhcpd/*.leases* lrw,
+/run/walt/dhcpd/dhcpd.pid rw,
+/root/walt-*/.venv/bin/walt-dhcp-event ux,  # developer setups
+/opt/walt-*/bin/walt-dhcp-event ux,         # prod setups
+""",
+        "usr.sbin.named": """
+/var/lib/walt/services/named/*.conf r,
+/var/lib/walt/services/named/*.zone r,
+/var/lib/walt/services/named/tmp* rw,
+/var/lib/walt/services/named/managed-keys.* rw,
+/run/walt/named/named.pid rw,
+""",
+}
+
 
 class WalTServerSetup(WaltGenericSetup):
     package = __name__
@@ -229,6 +247,7 @@ class WalTServerSetup(WaltGenericSetup):
         print("Ensuring WalT services are properly registered on the OS... ", end="")
         sys.stdout.flush()
         self.setup_systemd_services(WALT_SERVICES)
+        self.setup_apparmor_profiles()
         subprocess.run(
             "walt-vpn-setup --type SERVER".split(),
             check=True,
@@ -236,6 +255,15 @@ class WalTServerSetup(WaltGenericSetup):
             stderr=subprocess.STDOUT,
         )
         print("done")
+
+    def setup_apparmor_profiles(self):
+        for apparmor_file, apparmor_conf in APPARMOR_CONFS.items():
+            p = Path("/etc/apparmor.d/local/") / apparmor_file
+            if not p.exists() or p.read_text() != apparmor_conf:
+                p.write_text(apparmor_conf)
+                # reload the profile
+                subprocess.run(shlex.split(
+                    f"apparmor_parser -r /etc/apparmor.d/{apparmor_file}"))
 
     def cleanup_old_walt_install(self):
         cleanup_old_walt_install()
