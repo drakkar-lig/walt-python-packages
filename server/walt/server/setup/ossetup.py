@@ -87,7 +87,7 @@ APT_WALT_DEPENDENCIES_PACKAGES = """
         lldpd snmp snmpd openssh-server snmp-mibs-downloader iputils-ping
         libsmi2-dev isc-dhcp-server bind9 nfs-kernel-server uuid-runtime postgresql
         ntpdate ntp lockfile-progs ptpd tftpd-hpa ebtables qemu-system-x86 bridge-utils
-        screen ifupdown gcc python3-dev git make sudo expect netcat libjson-perl
+        screen ifupdown gcc python3-dev git make sudo expect netcat-openbsd libjson-perl
         docker-ce docker-ce-cli containerd.io podman buildah skopeo bash-completion
         ksmtuned fdisk e2fsprogs dosfstools
 """.split()
