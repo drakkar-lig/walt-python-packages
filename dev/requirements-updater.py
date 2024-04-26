@@ -15,43 +15,51 @@ from pathlib import Path
 PACKAGES_WITH_FLEXIBLE_VERSION = {"python-apt-binary"}
 
 
-def all_package_names():
+def sanitize_pname(pname):
+    return pname.replace("_", "-").lower()
+
+
+def all_packages_name_and_version():
     cmd = shlex.split("dev/python.sh -m pip list --format json")
     proc = subprocess.run(cmd, text=True, stdout=subprocess.PIPE)
-    return list(p_info["name"] for p_info in json.loads(proc.stdout))
+    return {sanitize_pname(p_info["name"]): p_info["version"]
+            for p_info in json.loads(proc.stdout)}
 
 
-def parse_rfc2822_part(text):
-    pinfo = {}
+def parse_requires_tag(text):
     for line in text.splitlines():
         splits = line.split(":", maxsplit=1)
-        if splits[0] in ("Name", "Version", "Requires"):
-            k, v = splits
-            pinfo[k] = v.strip()
-    return pinfo
+        if splits[0] == "Requires":
+            return splits[1].strip()
+    raise Exception("'Requires:' tag not found")
 
 
-def parse_rfc2822(text):
-    return [parse_rfc2822_part(part) for part in text.split("\n---")]
-
-
-def get_packages_info(package_names):
-    cmd = ["dev/python.sh", "-m", "pip", "show"] + list(package_names)
+def get_packages_info():
+    packages_info = all_packages_name_and_version()
+    package_names = list(packages_info.keys())
+    cmd = ["dev/python.sh", "-m", "pip", "show"] + package_names
     proc = subprocess.run(cmd, text=True, stdout=subprocess.PIPE)
-    parsed = parse_rfc2822(proc.stdout)
-    return {p_info["Name"].lower(): p_info for p_info in parsed}
+    parts = proc.stdout.split("\n---\n")
+    assert len(parts) == len(package_names)
+    return {
+        name: {
+            "version": packages_info[name],
+            "requires": parse_requires_tag(part)
+        }
+        for name, part in zip(package_names, parts)
+    }
 
 
 def get_dependencies(package_name, packages_info, add_current_package=False):
     dependencies = {}
-    package_info = packages_info[package_name.lower()]
+    package_info = packages_info[package_name]
     if add_current_package:
-        package_name = package_info["Name"]
-        package_version = package_info["Version"]
+        package_version = package_info["version"]
         dependencies[package_name] = package_version
-    if len(package_info["Requires"].strip()) > 0:
-        required_package_names = package_info["Requires"].split(", ")
+    if len(package_info["requires"].strip()) > 0:
+        required_package_names = package_info["requires"].split(", ")
         for required_package_name in required_package_names:
+            required_package_name = sanitize_pname(required_package_name)
             dependencies.update(
                 get_dependencies(
                     required_package_name, packages_info, add_current_package=True
@@ -70,10 +78,8 @@ if __name__ == "__main__":
     mode = sys.argv[1]
     filepath = Path("server/requirements.txt")
     if mode == "freeze":
-        print("probing the list of pip packages")
-        package_names = all_package_names()
         print("querying info about pip packages")
-        packages_info = get_packages_info(package_names)
+        packages_info = get_packages_info()
         dependencies = get_dependencies("walt-server", packages_info)
         print(f"writing {filepath}")
         filepath.write_text(
