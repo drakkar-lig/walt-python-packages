@@ -8,7 +8,7 @@
 Documentation=man:lldpd
 Description=WalT LLDP server (based on lldpd)
 Requires=walt-server-netconfig.service
-After=walt-server-netconfig.service
+After=walt-server-snmpd.service
 # we also need the configuration file to know the physical interface
 # connected to walt-net
 ConditionPathExists=/etc/walt/server.conf

@@ -13,7 +13,7 @@ After=walt-server-netconfig.service
 ConditionPathExists=/etc/walt/server.conf
 
 [Service]
-Type=simple
+Type=notify
 Environment=SNMPD_BINARY_NAME=snmpd
 Environment=SNMPD_USER=Debian-snmp
 Environment=SNMPD_GROUP=Debian-snmp
