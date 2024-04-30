@@ -20,6 +20,7 @@ class ImageShellSession(object):
         self.container_name = str(uuid.uuid4())
         self.events = self.registry.events()
         self.image.task_label = task_label
+        self.update_status = "init"
 
     def get_parameters(self):
         # return an immutable object (a tuple, not a dict)
@@ -64,6 +65,8 @@ class ImageShellSession(object):
                 and event["Name"] == self.container_name
             ):
                 break
+        self.events.close()
+        self.events = None
         fullname, username, new_image_name = parse_image_fullname(image_fullname)
         wf = Workflow(
             [
@@ -82,14 +85,17 @@ class ImageShellSession(object):
 
     def wf_commit_image(self, wf, requester, blocking, image_fullname, **env):
         print("committing %s..." % self.container_name)
+        self.update_status = "commit"
         blocking.commit_image(requester, wf.next, self.container_name, image_fullname)
 
     def wf_on_commit(self, wf, result, **env):
+        self.update_status = "update-mounts"
         wf.next()  # ignore result, success is assumed since there was no Exception
 
     def wf_end_image_save(
         self, wf, requester, cb_return_status, new_image_name, image_fullname, **env
     ):
+        self.update_status = "end"
         # inform user and return
         if self.image.fullname == image_fullname:
             # same name, we are modifying the image
@@ -101,13 +107,23 @@ class ImageShellSession(object):
             requester.stdout.write("New image %s saved.\n" % new_image_name)
             status = "OK_SAVED"
         cb_return_status(status)
-        self.cleanup()
+        self.registry.stop_container(self.container_name)
+        self.image.task_label = None
         wf.next()
 
     def cleanup(self):
-        if self.container_name is not None:
-            print("shell cleanup")
+        # this method is called at the end of the client session.
+        if self.update_status == "end":
+            # regular call when all went well, nothing to do
+            print("shell cleanup (image updated)")
+        elif self.update_status in ("commit", "update-mounts"):
+            # untimely client disconnection, too late to stop the operation
+            # let it continue
+            print("shell cleanup delayed (image update in progress)")
+        else:
+            assert self.update_status == "init"
+            # early client disconnection, abort
+            print("shell cleanup (early abort)")
             self.events.close()
             self.registry.stop_container(self.container_name)
             self.image.task_label = None
-            self.container_name = None
