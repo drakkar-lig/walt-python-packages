@@ -1,5 +1,10 @@
 
 TEST_IMAGE_URL='hub:eduble/pc-x86-64-test-suite'
+# When the blocking process is involved, server api calls may last
+# longer because the blocking process may be busy with something else
+# (e.g. automatic hard-reboots or powersave handling).
+# So we define a rather large timeout value.
+EXPECT_TIMEOUT_BLOCKING_INVOLVED=30
 
 test_suite_image() {
     if [ ! -e /tmp/test_suite_image ]
@@ -61,7 +66,7 @@ expect "closed.\$"
 EOF
     else    # image
         expect << EOF
-set timeout 5
+set timeout $EXPECT_TIMEOUT_BLOCKING_INVOLVED
 spawn walt image shell $target
 expect {
     "# \$"  { }
