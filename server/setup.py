@@ -39,7 +39,7 @@ setup_info = {
         "psycopg2-binary==2.9.9",
         "pyasn1==0.6.0",
         "pycparser==2.22",
-        "pycryptodomex==3.17",
+        "pycryptodomex==3.19.1",
         "pygments==2.17.2",
         "pysmi==0.3.4",
         "pysnmp==4.4.12",
