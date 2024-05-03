@@ -22,9 +22,8 @@ from walt.server.setup.ossetup import (
     upgrade_os,
 )
 
-WALT_SERVICES = [
+STOPPABLE_WALT_SERVICES = [
     "walt-server.service",
-    "walt-server-netconfig.service",
     "walt-server-dhcpd.service",
     "walt-server-named.service",
     "walt-server-tftpd.service",
@@ -35,6 +34,17 @@ WALT_SERVICES = [
     "walt-server-podman.service",
     "walt-server-podman.socket",
 ]
+
+# The user may have configured the interface providing internet access
+# in walt server conf file, so if we stop walt-server-netconfig, next
+# operations (apt packages upgrade) may fail. We will keep it running
+# instead and just restart (stop+start) it at the end of the upgrade.
+RESTARTABLE_WALT_SERVICES = [
+    "walt-server-netconfig.service",
+]
+
+# all walt services
+ALL_WALT_SERVICES = STOPPABLE_WALT_SERVICES + RESTARTABLE_WALT_SERVICES
 
 # WALT has its own version of the following services.
 # Since in their default configuration they would conflict with these
@@ -197,7 +207,7 @@ class WalTServerSetup(WaltGenericSetup):
         sys.stdout.flush()
         to_be_stopped = list(UNCOMPATIBLE_OS_SERVICES)
         # previous versions of walt had fewer walt services
-        for walt_unit in WALT_SERVICES:
+        for walt_unit in STOPPABLE_WALT_SERVICES:
             if self.systemd_unit_exists(walt_unit):
                 to_be_stopped.append(walt_unit)
         self.stop_systemd_services(to_be_stopped)
@@ -206,8 +216,11 @@ class WalTServerSetup(WaltGenericSetup):
     def start_walt_services(self):
         print("Restarting WalT services... ", end="")
         sys.stdout.flush()
+        # we stop the following services here but they will be immediately restarted
+        # because of dependencies.
+        self.stop_systemd_services(RESTARTABLE_WALT_SERVICES)
         # starting socket services and main service is enough to start all, thanks
-        # to dependencies
+        # to dependencies.
         self.start_systemd_services(WALT_SOCKET_SERVICES + [WALT_MAIN_SERVICE])
         print("done")
 
@@ -246,7 +259,7 @@ class WalTServerSetup(WaltGenericSetup):
     def setup_walt_services(self):
         print("Ensuring WalT services are properly registered on the OS... ", end="")
         sys.stdout.flush()
-        self.setup_systemd_services(WALT_SERVICES)
+        self.setup_systemd_services(ALL_WALT_SERVICES)
         self.setup_apparmor_profiles()
         subprocess.run(
             "walt-vpn-setup --type SERVER".split(),
