@@ -60,13 +60,7 @@ clean: $(patsubst %,%.clean,$(ALL_PACKAGES))
 	$(PIP) show "$*" >/dev/null 2>&1 || $(PIP) install "$*"
 
 compile-doc:
-	cd doc/walt/doc/sphinx && \
-        $(PIP) install -r requirements.txt && \
-        make SPHINXOPTS="-W" html && \
-        rm -rf ../html && cp -r _build/html ../html && \
-		cd ../html && rm -rf _sources && \
-		find . -type d | while read d; do touch $$d/__init__.py; done && \
-		cd ../../..
+	dev/compile-doc.sh $(ROOT_DIR)
 
 %.build: build.pip-package black.pip-package
 	if [ "$*" = "doc" ]; then $(MAKE) compile-doc; fi
