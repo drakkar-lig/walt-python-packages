@@ -53,7 +53,6 @@ def set_iface_up(iface):
 
 def create_dummy_iface(iface, state_file):
     do("ip link add %s type dummy" % iface)
-    set_iface_up(iface)
     state_file.write(iface + "\n")
 
 
@@ -72,27 +71,8 @@ def create_bridge_iface(br_iface, interfaces, state_file):
     state_file.write(br_iface + "\n")
 
 
-def setup_native_conf(raw_iface, iface, state_file):
-    if raw_iface is None:
-        # we cannot set a bridge interface up if no interface is
-        # linked to it. so we create a dummy interface device to
-        # fix this.
-        dummy_iface = f"{iface}-dummy"
-        create_dummy_iface(dummy_iface, state_file)
-        create_bridge_iface(iface, (dummy_iface,), state_file)
-    else:
-        create_bridge_iface(iface, (raw_iface,), state_file)
-        # isc-dhcp-server reads packets in raw mode on its interface
-        # thus it detects 8021q (VLAN-tagged) packets it should not see.
-        # In order to work around this issue we do not let 8021q
-        # packets cross the bridge and reach our interface.
-        filter_out_8021q(raw_iface, iface)
-
-
-def setup_vlan_conf(raw_iface, vlan, iface, state_file):
-    vlan_iface = raw_iface + "." + str(vlan)
-    create_vlan_iface(raw_iface, vlan, vlan_iface, state_file)
-    create_bridge_iface(iface, (vlan_iface,), state_file)
+def define_iface_altname(iface, iface_altname):
+    do(f"ip link property add dev {iface} altname {iface_altname}")
 
 
 def setup_ip_conf(iface, ip_conf):
@@ -117,12 +97,42 @@ def up(iface, iface_conf):
                 # Here, it is really an error.  Interface should exist.
                 raise RuntimeError("Interface %s does not exist" % raw_iface)
     with open_state_file(iface, "w") as state_file:
-        if raw_iface is not None:
-            set_iface_up(raw_iface)
+        if raw_iface is None:
+            # we cannot set a bridge interface up if no interface is
+            # linked to it. so we create a dummy interface device to
+            # fix this.
+            raw_iface = f"{iface}-dummy"
+            create_dummy_iface(raw_iface, state_file)
+        set_iface_up(raw_iface)
         if vlan:
-            setup_vlan_conf(raw_iface, vlan, iface, state_file)
+            vlan_iface = raw_iface + "." + str(vlan)
+            create_vlan_iface(raw_iface, vlan, vlan_iface, state_file)
+            base_iface = vlan_iface
         else:
-            setup_native_conf(raw_iface, iface, state_file)
+            base_iface = raw_iface
+        # Historically, all networks (walt-net, walt-out, ...) were
+        # set on a bridge interface. Several network services we
+        # provide still rely on the walt server IP set on walt-net
+        # bridge.
+        # For other networks (walt-adm, or custom networks such as
+        # walt-out) it is better to use the underlying interface
+        # (i.e., physical or vlan interface) directly and avoid
+        # creating a useless bridge. Moreover, if the machine was
+        # previously used for a different purpose, the mac address
+        # might have been previously allowed on the network.
+        # Running dhclient on a bridge instead would involve DHCP
+        # messages with the mac address of the bridge, which we
+        # generated randomly. So instead of creating a useless bridge,
+        # we just add an alternate name to the interface.
+        if iface == "walt-net":
+            create_bridge_iface(iface, (base_iface,), state_file)
+            # isc-dhcp-server reads packets in raw mode on its interface
+            # thus it detects 8021q (VLAN-tagged) packets it should not see.
+            # In order to work around this issue we do not let 8021q
+            # packets cross the bridge and reach our interface.
+            filter_out_8021q(base_iface, iface)
+        else:
+            define_iface_altname(base_iface, iface)
         if "ip" in iface_conf:
             setup_ip_conf(iface, iface_conf["ip"])
 
