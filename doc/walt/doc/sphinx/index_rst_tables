@@ -102,6 +102,18 @@ Full table of Contents
 
 .. toctree::
    :maxdepth: 1
+   :caption: Developer docs
+
+   developer
+   dev-walt-python-packages
+   dev-client
+   dev-server
+   dev-server-db
+   trackexec
+
+
+.. toctree::
+   :maxdepth: 1
    :caption: Other topics
 
    design-notes

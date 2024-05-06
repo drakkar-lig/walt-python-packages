@@ -81,3 +81,8 @@ supports, check-out [`walt help show new-node-support`](new-node-support.md).
 
 See [`walt help show node-bootup`](node-bootup.md) for detailed understanding
 of walt nodes' bootup precedure.
+
+## Developer documentation
+
+To participate in the software development of WALT, checkout [`walt help show developer`](developer.md),
+the entry point of the developer documentation.
