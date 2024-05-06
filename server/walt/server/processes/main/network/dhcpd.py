@@ -10,6 +10,7 @@ from walt.common.netsetup import NetSetup
 from walt.server.processes.main.network.service import ServiceRestarter
 from walt.server.tools import get_server_ip, get_walt_subnet, ip
 from walt.server.tools import np_str_pattern, np_apply_str_pattern
+from walt.server.tools import get_rpi_foundation_mac_vendor_ids
 
 # STATE_DIRECTORY is set by systemd to the daemon's state directory.  By
 # default, it is /var/lib/walt
@@ -19,6 +20,12 @@ DHCPD_CONF_FILE = (
     / "dhcpd"
     / "dhcpd.conf"
 )
+
+
+RPI_MAC_FILTER = " or\n".join(
+    f"""(b2a(16,8,":",substring(hardware, 1, 3)) = "{vendor_id}")""" \
+    for vendor_id in get_rpi_foundation_mac_vendor_ids())
+
 
 CONF_PATTERN = """
 #
@@ -63,11 +70,7 @@ if (vci = "PXEClient:Arch:00000:UNDI:002001") {
         # This script specifies itself the script to boot from TFTP, so
         # no filename is given here.
     }
-    elsif ((b2a(16,8,":",substring(hardware, 1, 3)) = "28:cd:c1") or
-           (b2a(16,8,":",substring(hardware, 1, 3)) = "b8:27:eb") or
-           (b2a(16,8,":",substring(hardware, 1, 3)) = "d8:3a:dd") or
-           (b2a(16,8,":",substring(hardware, 1, 3)) = "dc:a6:32") or
-           (b2a(16,8,":",substring(hardware, 1, 3)) = "e4:5f:01")) {
+    elsif (rpi-mac-filter) {
         # native rpi3b+ network boot
         option vendor-class-identifier "PXEClient";
         option vendor-encapsulated-options "Raspberry Pi Boot";
@@ -159,7 +162,11 @@ group {
 
 %(walt_registered_lan_unknown_conf)s
 }
-""".replace("b2a", "binary-to-ascii")
+""".replace(
+        "rpi-mac-filter", RPI_MAC_FILTER
+  ).replace(
+        "b2a", "binary-to-ascii")
+
 
 RANGE_CONF_PATTERN = "    range %(first)s %(last)s;"
 
