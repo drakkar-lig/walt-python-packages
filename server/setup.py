@@ -28,7 +28,7 @@ setup_info = {
         "greenlet==3.0.3",
         "idna==3.7",
         "ipaddress==1.0.23",
-        "jinja2==3.1.3",
+        "jinja2==3.1.4",
         "llvmlite==0.42.0",
         "lockfile==0.12.2",
         "markupsafe==2.1.5",
