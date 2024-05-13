@@ -78,12 +78,12 @@ The WalT user who has installed the VPN node(s) should type the following comman
 $ walt vpn monitor
 ```
 
-When a node is attempting to get authentication material, this command will be unblocked, and a message will appear
-asking to accept or deny this new WalT vpn node.
+When a node is attempting to get authentication material, this command displays a message asking to accept or
+deny this new WalT vpn node.
 It the user accepts it, the node will receive authentication keys and continue its bootup procedure.
 
 Notes:
 
-* If ever a node attempts to get authentication material and no such command was typed, the requests is denied.
-  In this case, the node waits a few seconds before issueing a new request.
-* This authentication step runs only once.
+* If ever a node attempts to get authentication material and no such command was typed, the request is denied.
+  In this case, the node waits a few seconds before issuing a new request.
+* This authentication step runs only once when successful.
