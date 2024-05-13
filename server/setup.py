@@ -56,7 +56,7 @@ setup_info = {
         "setproctitle==1.3.3",
         "setuptools==66.1.1",
         "six==1.16.0",
-        "snimpy==1.0.2",
+        "snimpy==1.0.3",
         "typing-extensions==4.11.0",
         "urllib3==2.2.1",
         "walt-client==8.2",

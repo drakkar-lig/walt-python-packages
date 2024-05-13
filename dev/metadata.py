@@ -76,8 +76,7 @@ PACKAGE_SPECIFIC_INFO = {
         requires=[
             "python-apt-binary",  # https://github.com/drakkar-lig/python-apt-binary
             "plumbum>=1.7.2",
-            "snimpy>=1.0.2",
-            "pysnmp-lextudio<6",   # https://github.com/vincentbernat/snimpy/issues/111
+            "snimpy>=1.0.3",
             "ipaddress>=1.0.7",
             "requests>=2.21.0",
             "sdnotify>=0.3.0",
