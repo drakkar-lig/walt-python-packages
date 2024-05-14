@@ -36,6 +36,9 @@ install: server.install
 	$(MAKE) PACKAGES="$(INSTALLABLE_PACKAGES_ON_$(call upper,$*))" install-packages
 	[ "$*" = "server" ] && $(ROOT_DIR)/.venv/bin/walt-server-setup || true
 
+doc.install:
+	$(MAKE) PACKAGES="doc" install-packages
+
 uninstall:
 	$(MAKE) PACKAGES="$(ALL_PACKAGES)" uninstall-packages
 
