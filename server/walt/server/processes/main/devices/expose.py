@@ -1,7 +1,9 @@
 import re
 import socket
 from walt.common.tcp import server_socket
-from walt.common.tools import set_close_on_exec
+from walt.server.tools import NonBlockingSocket
+
+SOCKET_TO_DEVICE_TIMEOUT = 2
 
 
 class SocketForwarder:
@@ -28,6 +30,72 @@ class SocketForwarder:
         self.sock_dst.close()
 
 
+# nodes are sometimes hard-rebooted, so TCP connections may not be
+# closed properly; so there is a risk that blocking operations such
+# as connect() hang on the server.
+# we use non-blocking operations instead between the server and the device.
+class DeviceToClientForwarder(NonBlockingSocket):
+
+    def __init__(self, ev_loop, s_to_client, device_ip, device_port):
+        self._ev_loop = ev_loop
+        self._s_to_client = s_to_client
+        self._send_buffer = b""
+        self._label = f"Connection forwarder to {device_ip}:{device_port}"
+        NonBlockingSocket.__init__(self, ev_loop,
+                    device_ip, device_port, SOCKET_TO_DEVICE_TIMEOUT)
+
+    def on_connect(self):
+        # "self" manages device -> client forwarding
+        self.start_wait_read()
+        # add a SocketForwarder to the event loop to handle the other way
+        client_to_device_forwarder = SocketForwarder(self._s_to_client, self)
+        self._ev_loop.register_listener(client_to_device_forwarder)
+
+    def on_read_ready(self):
+        try:
+            buf = self.sock.recv(4096)
+            if len(buf) == 0:
+                # empty read, close
+                return False
+            self._s_to_client.sendall(buf)
+        except Exception as e:
+            print(f"{self._label}:", e)
+            return False  # issue, close
+        self.start_wait_read()
+
+    # sendall is called by SocketForwarder above
+    def sendall(self, buf):
+        self._send_buffer += buf
+        self.start_wait_write()
+
+    def on_write_ready(self):
+        try:
+            length = self.sock.send(self._send_buffer)
+            if length < len(self._send_buffer):
+                self._send_buffer = self._send_buffer[length:]
+                self.start_wait_write()
+            else:
+                self._send_buffer = b""
+                self.start_wait_read()
+        except Exception as e:
+            print(f"{self._label}:", e)
+            return False  # issue, close
+
+    # nothing to do on timeout, close() is enough
+    def on_connect_timeout(self):
+        pass
+
+    def on_read_timeout(self):
+        pass
+
+    def on_write_timeout(self):
+        pass
+
+    def close(self):
+        super().close()
+        self._s_to_client.close()
+
+
 class ExposeRedirect:
 
     def __init__(self, manager, server_port,
@@ -36,6 +104,7 @@ class ExposeRedirect:
         self.server_port = server_port
         self.device_ip = device_ip
         self.device_port = device_port
+        self.forwarder = None
 
     def start(self):
         self._s = server_socket(self.server_port)
@@ -49,22 +118,16 @@ class ExposeRedirect:
             s_to_client, addr = self._s.accept()
         except Exception:
             return False
-        s_to_device = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        try:
-            set_close_on_exec(s_to_device, True)
-            s_to_device.connect((self.device_ip, self.device_port))
-        except Exception:
-            s_to_device.close()
-            s_to_client.close()
-            # even if there was an issue while contacting the device,
-            # the server itself should continue running
-            return True
-        # forward in both ways
-        for forwarder in (SocketForwarder(s_to_client, s_to_device),
-                          SocketForwarder(s_to_device, s_to_client)):
-            self._ev_loop.register_listener(forwarder)
+        # we just instanciate DeviceToClientForwarder for now, the other way of the
+        # connection will be managed after (and if) we manage to connect to the
+        # device.
+        self.forwarder = DeviceToClientForwarder(
+                self._ev_loop, s_to_client, self.device_ip, self.device_port)
+        self.forwarder.start_connect()
 
     def close(self):
+        if self.forwarder is not None:
+            self.forwarder.close()
         self._s.close()
 
 
@@ -73,6 +136,11 @@ class ExposeManager:
     def __init__(self, server):
         self.server = server
         self.redirects = {}  # { <server_port>: <ExposeRedirect object> }
+
+    def cleanup(self):
+        for redir in self.redirects.values():
+            redir.close()
+        self.redirects = {}
 
     def parse_expose_setting_value(self, setting_value):
         if setting_value != "none" and \

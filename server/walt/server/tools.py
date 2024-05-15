@@ -1,8 +1,15 @@
+import errno
+import itertools
 import numpy as np
+import socket
+import sys
 from ipaddress import IPv4Address, ip_address, ip_network
+from time import time
 from typing import Union
 
+from walt.common.evloop import POLL_OPS_READ, POLL_OPS_WRITE
 from walt.common.formatting import COLUMNATE_SPACING
+from walt.common.tools import set_close_on_exec
 
 DEFAULT_JSON_HTTP_TIMEOUT = 10
 
@@ -308,3 +315,126 @@ def np_columnate(tabular_data, shrink_empty_cols=False, align=None):
 
 def get_rpi_foundation_mac_vendor_ids():
     return ("28:cd:c1", "b8:27:eb", "d8:3a:dd", "dc:a6:32", "e4:5f:01")
+
+
+def non_blocking_connect(sock, ip, port):
+    try:
+        sock.connect((ip, port))
+    except BlockingIOError as e:
+        if e.errno == errno.EINPROGRESS:
+            pass  # ok, ignore
+        else:
+            raise  # unexpected, raise
+
+
+class NonBlockingSocket:
+
+    class STATUS:
+        INIT = 0
+        CONNECTING = 1
+        WAITING_READ = 2
+        WAITING_WRITE = 3
+        CLOSED = 4
+
+    def __init__(self, ev_loop, ip, port, timeout_secs=15):
+        self.ev_loop = ev_loop
+        self.ip = ip
+        self.port = port
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sock.setblocking(False)  # should not block
+        set_close_on_exec(self.sock, True)
+        self.status = NonBlockingSocket.STATUS.INIT
+        self.timeout_secs = timeout_secs
+        self.timeout_ids = itertools.count()
+        self.timeout_id = -1
+
+    def start_timeout(self):
+        # we set a timeout on the event loop
+        self.timeout_id = next(self.timeout_ids)
+        timeout_at = time() + self.timeout_secs
+        self.ev_loop.plan_event(ts=timeout_at, callback=self.on_timeout,
+                                timeout_id = self.timeout_id)
+
+    def start_connect(self):
+        # connect call should not block, thus we use non-blocking mode
+        # and let the event loop recall us when we can *write* on the socket
+        non_blocking_connect(self.sock, self.ip, self.port)
+        self.status = NonBlockingSocket.STATUS.CONNECTING
+        self.ev_loop.register_listener(self, POLL_OPS_WRITE)
+        self.start_timeout()
+
+    def start_wait_read(self):
+        self.status = NonBlockingSocket.STATUS.WAITING_READ
+        self.ev_loop.update_listener(self, POLL_OPS_READ)
+        self.start_timeout()
+
+    def start_wait_write(self):
+        self.status = NonBlockingSocket.STATUS.WAITING_WRITE
+        self.ev_loop.update_listener(self, POLL_OPS_WRITE)
+        self.start_timeout()
+
+    def on_timeout(self, timeout_id):
+        # ignore obsolete timeouts
+        if self.timeout_id != timeout_id:
+            return
+        saved_status = self.status
+        # ev_loop will call close(), setting status to CLOSED
+        self.ev_loop.remove_listener(self)
+        if saved_status == NonBlockingSocket.STATUS.CONNECTING:
+            self.on_connect_timeout()
+        elif saved_status == NonBlockingSocket.STATUS.WAITING_READ:
+            self.on_read_timeout()
+        elif saved_status == NonBlockingSocket.STATUS.WAITING_WRITE:
+            self.on_write_timeout()
+
+    def handle_event(self, ts):
+        # the event loop detected an event for us
+        self.timeout_id = -1
+        if self.status == NonBlockingSocket.STATUS.CONNECTING:
+            return self.on_connect()
+        elif self.status == NonBlockingSocket.STATUS.WAITING_READ:
+            return self.on_read_ready()
+        elif self.status == NonBlockingSocket.STATUS.WAITING_WRITE:
+            return self.on_write_ready()
+        elif self.status == NonBlockingSocket.STATUS.CLOSED:
+            return False
+        else:
+            raise Exception(f"Unexpected status {self.status}")
+
+    def send(self, *args, **kwargs):
+        return self.sock.send(*args, **kwargs)
+
+    def recv(self, *args, **kwargs):
+        return self.sock.recv(*args, **kwargs)
+
+    # let the event loop know what we are reading on
+    def fileno(self):
+        return self.sock.fileno()
+
+    def close(self):
+        if self.sock is not None:
+            self.sock.close()
+            self.sock = None
+        self.status = NonBlockingSocket.STATUS.CLOSED
+
+    def on_connect_timeout(self):
+        raise NotImplementedError
+
+    def on_read_timeout(self):
+        raise NotImplementedError
+
+    def on_write_timeout(self):
+        raise NotImplementedError
+
+    def on_connect(self):
+        raise NotImplementedError
+
+    def on_read_ready(self):
+        raise NotImplementedError
+
+    def on_write_ready(self):
+        raise NotImplementedError
+
+    def __del__(self):
+        if not self.status == NonBlockingSocket.STATUS.CLOSED:
+            print(f"{self} was not closed when garbage collected.", file=sys.stderr)

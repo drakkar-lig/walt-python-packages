@@ -94,6 +94,7 @@ class Server(object):
     def cleanup(self):
         self.unix_server.shutdown()
         self.tcp_server.shutdown()
+        self.expose.cleanup()
         APISession.cleanup_all()
         tftp.update(self.db, self.images.store, cleanup=True)
         # nfsd will be restarted before image unmounts,

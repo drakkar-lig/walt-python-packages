@@ -1,114 +1,69 @@
-import errno
-import socket
 from collections import defaultdict
-from time import time
 
-from walt.common.evloop import POLL_OPS_READ, POLL_OPS_WRITE
+from walt.server.tools import NonBlockingSocket
 from walt.server.const import WALT_NODE_NET_SERVICE_PORT
 
 NODE_REQUEST_DELAY_SECS = 15.0
 
 
-class REQUEST_STATUS:
-    INIT = 0
-    CONNECTING = 1
-    WAITING_RESPONSE = 2
-    DONE = 3
-
-
-def non_blocking_connect(sock, ip, port):
-    try:
-        sock.connect((ip, port))
-    except BlockingIOError as e:
-        if e.errno == errno.EINPROGRESS:
-            pass  # ok, ignore
-        else:
-            raise  # unexpected, raise
-
-
-class ServerToNodeRequest:
+class ServerToNodeRequest(NonBlockingSocket):
     def __init__(self, ev_loop, node, req, cb, env):
-        self.ev_loop = ev_loop
         self.node = node
         self.req = req
         self.cb = cb
         self.env = env
-        self.sock = None
-        self.status = REQUEST_STATUS.INIT
+        NonBlockingSocket.__init__(self, ev_loop,
+                    self.node.ip, WALT_NODE_NET_SERVICE_PORT,
+                    NODE_REQUEST_DELAY_SECS)
 
     def run(self):
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        # connect call should not block, thus we use non-blocking mode
-        # and let the event loop recall us when we can *write* on the socket
-        self.sock.setblocking(False)  # connect call should not block
-        non_blocking_connect(self.sock, self.node.ip, WALT_NODE_NET_SERVICE_PORT)
-        self.status = REQUEST_STATUS.CONNECTING
-        self.ev_loop.register_listener(self, POLL_OPS_WRITE)
-        # we also set a timeout on the event loop
-        timeout_at = time() + NODE_REQUEST_DELAY_SECS
-        self.ev_loop.plan_event(ts=timeout_at, callback=self.on_timeout)
+        self.start_connect()
 
-    def on_timeout(self):
-        if self.status != REQUEST_STATUS.DONE:
-            if self.status == REQUEST_STATUS.CONNECTING:
-                result_msg = "Connection timed out"
+    def on_connect_timeout(self):
+        self.cb(self.env, self.node, "Connection timed out")
+
+    def on_connect(self):
+        try:
+            self.send(f"MODE single\n{self.req}\n".encode("ascii"))
+        except (ConnectionRefusedError, OSError) as e:
+            if isinstance(e, ConnectionRefusedError):
+                result_msg = "Connection refused"
             else:
-                result_msg = "Timed out waiting for reply"
-            # ev_loop will call close(), setting status to DONE
-            self.ev_loop.remove_listener(self)
+                result_msg = e.strerror
+            print(result_msg)
             self.cb(self.env, self.node, result_msg)
+            # ev_loop will call close()
+            return False
+        self.start_wait_read()  # wait for the response
 
-    def handle_event(self, ts):
-        # the event loop detected an event for us
-        if self.status == REQUEST_STATUS.CONNECTING:
-            self.sock.setblocking(True)
+    def on_read_timeout(self):
+        self.cb(self.env, self.node, "Timed out waiting for reply")
+
+    def on_read_ready(self):
+        resp = b''
+        while True:
             try:
-                self.sock.send(f"MODE single\n{self.req}\n".encode("ascii"))
-            except (ConnectionRefusedError, OSError) as e:
-                if isinstance(e, ConnectionRefusedError):
-                    result_msg = "Connection refused"
-                else:
-                    result_msg = e.strerror
-                print(result_msg)
+                c = self.recv(1)
+            except Exception as e:
+                print(e)
+                result_msg = "Broken connection"
                 self.cb(self.env, self.node, result_msg)
-                # ev_loop will call close(), setting status to DONE
+                # ev_loop will call close()
                 return False
-            self.status = REQUEST_STATUS.WAITING_RESPONSE
-            self.ev_loop.update_listener(self, POLL_OPS_READ)
-        elif self.status == REQUEST_STATUS.WAITING_RESPONSE:
-            resp = b''
-            while True:
-                try:
-                    c = self.sock.recv(1)
-                except Exception:
-                    result_msg = "Broken connection"
-                    self.cb(self.env, self.node, result_msg)
-                    # ev_loop will call close(), setting status to DONE
-                    return False
-                if c == b'\n':
-                    break
-                elif c == b'':
-                    break
-                resp += c
-            resp = tuple(part.strip() for part in
-                         resp.decode('ascii').split(" ", 1))
-            if resp[0] == "OK":
-                self.cb(self.env, self.node, "OK")
-            elif len(resp) == 2:
-                self.cb(self.env, self.node, resp[1])
-            else:
-                self.cb(self.env, self.node, "Node did not respond properly")
-            return False  # ev_loop will call close(), setting status to DONE
-
-    # let the event loop know what we are reading on
-    def fileno(self):
-        return self.sock.fileno()
-
-    def close(self):
-        if self.sock is not None:
-            self.sock.close()
-            self.sock = None
-        self.status = REQUEST_STATUS.DONE
+            if c == b'\n':
+                break
+            elif c == b'':
+                break
+            resp += c
+        resp = tuple(part.strip() for part in
+                     resp.decode('ascii').split(" ", 1))
+        if resp[0] == "OK":
+            self.cb(self.env, self.node, "OK")
+        elif len(resp) == 2:
+            self.cb(self.env, self.node, resp[1])
+        else:
+            self.cb(self.env, self.node, "Node did not respond properly")
+        return False  # ev_loop will call close()
 
 
 def node_request_cb(env, node, result_msg):
