@@ -163,6 +163,15 @@ class EventLoop(object):
     def update_listener(self, listener, events=POLL_OPS_READ):
         fd = listener.fileno()
         self.events_per_fd[fd] = events
+        # update general poller
+        self.general_poller.modify(fd, events)
+        # update single listener poller if it exists
+        if fd in self.single_listener_pollers:
+            self.single_listener_pollers[fd].modify(fd, events)
+        # discard previous pending events for this fd
+        # since we are no longer waiting for the same kind of event
+        if fd in self.pending_events:
+            del self.pending_events[fd]
 
     def register_listener(self, listener, events=POLL_OPS_READ):
         fd = listener.fileno()
