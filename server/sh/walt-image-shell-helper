@@ -33,8 +33,10 @@ else
 fi
 
 # Run the container that will hold the shell session
-podman run -it --entrypoint /bin/sh -h "$HOSTNAME"     \
-        --name "$container_name"                       \
-        $docker_run_options                            \
-        "$image_fullname"                              \
+podman run -it --log-driver=none  \
+        --entrypoint /bin/sh      \
+        -h "$HOSTNAME"            \
+        --name "$container_name"  \
+        $docker_run_options       \
+        "$image_fullname"         \
         -c "$RUN_SHELL_COMMAND"
