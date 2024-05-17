@@ -55,7 +55,10 @@ def add_network_info(env):
             if not info["conf"].get("kexec.allow", True):
                 print("Kexec is not allowed for this node (cf. walt node config)")
                 return False
-            env.update(ip=info["ip"], netmask=info["netmask"], gateway=info["gateway"])
+            env.update(ip=info["ip"],
+                       netmask=info["netmask"],
+                       gateway=info["gateway"],
+                       hostname=info["name"])
             return True
     except Exception:
         print("Issue while trying to get node info from server.")
