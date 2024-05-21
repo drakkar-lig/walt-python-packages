@@ -62,7 +62,8 @@ WalT supports raspberry pi models B, B+, 2B, 3B, 3B+, 4B, and Pi-400.
 
 We recommend raspberry pi model 3B+ or 4B.
 
-PoE support is usually provided by the official PoE HAT addon board of the raspberry pi foundation.
+PoE support can be provided by the official PoE HAT addon board of the raspberry pi foundation,
+but it is a little noisy.
 
 As an alternative, we have also tested compact external PoE splitters (YuanLey brand) which are cheaper,
 more silent (no fan), and work fine.
@@ -90,7 +91,29 @@ The board will boot as a walt node.
 
 Raspberry Pi 3B+ and 4B boards have a more advanced firmware that may be used to boot over the network.
 In this case, the SD card is no longer needed.
-But you can still use a SD card if you wish, see below for advice.
+But in any case, you can still use a SD card if you wish, see below for advice.
+
+Raspberry Pi 3B+ boards without a SD card should directly boot as a walt node, no specific setup steps
+are needed.
+
+Considering 4B boards, depending on the board release, the default boot order may or may not include
+a network boot attempt. When connected to a display at bootup, the boot order is displayed on the
+diagnosis screen. If it prints "0xf41", then network boot is missing (network boot is digit "2").
+In this case, you will need to flash the eeprom to activate the network boot, by booting at least once
+with a SD card, as described below.
+
+
+### 4B boards: flash the EEPROM to enable network booting (optional)
+
+If using a 4B board, the eeprom can be flashed to enable network booting. Thanks to appropriate
+boot files in `rpi-sd-files.tar.gz` this is done automatically when the board is first booted with
+a SD card prepared for walt (see standard boot method above). The boot order we select is
+"try network boot, if it fails, try SD card boot, and if it fails too, restart".
+
+Important note: in order to prevent this eeprom flashing operation to repeat each time the board is
+rebooted with the SD card, the firmware renames `recovery.bin` to `RECOVERY.000`. Thus, if you want to
+use the same SD card to update the boot order of several 4B boards, after each boot rename `RECOVERY.000`
+back to `recovery.bin` on the SD card before inserting it in another board.
 
 
 ### Advices for selecting a boot method
@@ -107,14 +130,9 @@ and PoE reboots are allowed on the switch, then walt will allow you to "hard-reb
 the board remotely. Otherwise, one would have to manually disconnect and reconnect the power source of
 the board to unblock it.
 
-If using a 4B board, the eeprom can be flashed to select a specific boot order. Thanks to appropriate
-boot files in `rpi-sd-files.tar.gz` this is done automatically when the board is first booted with
-a SD card. The boot order we select is "try network boot, if it fails, try SD card boot, and if it
-fails too, restart". This can improve the robustness of the boot without a SD card.
-However, in order to prevent this eeprom flashing operation to repeat each time the board is rebooted
-with the SD card, the firmware renames `recovery.bin` to `RECOVERY.000`. Thus, if you want to use the
-same SD card to update the boot order of several 4B boards, after each boot rename `RECOVERY.000` back
-to `recovery.bin` on the SD card before inserting it in another board.
+So our advices would be:
+1. If your 3B+ / 4B boards are powered by PoE switches walt can control, remove SD cards
+2. If not, use SD cards.
 
 
 ## Google Coral Dev Boards
