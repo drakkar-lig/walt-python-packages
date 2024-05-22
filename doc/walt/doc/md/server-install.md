@@ -4,7 +4,7 @@
 ## Overview
 
 We provide instructions to setup walt server software and dependencies on a freshly installed
-debian 11 (bullseye) operating system.
+debian 12 (bookworm) operating system.
 
 Note that walt server software starts various network daemons (lldpd, snmpd, dhcpd, ptpd, ntpd,
 tftpd, nfsd), thus you should not run other software related to network management on this walt server
