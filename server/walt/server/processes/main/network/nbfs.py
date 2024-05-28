@@ -2,8 +2,6 @@ import os
 import signal
 from pathlib import Path
 
-from walt.server.spec import server_has_feature
-
 NBFSD_PID_PATH = Path("/var/lib/nbfsd/nbfsd.pid")
 NBFS_EXPORTS_PATH = Path("/etc/nbfsd/exports.d/walt.exports")
 
@@ -35,19 +33,18 @@ def get_nbfsd_pid():
 
 
 def update_image_exports(root_paths, subnet):
-    if server_has_feature("nbfs"):
-        NBFS_EXPORTS_PATH.parent.mkdir(parents=True, exist_ok=True)
-        if NBFS_EXPORTS_PATH.exists():
-            prev_content = NBFS_EXPORTS_PATH.read_text()
-        else:
-            prev_content = ""
-        content = generate_exports_file_content(root_paths, subnet)
-        if content == prev_content:  # no changes
-            return
-        NBFS_EXPORTS_PATH.write_text(content)
-        nbfsd_pid = get_nbfsd_pid()
-        if nbfsd_pid is None:
-            # nbfsd probably not installed or running
-            return
-        # notify nbfsd it should re-read its exports file
-        os.kill(nbfsd_pid, signal.SIGHUP)
+    NBFS_EXPORTS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    if NBFS_EXPORTS_PATH.exists():
+        prev_content = NBFS_EXPORTS_PATH.read_text()
+    else:
+        prev_content = ""
+    content = generate_exports_file_content(root_paths, subnet)
+    if content == prev_content:  # no changes
+        return
+    NBFS_EXPORTS_PATH.write_text(content)
+    nbfsd_pid = get_nbfsd_pid()
+    if nbfsd_pid is None:
+        # nbfsd probably not installed or running
+        return
+    # notify nbfsd it should re-read its exports file
+    os.kill(nbfsd_pid, signal.SIGHUP)
