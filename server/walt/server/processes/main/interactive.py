@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 from walt.common.tcp import Requests
-from walt.server.const import SSH_COMMAND
+from walt.server.const import SSH_NODE_COMMAND, SSH_DEVICE_COMMAND
 from walt.server.processes.main.parallel import ParallelProcessSocketListener
 
 # when running walt image shell, run bash if available, sh otherwise.
@@ -42,7 +42,7 @@ class NodeCmdSocketListener(PromptSocketListener):
             quoted_cmd = ""
         else:
             quoted_cmd = "'" + "'\"'\"'".join(cmd.split("'")) + "'"
-        ssh_cmd = SSH_COMMAND
+        ssh_cmd = SSH_NODE_COMMAND
         if ssh_tty:
             ssh_cmd += " -t"
         return "%(ssh)s root@%(ip)s %(cmd)s" % dict(
@@ -63,7 +63,8 @@ class DeviceShellSocketListener(PromptSocketListener):
     def get_command(self, **params):
         user = params["user"]
         ip = params["device_ip"]
-        return f"ssh -o PreferredAuthentications=password {user}@{ip}"
+        ssh_cmd = SSH_DEVICE_COMMAND
+        return f"{ssh_cmd} {user}@{ip}"
 
 
 class InteractionManager(object):

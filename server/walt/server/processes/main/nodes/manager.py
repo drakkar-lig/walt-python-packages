@@ -1,9 +1,11 @@
 import base64
 import random
 
+from pathlib import Path
 from time import time
 
-from walt.server.const import SSH_COMMAND
+from walt.common.constants import UNSECURE_ECDSA_KEYPAIR
+from walt.server.const import SSH_NODE_COMMAND
 from walt.server.popen import BetterPopen
 from walt.server.processes.main.filesystem import FilesystemsCache
 from walt.server.processes.main.nodes.clock import NodesClockSyncInfo
@@ -29,7 +31,7 @@ NODE_MIN_BOOT_TIMEOUT = 60
 
 MSG_NOT_VIRTUAL = "WARNING: %s is not a virtual node. IGNORED.\n"
 
-FS_CMD_PATTERN = SSH_COMMAND + ' root@%(fs_id)s "sh"'  # use node_ip as our fs ID
+FS_CMD_PATTERN = SSH_NODE_COMMAND + ' root@%(fs_id)s "sh"'  # use node_ip as our fs ID
 
 CMD_START_VNODE = (
     "walt-virtual-node --hostname %(name)s --mac %(mac)s --ip %(ip)s --model %(model)s"
@@ -72,7 +74,12 @@ class NodesManager(object):
             del self.pending_boot_info[mac]
 
     def prepare(self):
-        pass
+        known_hosts_nodes = Path("/var/lib/walt/ssh/known_hosts.nodes")
+        known_hosts_nodes.parent.mkdir(parents=True, exist_ok=True)
+        known_hosts_nodes.write_text("")
+        alg, key = UNSECURE_ECDSA_KEYPAIR["openssh-pub"].split()[:2]
+        alg, key = alg.decode("ascii"), key.decode("ascii")
+        known_hosts_nodes.write_text(f"walt.node {alg} {key}")
 
     def restore(self):
         # init powersave
@@ -475,7 +482,6 @@ class NodesManager(object):
         node_ip = self.get_node_ip(requester, node_name)
         if node_ip is None:
             return None
-        self.devices.prepare_ssh_access_for_ip(node_ip)
         return self.filesystems[node_ip]
 
     def get_cp_entity_filesystem(self, requester, node_name, **info):

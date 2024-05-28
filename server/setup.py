@@ -99,6 +99,7 @@ setup_info = {
         "sh/walt-image-build-helper",
         "sh/walt-image-fs-helper",
         "sh/walt-server-cleanup",
+        "sh/walt-device-ssh",
     ],
 }
 setup_info.update(packages=find_packages())

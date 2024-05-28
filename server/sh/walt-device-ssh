@@ -1,0 +1,18 @@
+#!/bin/bash
+
+# Real walt nodes have a common host key deployed
+# on their NFS share.
+# For unknown devices, we don't have this facility,
+# and they boot a local OS which may change quite frequently
+# (e.g., when on an SD card).
+# This helper script is here to completely bypass ssh host
+# key verifications when connecting to these unknown devices.
+
+user_at_host="$1"
+host=$(echo "$user_at_host" | sed -e "s/^.*@//")  # user@ip -> ip
+mkdir -p /var/lib/walt/ssh/
+ssh-keyscan "$host" >/var/lib/walt/ssh/known_hosts.tmp 2>/dev/null
+exec ssh -o UserKnownHostsFile=/var/lib/walt/ssh/known_hosts.tmp    \
+         -o ConnectTimeout=10                                       \
+         -o ServerAliveInterval=5                                   \
+         "${user_at_host}"

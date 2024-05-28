@@ -78,7 +78,6 @@ class WalTDeviceShell(WalTApplication):
             if device_info["type"] == "node":
                 print(MSG_USE_WALT_NODE_SHELL % dict(node=device_name))
                 return False
-            server.prepare_ssh_access(device_name)
             run_device_shell(device_info["ip"], self.user)
 
 

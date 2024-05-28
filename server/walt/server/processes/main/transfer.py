@@ -2,7 +2,7 @@ import os
 import random
 
 from walt.common.tcp import Requests
-from walt.server.const import SSH_COMMAND
+from walt.server.const import SSH_NODE_COMMAND
 from walt.server.mount.setup import script_path
 from walt.server.processes.main.parallel import ParallelProcessSocketListener
 from walt.server.processes.main.workflow import Workflow
@@ -273,7 +273,7 @@ def docker_wrap_cmd(cmd, input_needed=False):
 
 
 def ssh_wrap_cmd(cmd):
-    return SSH_COMMAND + ' root@%(node_ip)s "' + cmd + '"'
+    return SSH_NODE_COMMAND + ' root@%(node_ip)s "' + cmd + '"'
 
 
 TarSendCommand = """\

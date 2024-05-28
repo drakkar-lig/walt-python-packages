@@ -68,7 +68,6 @@ class WalTNode(WalTCategoryApplication):
                 return
             if not WalTNode.wait_for_nodes(server, node_set):
                 return False
-            server.prepare_ssh_access(node_set)
         if nodes_ip:
             for ip in nodes_ip:
                 if startup_msg:
