@@ -66,7 +66,7 @@ class WalTDeviceShell(WalTApplication):
 
     ORDERING = 2
     user = cli.SwitchAttr(
-        "--user", str, argname="USER", default="root", help="""ssh user name"""
+        "--user", str, argname="USER", help="""SSH user name"""
     )
 
     def main(self, device_name: DEVICE):
@@ -78,6 +78,10 @@ class WalTDeviceShell(WalTApplication):
             if device_info["type"] == "node":
                 print(MSG_USE_WALT_NODE_SHELL % dict(node=device_name))
                 return False
+            if self.user is None:
+                self.user = input("SSH user name: ")
+            if len(self.user) == 0:
+                self.user = "root"
             run_device_shell(device_info["ip"], self.user)
 
 

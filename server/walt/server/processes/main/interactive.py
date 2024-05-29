@@ -62,9 +62,10 @@ class DeviceShellSocketListener(PromptSocketListener):
 
     def get_command(self, **params):
         user = params["user"]
-        ip = params["device_ip"]
-        ssh_cmd = SSH_DEVICE_COMMAND
-        return f"{ssh_cmd} {user}@{ip}"
+        host = params["device_ip"]
+        if user is not None:
+            host = f"{user}@{host}"
+        return f"{SSH_DEVICE_COMMAND} {host}"
 
 
 class InteractionManager(object):
