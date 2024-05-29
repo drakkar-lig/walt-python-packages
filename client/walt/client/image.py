@@ -172,7 +172,13 @@ class WalTImageShell(WalTApplication):
             run_image_shell_prompt(image_fullname, container_name)
             try:
                 while True:
-                    new_name = input("New image name [%s]: " % default_new_name)
+                    print("------")
+                    print("You can save changes as a new image, or overwrite this one.")
+                    print("Just press <enter> to reuse the name "
+                          f'"{default_new_name}" and overwite the image.')
+                    print("You can also press ctrl-C to abort.")
+                    print("------")
+                    new_name = input("New image name: ")
                     if new_name == "":
                         new_name = default_new_name
                         print("Selected: %s" % new_name)
