@@ -1,0 +1,11 @@
+run an interactive ssh session to a device
+
+Usage:
+    walt device shell [SWITCHES] device_name
+
+Meta-switches:
+    -h, --help           Prints this help message and quits
+
+Switches:
+    --user USER:str      SSH user name
+
