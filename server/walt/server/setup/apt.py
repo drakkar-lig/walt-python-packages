@@ -162,10 +162,10 @@ def remove_packages(packages, purge=False):
         cache.commit(fetch_progress=p.acquire, install_progress=p.install)
 
 
-def upgrade_and_install_packages(packages, upgrade_packets=False):
+def upgrade_and_install_packages(label, packages, upgrade_packets=False):
     # upgrade and install new packages
     cache = get_apt_cache()
-    print("Reloading package cache... ", end="")
+    print(f"{label}: Reloading package cache... ", end="")
     sys.stdout.flush()
     cache.update()
     cache.open()
@@ -174,7 +174,12 @@ def upgrade_and_install_packages(packages, upgrade_packets=False):
     for pname in packages:
         package = cache.get(pname)
         if not package.is_installed:
-            package.mark_install()
+            try:
+                package.mark_install()
+            except Exception as e:
+                print(f"Failed to mark {pname} for installation!")
+                print(e)
+                raise
             modified = True
     if upgrade_packets:
         cache.upgrade(True)
@@ -185,7 +190,7 @@ def upgrade_and_install_packages(packages, upgrade_packets=False):
             if upgrade_packets
             else "Installing OS packages"
         )
-        p = GlobalProgress(msg)
+        p = GlobalProgress(f"{label}: {msg}")
         cache.commit(fetch_progress=p.acquire, install_progress=p.install)
 
 

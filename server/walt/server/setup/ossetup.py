@@ -195,10 +195,16 @@ def fix_grub_pc():
 
 
 def fix_packets(upgrade_dist=False, upgrade_packets=False):
+    # Note: if upgrading the distribution, first upgrade the packages
+    # from the new repo, then install packages walt needs.
+    # Doing it as a single step may cause dependency problems.
     if upgrade_dist:
         remove_packages(APT_OLD_DIST_PACKAGES, purge=True)
+        upgrade_and_install_packages("OS upgrade", [], upgrade_packets=True)
     upgrade_and_install_packages(
-        APT_WALT_DEPENDENCIES_PACKAGES, upgrade_packets=upgrade_packets
+        "WALT dependencies",
+        APT_WALT_DEPENDENCIES_PACKAGES,
+        upgrade_packets=upgrade_packets
     )
     if upgrade_dist:
         autoremove_packages()
