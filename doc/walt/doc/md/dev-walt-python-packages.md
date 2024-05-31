@@ -57,7 +57,7 @@ features, handling faster kexec-based reboots, etc.
 
 We have dedicated documentation pages for the following components:
 * `walt-client`: see [`walt help show dev-client`](dev-client.md)
-* `dev-server`: see [`walt help show dev-server`](dev-server.md)
+* `walt-server`: see [`walt help show dev-server`](dev-server.md)
 
 If you need documentation about another component, please email us:
 `walt-contact at univ-grenoble-alpes.fr`
