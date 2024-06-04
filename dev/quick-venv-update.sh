@@ -2,9 +2,11 @@
 set -e
 
 git_root="$(git rev-parse --show-toplevel)"
+cd "$git_root"
+# activate the virtual env if not done yet
+[ -z "$VIRTUAL_ENV" ] && . .venv/bin/activate
 venv_root=$(python3 -c 'import sys; print(sys.prefix)')
 venv_packages="$(ls -d "${venv_root}/lib/python"*"/site-packages")"
-cd "$git_root"
 {
     git ls-files --others --exclude-standard
     git ls-files --modified
