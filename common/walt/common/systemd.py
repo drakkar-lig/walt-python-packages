@@ -118,28 +118,15 @@ def unit_exists(unit_name: str, install_prefix: Path = None):
         return False
 
 
-def stop_units(unit_names: list[str]):
-    """Stop systemd units.
+def do_units(unit_names: list[str], action: str):
+    """Do something (start, stop, etc.) on systemd units.
 
     :param unit_names: List of full unit names (with extension).
+    :param action: Systemd command (start, stop, etc.).
     """
     for unit_name in unit_names:
         subprocess.run(
-            shlex.split(f"systemctl stop {unit_name}"),
-            check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-
-
-def start_units(unit_names: list[str]):
-    """Start systemd units.
-
-    :param unit_names: List of full unit names (with extension).
-    """
-    for unit_name in unit_names:
-        subprocess.run(
-            shlex.split(f"systemctl start {unit_name}"),
+            shlex.split(f"systemctl {action} {unit_name}"),
             check=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,

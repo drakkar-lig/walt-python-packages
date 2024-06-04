@@ -38,7 +38,7 @@ STOPPABLE_WALT_SERVICES = [
 # The user may have configured the interface providing internet access
 # in walt server conf file, so if we stop walt-server-netconfig, next
 # operations (apt packages upgrade) may fail. We will keep it running
-# instead and just restart (stop+start) it at the end of the upgrade.
+# instead and just restart it at the end of the upgrade.
 RESTARTABLE_WALT_SERVICES = [
     "walt-server-netconfig.service",
 ]
@@ -216,9 +216,8 @@ class WalTServerSetup(WaltGenericSetup):
     def start_walt_services(self):
         print("Restarting WalT services... ", end="")
         sys.stdout.flush()
-        # we stop the following services here but they will be immediately restarted
-        # because of dependencies.
-        self.stop_systemd_services(RESTARTABLE_WALT_SERVICES)
+        # restart some services which may have been updated
+        self.restart_systemd_services(RESTARTABLE_WALT_SERVICES)
         # starting socket services and main service is enough to start all, thanks
         # to dependencies.
         self.start_systemd_services(WALT_SOCKET_SERVICES + [WALT_MAIN_SERVICE])

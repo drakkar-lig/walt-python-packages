@@ -58,7 +58,7 @@ class WaltGenericSetup(cli.Application):
                 systemd_dir=self._systemd_dir,
             )
         if self._install_prefix is None:
-            systemd.stop_units(systemd_services)
+            systemd.do_units(systemd_services, "stop")
 
     def systemd_unit_exists(self, unit_name):
         return systemd.unit_exists(unit_name, install_prefix=self._install_prefix)
@@ -77,7 +77,7 @@ class WaltGenericSetup(cli.Application):
             "Function start_systemd_services() only works when install_prefix is not"
             " specified."
         )
-        systemd.start_units(systemd_services)
+        systemd.do_units(systemd_services, "start")
 
     def stop_systemd_services(self, systemd_services):
         self._assert_init_is({"SYSTEMD", None})
@@ -86,7 +86,15 @@ class WaltGenericSetup(cli.Application):
             " specified."
         )
         systemd_services = self.filter_out_missing_units(systemd_services)
-        systemd.stop_units(systemd_services)
+        systemd.do_units(systemd_services, "stop")
+
+    def restart_systemd_services(self, systemd_services):
+        self._assert_init_is({"SYSTEMD", None})
+        assert self._install_prefix is None, (
+            "Function restart_systemd_services() only works when install_prefix is not"
+            " specified."
+        )
+        systemd.do_units(systemd_services, "restart")
 
     def force_update_symlink(self, src, dst):
         # match broken symlinks too (exists() returns False in this case)
