@@ -89,9 +89,11 @@ APT_WALT_DEPENDENCIES_PACKAGES = """
         ntpdate ntp lockfile-progs ptpd tftpd-hpa ebtables qemu-system-x86 bridge-utils
         screen ifupdown gcc python3-dev git make sudo expect netcat-openbsd libjson-perl
         docker-ce docker-ce-cli containerd.io podman buildah skopeo bash-completion
-        ksmtuned fdisk e2fsprogs dosfstools
+        ksmtuned fdisk e2fsprogs dosfstools containernetworking-plugins
 """.split()
 
+# note: containernetworking-plugins is needed for "walt image build".
+# for some reason, it seems to be missing from the dependencies of buildah.
 
 def get_os_codename():
     release_file = Path("/etc/os-release")
