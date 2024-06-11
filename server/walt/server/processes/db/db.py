@@ -72,6 +72,10 @@ class ServerDB(PostgresDB):
                     mac TEXT REFERENCES devices(mac),
                     port INTEGER,
                     reason TEXT);""")
+        # kev
+        self.execute("""CREATE TABLE IF NOT EXISTS woloff (
+                    mac TEXT UNIQUE REFERENCES devices(mac),
+                    reason TEXT);""")
         # migration v4 -> v5
         if not self.column_exists("devices", "conf"):
             self.execute("""ALTER TABLE devices
@@ -384,9 +388,12 @@ class ServerDB(PostgresDB):
             DELETE FROM switches s WHERE s.mac = %s;
             DELETE FROM topology t WHERE t.mac1 = %s OR t.mac2 = %s;
             DELETE FROM poeoff po WHERE po.mac = %s;
+
+            DELETE FROM woloff wo WHERE wo.mac = %s;
+
             DELETE FROM devices d WHERE d.mac = %s;
         """,
-            (mac,) * 9,
+            (mac,) * 10,
         )
         self.commit()
 
@@ -428,6 +435,24 @@ class ServerDB(PostgresDB):
                 (sw_mac, sw_port, reason),
             )
         self.commit()
+    
+    # kev
+    def record_wol_status(self, node_mac, wol_status, reason=None):
+        if wol_status is True:  # on
+            self.execute(
+                """DELETE FROM woloff
+                                   WHERE mac = %s;""",
+                (node_mac,),
+            )
+        else:  # off
+            assert reason is not None
+            self.execute(
+                """INSERT INTO woloff
+                            VALUES (%s, %s);""",
+                (node_mac, reason),
+            )
+        self.commit()
+    # endkev
 
     def get_poe_off_macs(self, reason=None):
         """List mac addresses of devices connected on a switch port with PoE off."""
@@ -452,6 +477,25 @@ class ServerDB(PostgresDB):
                  FROM topology t, poeoff po
                  WHERE po.mac = t.mac2
                    AND po.port = t.port2
+                   {sql_optional_condition};""",
+                sql_values,
+            )
+        )
+    def get_wol_off_macs(self, reason=None):
+        """List mac addresses of devices with wol rebootable."""
+        if reason is None:
+            # if reason is unspecified, match any reason
+            sql_optional_condition = ""
+            sql_values = ()
+        else:
+            sql_optional_condition = " WHERE wo.reason = %s"
+            sql_values = (reason, )
+        return tuple(
+            row.mac
+            for row in self.execute(
+                f"""
+                 SELECT mac
+                 FROM woloff wo
                    {sql_optional_condition};""",
                 sql_values,
             )

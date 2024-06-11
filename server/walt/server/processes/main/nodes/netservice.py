@@ -82,5 +82,6 @@ def node_request(ev_loop, nodes, req, cb, cb_kwargs):
         return
     env = dict(num_nodes=num_nodes, results=results, cb=cb, cb_kwargs=cb_kwargs)
     for node in nodes:
+        req = req % node
         request = ServerToNodeRequest(ev_loop, node, req, node_request_cb, env)
         request.run()

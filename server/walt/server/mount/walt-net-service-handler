@@ -154,6 +154,64 @@ handle_one_connection() {
             echo END-OF-SHELL
         fi
 
+        # kev
+        # shutdown properly the node when we receive SHUTDOWN (verify if ethtool/wol are presented/well set when it's not a vnode)
+        if [ "$req" = "SHUTDOWN" ]; then
+                # shutdown safer command (to ensure wake-on-lan reboot)
+                set -- $args
+                mac=$1 # mandatory arg, needed to find the interface presented in walt-net
+                busybox_pre="" # in case of soft
+                case $args in
+                        *"--hard"* )
+                                busybox_pre=""
+                                ;;
+                        *)
+                                busybox_pre="busybox "
+                                ;;
+                esac
+
+                shut_cmd="$busybox_pre poweroff -f"
+
+                if [ "$vnode_mode" -eq 1 ]
+                then
+                        echo OK
+                        $shut_cmd
+                else
+                        # if it's force then just shutdown (not sure we will use this, maybe for debug needs)
+                        case $args in
+                                *"--force"* )
+                                        echo OK
+                                        $shut_cmd
+                                        continue
+                                        ;;
+                                *"-f"* )
+                                        echo OK
+                                        $shut_cmd
+                                        continue
+                                        ;;
+                        esac
+
+                        # check if ethtool if presented, if it's not, shutdown if --force/-f defined
+                        if [ -z $(busybox which ethtool) ]; then
+                            echo KO ethtool not found on the node, too risky to shutdown the node if we cannot verify Wake-On-Lan is presented use -f/--force to force the shutdown  
+                        else
+                            # get interface referring to node mac known by the server
+                            association=$(find /sys/class/net -mindepth 1 -maxdepth 1 ! -name lo -printf "%P: " -execdir cat {}/address \; | grep $mac)
+                            interface=$(echo $association | cut -d":" -f1)
+
+                            # check if wake-on-lan if available on that interface
+                            if [ -z $(ethtool $interface | grep -i "wake-on: g") ]; then # define if not
+                                    echo OK 
+                                    ethtool -s $interface wol g
+                                    $shut_cmd
+                            else
+                                    echo OK
+                                    $shut_cmd
+                            fi
+                        fi
+                fi
+        fi
+
         # reboot the node when we receive REBOOT
         if [ "$req" = "REBOOT" ]; then
             custom_script=$(get_custom_walt_reboot_script)

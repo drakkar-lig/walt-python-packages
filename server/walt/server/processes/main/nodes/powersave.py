@@ -4,7 +4,12 @@ from time import time
 from walt.common.formatting import format_sentence_about_nodes
 from walt.server.processes.main.workflow import Workflow
 
-POWERSAVE_TIMEOUT = 2 * 60 * 60  # 2 hours
+# kev
+from walt.server.processes.main.nodes.wakeonlan import Waker
+from walt.server.processes.main.nodes.netservice import node_request
+from walt.server.tools import get_walt_subnet # get walt subnet to process broadcast up
+
+POWERSAVE_TIMEOUT = 2 * 60 * 60 # 2 hours
 
 
 class PowersaveManager:
@@ -21,8 +26,22 @@ class PowersaveManager:
         # the first one having the earliest timeout, etc.
         # so here we cannot just update the entry, we remove it
         # and reinsert it so that it becomes the last entry.
+
+        # kev
+        # get the powersave.timeout set for the node
+        node_info = self.server.db.select_unique("devices", mac=node_mac)
+        timeout_n = node_info.conf.get("powersave.timeout", None)
+        if timeout_n is None:
+            timeout_n = POWERSAVE_TIMEOUT
+        else:
+            f = 1
+            if "h" in timeout_n: f = 60 * 60
+            elif "m" in timeout_n: f = 60
+            elif "s" in timeout_n: f = 1
+            timeout_n = int(timeout_n[:-1]) * f
+        # end kev
         self._poweroff_timeouts_per_mac.pop(node_mac, None)
-        self._poweroff_timeouts_per_mac[node_mac] = time() + POWERSAVE_TIMEOUT
+        self._poweroff_timeouts_per_mac[node_mac] = time() + timeout_n
 
     def _record_node_usage(self, node_mac):
         # if a free node is in use,
@@ -36,7 +55,9 @@ class PowersaveManager:
             self.server.ev_loop.plan_event(ts=self._next_check, callback=self._check)
 
     def _check(self):
-        off_macs = self.server.db.get_poe_off_macs()
+        off_macs = self.server.db.get_poe_off_macs() \
+                     +self.server.db.get_wol_off_macs()
+    
         now = time()
         it = self._poweroff_timeouts_per_mac.copy().items()
         # print(
@@ -51,6 +72,7 @@ class PowersaveManager:
                     macs_to_be_turned_off.append(mac)
             else:
                 self._poweroff_timeouts_per_mac[mac] = ts
+        
         if len(macs_to_be_turned_off) == 0:
             self._next_check = None  # notify concurrent code that this check is done
             self._plan_check()  # plan next one
@@ -63,6 +85,7 @@ class PowersaveManager:
                 [
                     self._wf_toggle_power_on_nodes,
                     self._wf_after_toggle_power_on_nodes,
+                    self._wf_send_wol_packet_or_shutdown,
                     self._wf_recurse_check,
                 ],
                 requester=None,
@@ -76,9 +99,66 @@ class PowersaveManager:
         self._check()
         wf.next()
 
+    # kev
+    def _wf_send_wol_packet_or_shutdown(self, wf, poe_toggle_value, remaining_nodes, poe_toggled,**env):
+        nodes_to_wol = []
+        for n in remaining_nodes:
+            if n not in poe_toggled:
+                nodes_to_wol.append(n)
+        
+        if poe_toggle_value:
+            for node in nodes_to_wol:
+                wol = Waker(get_walt_subnet())
+                wol.makeMagicPacket(node.mac)
+                wol.sendPacket(wol.packet, node. ip)
+                self.server.nodes.record_nodes_boot_start((node,))
+                self.server.db.record_wol_status(node.mac, poe_toggle_value, "powersave")
+            wf.update_env(wol_state=poe_toggle_value, node=node)
+            wf.next()
+        else:
+            # TO DO: try to shutdown properly
+            node_request(
+                self.server.ev_loop,
+                nodes_to_wol,
+                "SHUTDOWN %(mac)s ",
+                self.wf_shutdown_callback,
+                dict(wf=wf, nodes_to_wol=nodes_to_wol, wol_state=poe_toggle_value),
+            )
+            
+
+    def wf_shutdown_callback(self, results, wf, nodes_to_wol, wol_state):
+        per_error = defaultdict(list)
+        
+        for result_msg, nodes in results.items():
+            if result_msg == "OK":
+                self.server.nodes.change_nodes_bootup_status(
+                        nodes=nodes, booted=False,
+                        cause="powersave", method="WoL")
+                for node in nodes:
+                    self.server.db.record_wol_status(node.mac, wol_state, "powersave")
+            else:
+                for node in nodes:
+                    per_error[result_msg.lower()].append(node.name)
+                    self._reset_node_mac_poweroff_timeout(node.mac)
+            for error, node_names in per_error.items():
+                sentence = format_sentence_about_nodes(
+                    f"%s: warning, failed to WoL shutdown ({error})", node_names
+                )
+                self.server.logs.platform_log(
+                            "powersave.error", sentence, error=True)
+                
+        self._plan_check()
+        wf.next()
+
+    def _wf_after_send_wol(self, wf, poe_toggle_value, node, **env):
+        self._plan_check()
+        wf.next()
+    # endkev
+
     def _wf_toggle_power_on_nodes(
         self, wf, requester, poe_toggle_nodes, poe_toggle_value, **env
     ):
+        remaining_nodes = []
         connectivity = self.server.devices.get_multiple_connectivity_info(
             tuple(node.mac for node in poe_toggle_nodes))
         for node in poe_toggle_nodes.copy():
@@ -88,8 +168,9 @@ class PowersaveManager:
                 pass  # ok, allowed
             else:  # unknown network position or forbidden on switch
                 poe_toggle_nodes.remove(node)
-                # retry after a new powersave timeout delay
+                remaining_nodes.append(node)
                 self._reset_node_mac_poweroff_timeout(node.mac)
+        wf.update_env(remaining_nodes=remaining_nodes)
         if len(poe_toggle_nodes) > 0:
             self.server.blocking.nodes_set_poe(
                 wf.next, poe_toggle_nodes, poe_toggle_value, "powersave"
@@ -107,6 +188,7 @@ class PowersaveManager:
         requester,
         **env,
     ):
+        remaining_nodes = env["remaining_nodes"]
         toggled, error_per_name = poe_toggle_result
         if len(error_per_name) > 0:
             verb = "reactivate" if poe_toggle_value is True else "turn off"
@@ -116,6 +198,7 @@ class PowersaveManager:
                 per_error[error].append(node_name)
                 # retry after a new powersave timeout delay
                 node_mac = node_per_name[node_name].mac
+                remaining_nodes.append(node_per_name[node_name])
                 self._reset_node_mac_poweroff_timeout(node_mac)
             for error, node_names in per_error.items():
                 sentence = format_sentence_about_nodes(
@@ -132,7 +215,9 @@ class PowersaveManager:
             self.server.nodes.change_nodes_bootup_status(
                 nodes=toggled, booted=False,
                 cause="powersave", method="PoE")
-        self._plan_check()
+        wf.update_env(poe_toggled=toggled, remaining_nodes=remaining_nodes)
+        # the next line done in the last step (actually wol_toggle)
+        # self._plan_check()
         wf.next()
 
     def _wf_forget_obsolete_topology_entry(self, wf, obsolete_mac_in_topology, **env):
@@ -183,7 +268,8 @@ class PowersaveManager:
         self._plan_check()
 
     def node_bootup_event(self, node):
-        off_macs = self.server.db.get_poe_off_macs()
+        off_macs = self.server.db.get_poe_off_macs() \
+                    + self.server.db.get_wol_off_macs()
         if node.mac in off_macs:
             # bootup event for a node supposedly powered off!
             # this means it was moved somewhere else.
@@ -197,11 +283,13 @@ class PowersaveManager:
                 [
                     self._wf_toggle_power_on_nodes,
                     self._wf_after_toggle_power_on_nodes,
+                    self._wf_send_wol_packet_or_shutdown,
                     self._wf_forget_obsolete_topology_entry,
                 ],
                 requester=None,
                 poe_toggle_nodes=[node],
                 poe_toggle_value=True,
+                wol_node_status=False,
                 obsolete_mac_in_topology=node.mac,
             )
             wf.run()
@@ -219,7 +307,8 @@ class PowersaveManager:
         wf.next()
 
     def wf_wakeup_nodes(self, wf, requester, nodes, **env):
-        off_macs = self.server.db.get_poe_off_macs(reason="powersave")
+        off_macs = self.server.db.get_poe_off_macs(reason="powersave") \
+                    + self.server.db.get_wol_off_macs(reason="powersave")
         off_nodes = []
         for node in nodes:
             if node.mac in off_macs:
@@ -230,10 +319,14 @@ class PowersaveManager:
             self._plan_check()
         else:
             requester.stdout.write(
-                "Reactivating related switch port(s) in powersave mode.\n"
+                "Reactivating related switch port(s) and Wake-on-lan nodes in powersave mode.\n"
             )
             wf.update_env(poe_toggle_nodes=off_nodes, poe_toggle_value=True)
             wf.insert_steps(
-                [self._wf_toggle_power_on_nodes, self._wf_after_toggle_power_on_nodes]
+                [
+                    self._wf_toggle_power_on_nodes, 
+                    self._wf_after_toggle_power_on_nodes,
+                    self._wf_send_wol_packet_or_shutdown
+                ]
             )
         wf.next()
