@@ -140,6 +140,12 @@ class SettingsManager:
                 "value-check": self.correct_expose_value,
                 "default": "none",
             },
+            # kev
+            "powersave.timeout": {
+                "category": "nodes",
+                "value-check": self.correct_powersave_timeout_value,
+                "default": None,
+            },
         }
         self.category_filters = {
             "devices": self.filter_devices,
@@ -275,6 +281,20 @@ class SettingsManager:
             " instance 1 or 4).\n" % setting_value
         )
         return False
+    
+    # kev
+    def correct_powersave_timeout_value(
+        self, requester, device_infos, setting_name, setting_value, all_settings
+    ):
+        if re.match(r"^\d+[msh]$", setting_value) is None:
+            requester.stderr.write(
+                "Failed: '%s' is not a valid value for powersave timeout "
+                "(expecting for instance 50m (minutes)"
+                ", 1h (hour) or 900s (seconds)).\n" % setting_value
+            )
+            return False
+        return True
+    # endkev
 
     def correct_ram_value(
         self, requester, device_infos, setting_name, setting_value, all_settings
@@ -608,6 +628,14 @@ class SettingsManager:
                 db_settings["cpu.cores"] = int(setting_value)
                 self.update_vnodes_vm_setting(device_infos, "cpu_cores", setting_value)
                 should_reboot_devices = True
+            # kev
+            elif setting_name == "powersave.timeout":
+                db_settings["powersave.timeout"] = setting_value
+                requester.stdout.write(
+                    "Done. This setting only apply when node is free, "
+                    "make sure to reboot or release your node\n"
+                )
+            # end kev
             elif setting_name == "ram":
                 self.update_vnodes_vm_setting(device_infos, "ram", setting_value)
                 should_reboot_devices = True
