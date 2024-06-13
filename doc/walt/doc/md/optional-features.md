@@ -19,7 +19,7 @@ can get the list of devices connected on it.
 When configured to do so (see below), the WalT server can query all switches (command `walt device rescan`) and then display a whole tree of the WalT network (command `walt device tree`).
 
 
-## PoE for simplified deployment, hard-reboots and power savings
+## PoE/Wake-on-LAN for simplified deployment, hard-reboots and power savings
 
 ### PoE for simplified deployment
 
@@ -34,20 +34,23 @@ Having one cable per node instead of two obviously simplifies platform deploymen
 If a switch provides SNMP, LLDP and PoE features, WalT also implements the more interesting features described below.
 
 
-### PoE hard-reboots
+### PoE/WoL hard-reboots
 
-If a PoE-powered node is stuck for some reason (the experiment code introduced a bug in the Linux kernel, a temporary firmware or network issue occured, etc.),
+If a PoE-powered node or simply a node is stuck for some reason (the experiment code introduced a bug in the Linux kernel, a temporary firmware or network issue occured, etc.),
 the WalT server may be able to power-cycle it remotely, to force a reboot.
-The command `walt node reboot <node>` actually tries a standard reboot request first, and if the node does not reply, it will automatically run this hard-reboot operation if available.
-The power-cycle operation is implemented by sending a request to the switch to stop powering the port where the node is connected. After one second, another request is sent
+The command `walt node reboot <node>` actually tries a standard reboot request first, and if the node does not reply, it will automatically run this hard-reboot using PoE operation if PoE available for the node. If not, the server will try a Wake-On-Lan reboot which consists on shutting down the node and boot it by sending a Wake-on-LAN packet.
+
+Wake-on-Lan is a feature consisting on sending a magic packet to the network card of a powered off node; essentially used for nodes of type PCs. ([`See More`](https://fr.wikipedia.org/wiki/Wake-on-LAN))
+
+The PoE power-cycle operation is implemented by sending a request to the switch to stop powering the port where the node is connected. After one second, another request is sent
 to recover the powering.
 
-Note: the switch must support PoE (obviously), SNMP (for remote requests) and LLDP (to know on which port the node is connected).
+Note: the switch must support PoE (obviously), SNMP (for remote requests) and LLDP (to know on which port the node is connected) and the nodes we which to reboot using WoL should support WoL (check it by using `ethtool`).
 
 
-### PoE power saving
+### PoE/WoL power saving
 
-When a PoE-powered WalT node has not been used for 2 hours, WalT will automatically disable PoE on the corresponding switch port to save power.
+When a PoE-powered WalT node or a node supporting WoL have not been used for 2 hours (default `powersave.timeout` config value), WalT will automatically disable PoE on the corresponding switch port to save power and if PoE not supported, a Wake-on-LAN magic packet is send to power on the node.
 The concept of "unused node" is rather conservative: only free nodes (cf. [`walt help show node-ownership`](node-ownership.md)) are considered unused after 2 hours.
 Thus, thanks to commands `walt node acquire` and `walt node release`, experiments involving unattended nodes and lasting more than 2 hours cannot be interrupted by this power saving feature.
 
@@ -58,5 +61,5 @@ Again, this requires that the switch supports PoE (obviously), SNMP (for remote 
 
 In some complex environments, remote administration of a given switch by WalT may not be allowed; or LLDP/PoE may not be available.
 Thus, these features are disabled by default. As a result, WALT must be explicitely allowed to use these features on a given switch,
-by using [``walt device config``](device-config.md).
+by using [``walt device config``](device-config.md). Also check this config to modify the `powersave.timeout` config.
 
