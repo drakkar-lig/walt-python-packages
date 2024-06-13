@@ -31,7 +31,7 @@ test_tab_complete "walt image cp $image:/bin/gunz" "ip "
 test_tab_complete "walt image cp $image:/bin/gunzip $tmp_dir" "/"
 test_tab_complete "walt node config $node ram=4G netset" "up="
 test_tabtab_complete "walt node reboot my-nodes" "my-nodes   my-nodes,"
-test_tabtab_complete "walt node config $node " "boot.delay=     boot.retries=   boot.timeout=   cpu.cores=      disks=          expose=         kexec.allow=    mount.persist=  netsetup=       networks=       ram="
+test_tabtab_complete "walt node config $node " "boot.delay=         boot.retries=       boot.timeout=       cpu.cores=          disks=              expose=             kexec.allow=        mount.persist=      netsetup=           networks=           powersave.timeout=  ram="
 EOF
 
     # cleanup
