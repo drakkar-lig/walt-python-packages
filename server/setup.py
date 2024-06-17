@@ -58,7 +58,7 @@ setup_info = {
         "six==1.16.0",
         "snimpy==1.0.3",
         "typing-extensions==4.11.0",
-        "urllib3==2.2.1",
+        "urllib3==2.2.2",
         "walt-client==8.2",
         "walt-common==8.2",
         "walt-doc==8.2",
