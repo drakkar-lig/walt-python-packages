@@ -37,7 +37,8 @@ since this file is generated), but most other files of the package are at
 As can be seen in the last column, all python packages share the same parent source
 package called `walt`. This is called a "namespace package".
 There are several ways to handle namespace packages, as can be seen [in the doc](https://packaging.python.org/en/latest/guides/packaging-namespace-packages/).
-Currently the code is using the `pkgutil` method described there.
+In the past, the code was using the `pkgutil` method which needs to create an `__init_.py` file in each walt package directory.
+But since python3.3, with the venue of [PEP420](https://peps.python.org/pep-0420/), package discovery is now explicit using `find_namespace_packages` to find packages in a directory. while this function naively treats each subdirectory as a possible subpackage, to ensure minimal package released size we implement a very slightly different `finder_packages` which only keeps subdirectories containing at least one python file and considers it as a possible subpackage.
 
 Note that `walt.client` is also a namespace package, which allows to manage optional
 client plugins. `walt-client-g5k` is the only such plugin at the moment (extension

@@ -102,5 +102,34 @@ setup_info = {
         "sh/walt-device-ssh",
     ],
 }
-setup_info.update(packages=find_packages())
+
+from pathlib import Path
+
+p = Path(".")
+
+packages = set()
+
+# we use this "finder" function to find packages in directory instead of:
+# * find_packages: because find_packages obliges to specify __init__ files
+# * find_namespace_packages: because it includes all subdirs, even those doesn't containing any python files
+# * TODO: find an option/parameter to find_namespace_packages to do this without having to implement our own function as we are doing
+
+
+def finder(path):
+    if path.is_dir():
+        res = False
+        for p in path.iterdir():
+            res = finder(p)
+            if res:
+                packages.add(str(path).replace("/", "."))
+        return res
+    else:
+        if str(path).endswith(".py"):
+            return True
+
+
+finder(p)
+packages.remove(".")
+
+setup_info.update(packages=list(packages))
 setup(**setup_info)
