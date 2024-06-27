@@ -60,10 +60,6 @@ Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
 ).replace(
     "COMPONENTS", "main contrib non-free non-free-firmware")
 
-APT_DOCKER_LIST_CONTENT = f"""\
-deb [arch=amd64 signed-by={DOCKER_KEYRING_FILE}] {DOCKER_REPO_URL} bookworm stable
-"""
-
 # in case of distribution upgrade, remove old versions of packages (including their
 # configuration files)
 # this includes:
@@ -76,9 +72,9 @@ deb [arch=amd64 signed-by={DOCKER_KEYRING_FILE}] {DOCKER_REPO_URL} bookworm stab
 #   configuration files of these services)
 # up-to-date versions of these packages will be reinstalled in a next step.
 APT_OLD_DIST_PACKAGES = """
-docker docker-engine docker.io containerd runc containers-image containers-common
-buildah podman containernetworking-plugins conmon podman-plugins slirp4netns crun
-isc-dhcp-server tftpd-hpa ptpd lldpd snmpd
+docker docker-engine docker-ce docker-ce-cli containerd containerd.io docker.io
+runc containers-image containers-common buildah podman containernetworking-plugins
+conmon podman-plugins slirp4netns crun isc-dhcp-server tftpd-hpa ptpd lldpd snmpd
 """.split()
 
 APT_WALT_DEPENDENCIES_PACKAGES = """
@@ -88,7 +84,7 @@ APT_WALT_DEPENDENCIES_PACKAGES = """
         libsmi2-dev isc-dhcp-server bind9 nfs-kernel-server uuid-runtime postgresql
         ntpdate ntp lockfile-progs ptpd tftpd-hpa ebtables qemu-system-x86 bridge-utils
         screen ifupdown gcc python3-dev git make sudo expect netcat-openbsd libjson-perl
-        docker-ce docker-ce-cli containerd.io podman buildah skopeo bash-completion
+        docker.io podman buildah skopeo bash-completion
         ksmtuned fdisk e2fsprogs dosfstools containernetworking-plugins
 """.split()
 
@@ -114,7 +110,7 @@ def fix_apt_sources(silent_override=False):
     sources_list = Path("/etc/apt/sources.list")
     sources_list_d = Path("/etc/apt/sources.list.d")
     debian_sources = sources_list_d / "debian.sources"
-    docker_list = sources_list_d / "docker.list"
+    obsolete_docker_list = sources_list_d / "docker.list"
     update_apt_sources_list, update_apt_sources_list_d = False, False
     debian_sources_mode = debian_sources.exists()
     if debian_sources_mode:
@@ -126,7 +122,7 @@ def fix_apt_sources(silent_override=False):
         # old-style sources.list
         if sources_list.read_text() != APT_SOURCES_LIST_CONTENT:
             update_apt_sources_list = True
-    if not docker_list.exists() or docker_list.read_text() != APT_DOCKER_LIST_CONTENT:
+    if obsolete_docker_list.exists():
         update_apt_sources_list_d = True
     # update /etc/apt/sources.list
     if update_apt_sources_list:
@@ -141,30 +137,17 @@ def fix_apt_sources(silent_override=False):
         if not silent_override:
             sources_list_d_backup = apt_backup_dir / "sources.list.d"
             print(f"Replacing {sources_list_d} (backup at {sources_list_d_backup})")
+            sources_list_d_backup.mkdir(parents=True, exist_ok=True)
             sources_list_d.rename(sources_list_d_backup)
             sources_list_d.mkdir()
-        docker_list.write_text(APT_DOCKER_LIST_CONTENT)
+        if obsolete_docker_list.exists():
+            obsolete_docker_list.unlink()
         if debian_sources_mode:
             debian_sources.write_text(APT_DEBIAN_SOURCES_CONTENT)
 
 
 def ascii_dearmor(in_text):  # python-equivalent to: gpg --dearmor
     return base64.b64decode(in_text.split("-----")[2].rsplit("=", maxsplit=1)[0])
-
-
-def fix_keyring(url, keyring_file):
-    resp = requests.get(url)
-    if not resp.ok:
-        raise Exception(f"Failed to fetch {url}: {resp.reason}")
-    keyring_file_content = ascii_dearmor(resp.text)
-    if not keyring_file.exists() or keyring_file.read_bytes() != keyring_file_content:
-        print(f"Updating {keyring_file}")
-        keyring_file.parent.mkdir(parents=True, exist_ok=True)
-        keyring_file.write_bytes(keyring_file_content)
-
-
-def fix_docker_keyring():
-    fix_keyring(f"{DOCKER_REPO_URL}/gpg", DOCKER_KEYRING_FILE)
 
 
 def fix_grub_pc():
@@ -253,7 +236,6 @@ def upgrade_db():
 
 def upgrade_os():
     fix_apt_sources()
-    fix_docker_keyring()
     fix_dpkg_options()
     fix_grub_pc()
     fix_packets(upgrade_dist=True, upgrade_packets=True)
@@ -292,6 +274,7 @@ def upgrade_os():
 
 
 def fix_os():
+    fix_apt_sources()
     fix_dpkg_options()
     fix_grub_pc()
     fix_packets()
@@ -299,7 +282,6 @@ def fix_os():
 
 def install_os():
     fix_apt_sources()
-    fix_docker_keyring()
     fix_dpkg_options()
     fix_grub_pc()
     fix_packets()
@@ -307,7 +289,6 @@ def install_os():
 
 def install_os_on_image():
     fix_apt_sources(silent_override=True)
-    fix_docker_keyring()
     fix_dpkg_options()
     fix_packets(upgrade_packets=True)  # have up-to-date packets on image
 
