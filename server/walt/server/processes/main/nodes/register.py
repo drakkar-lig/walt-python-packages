@@ -30,7 +30,7 @@ def handle_registration_request(
         # let's inform the user (by logs) and do this asynchronously
         db_info = db.select_unique("devices", mac=mac)
         logs.platform_log("devices",
-            f"Device {db_info.name} pretends to be a walt node of type '{model}'.")
+            f"Device {db_info.name} is a walt node of type '{model}'.")
         logs.platform_log("devices",
             (
                 f"Trying to download a default image for '{model}' nodes:"
