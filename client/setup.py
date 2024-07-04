@@ -10,9 +10,9 @@ if sys.version_info[0] == 2:
 
 setup_info = {
     "name": "walt-client",
-    "version": "8.2",
-    "install_requires": ["plumbum>=1.7.2", "walt-common==8.2", "walt-doc==8.2"],
-    "extras_require": {"g5k": ["walt-client-g5k==8.2"]},
+    "version": "9.0",
+    "install_requires": ["plumbum>=1.7.2", "walt-common==9.0", "walt-doc==9.0"],
+    "extras_require": {"g5k": ["walt-client-g5k==9.0"]},
     "author": "WalT developers",
     "author_email": "walt-contact@univ-grenoble-alpes.fr",
     "keywords": "WalT testbed",
