@@ -10,7 +10,7 @@ if sys.version_info[0] == 2:
 
 setup_info = {
     "name": "walt-server",
-    "version": "8.2",
+    "version": "9.0",
     "install_requires": [
         "aiohttp==3.10.2",
         "aiosignal==1.3.1",
@@ -59,11 +59,11 @@ setup_info = {
         "snimpy==1.0.3",
         "typing-extensions==4.11.0",
         "urllib3==2.2.2",
-        "walt-client==8.2",
-        "walt-common==8.2",
-        "walt-doc==8.2",
-        "walt-virtual==8.2",
-        "walt-vpn==8.2",
+        "walt-client==9.0",
+        "walt-common==9.0",
+        "walt-doc==9.0",
+        "walt-virtual==9.0",
+        "walt-vpn==9.0",
         "yarl==1.9.4",
         "zope.event==5.0",
         "zope.interface==6.3",
