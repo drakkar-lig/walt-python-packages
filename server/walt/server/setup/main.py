@@ -19,6 +19,8 @@ from walt.server.setup.ossetup import (
     get_os_codename,
     install_os,
     install_os_on_image,
+    record_start_os_upgrade,
+    record_end_os_upgrade,
     upgrade_os,
 )
 
@@ -94,6 +96,7 @@ OS_ACTIONS = {
     },
     "upgrade": {
         "bullseye": (
+            "record_start_os_upgrade",
             "define_server_conf",
             "stop_services",
             "upgrade_os",
@@ -105,6 +108,7 @@ OS_ACTIONS = {
             "fix_other_conf_files",
             "update_server_conf",
             "update_completion",
+            "record_end_os_upgrade",
             "msg_reboot",
         ),
         "bookworm": (
@@ -239,6 +243,12 @@ class WalTServerSetup(WaltGenericSetup):
                 dhcp_service_symlink.unlink()
         self.disable_systemd_services(UNCOMPATIBLE_OS_SERVICES)
         print("done")
+
+    def record_start_os_upgrade(self):
+        record_start_os_upgrade()
+
+    def record_end_os_upgrade(self):
+        record_end_os_upgrade()
 
     def upgrade_os(self):
         upgrade_os()

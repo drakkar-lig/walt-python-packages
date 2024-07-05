@@ -91,7 +91,31 @@ APT_WALT_DEPENDENCIES_PACKAGES = """
 # note: containernetworking-plugins is needed for "walt image build".
 # for some reason, it seems to be missing from the dependencies of buildah.
 
+UPGRADE_STATUS_FILE = Path("/var/lib/walt/.upgrade")
+
+
+def record_start_os_upgrade():
+    # if the upgrade fails, the file /var/lib/walt/.upgrade will
+    # indicate which debian version was being updated, so that
+    # if walt-server-setup is called again, it retries the full
+    # upgrade (and disregard the content of /etc/os-release possibly
+    # already indicating the target OS version is there).
+    if not UPGRADE_STATUS_FILE.exists():
+        codename = get_os_codename()
+        UPGRADE_STATUS_FILE.write_text(codename)
+
+
+def record_end_os_upgrade():
+    UPGRADE_STATUS_FILE.unlink()
+
+
 def get_os_codename():
+    # if the previous call to walt-server-setup failed in the
+    # middle of the OS upgrade, disregard the content of file
+    # /etc/os-release, and consider we are still running the old
+    # OS version instead, in order to retry the full OS upgrade.
+    if UPGRADE_STATUS_FILE.exists():
+        return UPGRADE_STATUS_FILE.read_text()
     release_file = Path("/etc/os-release")
     if not release_file.exists():
         raise Exception("File /etc/os-release not found.")
@@ -235,42 +259,48 @@ def upgrade_db():
 
 
 def upgrade_os():
-    fix_apt_sources()
-    fix_dpkg_options()
-    fix_grub_pc()
-    fix_packets(upgrade_dist=True, upgrade_packets=True)
+    try:
+        fix_apt_sources()
+        fix_dpkg_options()
+        fix_grub_pc()
+        fix_packets(upgrade_dist=True, upgrade_packets=True)
+    finally:
+        # The virtualenv was built from an older version of python3,
+        # upgrade it, and reinstall the packages in lib/python3.<new>/site-packages/.
+        # Even if the apt package upgrades failed (unfortunately, a rather common
+        # issue), the python3 package may still have been updated, so enclose this
+        # in the finally block because if walt-server-setup is called again,
+        # it will require a working venv.
+        print("Upgrading virtual env (python was updated by OS upgrade)... ", end="")
+        sys.stdout.flush()
+        subprocess.run(
+            f"python3 -m venv --upgrade {sys.prefix}".split(),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            check=True,
+        )
+        pip_install = f"{sys.prefix}/bin/pip install"
+        subprocess.run(
+            f"{pip_install} --upgrade pip".split(),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            check=True,
+        )
+        if __version__.startswith("0."):
+            # dev version, published on testpypi
+            repo_opts = ("--index-url https://pypi.org/simple"
+                         " --extra-index-url https://test.pypi.org/simple")
+        else:
+            repo_opts = ""
+        subprocess.run(
+            (f"{pip_install} {repo_opts}"
+             f" walt-server=={__version__} walt-client=={__version__}").split(),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            check=True,
+        )
+        print("done")
     upgrade_db()
-    # the virtualenv was built from an older version of python3,
-    # upgrade it, and reinstall the packages in lib/python3.<new>/site-packages/
-    print("Upgrading virtual env (python was updated by OS upgrade)... ", end="")
-    sys.stdout.flush()
-    subprocess.run(
-        f"python3 -m venv --upgrade {sys.prefix}".split(),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        check=True,
-    )
-    pip_install = f"{sys.prefix}/bin/pip install"
-    subprocess.run(
-        f"{pip_install} --upgrade pip".split(),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        check=True,
-    )
-    if __version__.startswith("0."):
-        # dev version, published on testpypi
-        repo_opts = ("--index-url https://pypi.org/simple"
-                     " --extra-index-url https://test.pypi.org/simple")
-    else:
-        repo_opts = ""
-    subprocess.run(
-        (f"{pip_install} {repo_opts}"
-         f" walt-server=={__version__} walt-client=={__version__}").split(),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        check=True,
-    )
-    print("done")
 
 
 def fix_os():
