@@ -17,7 +17,7 @@ setup_info = {
         "aiostream==0.5.2",
         "attrs==23.2.0",
         "bottle==0.12.25",
-        "certifi==2024.2.2",
+        "certifi==2024.7.4",
         "cffi==1.16.0",
         "charset-normalizer==3.3.2",
         "commonmark==0.9.1",
