@@ -3,6 +3,10 @@
 
 ## Introduction
 
+**IMPORTANT NOTE:
+This feature is experimental and currently being largely refactored (as of july 2024).
+For now this documentation is kept as-is for historical purpose.**
+
 WalT provides a built-in VPN subsystem allowing to deploy distant nodes. This feature is particularily useful
 when experimenting with long-range protocols.
 
