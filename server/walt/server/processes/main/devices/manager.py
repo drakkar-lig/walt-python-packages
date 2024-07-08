@@ -184,7 +184,17 @@ class DevicesManager(object):
             # single type, return the numpy array
             arr = list(info.values())[0]
             if sortby is not None:
-                arr.sort(order=sortby)
+                # workaround a strange exception sometimes thrown by
+                # arr.sort(order=sortby)
+                # where values of other columns of arr are compared
+                # (leading to an exception when comparing dict objects)
+                # although all values of "sortby" column are unique.
+                if isinstance(sortby, str):
+                    sortby = [sortby]
+                else:
+                    sortby = list(sortby)
+                arr_indices = np.argsort(arr[sortby], order=sortby)
+                arr = arr[arr_indices]
             return arr
         else:
             # return a list of all elements of all arrays
