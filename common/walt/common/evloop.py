@@ -7,6 +7,7 @@ from multiprocessing import current_process  # noqa: F401
 from select import POLLIN, POLLOUT, POLLPRI, poll, select
 from subprocess import PIPE, Popen, DEVNULL
 from time import time
+from collections import defaultdict
 
 
 class BreakLoopRequested(Exception):
@@ -78,6 +79,58 @@ class ProcessListener:
             self._callback(retcode)
 
 
+class PollersCache:
+    def __init__(self):
+        self._next_fds_id = 0
+        self._fds_id_per_fds = {}
+        self._fds_per_fds_id = {}
+        self._fds_ids_per_fd = defaultdict(set)
+        self._poller_per_fds_id = {}
+        self._events_per_fd = {}
+        # by default self._idle_section_hook does nothing, but
+        # the caller can set this attribute with a context
+        # manager object if needed.
+        self._idle_section_hook = contextlib.nullcontext
+    def poll(self, fds, timeout):
+        fds = tuple(sorted(fds))
+        fds_id = self._fds_id_per_fds.get(fds, self._next_fds_id)
+        if fds_id == self._next_fds_id:
+            self._fds_id_per_fds[fds] = fds_id
+            self._fds_per_fds_id[fds_id] = fds
+            #if current_process().name == "server-main":
+            #    print("num fds:", len(self._fds_per_fds_id),
+            #          "-- num fd:", len(self._events_per_fd))
+            self._next_fds_id += 1
+        poller = self._poller_per_fds_id.get(fds_id)
+        if poller is None:
+            poller = poll()
+            [poller.register(fd, self._events_per_fd[fd]) for fd in fds]
+            [self._fds_ids_per_fd[fd].add(fds_id) for fd in fds]
+            self._poller_per_fds_id[fds_id] = poller
+        cm = contextlib.nullcontext if timeout == 0 else self._idle_section_hook
+        with cm():
+            return poller.poll(timeout)
+    def register_fd(self, fd, events):
+        #print(f"+ {fd}")
+        self._events_per_fd[fd] = events
+    def remove_fd(self, fd):
+        #print(f"- {fd}")
+        # remove all known fds which include fd
+        for fds_id in self._fds_ids_per_fd[fd].copy():
+            fds = self._fds_per_fds_id.pop(fds_id)
+            del self._fds_id_per_fds[fds]
+            [self._fds_ids_per_fd[_fd].discard(fds_id) for _fd in fds]
+            self._poller_per_fds_id.pop(fds_id)
+        # forget fd-specific info
+        del self._events_per_fd[fd]
+        del self._fds_ids_per_fd[fd]
+    def update_fd(self, fd, events):
+        #print(f"m {fd}")
+        self._events_per_fd[fd] = events
+        for fds_id in self._fds_ids_per_fd[fd]:
+            self._poller_per_fds_id[fds_id].modify(fd, events)
+
+
 # EventLoop allows to monitor incoming data on a set of
 # file descriptors, and call the appropriate listener when
 # input data is detected.
@@ -86,38 +139,31 @@ class ProcessListener:
 # In case of error, the file descriptor is removed from
 # the set of watched descriptors.
 # When the set is empty, the loop stops.
-
-
 class EventLoop(object):
     MAX_TIMEOUT_MS = 500
 
     def __init__(self):
+        self._pollers = PollersCache()
         self.listeners_per_fd = {}
-        self.events_per_fd = {}
         self.fd_per_listener_id = {}
         self.planned_events = []
-        self.general_poller = poll()
-        self.single_listener_pollers = {}
         self.recursion_depth = 0
         self.pending_events = {}
-        self.disabled_listener = None
-        # by default self.idle_section_hook does nothing, but
-        # the caller can set this attribute with a context
-        # manager object if needed.
-        self.idle_section_hook = contextlib.nullcontext
+        self._disabled_fds = set()
 
-    def get_poller(self, single_listener=None):
+    @property
+    def idle_section_hook(self):
+        return self._pollers._idle_section_hook
+
+    @idle_section_hook.setter
+    def idle_section_hook(self, value):
+        self._pollers._idle_section_hook = value
+
+    def get_polling_fds(self, single_listener=None):
         if single_listener is None:
-            return self.general_poller
+            return set(self.listeners_per_fd.keys()) - self._disabled_fds
         else:
-            fd = single_listener.fileno()
-            poller = self.single_listener_pollers.get(fd, None)
-            if poller is None:
-                events = self.events_per_fd[fd]
-                poller = poll()
-                poller.register(fd, events)
-                self.single_listener_pollers[fd] = poller
-            return poller
+            return {self.fd_per_listener_id[id(single_listener)]}
 
     def pop_pending_event(self, single_listener=None):
         if single_listener is None:
@@ -125,7 +171,7 @@ class EventLoop(object):
                 return None, None, None
             fd = next(iter(self.pending_events.keys()))
         else:
-            fd = single_listener.fileno()
+            fd = self.fd_per_listener_id[id(single_listener)]
             if fd not in self.pending_events:
                 return None, None, None
         ev, ts = self.pending_events.pop(fd)
@@ -161,13 +207,8 @@ class EventLoop(object):
                 return min(EventLoop.MAX_TIMEOUT_MS, delay_ms)
 
     def update_listener(self, listener, events=POLL_OPS_READ):
-        fd = listener.fileno()
-        self.events_per_fd[fd] = events
-        # update general poller
-        self.general_poller.modify(fd, events)
-        # update single listener poller if it exists
-        if fd in self.single_listener_pollers:
-            self.single_listener_pollers[fd].modify(fd, events)
+        fd = self.fd_per_listener_id[id(listener)]
+        self._pollers.update_fd(fd, events)
         # discard previous pending events for this fd
         # since we are no longer waiting for the same kind of event
         if fd in self.pending_events:
@@ -175,10 +216,9 @@ class EventLoop(object):
 
     def register_listener(self, listener, events=POLL_OPS_READ):
         fd = listener.fileno()
-        self.listeners_per_fd[fd] = listener
-        self.events_per_fd[fd] = events
+        self._pollers.register_fd(fd, events)
         self.fd_per_listener_id[id(listener)] = fd
-        self.general_poller.register(fd, events)
+        self.listeners_per_fd[fd] = listener
         # print 'new listener:', listener
 
     def remove_listener(self, listener, should_close=True):
@@ -186,17 +226,16 @@ class EventLoop(object):
         fd = self.fd_per_listener_id.get(listener_id, None)
         if fd is None:
             return False  # listener was already removed previously
-        del self.listeners_per_fd[fd]
-        del self.events_per_fd[fd]
+        self._pollers.remove_fd(fd)
         del self.fd_per_listener_id[listener_id]
+        del self.listeners_per_fd[fd]
         if fd in self.pending_events:
             del self.pending_events[fd]
-        if fd in self.single_listener_pollers:
-            self.single_listener_pollers[fd].unregister(fd)
-            del self.single_listener_pollers[fd]
-        self.general_poller.unregister(fd)
         if should_close:
-            listener.close()
+            try:
+                listener.close()
+            except Exception as e:
+                print(f"Warning, closing {listener} failed: {e}")
         return True  # done
 
     def should_continue(self, loop_condition):
@@ -218,18 +257,7 @@ class EventLoop(object):
 
     def loop(self, loop_condition=None, single_listener=None):
         self.recursion_depth += 1
-        # in case of a recursive call to loop() while processing
-        # listener.handle_event() with a listener that disallow
-        # event reordering, we temporarily remove the listener
-        # during this recursive call.
-        disabled_listener_info = self.disabled_listener
-        if disabled_listener_info is not None:
-            disabled_listener, _ = disabled_listener_info
-            # print(f'__DEBUG__ temp remove {listener}')
-            self.remove_listener(disabled_listener, should_close=False)
-            self.disabled_listener = None
         opts = dict(single_listener=single_listener)
-        poller = self.get_poller(**opts)
         # print(f'__DEBUG__ {current_process().name} loop depth={self.recursion_depth}')
         while True:
             # if previous listener callback fulfilled the condition, quit
@@ -265,9 +293,11 @@ class EventLoop(object):
                 # stop the loop if no more listeners
                 if len(self.listeners_per_fd) == 0:
                     break
+                # get list of file descriptors we monitor
+                fds = self.get_polling_fds(**opts)
                 # first check if we have pending file descriptor notifications
                 # we should process right away
-                res = poller.poll(0)   # timeout = 0
+                res = self._pollers.poll(fds, 0)   # timeout = 0
                 if len(res) == 0:
                     # compute timeout
                     timeout = self.get_timeout(**opts)
@@ -280,8 +310,8 @@ class EventLoop(object):
                         # status may have changed.
                         if not self.should_continue(loop_condition):
                             break
-                        with self.idle_section_hook():
-                            res = poller.poll(timeout)
+                        fds = self.get_polling_fds(**opts)
+                        res = self._pollers.poll(fds, timeout)
                 if len(res) == 0:
                     continue  # poll() was stopped because of the timeout
                 # save the time of the events
@@ -300,29 +330,20 @@ class EventLoop(object):
                 # unless the listener allows event reordering, we prevent the event loop
                 # to process a future event recursively (while processing
                 # listener.handle_event(ts)) on the same listener by temporarily
-                # disabling it. For performance, we actually call remove_listener()
-                # (and then register_listener() to restore it) lazily in the recursive
-                # call, if any, because those recursive calls are rare.
+                # disabling it.
                 allow_reordering = self.reordering_allowed(fd)
                 if not allow_reordering:
-                    events = self.events_per_fd[fd]
-                    self.disabled_listener = (listener, events)
+                    self._disabled_fds.add(fd)
                 # let the listener handle the event
                 res = listener.handle_event(ts)
-                # restore listener is it was temporarily removed
+                # restore listener if it was temporarily disabled
                 if not allow_reordering:
-                    self.disabled_listener = None
+                    self._disabled_fds.discard(fd)
                 # if False was returned, we will
                 # close this listener.
                 should_close = res is False
             if should_close:
                 self.remove_listener(listener)
-        # restore the temporarily disabled listener if any
-        if disabled_listener_info is not None:
-            disabled_listener, events = disabled_listener_info
-            self.register_listener(disabled_listener, events)
-            self.disabled_listener = disabled_listener_info
-            # print(f'__DEBUG__ temp restore {disabled_listener}')
         # print(f'__DEBUG__ {current_process().name} end depth={self.recursion_depth}')
         self.recursion_depth -= 1
 
