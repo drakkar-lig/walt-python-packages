@@ -200,12 +200,13 @@ class EvProcess(Process):
             # close our files
             for f in self._startup_files_info[self.name]:
                 f.close()
+        except Exception:
+            traceback.print_exc()
+        finally:
             # stop trackexec
             if TRACKEXEC_LOG_DIR.exists():
                 from walt.server.trackexec import stop
                 stop()
-        except Exception:
-            traceback.print_exc()
 
     def readline(self):
         self.pipe_process.send("GET_INPUT_LINE")
