@@ -102,6 +102,10 @@ def wf_fs_remote_completions(wf, server, requester,
     elif entity_type == "image":
         fs = server.images.get_image_filesystem(requester, entity)
     if fs is not None:
+        # if previous completion attempt to the same [node|image] did
+        # not complete, abort it to be able to run this one.
+        if fs.busy():
+            fs.full_close()
         wf.update_env(filesystem=fs, partial_path=partial_remote_path)
         wf.insert_steps([fs.wf_ping, wf_fs_after_ping])
     wf.next()
