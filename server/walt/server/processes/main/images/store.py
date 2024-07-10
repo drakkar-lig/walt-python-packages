@@ -66,6 +66,7 @@ class NodeImageStore(object):
         self.exports = server.exports
         self._update_wf = None
         self._planned_update_wf = None
+        self._cleaning_up = False
 
     def resync_from_db(self):
         "Synchronization function called on daemon startup."
@@ -259,7 +260,9 @@ class NodeImageStore(object):
         wf.next()
 
     def _plan_next_update_wf(self):
-        if self._planned_update_wf is None and len(self.deadlines) > 0:
+        if      (not self._cleaning_up and
+                 self._planned_update_wf is None and
+                 len(self.deadlines) > 0):
             self._planned_update_wf = Workflow(
                 [self.wf_update_image_mounts, self._wf_after_plan_next_update_wf]
             )
@@ -269,6 +272,10 @@ class NodeImageStore(object):
             )
 
     def wf_update_image_mounts(self, wf, **env):
+        # if we are cleaning up, do nothing
+        if self._cleaning_up:
+            wf.next()
+            return
         # if there is not already an update workflow in progress, create it
         if self._update_wf is None:
             self._update_wf = Workflow([self._wf_update_image_mounts])
@@ -377,6 +384,13 @@ class NodeImageStore(object):
         update_wf.next()
 
     def cleanup(self):
+        self._cleaning_up = True
+        if self._update_wf is not None:
+            self._update_wf.interrupt()
+            self._update_wf = None
+        if self._planned_update_wf is not None:
+            self._planned_update_wf.interrupt()
+            self._planned_update_wf = None
         # release filesystem interpreters
         self.filesystems.cleanup()
         if len(self.mounts) > 0:
