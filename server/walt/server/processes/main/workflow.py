@@ -53,7 +53,7 @@ class Workflow:
 
     @classmethod
     def cleanup_remaining_workflows(cls):
-        for wf in Workflow._instances.values():
+        for wf in list(Workflow._instances.values()):
             if not wf.done:
                 wf.print_missed()
                 print(f"{wf} was never properly ended.", file=sys.stderr)
