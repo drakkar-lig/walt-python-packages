@@ -64,6 +64,7 @@ class NodesManager(object):
         )
         self.pending_boot_info = {}
         self.next_boot_check = None
+        self._cleaning_up = False
 
     def is_booted_node_mac(self, mac):
         return mac in self.booted_macs
@@ -155,6 +156,8 @@ class NodesManager(object):
 
     def _boot_check(self):
         self.next_boot_check = None
+        if self._cleaning_up:
+            return
         now = time()
         failing_nodes = []
         for mac, info in self.pending_boot_info.items():
@@ -194,6 +197,7 @@ class NodesManager(object):
             del self.vnodes[node_mac]
 
     def cleanup(self):
+        self._cleaning_up = True
         # stop virtual nodes
         for vnode in self.db.select("devices", type="node", virtual=True):
             print(f"stop vnode {vnode.name}")
@@ -207,6 +211,8 @@ class NodesManager(object):
         # about this vnode (see server.py)
 
     def register_node(self, mac, model, image_fullname=None):
+        if self._cleaning_up:
+            return
         self.pending_boot_info[mac] = dict(
             timeout=NODE_DEFAULT_BOOT_TIMEOUT,
             retries=NODE_DEFAULT_BOOT_RETRIES,
@@ -240,6 +246,9 @@ class NodesManager(object):
             task.return_result(False)
 
     def blink(self, requester, task, node_name, blink_status):
+        if self._cleaning_up:
+            task.return_result(False)
+            return
         req = "BLINK %d" % int(blink_status)
         node = self.get_node_info(requester, node_name)
         if node is None:
@@ -300,10 +309,14 @@ class NodesManager(object):
         self.vnodes[node.mac] = popen, listener
 
     def vnode_hard_reboot(self, node_mac):
+        if self._cleaning_up:
+            return
         popen = self.vnodes[node_mac][0]
         popen.stdin.write(b'KILL_VM\n')
 
     def vnode_console_input(self, node_mac, buf):
+        if self._cleaning_up:
+            return
         # qemu has escape sequences starting with <ctrl-a>. we do not want
         # to let them accessible to the user.
         # to send a <ctrl-a> to the guest, we send <ctrl-a><ctrl-a> to qemu.
@@ -313,6 +326,8 @@ class NodesManager(object):
         popen.stdin.write(b'INPUT ' + base64.b64encode(buf) + b'\n')
 
     def vnode_update_vm_setting(self, node_mac, setting_name, setting_value):
+        if self._cleaning_up:
+            return
         popen = self.vnodes[node_mac][0]
         popen.stdin.write(f"CONF {setting_name} {setting_value}\n".encode("ascii"))
 
