@@ -295,12 +295,16 @@ class EvProcessesManager(object):
                     _log_dbg_exit(f"sending SIGTERM to {t.name}")
                     t.terminate()
                     has_msg = t.pipe_manager.poll(5.0)
-                if has_msg:
-                    t.pipe_manager.recv()  # msg is probably "END_EXIT"
-                    #_log_dbg_exit(f"{t.name} process did end")
-                else:
-                    _log_dbg_exit(f"sending SIGKILL to {t.name}")
-                    t.kill()
+                clean_exit = False
+                try:
+                    if has_msg:
+                        t.pipe_manager.recv()  # msg is probably "END_EXIT"
+                        #_log_dbg_exit(f"{t.name} process did end")
+                        clean_exit = True
+                finally:
+                    if not clean_exit:
+                        _log_dbg_exit(f"sending SIGKILL to {t.name}")
+                        t.kill()
 
 
 class ProcessConnector:
