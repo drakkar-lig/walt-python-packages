@@ -267,7 +267,8 @@ def docker_wrap_cmd(cmd, input_needed=False):
     input_opt = "-i" if input_needed else ""
     walt_tar_send = script_path("walt-tar-send")
     return f"""\
-        podman run -q {input_opt} --name %(container_name)s -w /root \
+        podman run --log-driver=none -q {input_opt} \
+        --name %(container_name)s -w /root \
         -v {walt_tar_send}:/bin/_walt_internal_/walt-tar-send \
         --entrypoint /bin/sh %(image_fullname)s -c "{cmd}; sync; sync" """
 
@@ -388,7 +389,8 @@ class VPNNodeImageDump(ParallelProcessSocketListener):
 
     def get_command(self, **params):
         return (
-            "podman run -q --rm docker.io/waltplatform/rpi3bp-vpn-sd-dump"
+            "podman run --log-driver=none -q --rm "
+            "docker.io/waltplatform/rpi3bp-vpn-sd-dump"
             ' "%(entrypoint)s"' % params
         )
 

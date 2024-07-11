@@ -20,7 +20,7 @@ docker_run_options="-w /root"
 # If the image has a file named /etc/cpuinfo, it should be bind-mounted
 # to /proc/cpuinfo (fixes emulation support for some programs such as yum).
 cpuinfo_file=$(mktemp)
-podman run --rm --entrypoint /bin/sh                   \
+podman run --rm --log-driver=none --entrypoint /bin/sh \
         "$image_fullname"                              \
         -c "$DUMP_CPUINFO_COMMAND" > $cpuinfo_file
 
