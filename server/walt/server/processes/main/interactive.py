@@ -54,7 +54,13 @@ class DevicePingSocketListener(PromptSocketListener):
     REQ_ID = Requests.REQ_DEVICE_PING
 
     def get_command(self, **params):
-        return "ping %s" % params["device_ip"]
+        # ping process may remain active on server side
+        # when started using popen (i.e., when client is
+        # not run on a tty, e.g., when automated by
+        # "make test"), even if its std streams (redirected
+        # to the client socket) are closed on client side.
+        # So we add "-c 10 -w 11" to ensure it eventually ends.
+        return "ping -c 10 -w 11 %s" % params["device_ip"]
 
 
 class DeviceShellSocketListener(PromptSocketListener):
