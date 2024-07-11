@@ -43,7 +43,7 @@ def img_print(image_id, msg):
     for line in msg.splitlines():
         line = line.strip()
         if len(line) > 0:
-            print(f"image {image_id[:12]}:", line)
+            print(f"image {image_id[:12]}: {line}")
 
 
 # There seem to be a race condition rarely occurring
