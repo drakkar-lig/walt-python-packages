@@ -15,25 +15,28 @@ class WaitInfo(object):
         self.mac_to_tids = defaultdict(set)
         self.mac_to_name = {}
         self.tasks = {}
-        self.message_log = []
+        self.tid_to_message = {}
         self.completed_tasks = []
 
     def push_status_message(self, tid):
-        requester = self.tasks[tid].context.requester
         waiting_names = [self.mac_to_name[mac] for mac in self.tid_to_macs[tid]]
         message = format_sentence_about_nodes("Waiting for bootup of %s", waiting_names)
-        self.message_log.append((requester, message))
+        self.tid_to_message[tid] = message
 
     def flush(self):
+        tid_to_message = self.tid_to_message.copy()
+        self.tid_to_message = {}    # reset
         # unblock clients
         while len(self.completed_tasks) > 0:
             task = self.completed_tasks[0]
             self.completed_tasks = self.completed_tasks[1:]
+            tid = id(task)
+            if tid in tid_to_message:
+                del tid_to_message[tid]
             task.end(0)  # unblock the client
         # send status messages
-        while len(self.message_log) > 0:
-            requester, message = self.message_log[0]
-            self.message_log = self.message_log[1:]
+        for tid, message in tid_to_message.items():
+            requester = self.tasks[tid].context.requester
             if not requester.get_username():
                 continue  # requester is disconnected
             requester.set_busy_label(message)
