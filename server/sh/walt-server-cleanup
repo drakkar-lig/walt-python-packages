@@ -6,6 +6,10 @@
 # containers (e.g. a private registry), and those will
 # not be touched by this cleanup script.
 
+# ensure the NFS server is not locking image mounts
+echo > /etc/exports.d/walt.exports
+systemctl restart nfs-kernel-server
+
 # umount any remaining walt image
 remaining_mountpoints="$(mount | awk '{print $3}' | grep "/var/lib/walt")"
 if [ ! -z "$remaining_mountpoints" ]
