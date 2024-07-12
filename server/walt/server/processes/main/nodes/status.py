@@ -16,8 +16,8 @@ from walt.common.tcp import Requests
 # with an interval of TCP_KEEPALIVE_PROBE_INTERVAL, and if all
 # probes fail consider the connection is lost.
 
-TCP_KEEPALIVE_IDLE_TIMEOUT = 45
-TCP_KEEPALIVE_PROBE_INTERVAL = 3
+TCP_KEEPALIVE_IDLE_TIMEOUT = 15
+TCP_KEEPALIVE_PROBE_INTERVAL = 2
 TCP_KEEPALIVE_FAILED_COUNT = 5
 
 
@@ -75,7 +75,7 @@ class NodeBootupStatusListener:
         # thus we verify that we are managing the latest connection of this node.
         if (
                 self._confirmed and
-                self.sock_files_per_ip[self.node_ip] is self.sock_file
+                self.sock_files_per_ip.get(self.node_ip) is self.sock_file
            ):
             print(f"bootup status listener of {self.node_ip}:", err)
             self.nodes_manager.change_nodes_bootup_status(
