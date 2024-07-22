@@ -87,7 +87,7 @@ def show(manager, username, show_all, names_only):
     res.netsetup[res.netsetup_int == NetSetup.LAN] = "LAN"
     res.netsetup[res.netsetup_int == NetSetup.NAT] = "NAT"
     # compute res.booted
-    mask_booted = np.isin(res.mac, list(manager.booted_macs))
+    mask_booted = np.isin(res.mac, list(manager.get_booted_macs()))
     mask_powersave = (res.powersave == 1)
     res.booted[mask_booted] = "yes"
     res.booted[~mask_booted & mask_powersave] = "no (powersave)"

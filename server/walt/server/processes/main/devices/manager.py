@@ -168,7 +168,8 @@ class DevicesManager(object):
             nodes_info.netmask = self.netmask
             nat_mask = (nodes_info.netsetup == NetSetup.NAT)
             nodes_info.gateway[nat_mask] = self.server_ip
-            booted_mask = np.isin(nodes_info.mac, list(self.server.nodes.booted_macs))
+            booted_mask = np.isin(nodes_info.mac,
+                    list(self.server.nodes.get_booted_macs()))
             nodes_info.booted = booted_mask
         return info
 
