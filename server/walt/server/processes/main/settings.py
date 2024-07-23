@@ -19,13 +19,25 @@ from walt.server.processes.main.nodes.manager import (
 )
 from walt.server.tools import ip_in_walt_network, np_record_to_dict
 
+PPRINT_NONE = "<unspecified>"
+
 
 def uncapitalize(s):
     return s[0].lower() + s[1:]
 
 
+def pprint_netsetup(int_val):
+    if int_val is None:
+        return PPRINT_NONE
+    else:
+        return NetSetup(int_val).readable_string()
+
+
 def pprint_bool(bool_val):
-    return str(bool_val).lower()
+    if bool_val is None:
+        return PPRINT_NONE
+    else:
+        return str(bool_val).lower()
 
 
 def parse_settings_args(requester, settings_args):
@@ -59,7 +71,7 @@ class SettingsManager:
                 "category": "walt-net-devices",
                 "value-check": self.correct_netsetup_value,
                 "default": int(NetSetup.LAN),
-                "pretty_print": lambda int_val: NetSetup(int_val).readable_string(),
+                "pretty_print": pprint_netsetup,
             },
             "ram": {
                 "category": "virtual-nodes",
@@ -90,6 +102,7 @@ class SettingsManager:
                 "category": "nodes",
                 "value-check": self.correct_boot_timeout,
                 "default": NODE_DEFAULT_BOOT_TIMEOUT,
+                "pretty_print": lambda s: ("none" if s is None else str(s)),
             },
             "networks": {
                 "category": "virtual-nodes",
@@ -760,14 +773,14 @@ class SettingsManager:
                     continue
                 msg = sentence_start + " the following config applied:\n"
                 for setting_name, setting_value in sorted_config:
-                    if setting_value is None:
-                        pprinted_value = "<unspecified>"
-                    else:
-                        pprint = self.settings_table[setting_name].get("pretty_print")
-                        if pprint is None:
-                            pprinted_value = str(setting_value)
+                    pprint = self.settings_table[setting_name].get("pretty_print")
+                    if pprint is None:
+                        if setting_value is None:
+                            pprinted_value = PPRINT_NONE
                         else:
-                            pprinted_value = pprint(setting_value)
+                            pprinted_value = str(setting_value)
+                    else:
+                        pprinted_value = pprint(setting_value)
                     msg += "%s=%s\n" % (setting_name, pprinted_value)
                 parts.append(msg)
         requester.stdout.write("\n\n".join(parts) + "\n")
