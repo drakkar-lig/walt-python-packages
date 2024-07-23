@@ -1,6 +1,6 @@
-import pickle
 import sys
 
+from walt.common.tcp import MyPickle as pickle
 from walt.common.tools import do
 
 USAGE = """\

@@ -1,5 +1,4 @@
 import datetime
-import pickle
 import re
 import sys
 
@@ -14,7 +13,7 @@ from walt.client.timeout import (
 )
 from walt.client.tools import confirm
 from walt.client.types import LOG_CHECKPOINT
-from walt.common.tcp import PICKLE_VERSION, Requests, read_pickle, write_pickle
+from walt.common.tcp import Requests, read_pickle, write_pickle, MyPickle as pickle
 
 DATE_FORMAT_STRING = "%Y-%m-%d %H:%M:%S"
 DATE_FORMAT_STRING_HUMAN = "<YYYY>-<MM>-<DD> <hh>:<mm>:<ss>"
@@ -51,7 +50,7 @@ def compute_relative_date(server_time, rel_date):
             " (e.g. '-6h' for 'six hours ago')"
         )
         sys.exit(1)
-    return pickle.dumps(server_time - delay, protocol=PICKLE_VERSION)
+    return pickle.dumps(server_time - delay)
 
 
 class LogsFlowFromServer(object):
@@ -59,7 +58,10 @@ class LogsFlowFromServer(object):
         self.f = connect_to_tcp_server()
 
     def read_log_record(self):
-        return read_pickle(self.f)
+        try:
+            return read_pickle(self.f)
+        except Exception:
+            return None
 
     def request_log_dump(self, **kwargs):
         Requests.send_id(self.f, Requests.REQ_DUMP_LOGS)
@@ -330,8 +332,7 @@ class WalTLogAddCheckpoint(WalTApplication):
                 else:
                     try:
                         self.date = pickle.dumps(
-                            datetime.datetime.strptime(self.date, DATE_FORMAT_STRING),
-                            protocol=PICKLE_VERSION,
+                            datetime.datetime.strptime(self.date, DATE_FORMAT_STRING)
                         )
                     except Exception:
                         print("Could not parse the date specified.")

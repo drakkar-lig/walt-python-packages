@@ -1,10 +1,10 @@
 import os
-import pickle
 import socket
 
 import bottle
 from gevent.fileobject import FileObject
 from gevent.pywsgi import WSGIServer
+from walt.common.tcp import MyPickle as pickle
 from walt.common.unix import Requests, bind_to_random_sockname, recv_msg_fds
 from walt.server.const import UNIX_SERVER_SOCK_PATH
 from pkg_resources import resource_filename

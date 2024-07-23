@@ -1,11 +1,11 @@
 import numpy as np
-import pickle
 import psycopg2.extras
 import re
 from datetime import datetime, timedelta
 from psycopg2.extensions import register_adapter, AsIs
 from time import time
 
+from walt.common.tcp import MyPickle as pickle
 from walt.common.tools import get_mac_address
 from walt.server import const
 from walt.server.processes.db.postgres import PostgresDB

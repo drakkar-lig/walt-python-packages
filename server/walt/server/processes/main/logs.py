@@ -1,5 +1,4 @@
 import numpy as np
-import pickle
 import re
 import sys
 from collections import defaultdict
@@ -7,7 +6,7 @@ from datetime import datetime
 from time import time
 
 from walt.common.constants import WALT_SERVER_NETCONSOLE_PORT
-from walt.common.tcp import PICKLE_VERSION, Requests, read_pickle, write_pickle
+from walt.common.tcp import MyPickle as pickle, Requests, read_pickle, write_pickle
 from walt.common.udp import udp_server_socket
 from walt.server.tools import get_server_ip, np_record_to_dict
 
@@ -540,4 +539,4 @@ class LogsManager(object):
         if not res[0]:
             return
         cp_info = res[1]
-        return pickle.dumps(cp_info.timestamp, protocol=PICKLE_VERSION)
+        return pickle.dumps(cp_info.timestamp)

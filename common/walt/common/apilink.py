@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-import pickle
 import sys
 from socket import IPPROTO_TCP, TCP_NODELAY, create_connection
 from time import time
@@ -7,7 +6,7 @@ from time import time
 from walt.common.api import api, api_expose_method
 from walt.common.constants import WALT_SERVER_DAEMON_PORT
 from walt.common.reusable import reusable
-from walt.common.tcp import Requests
+from walt.common.tcp import Requests, RWSocketFile, MyPickle as pickle
 from walt.common.tools import BusyIndicator
 
 SERVER_SOCKET_TIMEOUT = 10.0
@@ -46,6 +45,9 @@ class APIChannel(object):
 
     def set_mode(self, mode):
         if mode in ("pickle4", "line-repr-eval"):
+            if isinstance(self.sock_file, RWSocketFile):
+                pickle_mode = (mode=="pickle4")
+                self.sock_file.pickle_mode = pickle_mode
             self.mode = mode
         else:
             raise Exception(f"Unknown APIChannel mode: {mode}")
@@ -176,7 +178,7 @@ class ServerAPIConnection(object):
             except Exception:
                 self.sock = self.create_connection(self.server_ip)
             self.sock.setsockopt(IPPROTO_TCP, TCP_NODELAY, 1)  # disable Nagle
-            sock_file = self.sock.makefile("rwb", 0)
+            sock_file = RWSocketFile(self.sock)
             sock_file.write(
                 b"%d\n%s\n"
                 % (Requests.REQ_API_SESSION, self.target_api.encode("UTF-8"))

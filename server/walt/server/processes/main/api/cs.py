@@ -1,8 +1,7 @@
 import datetime
-import pickle
 
 from walt.common.api import api, api_expose_method
-from walt.common.tcp import PICKLE_VERSION
+from walt.common.tcp import MyPickle as pickle
 from walt.common.tools import format_image_fullname
 from walt.server.processes.main.apisession import APISession
 from walt.server.processes.main.images.image import validate_image_name
@@ -268,7 +267,7 @@ class CSAPI(APISession):
 
     @api_expose_method
     def get_pickled_time(self, context):
-        return pickle.dumps(datetime.datetime.now(), protocol=PICKLE_VERSION)
+        return pickle.dumps(datetime.datetime.now())
 
     @api_expose_method
     def get_pickled_checkpoint_time(self, context, cp_name):
