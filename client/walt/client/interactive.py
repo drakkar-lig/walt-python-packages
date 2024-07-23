@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 import io
 import os
-import pickle
 import signal
 import socket
 import sys
@@ -11,7 +10,7 @@ from sys import stdin, stdout
 
 from walt.client.link import connect_to_tcp_server
 from walt.common.io import read_and_copy, unbuffered
-from walt.common.tcp import PICKLE_VERSION, Requests, write_pickle
+from walt.common.tcp import Requests, write_pickle, MyPickle as pickle
 
 SQL_SHELL_MESSAGE = """\
 Type \\dt for a list of tables.
@@ -76,8 +75,7 @@ class PromptClient(object):
                     "evt": "window_resize",
                     "lines": termsize.lines,
                     "columns": termsize.columns,
-                },
-                protocol=PICKLE_VERSION,
+                }
             )
             self.sock_file.write(buf)
             self.sock_file.flush()
@@ -139,8 +137,7 @@ class PromptClient(object):
                             continue
                         if self.tty_mode:
                             buf = pickle.dumps(
-                                {"evt": "input_data", "data": buf},
-                                protocol=PICKLE_VERSION,
+                                {"evt": "input_data", "data": buf}
                             )
                         self.sock_file.write(buf)
                         self.sock_file.flush()

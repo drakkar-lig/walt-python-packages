@@ -1,11 +1,10 @@
-import pickle
 import select
 import socket
 import tarfile
 
 from walt.client.link import connect_to_tcp_server
 from walt.client.progress import ProgressMessageProcess
-from walt.common.tcp import Requests, write_pickle
+from walt.common.tcp import Requests, write_pickle, MyPickle as pickle
 
 
 def run_transfer_with_image(client_operand_index, **kwargs):

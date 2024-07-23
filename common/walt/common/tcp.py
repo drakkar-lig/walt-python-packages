@@ -40,54 +40,134 @@ class Requests(ServiceRequests):
         stream.flush()
 
 
-def read_pickle(stream):
-    try:
-        return pickle.load(stream)
-    except Exception:
-        return None
+class MyPickle:
+
+    @staticmethod
+    def dump(obj, file, protocol=None, **kwargs):
+        pickle.dump(obj, file, PICKLE_VERSION, **kwargs)
+        file.flush()
+
+    @staticmethod
+    def dumps(obj, protocol=None, **kwargs):
+        return pickle.dumps(obj, PICKLE_VERSION, **kwargs)
+
+    @staticmethod
+    def load(file, **kwargs):
+        changed_pickle_mode = False
+        if isinstance(file, RWSocketFile) and not file.pickle_mode:
+            changed_pickle_mode = True
+            file.pickle_mode = True
+        obj = pickle.load(file)
+        if changed_pickle_mode:  # revert
+            file.pickle_mode = False
+        return obj
+
+    @staticmethod
+    def loads(data, **kwargs):
+        return pickle.loads(data, **kwargs)
 
 
-def write_pickle(obj, stream):
-    pickle.dump(obj, stream, PICKLE_VERSION)
-    stream.flush()
+write_pickle = MyPickle.dump
+read_pickle = MyPickle.load
 
 
+# Using sock.makefile("rwb", 0) could work to some extent,
+# but pickle does not handle partial reads, so we would get
+# "pickle data was truncated" errors when receiving large
+# pickled objects over the network.
+# And using io.BufferredReader(sock.makefile("rwb", 0))
+# would take care of this problem but it would cause other
+# problems with the event loop (bufferring could prevent
+# the event loop to detect new data).
+# So we create our own unbuffered class with a special pickle mode
+# which takes care of reading all requested bytes.
 class RWSocketFile:
     def __init__(self, sock):
-        self.sock = sock
-        self.file_r = sock.makefile("rb", 0)
-        self.file_w = sock.makefile("wb", 0)
+        self._s = sock
+        self.pickle_mode = False
 
     def shutdown(self, mode):
-        return self.sock.shutdown(mode)
+        return self._s.shutdown(mode)
 
     def getpeername(self):
-        return self.sock.getpeername()
+        return self._s.getpeername()
 
     def setsockopt(self, *args):
-        return self.sock.setsockopt(*args)
+        return self._s.setsockopt(*args)
+
+    def fileno(self):
+        return self._s.fileno()
 
     def __getattr__(self, attr):
-        if attr in ("write", "flush"):
-            f = self.file_w
+        print(f"UNKNOWN __getattr__ {attr}")
+        raise NotImplementedError
+
+    def peek(self, size=0):
+        return b""  # there is no buffering
+
+    def read(self, size=None):
+        if self.pickle_mode:
+            #print(f"full-read {size}")
+            msg = b""
+            if size is None:
+                # read all
+                while True:
+                    chunk = self._s.recv(8192)
+                    if len(chunk) == 0:
+                        break
+                    msg += chunk
+            else:
+                # read <size> bytes
+                while size > 0:
+                    chunk = self._s.recv(size)
+                    if len(chunk) == 0:
+                        break
+                    size -= len(chunk)
+                    msg += chunk
+            return msg
         else:
-            f = self.file_r
-        return getattr(f, attr)
+            if size is None:
+                size = -1
+            return self.read1(size)
+
+    def read1(self, size=-1):
+        #print(f"read1 {size}")
+        if size == 0:
+            return b""
+        if size == -1:
+            size = 8192
+        return self._s.recv(size)
+
+    def readinto(self, b):
+        #print(f"readinto {len(b)}")
+        msg = self.read(len(b))
+        b[:] = msg
+        return len(b)
+
+    def readline(self):
+        line = b""
+        while True:
+            c = self._s.recv(1)
+            line += c
+            if c == b"\n" or c == b"":
+                break
+        return line
+
+    def write(self, msg):
+        self._s.sendall(msg)
+        return len(msg)
+
+    def flush(self):
+        pass    # there is no buffering
 
     @property
     def closed(self):
-        return self.file_r is None
+        return self._s is None
 
     def close(self):
-        if self.file_r is not None:
-            self.file_r.close()
-            self.file_r = None
-        if self.file_w is not None:
-            self.file_w.close()
-            self.file_w = None
-        if self.sock is not None:
-            self.sock.close()
-            self.sock = None
+        if self._s is not None:
+            self._s.close()
+            self._s = None
 
     def __del__(self):
         self.close()
