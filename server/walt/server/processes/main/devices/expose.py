@@ -42,7 +42,8 @@ class DeviceToClientForwarder(NonBlockingSocket):
         self._send_buffer = b""
         self._label = f"Connection forwarder to {device_ip}:{device_port}"
         NonBlockingSocket.__init__(self, ev_loop,
-                    device_ip, device_port, SOCKET_TO_DEVICE_TIMEOUT)
+                    device_ip, device_port, SOCKET_TO_DEVICE_TIMEOUT,
+                    timeout_on_read=False)
 
     def on_connect(self):
         # "self" manages device -> client forwarding
@@ -83,9 +84,6 @@ class DeviceToClientForwarder(NonBlockingSocket):
 
     # nothing to do on timeout, close() is enough
     def on_connect_timeout(self):
-        pass
-
-    def on_read_timeout(self):
         pass
 
     def on_write_timeout(self):
