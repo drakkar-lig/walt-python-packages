@@ -336,7 +336,9 @@ class NonBlockingSocket:
         WAITING_WRITE = 3
         CLOSED = 4
 
-    def __init__(self, ev_loop, ip, port, timeout_secs=15):
+    def __init__(self, ev_loop, ip, port, timeout_secs=15,
+                 timeout_on_connect=True, timeout_on_read=True,
+                 timeout_on_write=True):
         self.ev_loop = ev_loop
         self.ip = ip
         self.port = port
@@ -347,6 +349,9 @@ class NonBlockingSocket:
         self.timeout_secs = timeout_secs
         self.timeout_ids = itertools.count()
         self.timeout_id = -1
+        self.timeout_on_connect = timeout_on_connect
+        self.timeout_on_read = timeout_on_read
+        self.timeout_on_write = timeout_on_write
 
     def start_timeout(self):
         # we set a timeout on the event loop
@@ -361,17 +366,20 @@ class NonBlockingSocket:
         non_blocking_connect(self.sock, self.ip, self.port)
         self.status = NonBlockingSocket.STATUS.CONNECTING
         self.ev_loop.register_listener(self, POLL_OPS_WRITE)
-        self.start_timeout()
+        if self.timeout_on_connect:
+            self.start_timeout()
 
     def start_wait_read(self):
         self.status = NonBlockingSocket.STATUS.WAITING_READ
         self.ev_loop.update_listener(self, POLL_OPS_READ)
-        self.start_timeout()
+        if self.timeout_on_read:
+            self.start_timeout()
 
     def start_wait_write(self):
         self.status = NonBlockingSocket.STATUS.WAITING_WRITE
         self.ev_loop.update_listener(self, POLL_OPS_WRITE)
-        self.start_timeout()
+        if self.timeout_on_write:
+            self.start_timeout()
 
     def on_timeout(self, timeout_id):
         # ignore obsolete timeouts
