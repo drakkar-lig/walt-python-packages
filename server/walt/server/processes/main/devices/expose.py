@@ -159,7 +159,7 @@ class ExposeManager:
             requester.stderr.write(
                 f"Failed: '{setting_value}' is not a valid value for option 'expose'.\n"
                 "        Use for example '80:8088' "
-                "(device port 80 <-> server port 8088).\n"
+                "(device port 80 <-> server port 8088), or 'none'.\n"
                 "        Several redirects are possible, e.g., '80:8088,443:8443'.\n"
             )
             return False
