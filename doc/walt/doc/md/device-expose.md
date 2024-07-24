@@ -20,7 +20,7 @@ web interface served by the node.
 This port forwarding is permanent, unless this node configuration is modified again.
 It will be properly restored when the walt server restarts.
 
-One may specify several redirects at once (e.g., `expose=80:8088,443:8443`).
+One may specify several redirects at once (e.g., `expose=80:8088,443:8443`), and use 'none' to discard redirects previously configured.
 
 
 WALT also provides an alternative way to redirect ports:
