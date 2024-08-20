@@ -460,7 +460,7 @@ def boot_kvm_managed(env):
     env.waiter.register(qemu_pid_fd, select.POLLIN)
     env.waiter.register(qemu_stdout_r, select.POLLIN)
     while not STATE["STOPPING"]:
-        events = env.waiter.poll(0.5)
+        events = env.waiter.poll(500)  # unit: milliseconds
         for fd, event in events:
             if fd == 0:
                 env.stdin_buffer += os.read(0, 256)
