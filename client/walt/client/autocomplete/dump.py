@@ -3,7 +3,19 @@ from inspect import getfullargspec
 from plumbum.lib import getdoc
 from walt.doc.md import get_described_topics, get_topics
 
-HEADER = """\
+
+# Notes:
+# * The code was designed for bash at first. In zsh, we finally used
+#   low level completion features (i.e. the global variables passed
+#   to the function, such as "words" and "CURRENT", and compadd()
+#   to return the completions) because using high level functions
+#   such as _arguments() would require much different code.
+# * Zsh apparently maintains a cache of completion replies itself, so
+#   the cache feature is only implemented for bash.
+
+
+HEADER = {
+"bash": """\
 _WALT_COMP_CACHE_VALIDITY_SECS=3
 _walt_comp_debug=0
 
@@ -63,10 +75,14 @@ _walt_date() {
     printf '%(%s)T'  # bash builtin, faster than "date +%s"
 }
 
+__common_functions__
+
 _walt_complete()
 {
     local cur prev words cword split
     _init_completion -s -n : || return
+    local partial_token="${cur}"
+
     if [ "$_walt_comp_debug" -eq 1 ]
     then
         echo "INPUT ** ${words[@]}" >> log.txt
@@ -92,15 +108,70 @@ _walt_complete()
     declare -A valued_option_types=() positional_arg_types=()
     local validated="${words[*]:0:$COMP_CWORD}"
     case "${validated}" in
+""",
+
+"zsh": """\
+#compdef _walt walt
+
+_walt_comp_debug=0
+
+function _walt_comp_reply {
+    if [ "$possible_described" != "" ]
+    then
+        # if completions are described:
+        # 1- turn possible_described into array
+        oldifs="$IFS";
+        IFS=$'\\n' possible_described=($(echo "$possible_described"))
+        IFS="$oldifs"
+        # 2- log
+        if [ "$_walt_comp_debug" -eq 1 ]
+        then
+            echo "OUTPUT ** $(typeset possible) $(typeset possible_described)" \
+                    >> log.txt
+        fi
+        # 3- add completions
+        compadd -Q -d possible_described -l -- $possible
+    else
+        # simple completions without description
+        # 1- log
+        if [ "$_walt_comp_debug" -eq 1 ]
+        then
+            echo "OUTPUT ** $(typeset possible)" >> log.txt
+        fi
+        # 2- add completions
+        compadd -Q -- $possible
+    fi
+}
+
+__common_functions__
+
+function _walt
+{
+    words=("${words[@]:0:$CURRENT}")
+    if [ "$_walt_comp_debug" -eq 1 ]
+    then
+        echo "INPUT ** $(typeset -p words) CURRENT=$CURRENT" >> log.txt
+    fi
+    local partial_token="${words[$CURRENT]}"
+    local subapps=""
+    local described_subapps=""
+    local options="--help"
+    local described_options="\\
+--help:Prints this help message and quits"
+    local num_positional_args=0
+    declare -A valued_option_types=() positional_arg_types=()
+    local validated="${words[*]}"
+    case "${validated}" in
 """
+}
 
 APP_SECTION = """\
         "%(path)s"*)
             %(assign_vars)s;;
 """
 
-FOOTER = """\
-    esac
+COMMON_FUNCTIONS = """\
+_walt_comp_get_possible() {
     local positional_idx=-1
     local positional_started=0
     local prev_token_type='tool'
@@ -134,7 +205,7 @@ FOOTER = """\
                 then
                     let positional_idx+=1
                     token_type='positional'
-                elif [ "$token" == "--" ]
+                elif [ "$token" = "--" ]
                 then
                     token_type='start-of-positional'
                     positional_started=1
@@ -158,9 +229,6 @@ FOOTER = """\
     done
 
     # after previous loop, $token_type gives us the type of the expected token
-    local partial_token="${cur}"
-    local possible=""
-    local possible_described=""
     case "$token_type" in
         'value-of-option')
             if [ "$valued_option_type" = "DIRECTORY" ]
@@ -213,7 +281,15 @@ __described_help_topics__"
         'invalid')
             ;;
     esac
+}
+"""
 
+FOOTER = {
+"bash": """\
+    esac
+    local possible=""
+    local possible_described=""
+    _walt_comp_get_possible
     COMPREPLY=( $(compgen -W "$possible" -- "$partial_token") )
     if [ ${#COMPREPLY[@]} -gt 1 -a "$possible_described" != "" ]
     then
@@ -244,8 +320,18 @@ __described_help_topics__"
     return 0
 } &&
 complete -F _walt_complete walt
-"""
+""",
 
+"zsh": """\
+    esac
+    local possible=""
+    local -a possible_described=()
+    _walt_comp_get_possible
+    possible=($(echo $possible))
+    _walt_comp_reply
+}
+"""
+}
 
 # when the command has variable arguments
 # (e.g. walt node config <node_set> <config_item>...)
@@ -305,8 +391,9 @@ def get_described_items(items, get_item_fullname):
     )
     name_max = max(len(fullname) for fullname, desc in fullname_and_desc)
     return "\n".join(
-        f"""{fullname:<{name_max}} -- {desc}""" for fullname, desc in fullname_and_desc
-    )
+        f"""{fullname:<{name_max}} -- {desc}""" \
+                for fullname, desc in fullname_and_desc
+        )
 
 
 def dump_assign_vars(assign_vars):
@@ -334,7 +421,8 @@ def dump_app_section(path, app_tree):
     args = app_tree["args"]
     num_args = app_tree["num_args"]
     if len(subapps) > 0:
-        described_subapps = get_described_items(subapps, lambda name, app_info: name)
+        described_subapps = get_described_items(subapps,
+                                                (lambda name, app_info: name))
         assign_vars += [
             ("subapps", quoted(" ".join(subapps))),
             ("described_subapps", '"\\\n' + described_subapps + '"'),
@@ -368,23 +456,32 @@ def dump_app_section(path, app_tree):
 
 
 def dump_app(app_tree, path):
-    # print header
-    if len(path) == 1:
-        print(HEADER, end="")
     # print sub apps sections
     for subapp_name, subapp in app_tree["children"].items():
         dump_app(subapp, path + (subapp_name,))
     # print app section
     dump_app_section(path, app_tree)
+
+
+def dump_shell_autocomplete(app, shell):
+    app_tree = get_app_info(app.root_app)
+    # print header
+    h_topics = " ".join(get_topics())
+    described_h_topics = "\n".join(get_described_topics()).replace("`", "")
+    header = HEADER[shell]
+    header = header.replace("__common_functions__", COMMON_FUNCTIONS.strip())
+    header = header.replace("__help_topics__", h_topics)
+    header = header.replace("__described_help_topics__", described_h_topics)
+    print(header, end="")
+    # print apps and sub-apps sections
+    dump_app(app_tree, path=("walt",))
     # print footer
-    if len(path) == 1:
-        h_topics = " ".join(get_topics())
-        described_h_topics = "\n".join(get_described_topics()).replace("`", "")
-        footer = FOOTER.replace("__help_topics__", h_topics)
-        footer = footer.replace("__described_help_topics__", described_h_topics)
-        print(footer, end="")
+    print(FOOTER[shell], end="")
 
 
 def dump_bash_autocomplete(app):
-    app_tree = get_app_info(app.root_app)
-    dump_app(app_tree, path=("walt",))
+    dump_shell_autocomplete(app, shell="bash")
+
+
+def dump_zsh_autocomplete(app):
+    dump_shell_autocomplete(app, shell="zsh")

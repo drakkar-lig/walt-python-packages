@@ -131,6 +131,7 @@ OS_ACTIONS = {
 }
 
 WALT_BASH_COMPLETION_PATH = Path("/etc/bash_completion.d/walt")
+WALT_ZSH_COMPLETION_PATH = Path("/usr/local/share/zsh/site-functions/_walt")
 
 APPARMOR_CONFS = {
         "usr.sbin.dhcpd": """
@@ -304,15 +305,17 @@ class WalTServerSetup(WaltGenericSetup):
         update_server_conf(self.server_conf)
 
     def update_completion(self):
-        print("Updating bash completion for walt tool... ", end="")
+        print("Updating bash & zsh completion for walt tool... ", end="")
         sys.stdout.flush()
-        p = subprocess.run(
-            "walt advanced dump-bash-autocomplete".split(),
-            check=True,
-            stdout=subprocess.PIPE,
-        )
-        WALT_BASH_COMPLETION_PATH.parent.mkdir(parents=True, exist_ok=True)
-        WALT_BASH_COMPLETION_PATH.write_bytes(p.stdout)
+        for shell, path in (("bash", WALT_BASH_COMPLETION_PATH),
+                            ("zsh", WALT_ZSH_COMPLETION_PATH)):
+            p = subprocess.run(
+                f"walt advanced dump-{shell}-autocomplete".split(),
+                check=True,
+                stdout=subprocess.PIPE,
+            )
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(p.stdout)
         print("done")
 
 

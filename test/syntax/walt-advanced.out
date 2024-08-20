@@ -13,6 +13,7 @@ Help about WalT in general:
 
 Sub-commands:
     dump-bash-autocomplete  dump bash auto-completion code
+    dump-zsh-autocomplete   dump zsh auto-completion code
     fix-image-owner         fix the owner of images
     rescan-hub-account      alias to 'update-hub-meta' subcommand
     sql                     start a remote SQL prompt on the WalT server database

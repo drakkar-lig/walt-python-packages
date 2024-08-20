@@ -81,6 +81,16 @@ class WalTDumpBashAutocomplete(WalTApplication):
         dumper.dump_bash_autocomplete(self)
 
 
+@WalTAdvanced.subcommand("dump-zsh-autocomplete")
+class WalTDumpZshAutocomplete(WalTApplication):
+    """dump zsh auto-completion code"""
+
+    def main(self):
+        import walt.client.autocomplete.dump as dumper
+
+        dumper.dump_zsh_autocomplete(self)
+
+
 @WalTAdvanced.subcommand("update-default-images")
 class WalTUpdateDefaultImages(WalTApplication):
     """update default images (images of free nodes)"""

@@ -15,6 +15,13 @@ define_test "walt advanced dump-bash-autocomplete" as {
     rm $autocomp_file
 }
 
+define_test "walt advanced dump-zsh-autocomplete" as {
+    autocomp_file=$(mktemp)
+    walt advanced dump-zsh-autocomplete > $autocomp_file
+    zsh $autocomp_file   # check we got regular zsh code
+    rm $autocomp_file
+}
+
 define_test "walt advanced update-default-images" as {
     walt advanced update-default-images
 }

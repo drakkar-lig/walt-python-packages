@@ -58,6 +58,7 @@ def run():
     if (
         len(sys.argv) == 1
         or tuple(sys.argv[1:3]) == ("advanced", "dump-bash-autocomplete")
+        or tuple(sys.argv[1:3]) == ("advanced", "dump-zsh-autocomplete")
         or add_category(WalT, sys.argv[1]) is False
     ):
         add_all_categories(WalT)
