@@ -87,12 +87,7 @@ class PollersCache:
         self._fds_ids_per_fd = defaultdict(set)
         self._poller_per_fds_id = {}
         self._events_per_fd = {}
-        # by default self._idle_section_hook does nothing, but
-        # the caller can set this attribute with a context
-        # manager object if needed.
-        self._idle_section_hook = contextlib.nullcontext
-    def poll(self, fds, timeout):
-        fds = tuple(sorted(fds))
+    def get(self, fds):
         fds_id = self._fds_id_per_fds.get(fds, self._next_fds_id)
         if fds_id == self._next_fds_id:
             self._fds_id_per_fds[fds] = fds_id
@@ -107,9 +102,7 @@ class PollersCache:
             [poller.register(fd, self._events_per_fd[fd]) for fd in fds]
             [self._fds_ids_per_fd[fd].add(fds_id) for fd in fds]
             self._poller_per_fds_id[fds_id] = poller
-        cm = contextlib.nullcontext if timeout == 0 else self._idle_section_hook
-        with cm():
-            return poller.poll(timeout)
+        return poller
     def register_fd(self, fd, events):
         #print(f"+ {fd}")
         self._events_per_fd[fd] = events
@@ -150,25 +143,21 @@ class EventLoop(object):
         self.recursion_depth = 0
         self.pending_events = {}
         self._disabled_fds = set()
-
-    @property
-    def idle_section_hook(self):
-        return self._pollers._idle_section_hook
-
-    @idle_section_hook.setter
-    def idle_section_hook(self, value):
-        self._pollers._idle_section_hook = value
+        # by default self.idle_section_hook does nothing, but
+        # the caller can set this attribute with a context
+        # manager object if needed.
+        self.idle_section_hook = contextlib.nullcontext
 
     def get_polling_fds(self, single_listener=None):
         if single_listener is None:
-            return set(self.listeners_per_fd.keys()) - self._disabled_fds
+            return tuple(sorted(set(self.listeners_per_fd.keys()) - self._disabled_fds))
         else:
-            return {self.fd_per_listener_id[id(single_listener)]}
+            return (self.fd_per_listener_id[id(single_listener)],)
 
     def pop_pending_event(self, single_listener=None):
+        if len(self.pending_events) == 0:
+            return None, None, None
         if single_listener is None:
-            if len(self.pending_events) == 0:
-                return None, None, None
             fd = next(iter(self.pending_events.keys()))
         else:
             fd = self.fd_per_listener_id[id(single_listener)]
@@ -190,21 +179,15 @@ class EventLoop(object):
         heappush(self.planned_events, (ts, id(kwargs), callback, repeat_delay, kwargs))
 
     def waiting_for_planned_events(self, single_listener=None):
-        if single_listener is None:
-            return len(self.planned_events) > 0
-        else:
-            # do not handle planned events in single listener mode
-            return False
+        # do not handle planned events in single listener mode
+        return (single_listener is None) and (len(self.planned_events) > 0)
 
     def get_timeout(self, **opts):
         if not self.waiting_for_planned_events(**opts):
             return EventLoop.MAX_TIMEOUT_MS
         else:
             delay_ms = (self.planned_events[0][0] - time()) * 1000
-            if delay_ms < 0:
-                return 0
-            else:
-                return min(EventLoop.MAX_TIMEOUT_MS, delay_ms)
+            return max(0, min(EventLoop.MAX_TIMEOUT_MS, delay_ms))
 
     def update_listener(self, listener, events=POLL_OPS_READ):
         fd = self.fd_per_listener_id[id(listener)]
@@ -258,20 +241,18 @@ class EventLoop(object):
     def loop(self, loop_condition=None, single_listener=None):
         self.recursion_depth += 1
         opts = dict(single_listener=single_listener)
+        poller = None
         # print(f'__DEBUG__ {current_process().name} loop depth={self.recursion_depth}')
         while True:
-            # if previous listener callback fulfilled the condition, quit
-            if not self.should_continue(loop_condition):
-                break
             # handle any expired planned event
             if self.waiting_for_planned_events(**opts):
                 should_continue = True
                 now = time()
                 while len(self.planned_events) > 0 and self.planned_events[0][0] <= now:
-                    ts, kwargs_id, callback, repeat_delay, kwargs = heappop(
-                        self.planned_events
-                    )
+                    ev = heappop(self.planned_events)
+                    ts, kwargs_id, callback, repeat_delay, kwargs = ev
                     callback(**kwargs)
+                    poller = None  # list of fds should be recomputed after this callback
                     if repeat_delay:
                         next_ts = ts + repeat_delay
                         if next_ts < now:  # we are very late
@@ -293,11 +274,13 @@ class EventLoop(object):
                 # stop the loop if no more listeners
                 if len(self.listeners_per_fd) == 0:
                     break
-                # get list of file descriptors we monitor
-                fds = self.get_polling_fds(**opts)
+                # get a poller object for the file descriptors we monitor
+                if poller is None:
+                    fds = self.get_polling_fds(**opts)
+                    poller = self._pollers.get(fds)
                 # first check if we have pending file descriptor notifications
                 # we should process right away
-                res = self._pollers.poll(fds, 0)   # timeout = 0
+                res = poller.poll(0)   # timeout = 0
                 if len(res) == 0:
                     # compute timeout
                     timeout = self.get_timeout(**opts)
@@ -310,15 +293,17 @@ class EventLoop(object):
                         # status may have changed.
                         if not self.should_continue(loop_condition):
                             break
-                        fds = self.get_polling_fds(**opts)
-                        res = self._pollers.poll(fds, timeout)
+                        with self.idle_section_hook():
+                            res = poller.poll(timeout)
                 if len(res) == 0:
                     continue  # poll() was stopped because of the timeout
                 # save the time of the events
                 ts = time()
-                for fd, ev in res:
+                # continue below with the 1st of these new events, and save
+                # others in self.pending_events
+                for fd, ev in res[1:]:
                     self.pending_events[fd] = (ev, ts)
-                fd, ev, ts = self.pop_pending_event(**opts)
+                fd, ev = res[0]
             # Process an event.
             # Note: we have to keep in mind the possible resursive calls to the
             # event loop, causing self.pending_events to be modified while we run
@@ -344,6 +329,12 @@ class EventLoop(object):
                 should_close = res is False
             if should_close:
                 self.remove_listener(listener)
+            # the list of fds should be recomputed after listener.handle_event()
+            # and possibly listener.close()
+            poller = None
+            # if previous listener callback fulfilled the condition, quit
+            if not self.should_continue(loop_condition):
+                break
         # print(f'__DEBUG__ {current_process().name} end depth={self.recursion_depth}')
         self.recursion_depth -= 1
 
