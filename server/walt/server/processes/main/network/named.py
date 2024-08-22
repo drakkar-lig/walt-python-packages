@@ -1,5 +1,5 @@
-import os, time, re
-from collections import defaultdict
+import numpy as np
+import time, re
 from pathlib import Path
 
 from walt.server.processes.main.network.service import ServiceRestarter
@@ -113,31 +113,23 @@ def possibly_update_file(file_path, new_content, diff_preprocessing = identity):
     return False
 
 
-def update_named_conf(devices):
+def np_column_to_file_content(col):
+    return "".join(np.char.add(col.astype(str), "\n"))
+
+
+def update_named_conf(dns_info):
     changed = False
     serial = str(int(time.time()))
-    fwd_zone = WALT_FWD_ZONE_PATTERN % dict(
+    fwd_zone_content = WALT_FWD_ZONE_PATTERN % dict(
             serial = serial
     )
-    hosts_per_rev_zone = defaultdict(list)
-    for dev in devices:
-        ip = dev.ip
-        if dev.type == 'server':
-            name = 'server'
-        else:
-            name = dev.name
-        # ex: 192.168.222.6 -> 222.168.192.in-addr.arpa
-        rev_zone_name = '.'.join(reversed(ip.split('.')[:3]))
-        rev_zone_name += '.in-addr.arpa'
-        ip_last_byte = ip.split('.')[-1]
-        hosts_per_rev_zone[rev_zone_name].append((ip_last_byte, name))
-        fwd_zone += f'{name:28s} IN A     {ip}\n'
+    fwd_zone_content += np_column_to_file_content(dns_info.fwd_zone_entry)
     fwd_zone_file = NAMED_STATE_DIR / NAMED_WALT_FWD_ZONE
-    changed |= possibly_update_file(fwd_zone_file, fwd_zone,
+    changed |= possibly_update_file(fwd_zone_file, fwd_zone_content,
                    diff_preprocessing=serial_removed)
     rev_zone_files = set()
     rev_zone_decls = []
-    for rev_zone_name, hosts in hosts_per_rev_zone.items():
+    for rev_zone_name in np.unique(dns_info.rev_zone_name):
         rev_zone_file = NAMED_STATE_DIR / (
                 NAMED_WALT_REV_ZONE_PATTERN % dict(
                     rev_zone_name = rev_zone_name
@@ -153,15 +145,15 @@ def update_named_conf(devices):
                 serial = serial,
                 rev_zone_name = rev_zone_name
         )
-        for ip_last_byte, name in hosts:
-            rev_zone_content += f'{ip_last_byte:3s} IN PTR {name}.walt.\n'
+        zone_dns_info = dns_info[dns_info.rev_zone_name == rev_zone_name]
+        rev_zone_content += np_column_to_file_content(zone_dns_info.rev_zone_entry)
         changed |= possibly_update_file(rev_zone_file, rev_zone_content,
                    diff_preprocessing=serial_removed)
     # remove obsolete zone files
-    for rev_zone_file in list(NAMED_STATE_DIR.glob('walt.*.reverse.zone')):
-        if rev_zone_file not in rev_zone_files:
-            rev_zone_file.unlink()
-            changed = True
+    prev_rev_zone_files = set(NAMED_STATE_DIR.glob('walt.*.reverse.zone'))
+    for rev_zone_file in (prev_rev_zone_files - rev_zone_files):
+        rev_zone_file.unlink()
+        changed = True
     dns_forwarders = map(str, get_dns_servers())
     conf = CONF_PATTERN % dict(
             named_state_dir = NAMED_STATE_DIR,
@@ -175,10 +167,28 @@ def update_named_conf(devices):
     return changed
 
 
-QUERY_DEVICES_WITH_IP = """
-    SELECT ip, name, type
+WALT_SUBNET = str(get_walt_subnet())
+QUERY_DNS_INFO = f"""
+WITH q1 as (
+    SELECT
+        ip,
+        CASE WHEN type = 'server' THEN 'server'
+             ELSE name
+        END as name,
+        string_to_array(ip, '.') as arr_ip
     FROM devices
-    WHERE ip IS NOT NULL ORDER BY ip::inet;
+    WHERE ip IS NOT NULL
+      AND ip::inet << '{WALT_SUBNET}'::cidr
+    ORDER BY ip::inet
+)
+SELECT
+    arr_ip[3] || '.' || arr_ip[2] || '.' || arr_ip[1] || '.in-addr.arpa'
+        as rev_zone_name,
+    RPAD(arr_ip[4], 3, ' ') || ' IN PTR ' || name || '.walt.'
+        as rev_zone_entry,
+    RPAD(name, 28, ' ') || ' IN A     ' || ip
+        as fwd_zone_entry
+FROM q1;
 """
 
 
@@ -189,12 +199,8 @@ class DNSServer:
                 "named", "walt-server-named.service", allow_reload=True)
 
     def update(self, force=False, cb=None):
-        subnet = get_walt_subnet()
-        devices = [
-                item for item in self.db.execute(QUERY_DEVICES_WITH_IP) \
-                        if ip(item.ip) in subnet
-        ]
-        changed = update_named_conf(devices)
+        dns_info = self.db.execute(QUERY_DNS_INFO)
+        changed = update_named_conf(dns_info)
         if changed:
             self.restarter.inc_config_version()
         if (not self.restarter.uptodate()) or force:
