@@ -1,14 +1,15 @@
 import numpy as np
 import re
 
-from walt.common.formatting import columnate, format_paragraph
+from walt.common.formatting import format_paragraph
 from walt.common.netsetup import NetSetup
 from walt.common.tools import do, get_mac_address
 from walt.server import const
 from walt.server.tools import (
     get_server_ip,
     get_walt_subnet,
-    ip_in_walt_network
+    ip_in_walt_network,
+    np_columnate
 )
 
 DEVICE_NAME_NOT_FOUND = """No device with name '%s' found.\n"""
@@ -22,7 +23,10 @@ The name must be at least 2-chars long.
 (Example: rpi-D327)
 """
 
-DEVICES_QUERY = """\
+# "walt device show" should not print the netsetup status for the server
+# or devices outside walt-net
+WALT_SUBNET = str(get_walt_subnet())
+DEVICES_QUERY = f"""\
 WITH infodev AS (SELECT name, ip, mac,
        CASE WHEN type = 'node' AND virtual THEN 'node (virtual)'
             WHEN type = 'node' AND mac like '52:54:00:%%' THEN 'node (vpn)'
@@ -32,11 +36,13 @@ WITH infodev AS (SELECT name, ip, mac,
 COALESCE((conf->'netsetup')::int, 0) as int_netsetup
 FROM devices)
 SELECT name, ip, mac, type,
-CASE WHEN int_netsetup = 0 THEN 'LAN'
-     WHEN int_netsetup = 1 THEN 'NAT'
+CASE WHEN type = 'server'                       THEN NULL
+     WHEN ip IS NULL                            THEN NULL
+     WHEN NOT ip::inet << '{WALT_SUBNET}'::cidr THEN NULL
+     WHEN int_netsetup = 0                      THEN 'LAN'
+     WHEN int_netsetup = 1                      THEN 'NAT'
 END as netsetup
 FROM infodev
-WHERE type %(unknown_op)s 'unknown'
 ORDER BY type, name;"""
 
 MY_NODES_QUERY = """\
@@ -336,38 +342,19 @@ class DevicesManager(object):
             self.db.commit()
         return modified
 
-    def show_device_table(self, unknown_or_not):
-        unknown_op = "=" if unknown_or_not else "!="
-        q = DEVICES_QUERY % dict(unknown_op=unknown_op)
-        rows, header = self.db.pretty_print_select_info(q)
-        # Do no print the netsetup status for the server
-        # or devices outside walt-net
-        idx_type = header.index("type")
-        idx_ip = header.index("ip")
-        idx_netsetup = header.index("netsetup")
-        fixed_rows = []
-        for row in rows:
-            if (
-                row[idx_type] == "server"
-                or row[idx_ip] is None
-                or not ip_in_walt_network(row[idx_ip])
-            ):
-                row = list(row)  # for assignment, it was a tuple
-                row[idx_netsetup] = ""
-            fixed_rows.append(row)
-        return columnate(fixed_rows, header)
-
     def show(self):
+        devices, header = self.db.pretty_print_select_info(DEVICES_QUERY)
+        known_devices = devices[devices.type != "unknown"]
+        unknown_devices = devices[devices.type == "unknown"]
         msg = format_paragraph(
             TITLE_DEVICE_SHOW_MAIN,
-            self.show_device_table(False),
+            np_columnate(known_devices, header),
             FOOTNOTE_DEVICE_SHOW_MAIN,
         )
-        unknown_devices = self.db.select("devices", type="unknown")
         if len(unknown_devices) > 0:
             msg += format_paragraph(
                 TITLE_SOME_UNKNOWN_DEVICES,
-                self.show_device_table(True),
+                np_columnate(unknown_devices, header),
                 FOOTNOTE_SOME_UNKNOWN_DEVICES,
             )
         return msg
