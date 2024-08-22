@@ -56,7 +56,7 @@ def get_tabular_data(
                 may_clone_default_images=False,
             )
     fullnames = images_db_info["fullname"]
-    images = [images_store[fn] for fn in fullnames]
+    images = images_store.get_images_per_fullnames(fullnames)
     image_fields = ["name", "fullname"]
     metadata = images_store.registry.get_multiple_metadata(fullnames)
     metadata_fields = list(metadata[0].keys())

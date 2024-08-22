@@ -85,6 +85,11 @@ class RWSocketFile:
     def __init__(self, sock):
         self._s = sock
         self.pickle_mode = False
+        # we only use the makefile() approach for readline()
+        # which would be costly regarding trackexec if implemented here
+        # as a loop reading 1 char at a time.
+        self._readline_f = self._s.makefile("rb", 0)
+        self.readline = self._readline_f.readline
 
     def shutdown(self, mode):
         return self._s.shutdown(mode)
@@ -106,6 +111,12 @@ class RWSocketFile:
         return b""  # there is no buffering
 
     def read(self, size=None):
+        # reading 1 char is a frequent pattern so we optimize
+        # this path to reduce trackexec load.
+        # (in this specific case the mode has no impact)
+        if size == 1:
+            return self._s.recv(1)
+        # general case
         if self.pickle_mode:
             #print(f"full-read {size}")
             msg = b""
@@ -144,15 +155,6 @@ class RWSocketFile:
         b[:] = msg
         return len(b)
 
-    def readline(self):
-        line = b""
-        while True:
-            c = self._s.recv(1)
-            line += c
-            if c == b"\n" or c == b"":
-                break
-        return line
-
     def write(self, msg):
         self._s.sendall(msg)
         return len(msg)
@@ -166,6 +168,7 @@ class RWSocketFile:
 
     def close(self):
         if self._s is not None:
+            self._readline_f.close()
             self._s.close()
             self._s = None
 

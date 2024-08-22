@@ -146,16 +146,8 @@ class NodeImage(object):
     def get_labels(self):
         return self.labels
 
-    @property
-    def mount_path(self):
-        return self.store.get_mount_path(self.image_id)
-
     def in_use(self):
         return self.store.image_is_used(self.fullname)
-
-    @property
-    def mounted(self):
-        return self.store.image_is_mounted(self.image_id)
 
     def squash(self):
         self.registry.squash(self.fullname)

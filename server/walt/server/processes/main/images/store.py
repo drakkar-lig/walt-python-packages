@@ -183,12 +183,17 @@ class NodeImageStore(object):
         del self.images[image_fullname]
 
     def __getitem__(self, image_fullname):
-        if image_fullname not in self.images:
-            # image was probably downloaded using podman commands
+        return self.get_images_per_fullnames((image_fullname,))[0]
+
+    def get_images_per_fullnames(self, fullnames):
+        missing = set(fullnames) - set(self.images)
+        if len(missing) > 0:
+            # an image was probably downloaded using podman commands
             # (e.g. by the blocking process), main process does not know it yet
-            self.registry.refresh_cache_for_image(image_fullname)
+            for image_fullname in missing:
+                self.registry.refresh_cache_for_image(image_fullname)
             self.resync_from_registry()
-        return self.images[image_fullname]
+        return tuple(self.images[fullname] for fullname in fullnames)
 
     def __iter__(self):
         return iter(self.images.keys())
@@ -301,14 +306,15 @@ class NodeImageStore(object):
                 continue
             if fullname in self.images:
                 img = self.images[fullname]
-                if not img.mounted:
+                image_id = img.image_id
+                if not self.image_is_mounted(image_id):
                     changes = True
-                    to_be_mounted.add((img.image_id, img.size_kib))
-                new_mounts.add(img.image_id)
+                    to_be_mounted.add((image_id, img.size_kib))
+                new_mounts.add(image_id)
                 # if image was re-mounted while it was waiting grace time
                 # expiry, remove the deadline
-                if img.image_id in self.deadlines:
-                    del self.deadlines[img.image_id]
+                if image_id in self.deadlines:
+                    del self.deadlines[image_id]
             else:
                 sys.stderr.write(MSG_IMAGE_IS_USED_BUT_NOT_FOUND % fullname)
         # check which images should be unmounted

@@ -60,8 +60,7 @@ class NodeBootupStatusListener:
     # something for us
     def handle_event(self, ts):
         try:
-            c = self.sock_file.read(1)
-            if len(c) == 1:
+            if len(self.sock_file.read(1)) == 1:
                 # all is fine
                 if not self._confirmed:
                     self._confirmed = True
@@ -211,7 +210,7 @@ class NodeBootupStatusManager(object):
         # otherwise, use the event loop to start bg process when the
         # next node should be booted
         next_boot_check = self._next_bg_process
-        for mac in self._pending_boot_info.keys():
+        for mac in set(self._pending_boot_info.keys()) - self._booted_macs:
             node_boot_check = self._get_node_boot_timeout(mac)
             if node_boot_check is None:
                 continue
@@ -298,11 +297,12 @@ class NodeBootupStatusManager(object):
     def _bg_boot_check(self):
         now = time()
         failing_nodes = []
-        for mac, info in self._pending_boot_info.items():
+        for mac in set(self._pending_boot_info.keys()) - self._booted_macs:
             node_boot_timeout = self._get_node_boot_timeout(mac)
             if node_boot_timeout is None:
                 continue
             if now >= node_boot_timeout:
+                info = self._pending_boot_info[mac]
                 node = self._devices.get_complete_device_info(mac)
                 info["remaining_retries"] -= 1
                 remaining_retries = info["remaining_retries"]
