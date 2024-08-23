@@ -17,6 +17,7 @@ from walt.server.trackexec.tools import (
 )
 
 TRACKEXEC_SRC_PREFIX = dirname(__file__) + "/"
+LINENO_UNDEFINED = 0  # undefined (real linenos start at 1)
 
 
 class TrackExecRecorder(LogAbstractManagement):
@@ -45,6 +46,7 @@ class TrackExecRecorder(LogAbstractManagement):
         self._timestamp_requested = False
         self._pt_section = False   # precise-timestamping sections
         self._pid = getpid()
+        self._current_lineno = LINENO_UNDEFINED
         (dir_path / "pid").write_text(f"{self._pid}\n")
 
     def _recursive_call_stack_init(self, frame):
@@ -58,6 +60,7 @@ class TrackExecRecorder(LogAbstractManagement):
             self._stack[self._stack_size] = (file_id, frame.f_lineno)
             self._stack_size += 1
             frame.f_trace = self._trace_local_function
+            self._current_lineno = frame.f_lineno
 
     def start(self, calling_frame):
         # when the recorder code is started, we analyse which frames of
@@ -158,18 +161,18 @@ class TrackExecRecorder(LogAbstractManagement):
         file_id = self._get_file_id(frame)
         if file_id == -1:
             return
-        init_lineno = 0  # undefined (real linenos start at 1)
+        # if moving into the same file, preserve the current lineno as a
+        # reference for possibly stripping out next LINE opcode; otherwise,
+        # forget it.
         if (
-                self._stack_size > 0 and
-                self._stack[self._stack_size-1]["file_id"] == file_id
+                self._stack_size == 0 or
+                self._stack[self._stack_size-1]["file_id"] != file_id
            ):
-            # if moving into the same file, keep the same lineno as reference
-            # for optimization on "return" (see below)
-            init_lineno = self._stack[self._stack_size-1]["lineno"]
+            self._current_lineno = LINENO_UNDEFINED
         self._ensure_block_has_room(2)
         self._bytecode.add(OpCodes.CALL)
         self._bytecode.add(file_id)
-        self._stack[self._stack_size] = (file_id, init_lineno)
+        self._stack[self._stack_size] = (file_id, self._current_lineno)
         self._stack_size += 1
         return self._trace_local_function
 
@@ -177,18 +180,28 @@ class TrackExecRecorder(LogAbstractManagement):
         if event == 'return':
             # optimize:
             # 1. strip out "CALL <fileid>; RETURN;" sequences
-            # 2. thanks to the management of init_lineno, the fact we strip
-            #    out repeated <line> opcodes, and optimization 1, we can
-            #    also strip out the following pattern found with list
+            # 2. thanks to the management of _current_lineno, the fact we
+            #    strip out repeated LINE opcodes, and optimization 1, we
+            #    can also strip out the following pattern found with list
             #    comprehensions:
             #    [at line <F>:<N>]; CALL <F>; <N>; RETURN;
             bytecode = self._bytecode.view()
             if len(bytecode) >= 2 and bytecode[-2] == OpCodes.CALL:
+                # strip out CALL RETURN sequence
                 self._bytecode.pop()
                 self._bytecode.pop()
             else:
                 self._ensure_block_has_room(1)
                 self._bytecode.add(OpCodes.RETURN)
+                # if returning to some location of the same file, preserve the
+                # current lineno as a reference for possibly stripping out next
+                # LINE opcode; otherwise, forget it.
+                top_of_stack = self._stack[:self._stack_size][-2:]
+                if (
+                        len(top_of_stack) < 2 or
+                        top_of_stack[0]["file_id"] != top_of_stack[1]["file_id"]
+                   ):
+                    self._current_lineno = LINENO_UNDEFINED
             self._stack_size -= 1
             self._min_stack_size = min(
                 self._min_stack_size,
@@ -200,12 +213,14 @@ class TrackExecRecorder(LogAbstractManagement):
             if self._pt_section or self._timestamp_requested:
                 self._record_timestamp()
                 self._timestamp_requested = False
-            # record the line number
+            # record the line number, unless we remain on the same line,
+            # in which case we strip out this new LINE opcode
             lineno = frame.f_lineno
-            if lineno != self._stack[self._stack_size-1]["lineno"]:
+            if lineno != self._current_lineno:
                 self._ensure_block_has_room(1)
                 self._bytecode.add(lineno)
                 self._stack[self._stack_size-1]["lineno"] = lineno
+                self._current_lineno = lineno
 
     def _record_timestamp(self):
         self._ensure_block_has_room(5)
