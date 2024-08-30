@@ -17,7 +17,8 @@ from walt.server.processes.main.images.search import search
 from walt.server.processes.main.images.shell import ImageShellSession
 from walt.server.processes.main.images.squash import squash
 from walt.server.processes.main.images.store import NodeImageStore
-from walt.server.processes.main.images.tabular import get_tabular_data
+from walt.server.processes.main.images.tabular import get_user_tabular_data
+from walt.server.processes.main.images.webapi import web_api_list_images
 from walt.server.processes.main.workflow import Workflow
 
 if typing.TYPE_CHECKING:
@@ -63,10 +64,13 @@ class NodeImageManager:
             self.store, self.blocking, requester, task_callback, image_name, confirmed
         )
 
-    def get_tabular_data(self, requester, username, refresh, fields):
-        return get_tabular_data(
+    def get_user_tabular_data(self, requester, username, refresh, fields):
+        return get_user_tabular_data(
             self.db, self.store, requester, username, refresh, fields
         )
+
+    def web_api_list_images(self, *args):
+        return web_api_list_images(self.db, self.store, *args)
 
     def rename(self, requester, image_name, new_name):
         return rename(self.store, self.registry, requester, image_name, new_name)

@@ -94,6 +94,14 @@ Full table of Contents
 
 .. toctree::
    :maxdepth: 1
+   :caption: Web services
+
+   web-server
+   web-api
+
+
+.. toctree::
+   :maxdepth: 1
    :caption: How it works
 
    node-bootup
