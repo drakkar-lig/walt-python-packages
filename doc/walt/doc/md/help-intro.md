@@ -40,6 +40,10 @@ With compliant network switches, WalT also provides the following *optional* fea
 
 See [`walt help show optional-features`](optional-features.md) for more info.
 
+## Extensibility
+
+WalT platform data can be queried by other systems (such as Grafana for instance) by using the web API (see [`walt help show web-api`](web-api.md)).
+
 ## A key feature: giving users physical access to nodes
 
 WalT platforms provide a high level of versatility: they give users physical access to nodes.

@@ -4,6 +4,7 @@ import numpy as np
 COPIED_FIELDS = {
     "id": "image_id",
     "name": "name",
+    "user": "user",
     "fullname": "fullname",
     "in_use": "in_use",
     "created": "created_at",
@@ -32,7 +33,7 @@ def objects_dtype(fields):
     return [(k, object) for k in fields]
 
 
-def get_tabular_data(
+def get_user_tabular_data(
     db, images_store, requester, username, refresh, fields,
     may_clone_default_images=True
 ):
@@ -46,7 +47,7 @@ def get_tabular_data(
                                 requester, "all-nodes")
         if valid and updated:
             # succeeded, restart the process to get info about new images
-            return get_tabular_data(
+            return get_user_tabular_data(
                 db,
                 images_store,
                 requester,
@@ -55,15 +56,26 @@ def get_tabular_data(
                 fields,
                 may_clone_default_images=False,
             )
+    return _get_tabular_data_for_images(images_store, images_db_info, fields)
+
+
+def get_all_tabular_data(db, images_store, refresh, fields):
+    if refresh:
+        images_store.resync_from_registry(rescan=True)
+    images_db_info = db.get_all_images()
+    return _get_tabular_data_for_images(images_store, images_db_info, fields)
+
+
+def _get_tabular_data_for_images(images_store, images_db_info, fields):
     fullnames = images_db_info["fullname"]
     images = images_store.get_images_per_fullnames(fullnames)
-    image_fields = ["name", "fullname"]
+    image_fields = ["name", "fullname", "user"]
     metadata = images_store.registry.get_multiple_metadata(fullnames)
     metadata_fields = list(metadata[0].keys())
     work_fields = metadata_fields + image_fields + ["in_use"]
     work_data = np.empty(len(images_db_info), objects_dtype(work_fields))
     work_data[image_fields] = np.fromiter(
-            ((image.name, image.fullname) for image in images),
+            ((image.name, image.fullname, image.user) for image in images),
             objects_dtype(image_fields)
     )
     work_data[metadata_fields] = np.fromiter(

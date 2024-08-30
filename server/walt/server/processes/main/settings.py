@@ -697,6 +697,9 @@ class SettingsManager:
         device_infos = self.server.devices.parse_device_set(requester, device_set)
         if device_infos is None:
             return  # issue already reported
+        return self.get_device_config_data_for_devices(device_infos)
+
+    def get_device_config_data_for_devices(self, device_infos):
         # for each device:
         # - compute default settings based on the categories the device belongs to
         # - compute its 'main_category'

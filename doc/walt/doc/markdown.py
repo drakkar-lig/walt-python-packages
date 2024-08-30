@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import socket
 import termios
 import textwrap
 
@@ -119,10 +120,16 @@ class MarkdownRenderer:
                 self.link_num += 1
         else:
             if not entering:
-                # replace [<text>](<url>) -> <text> (<url>)
+                # prefix <url> with "http://<hostname>" if relative
+                url = node.destination
+                if not url.startswith("http"):
+                    h = socket.gethostname()
+                    url = url.lstrip("/")
+                    url = f"http://{h}/{url}"
+                # then replace [<text>](<url>) -> <text> (<url>)
                 self.lit(" (")
                 self.stack_context(fg_color=FG_COLOR_URL)
-                self.lit(node.destination)
+                self.lit(url)
                 self.pop_context()
                 self.lit(")")
 

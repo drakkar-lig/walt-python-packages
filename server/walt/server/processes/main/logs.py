@@ -1,3 +1,4 @@
+import json
 import numpy as np
 import re
 import sys
@@ -348,13 +349,26 @@ class LogsToSocketHandler(object):
             # compute resulting table
             client_logs = np.empty(logs.size, CLIENT_LOG_DT).view(np.recarray)
             client_logs.line = logs.line
-            client_logs.timestamp = self.np_datetime_from_ts(logs.timestamp)
+            if self.params["timestamps_format"] == "datetime":
+                client_logs.timestamp = self.np_datetime_from_ts(logs.timestamp)
+            elif self.params["timestamps_format"] == "float-s":
+                client_logs.timestamp = logs.timestamp
+            elif self.params["timestamps_format"] == "float-ms":
+                client_logs.timestamp = logs.timestamp * 1000
+            else:
+                raise NotImplementedError('Unexpected "timestamps_format" value.')
             client_logs[["issuer", "stream"]] = stream_info[rev][["issuer", "stream"]]
             # send to the client
             if self.sock_file.closed:
                 raise IOError()
-            for d in np_recarray_to_tuple_of_dicts(client_logs):
-                write_pickle(d, self.sock_file)
+            if self.params["output_format"] == "dict-pickles":
+                tuple_of_dicts = np_recarray_to_tuple_of_dicts(client_logs)
+                for d in tuple_of_dicts:
+                    write_pickle(d, self.sock_file)
+            elif self.params["output_format"] == "numpy-pickles":
+                write_pickle(client_logs, self.sock_file)
+            else:
+                raise NotImplementedError('Unexpected "output_format" value.')
         except IOError:
             # the socket was supposedly closed.
             print("client log connection closing")
@@ -366,7 +380,9 @@ class LogsToSocketHandler(object):
         return self.sock_file.fileno()
 
     # this is what we will do depending on the client request params
-    def handle_params(self, history, realtime, issuers, streams, logline_regexp):
+    def handle_params(self, history, realtime,
+                      issuers=None, streams=None, logline_regexp=None,
+                      timestamps_format="datetime", output_format="dict-pickles"):
         if streams:
             streams_regexp = re.compile(streams)
             self.streams_re_search = np.vectorize(streams_regexp.search)
@@ -377,8 +393,12 @@ class LogsToSocketHandler(object):
             self.logline_re_search = np.vectorize(logline_regexp.search)
         else:
             self.logline_re_search = None
+        if issuers is not None:
+            issuers = np.array(issuers)
         self.params = dict(history=history, realtime=realtime,
-                           issuers=np.array(issuers))
+                           issuers=issuers,
+                           timestamps_format=timestamps_format,
+                           output_format=output_format)
         if history:
             self.phase = PHASE_WAIT_FOR_BLCK_THREAD
             self.blocking.stream_db_logs(self)
