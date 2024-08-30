@@ -1,6 +1,8 @@
 import os
+import requests
 import sys
 from pathlib import Path
+from walt.client import api
 
 TEST_IMAGE_URL = "hub:eduble/pc-x86-64-test-suite"
 
@@ -21,12 +23,14 @@ def test_suite_node():
 
 def test_create_vnode():
     node_name = test_suite_node()
-    from walt.client import api
-
     node = api.nodes.create_vnode(node_name)
     assert node.name == node_name
     assert node_name in api.nodes.get_nodes()
     return node
+
+
+def get_vnode():
+    return api.nodes.get_nodes()[test_suite_node()]
 
 
 TEST_CONTEXT = {}
@@ -78,3 +82,22 @@ def get_first_items(item_set, n_items, item_label):
         return result[0]
     else:
         return tuple(result)
+
+
+def test_json_request(items_word, status_code=200, dict_params=None, **params):
+    url = f"http://localhost/api/v1/{items_word}"
+    if dict_params is not None:
+        params.update(dict_params)
+    if len(params) > 0:
+        url += "?" + "&".join(f"{k}={v}" for (k, v) in params.items())
+    print(url)
+    resp = requests.get(url)
+    assert resp.status_code == status_code
+    if status_code == 200:
+        json_resp = resp.json()
+        num_items = json_resp.get(f"num_{items_word}")
+        items_list = json_resp.get(items_word, [])
+        assert num_items == len(items_list)
+        return items_list
+
+

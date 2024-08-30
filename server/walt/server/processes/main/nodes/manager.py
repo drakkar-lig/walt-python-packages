@@ -14,6 +14,7 @@ from walt.server.processes.main.nodes.powersave import PowersaveManager
 from walt.server.processes.main.nodes.reboot import reboot_nodes
 from walt.server.processes.main.nodes.register import handle_registration_request
 from walt.server.processes.main.nodes.show import show
+from walt.server.processes.main.nodes.webapi import web_api_list_nodes
 from walt.server.processes.main.nodes.status import (
         NodeBootupStatusManager,
         NODE_DEFAULT_BOOT_RETRIES,
@@ -50,6 +51,7 @@ class NodesManager(object):
         self.devices = server.devices
         self.logs = server.logs
         self.blocking = server.blocking
+        self.settings = server.settings
         self.wait_info = WaitInfo()
         self.ev_loop = server.ev_loop
         self.exports = server.exports
@@ -163,6 +165,9 @@ class NodesManager(object):
 
     def show(self, username, show_all, names_only):
         return show(self, username, show_all, names_only)
+
+    def web_api_list_nodes(self, *args):
+        return web_api_list_nodes(self.devices, self.settings, *args)
 
     def generate_vnode_info(self):
         # random mac address generation
