@@ -1,5 +1,6 @@
 import errno
 import itertools
+import json
 import numpy as np
 import socket
 import sys
@@ -451,3 +452,35 @@ class NonBlockingSocket:
     def __del__(self):
         if not self.status == NonBlockingSocket.STATUS.CLOSED:
             print(f"{self} was not closed when garbage collected.", file=sys.stderr)
+
+
+def convert_query_param_value(value, value_type):
+    if value_type != str:
+        try:
+            value = json.loads(value)
+            value = value_type(value)
+        except Exception:
+            return (False, {
+                "code": 400,
+                "message": (
+                    f"cannot interpret '{value}' as a '{value_type.__name__}'.")
+            })
+    return (True, value)
+
+
+def filter_items_with_query_params(items, field_types, query_params):
+    for field, value in query_params.items():
+        field_type = field_types.get(field, None)
+        if field_type is None:
+            return (False, {
+                "code": 400,
+                "message": f"'{field}' is not a valid filtering field."
+            })
+        if len(value) == 0:
+            continue
+        res = convert_query_param_value(value, field_type)
+        if not res[0]:
+            return (False, res[1])
+        value = res[1]
+        items = items[items[field] == value]
+    return (True, items)

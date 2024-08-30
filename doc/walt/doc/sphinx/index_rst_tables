@@ -94,6 +94,13 @@ Full table of Contents
 
 .. toctree::
    :maxdepth: 1
+   :caption: Web API
+
+   web-api
+
+
+.. toctree::
+   :maxdepth: 1
    :caption: How it works
 
    node-bootup

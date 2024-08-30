@@ -16,3 +16,11 @@ class SSAPI(APISession):
     @api_expose_method
     def register_device(self, context, *args):
         context.server.add_or_update_device(*args)
+
+    @api_expose_method
+    def web_api_v1_nodes(self, context, *args):
+        return context.nodes.web_api_list_nodes("v1", *args)
+
+    @api_expose_method
+    def web_api_v1_images(self, context, *args):
+        return context.images.web_api_list_images("v1", *args)
