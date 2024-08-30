@@ -15,6 +15,7 @@ cd doc/walt/doc/sphinx
 $python -m pip install -r requirements.txt
 
 # compile the doc to html
+export LOCAL_SPHINX_BUILD=1
 make SPHINXOPTS="-W" html
 
 # move the compilation results

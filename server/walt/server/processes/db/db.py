@@ -390,6 +390,13 @@ class ServerDB(PostgresDB):
                     GROUP BY i.fullname;"""
         return self.execute(sql)
 
+    def get_all_images(self):
+        sql = f"""  SELECT i.fullname, count(n.mac)>0 as in_use
+                    FROM images i
+                    LEFT JOIN nodes n ON i.fullname = n.image
+                    GROUP BY i.fullname;"""
+        return self.execute(sql)
+
     def record_poe_port_status(self, sw_mac, sw_port, poe_status, reason=None):
         if poe_status is True:  # poe on
             self.execute(
