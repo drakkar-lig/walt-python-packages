@@ -77,7 +77,7 @@ def complete_rescan_set_of_devices(server, partial_token):
 
 
 def complete_image(server, requester, username):
-    rows = server.images.get_tabular_data(
+    rows = server.images.get_user_tabular_data(
         requester, username, refresh=False, fields=["name"]
     )
     names = tuple(row[0] for row in rows)

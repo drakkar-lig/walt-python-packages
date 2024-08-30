@@ -186,7 +186,7 @@ class CSAPI(APISession):
         # clients running "walt image show" or "api.images.get_images()" call this,
         # and they may not have numpy, so use to_list() to convert to a list
         # of tuples.
-        return context.images.get_tabular_data(
+        return context.images.get_user_tabular_data(
             context.requester, username, refresh, fields
         ).tolist()
 
