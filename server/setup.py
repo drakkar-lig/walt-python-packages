@@ -21,7 +21,7 @@ setup_info = {
         "cffi==1.16.0",
         "charset-normalizer==3.3.2",
         "commonmark==0.9.1",
-        "cryptography==42.0.6",
+        "cryptography==43.0.1",
         "docutils==0.20.1",
         "frozenlist==1.4.1",
         "gevent==24.2.1",
