@@ -303,7 +303,7 @@ class NodeBootupStatusManager(object):
                 continue
             if now >= node_boot_timeout:
                 info = self._pending_boot_info[mac]
-                node = self._devices.get_complete_device_info(mac)
+                node = self._devices.get_device_info(mac=mac)
                 info["remaining_retries"] -= 1
                 remaining_retries = info["remaining_retries"]
                 logline = f"{node.name}: boot timeout reached, trying hard-reboot "
