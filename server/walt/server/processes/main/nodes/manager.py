@@ -82,9 +82,9 @@ class NodesManager(object):
         # init nodes bootup status
         self.status_manager.restore()
         # start virtual nodes
-        for vnode in self.db.select("devices", type="node", virtual=True):
-            node = self.devices.get_complete_device_info(vnode.mac)
-            self.start_vnode(node)
+        where_sql, where_values = "d.type = 'node' and d.virtual", ()
+        for vnode in self.devices.get_multiple_device_info(where_sql, where_values):
+            self.start_vnode(vnode)
 
     def update_node_boot_retries(self, node_mac, retries):
         self.status_manager.update_node_boot_retries(node_mac, retries)
@@ -251,7 +251,7 @@ class NodesManager(object):
                     "%s is not a node, it is a %s.\n" % (node_name, device_type)
                 )
             return None
-        return self.devices.get_complete_device_info(device_info.mac)
+        return device_info
 
     def get_virtual_node_info(self, requester, node_name):
         node = self.get_node_info(requester, node_name)
@@ -283,10 +283,6 @@ class NodesManager(object):
         if nodes is None:
             return ()  # error already reported
         return nodes
-
-    def get_nodes_using_image(self, image_fullname):
-        nodes = self.db.select("nodes", image=image_fullname)
-        return tuple(self.devices.get_complete_device_info(n.mac) for n in nodes)
 
     def get_node_models_using_image(self, image_fullname):
         return set(node.model for node in self.db.select("nodes", image=image_fullname))

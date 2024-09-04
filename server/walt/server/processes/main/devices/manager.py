@@ -12,8 +12,6 @@ from walt.server.tools import (
     np_columnate
 )
 
-DEVICE_NAME_NOT_FOUND = """No device with name '%s' found.\n"""
-
 NEW_NAME_ERROR_AND_GUIDELINES = """\
 Failed: invalid new name.
 This name must be a valid network hostname.
@@ -117,7 +115,7 @@ class DevicesManager(object):
         return self.server_mac
 
     def validate_device_name(self, requester, name):
-        if self.get_device_info(requester, name, err_message=None) is not None:
+        if self.get_device_info(None, name) is not None:
             if requester is not None:
                 requester.stderr.write(
                     """Failed: a device with name '%s' already exists.\n""" % name
@@ -146,50 +144,57 @@ class DevicesManager(object):
             return None
         return device_info.type
 
-    def get_device_info(
-        self, requester, device_name, err_message=DEVICE_NAME_NOT_FOUND
-    ):
-        device_info = self.db.select_unique("devices", name=device_name)
-        if device_info is None and err_message is not None and requester is not None:
-            requester.stderr.write(err_message % device_name)
-        return device_info
-
-    def get_complete_device_info(self, mac):
-        infos = list(self.get_multiple_complete_device_info((mac,)).values())
-        if len(infos) == 0:
+    def get_device_info(self, requester=None, name=None, mac=None):
+        if name is not None:
+            where_sql, where_values = "d.name = %s", (name,)
+            err_message = f"""No device with name '{name}' found.\n"""
+        elif mac is not None:
+            where_sql, where_values = "d.mac = %s", (mac,)
+            err_message = f"""No device with mac '{mac}' found.\n"""
+        else:
+            raise Exception("get_device_info() needs 'name' or 'mac' parameter.")
+        devices_info = self.get_multiple_device_info(where_sql, where_values)
+        if len(devices_info) == 0:
+            if requester is not None:
+                requester.stderr.write(err_message)
             return None
         else:
-            return infos[0][0]
+            # depending on the type, return only the relevant fields
+            device_info = devices_info[0]
+            min_fields = ["mac", "ip", "name", "type", "conf", "in_walt_net"]
+            if device_info.type == "node":
+                return device_info  # all fields are relevant
+            elif device_info.type == "switch":
+                return device_info[min_fields + ["model"]]
+            else:
+                return device_info[min_fields]
 
-    def get_multiple_complete_device_info(self, macs):
-        info = self.db.get_multiple_complete_device_info(macs)
-        if "node" in info:
-            nodes_info = info["node"]
-            # The db function returned node records with all needed fields,
-            # but some of them where returned as NULL; we fill them now.
-            # netsetup=NAT can actually be applied to all devices, not only
-            # nodes. However, considering only nodes ensures these devices
-            # will really boot in walt-net and the netmask + gateway pair
-            # will be correct. So we only expose this information to nodes.
-            nodes_info.netmask = self.netmask
-            nat_mask = (nodes_info.netsetup == NetSetup.NAT)
-            nodes_info.gateway[nat_mask] = self.server_ip
-            booted_mask = np.isin(nodes_info.mac,
-                    list(self.server.nodes.get_booted_macs()))
-            nodes_info.booted = booted_mask
-        return info
-
-    def get_flat_multiple_complete_device_info(self, macs, sortby=None):
-        if len(macs) == 0:
-            return []
-        info = self.get_multiple_complete_device_info(macs)
-        # info is a dictionary with 0 to 4 entries
-        # "node", "switch", "server", and "unknown"
-        # depending on the type of selected devices.
-        # we want a flat list now.
-        if len(info) == 1:
-            # single type, return the numpy array
-            arr = list(info.values())[0]
+    def get_multiple_device_info(self, where_sql, where_values, sortby=None):
+        # gateway, netmask and booted flag will be filled below,
+        # for now this sql query just reserve a column for these attributes.
+        sql = f"""
+        SELECT d.*, n.image, COALESCE(n.model, s.model) as model,
+            NULL as booted, '' as gateway, NULL as netmask,
+            COALESCE((d.conf->'netsetup')::int, 0) as netsetup,
+            d.ip::inet << '{WALT_SUBNET}'::cidr as in_walt_net
+        FROM devices d
+        LEFT JOIN nodes n ON d.mac = n.mac
+        LEFT JOIN switches s ON d.mac = s.mac
+        WHERE {where_sql}"""
+        devices_info = self.db.execute(sql, where_values)
+        if devices_info.size > 0:
+            nodes_mask = (devices_info.type == 'node')
+            if nodes_mask.size > 0:
+                # netsetup=NAT can actually be applied to all devices, not only
+                # nodes. However, considering only nodes ensures these devices
+                # will really boot in walt-net and the netmask + gateway pair
+                # will be correct. So we only expose this information to nodes.
+                devices_info.netmask[nodes_mask] = self.netmask
+                nat_mask = nodes_mask & (devices_info.netsetup == NetSetup.NAT)
+                devices_info.gateway[nat_mask] = self.server_ip
+                booted_mask = np.isin(devices_info[nodes_mask].mac,
+                        list(self.server.nodes.get_booted_macs()))
+                devices_info.booted[nodes_mask] = booted_mask
             if sortby is not None:
                 # workaround a strange exception sometimes thrown by
                 # arr.sort(order=sortby)
@@ -200,15 +205,9 @@ class DevicesManager(object):
                     sortby = [sortby]
                 else:
                     sortby = list(sortby)
-                arr_indices = np.argsort(arr[sortby], order=sortby)
-                arr = arr[arr_indices]
-            return arr
-        else:
-            # return a list of all elements of all arrays
-            l = sum((list(arr) for arr in info.values()), [])
-            if sortby is not None:
-                l = sorted(l, key=(lambda x: getattr(x, sortby)))
-            return l
+                indices = np.argsort(devices_info[sortby], order=sortby)
+                devices_info = devices_info[indices]
+        return devices_info
 
     def get_name_from_ip(self, ip):
         device_info = self.db.select_unique("devices", ip=ip)
@@ -374,12 +373,18 @@ class DevicesManager(object):
                     f" '{allowed_device_set}'\n"
                 )
                 return None
-        if len(device_macs) == 0 and not allow_empty:
-            requester.stderr.write(
-                "No matching devices found! (tip: walt help show node-ownership)\n"
-            )
-            return None
-        return self.get_flat_multiple_complete_device_info(device_macs, sortby="name")
+        if len(device_macs) == 0:
+            if not allow_empty:
+                requester.stderr.write(
+                    "No matching devices found! (tip: walt help show node-ownership)\n"
+                )
+                return None
+            else:
+                where_sql = "false"
+        else:
+            where_sql = "d.mac IN (" + ",".join(["%s"] * len(device_macs)) + ")"
+        return self.get_multiple_device_info(
+                    where_sql, device_macs, sortby="name")
 
     def get_device_set_macs(self, requester, device_set):
         device_macs = []

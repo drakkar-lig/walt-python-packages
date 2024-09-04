@@ -231,44 +231,6 @@ class ServerDB(PostgresDB):
                           AND d.name IN %s;""" % issuer_names
             return self.execute(sql)
 
-    def _sql_condition_mac_in_set(self, var, macs):
-        return (f"{var} in (" + ",".join(["%s"] * len(macs)) + ")")
-
-    def get_multiple_complete_device_info(self, macs):
-        sql = ("SELECT * FROM devices WHERE " +
-               self._sql_condition_mac_in_set("mac", macs) +
-               " ORDER BY type")
-        devices_info = self.execute(sql, macs)
-        result = {}
-        while len(devices_info) > 0:
-            t = devices_info[0].type
-            max_idx = np.argwhere(devices_info.type == t).ravel().max()
-            if t == "node":
-                nodes_macs = devices_info[:max_idx+1].mac
-                # gateway, netmask and booted flag will be filled in
-                # by main process, but we reserve these attributes
-                # right away.
-                result["node"] = self.execute(
-                    "SELECT d.*, n.image, n.model, "
-                      "false as booted, '' as gateway, NULL as netmask, "
-                      "COALESCE((d.conf->'netsetup')::int, 0) as netsetup "
-                    "FROM devices d, nodes n "
-                    "WHERE d.mac = n.mac AND " +
-                    self._sql_condition_mac_in_set("d.mac", nodes_macs),
-                    nodes_macs)
-            elif t == "switch":
-                switches_macs = devices_info[:max_idx+1].mac
-                result["switch"] = self.execute(
-                    "SELECT d.*, s.model "
-                    "FROM devices d, switches s "
-                    "WHERE d.mac = s.mac AND " +
-                    self._sql_condition_mac_in_set("d.mac", switches_macs),
-                    switches_macs)
-            else:
-                result[t] = devices_info[:max_idx+1]
-            devices_info = devices_info[max_idx+1:]
-        return result
-
     def get_multiple_connectivity_info(self, device_macs):
         # we look for records where mac1 or mac2 equals device_mac.
         # we return a numpy table with fields "device_mac", "port",
