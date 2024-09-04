@@ -695,7 +695,7 @@ class TopologyManager(object):
                 mac = server_mac
             topology.register_neighbor(host_mac, port, mac)
             info = dict(mac=mac, ip=ip, name=sysname.lower())
-            db_info = server.devices.get_complete_device_info(mac)
+            db_info = server.devices.get_device_info(mac=mac)
             if db_info is None:
                 # new device, call add_or_update_device to add it
                 server.add_or_update_device(**info)
@@ -796,7 +796,7 @@ class TopologyManager(object):
         for port, neighbor_mac, neighbor_port, confirmed in db_topology.get_neighbors(
             server_mac
         ):
-            info = server.devices.get_complete_device_info(neighbor_mac)
+            info = server.devices.get_device_info(mac=neighbor_mac)
             if info.ip is None:
                 continue  # ignore this device
             if not (ip_in_walt_network(info.ip) or ip_in_walt_adm_network(info.ip)):

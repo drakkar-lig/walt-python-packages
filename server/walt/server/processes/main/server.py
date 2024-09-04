@@ -318,7 +318,7 @@ class Server(object):
         # note: create_vnode_using_image() is called after the default image
         # is downloaded, so we know register_node() completed its process
         # synchronously and we can proceed with the following steps.
-        node = self.devices.get_complete_device_info(mac)
+        node = self.devices.get_device_info(mac=mac)
         self.nodes.start_vnode(node)
 
     def remove_vnode(self, requester, task, name):
@@ -330,10 +330,9 @@ class Server(object):
 
     def reboot_nodes_after_image_change(self,
             requester, task_callback, *image_fullnames):
-        nodes = ()
-        for image_fullname in image_fullnames:
-            nodes += tuple(self.nodes.get_nodes_using_image(image_fullname))
-        if len(nodes) == 0:
+        where_sql = "n.image IN (" + ",".join(["%s"] * len(image_fullnames)) + ")"
+        nodes = self.devices.get_multiple_device_info(where_sql, image_fullnames)
+        if nodes.size == 0:
             # nothing to do
             task_callback("OK")
             return
@@ -344,7 +343,7 @@ class Server(object):
         requester.stdout.write(
             format_sentence(
                 f"Trying to reboot %s using {images_desc}...\n",
-                [n.name for n in nodes],
+                nodes.name,
                 None,
                 "node",
                 "nodes",
