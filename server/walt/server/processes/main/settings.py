@@ -1,4 +1,5 @@
 import json
+import numpy as np
 import re
 from collections import defaultdict
 
@@ -154,26 +155,32 @@ class SettingsManager:
                 "default": "none",
             },
         }
-        self.category_filters = {
-            "devices": self.filter_devices,
-            "server": self.filter_server,
-            "walt-net-devices": self.filter_walt_net_devices,
-            "nodes": self.filter_nodes,
-            "virtual-nodes": self.filter_virtual_nodes,
-            "unknown-devices": self.filter_unknown_devices,
-            "switches": self.filter_switches,
+        self.category_info = {
+            "devices": dict(mask=self.mask_all, settings={},
+                 defaults={}, priority=1, labels=("Device", "Devices")),
+            "server": dict(mask=self.mask_server, settings={},
+                 defaults={}, priority=3, labels=("Server", None)),
+            "walt-net-devices": dict(mask=self.mask_walt_net_devices, settings={},
+                 defaults={}, priority=2, labels=("Device", "Devices")),
+            "nodes": dict(mask=self.mask_nodes, settings={},
+                 defaults={}, priority=3, labels=("Node", "Nodes")),
+            "virtual-nodes": dict(mask=self.mask_virtual_nodes, settings={},
+                 defaults={}, priority=4, labels=("Virtual node", "Virtual nodes")),
+            "unknown-devices": dict(mask=self.mask_unknown_devices, settings={},
+                 defaults={}, priority=3, labels=("Unknown device", "Unknown devices")),
+            "switches": dict(mask=self.mask_switches, settings={},
+                 defaults={}, priority=3, labels=("Switch", "Switches")),
         }
-        self.category_labels = {
-            "devices": dict(priority=1, labels=("Device", "Devices")),
-            "server": dict(priority=3, labels=("Server", None)),
-            "walt-net-devices": dict(priority=2, labels=("Device", "Devices")),
-            "nodes": dict(priority=3, labels=("Node", "Nodes")),
-            "virtual-nodes": dict(priority=4, labels=("Virtual node", "Virtual nodes")),
-            "unknown-devices": dict(
-                priority=3, labels=("Unknown device", "Unknown devices")
-            ),
-            "switches": dict(priority=3, labels=("Switch", "Switches")),
-        }
+        # fill settings and defaults for each category
+        for setting_name, setting_info in self.settings_table.items():
+            category = setting_info["category"]
+            category_info = self.category_info[category]
+            category_info["settings"][setting_name] = setting_info
+            category_info["defaults"][setting_name] = setting_info["default"]
+        # get a sorted list of categories ordered by increased priority
+        self.ordered_categories = sorted(
+            self.category_info, key=lambda k: self.category_info[k]["priority"]
+        )
 
     def correct_kexec_allow_value(
         self, requester, device_infos, setting_name, setting_value, all_settings
@@ -397,26 +404,13 @@ class SettingsManager:
         return self.server.expose.check_expose_setting_value(
                     requester, device_infos[0].ip, setting_value)
 
-    def simple_filter(self, device_infos, func, ok_as_names=True, not_ok_as_names=True):
-        ok, not_ok = [], []
-        for di in device_infos:
-            if func(di):
-                ok.append(di.name if ok_as_names else di)
-            else:
-                not_ok.append(di.name if not_ok_as_names else di)
-        return ok, not_ok
+    def mask_all(self, requester, device_infos, setting_name):
+        return np.ones(len(device_infos), dtype=bool)
 
-    def all_ok_filter(self, device_infos, **kwargs):
-        return self.simple_filter(device_infos, lambda di: True, **kwargs)
-
-    def filter_devices(self, requester, device_infos, setting_name):
-        return self.all_ok_filter(device_infos)
-
-    def filter_server(self, requester, device_infos, setting_name):
-        dev_server, dev_other = self.simple_filter(
-            device_infos, lambda di: di.type == "server"
-        )
-        if len(dev_other) > 0 and requester is not None:
+    def mask_server(self, requester, device_infos, setting_name):
+        mask = (device_infos.type == "server")
+        if requester is not None and not np.all(mask):
+            dev_other = device_infos.name[~mask]
             msg = format_sentence(
                 "Failed: %s is(are) not a() WALT server(servers),"
                 f" so '{setting_name}' setting cannot be applied.\n",
@@ -426,33 +420,26 @@ class SettingsManager:
                 "Devices",
             )
             requester.stderr.write(msg)
-        return dev_server, dev_other
+        return mask
 
-    def filter_unknown_devices(self, requester, device_infos, setting_name):
-        unknown, not_unknown = self.simple_filter(
-            device_infos, lambda di: di.type == "unknown"
-        )
-        if len(not_unknown) > 0 and requester is not None:
+    def mask_unknown_devices(self, requester, device_infos, setting_name):
+        mask = (device_infos.type == "unknown")
+        if requester is not None and not np.all(mask):
             requester.stderr.write(
                 "Failed: setting '"
                 + setting_name
                 + "' can only be applied to unknown devices.\n"
             )
-        return unknown, not_unknown
+        return mask
 
-    def filter_walt_net_devices(self, requester, device_infos, setting_name):
-        dev_server, dev_other = self.simple_filter(
-            device_infos,
-            lambda di: di.type == "server",
-            ok_as_names=True,
-            not_ok_as_names=False,
-        )
-        dev_ok, not_in_walt_net = self.simple_filter(
-            dev_other, lambda di: ip_in_walt_network(di.ip)
-        )
-        if requester is not None:
+    def mask_walt_net_devices(self, requester, device_infos, setting_name):
+        mask_in_walt_net = device_infos.in_walt_net.astype(bool)
+        mask_server = (device_infos.type == 'server')
+        mask_ok = mask_in_walt_net & (~mask_server)
+        if requester is not None and not np.all(mask_ok):
             reasons = []
-            if len(not_in_walt_net) > 0:
+            if np.any(~mask_in_walt_net):
+                not_in_walt_net = device_infos.name[~mask_in_walt_net]
                 reasons.append(
                     format_sentence(
                         "%s is(are) not a() device(devices) managed inside walt-net",
@@ -462,18 +449,18 @@ class SettingsManager:
                         "devices",
                     )
                 )
-            if len(dev_server) > 0:
-                reasons.append("%s is the WALT server" % dev_server[0])
+            if np.any(mask_server):
+                dev_server = device_infos[mask_server][0]
+                reasons.append("%s is the WALT server" % dev_server.name)
             if len(reasons) > 0:
                 msg = "Failed: " + ", and ".join(reasons) + ".\n"
                 requester.stderr.write(msg)
-        return dev_ok, dev_server + not_in_walt_net
+        return mask_ok
 
-    def filter_switches(self, requester, device_infos, setting_name):
-        switches, not_switches = self.simple_filter(
-            device_infos, lambda di: di.type == "switch"
-        )
-        if len(not_switches) > 0 and requester is not None:
+    def mask_switches(self, requester, device_infos, setting_name):
+        mask = (device_infos.type == 'switch')
+        if requester is not None and not np.all(mask):
+            not_switches = device_infos.name[~mask]
             msg = format_sentence(
                 "Failed: %s is(are) not a() switch(switches),"
                 f" so '{setting_name}' setting cannot be applied.\n",
@@ -483,13 +470,12 @@ class SettingsManager:
                 "Devices",
             )
             requester.stderr.write(msg)
-        return switches, not_switches
+        return mask
 
-    def filter_nodes(self, requester, device_infos, setting_name):
-        nodes, not_nodes = self.simple_filter(
-            device_infos, lambda di: di.type == "node"
-        )
-        if len(not_nodes) > 0 and requester is not None:
+    def mask_nodes(self, requester, device_infos, setting_name):
+        mask = (device_infos.type == 'node')
+        if requester is not None and not np.all(mask):
+            not_nodes = device_infos.name[~mask]
             msg = format_sentence(
                 "Failed: %s is(are) not a() node(nodes), "
                 "so it(they) does(do) not support the '"
@@ -501,19 +487,16 @@ class SettingsManager:
                 "Devices",
             )
             requester.stderr.write(msg)
-        return nodes, not_nodes
+        return mask
 
-    def filter_virtual_nodes(self, requester, device_infos, setting_name):
-        nodes, not_nodes = self.simple_filter(
-            device_infos,
-            lambda di: di.type == "node",
-            ok_as_names=False,
-            not_ok_as_names=True,
-        )
-        nodes_ok, not_virtual_nodes = self.simple_filter(nodes, lambda di: di.virtual)
-        if requester is not None:
+    def mask_virtual_nodes(self, requester, device_infos, setting_name):
+        mask_nodes = (device_infos.type == 'node')
+        mask_virtual = device_infos.virtual.astype(bool)
+        mask_ok = mask_nodes & mask_virtual
+        if requester is not None and not np.all(mask_ok):
             reasons = []
-            if len(not_nodes) > 0:
+            if not np.all(mask_nodes):
+                not_nodes = device_infos.name[~mask_nodes]
                 reasons.append(
                     format_sentence(
                         "%s is(are) not a() node(nodes)",
@@ -523,7 +506,9 @@ class SettingsManager:
                         "devices",
                     )
                 )
-            if len(not_virtual_nodes) > 0:
+            mask_nodes_not_virtual = mask_nodes & (~mask_virtual)
+            if np.any(mask_nodes_not_virtual):
+                not_virtual_nodes = device_infos.name[mask_nodes_not_virtual]
                 reasons.append(
                     format_sentence(
                         "%s is(are) not virtual",
@@ -542,7 +527,7 @@ class SettingsManager:
                     + f", so '{setting_name}' setting is not supported.\n"
                 )
                 requester.stderr.write(msg)
-        return nodes_ok, not_nodes + not_virtual_nodes
+        return mask_ok
 
     def update_vnodes_vm_setting(self, device_infos, setting_name, setting_value):
         vnodes_mask = device_infos.virtual.astype(bool) & (device_infos.type == "node")
@@ -579,13 +564,11 @@ class SettingsManager:
                 # converting_to_switches means we also have a type=switch setting in the
                 # command line. thus we are actually expecting unknown devices, but this
                 # will be verified by the category check of the "type[=switch]" setting.
-                dev_ok, dev_not_ok = self.all_ok_filter(device_infos)  # ok for us
+                mask_function = self.mask_all   # ok for us
             else:
-                category_filter = self.category_filters[category]
-                dev_ok, dev_not_ok = category_filter(
-                    requester, device_infos, setting_name
-                )
-            if len(dev_not_ok) > 0:
+                mask_function = self.category_info[category]["mask"]
+            mask = mask_function(requester, device_infos, setting_name)
+            if not all(mask):
                 return
             value_check = setting_info["value-check"]
             if not value_check(
@@ -714,36 +697,23 @@ class SettingsManager:
         device_infos = self.server.devices.parse_device_set(requester, device_set)
         if device_infos is None:
             return  # issue already reported
-        # we will compute 'names_per_category' and 'main_category_per_name' variables
-        # to ease the latter, we loop over categories in increasing order of priority.
-        names_per_category = {}
-        main_category_per_name = {}
-        ordered_categories = sorted(
-            self.category_labels, key=lambda k: self.category_labels[k]["priority"]
-        )
-        for category in ordered_categories:
-            category_filter = self.category_filters[category]
-            names, _ = category_filter(None, device_infos, None)
-            names_per_category[category] = set(names)
-            for name in names:
-                main_category_per_name[name] = category
-        # retrieve device settings and default values for missing ones
-        for device_info in device_infos:
-            dev_name = device_info.name
-            # retrieve device settings
-            settings = dict(device_info.conf)
-            # add default value of unspecified settings
-            for setting_name, setting_info in self.settings_table.items():
-                category = setting_info["category"]
-                if (
-                    dev_name in names_per_category[category]
-                    and setting_name not in settings
-                ):
-                    settings[setting_name] = setting_info["default"]
-            result[dev_name] = {
-                "category": main_category_per_name[dev_name],
-                "settings": settings,
-            }
+        # for each device:
+        # - compute default settings based on the categories the device belongs to
+        # - compute its 'main_category'
+        num_devices = len(device_infos)
+        result_dt = [("name", object), ("settings", object), ("main_category", object)]
+        result = np.empty(num_devices, dtype=result_dt).view(np.recarray)
+        result.name = device_infos.name
+        config_init = [dict() for _ in range(num_devices)]
+        result.settings = np.array(config_init)
+        for category in self.ordered_categories:
+            category_info = self.category_info[category]
+            mask_function = category_info["mask"]
+            mask = mask_function(None, device_infos, None)
+            result.main_category[mask] = category
+            result.settings[mask] |= category_info["defaults"]
+        # override default settings with those specified in db
+        result.settings |= device_infos.conf
         return result
 
     def get_device_config(self, requester, device_set):
@@ -751,19 +721,17 @@ class SettingsManager:
         if config_data is None:
             return  # issue already reported
         configs = defaultdict(lambda: defaultdict(list))
-        for device_name, device_conf in config_data.items():
-            category = device_conf["category"]
-            settings = device_conf["settings"]
+        for device in config_data:
+            category = device.main_category
+            settings = device.settings
             # append to the list of devices having this same config
             sorted_config = tuple(sorted(settings.items()))
-            configs[category][sorted_config].append(device_name)
+            configs[category][sorted_config].append(device.name)
         # print groups of devices having the same config
         parts = []
-        for category, category_label_info in self.category_labels.items():
-            category_labels = category_label_info["labels"]
-            if len(configs[category]) == 0:
-                continue
-            for sorted_config, device_names in configs[category].items():
+        for category, configs_info in configs.items():
+            category_labels = self.category_info[category]["labels"]
+            for sorted_config, device_names in configs_info.items():
                 if category == "server":
                     sentence_start = "Server has"
                 else:
