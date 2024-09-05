@@ -179,7 +179,7 @@ class APINodeFactory:
             def _get_config(self):
                 with silent_server_link() as server:
                     dev_configs = server.get_device_config_data(self.name)
-                    return dev_configs[self.name]["settings"]
+                    return dev_configs[0]["settings"]
 
             def _set_config(self, setting_name, setting_value):
                 with silent_server_link() as server:
