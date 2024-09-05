@@ -300,9 +300,10 @@ class CSAPI(APISession):
 
     @api_expose_method
     def get_device_config_data(self, context, device_set):
-        return context.server.settings.get_device_config_data(
-            context.requester, device_set
-        )
+        return np_recarray_to_tuple_of_dicts(
+            context.server.settings.get_device_config_data(
+                context.requester, device_set
+        ))
 
     @api_expose_method
     def vpn_wait_grant_request(self, context):
