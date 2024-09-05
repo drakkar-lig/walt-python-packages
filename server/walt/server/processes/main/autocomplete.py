@@ -1,3 +1,4 @@
+import numpy as np
 from time import time
 
 from walt.server.processes.main.workflow import Workflow
@@ -183,19 +184,16 @@ def complete_device_config_param(server, requester, argv):
     config_data = server.settings.get_device_config_data(requester, device_set)
     if config_data is None or len(config_data) == 0:
         return None
-    # propose only settings that can be applied on all specified devices
-    setting_names = None
-    for device_name, device_conf in config_data.items():
-        new_setting_names = set(
-            name
-            for name in device_conf["settings"].keys()
-            if name.startswith(partial_token)
-        )
-        if setting_names is None:
-            setting_names = new_setting_names
-        else:
-            setting_names &= new_setting_names  # set intersection
-    return tuple(f"{name}=" for name in setting_names)
+    # we are only interested in the setting names, not values,
+    # so convert setting dicts to sets.
+    setting_names_sets = np.vectorize(set)(config_data.settings)
+    # we will propose only settings that can be applied to all
+    # specified devices, so aggregate these sets by using a
+    # set intersection operation.
+    setting_names = np.bitwise_and.reduce(setting_names_sets)
+    # match only those which start with partial_token
+    return tuple(f"{name}=" for name in setting_names
+                     if name.startswith(partial_token))
 
 
 def complete_port_config_param(server, partial_token):
