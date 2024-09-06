@@ -6,42 +6,40 @@ CONFIG_GET_TRANSFORMS = {
 }
 
 
+def _get_prop(prop, config_instance):
+    v = config_instance.__buffered_get_info__()[prop]
+    if prop in CONFIG_GET_TRANSFORMS:
+        v = CONFIG_GET_TRANSFORMS[prop](v)
+    return v
+
+
+def _set_prop(set_func, prop, config_instance, value):
+    set_func(prop, value)
+
+
 class APINodeConfig:
     def __new__(cls, get_func, set_func):
         class APINodeConfig(APIObjectBase):
             """node configuration"""
 
-            def _get_prop(self, prop):
-                for k, v in get_func().items():
-                    if k.replace(".", "_") != prop:
-                        continue
-                    if k in CONFIG_GET_TRANSFORMS:
-                        v = CONFIG_GET_TRANSFORMS[k](v)
-                    return v
+            def __init__(self):
+                APIObjectBase.__init__(self)
+                self._cls_init(self)
 
-            def _set_prop(self, prop, value):
-                for k in get_func().keys():
-                    if k.replace(".", "_") != prop:
-                        continue
-                    return set_func(k, value)
+            @classmethod
+            def _cls_init(cls, instance):
+                import functools
+                for prop in instance.__buffered_get_info__().keys():
+                    setattr(
+                        cls,
+                        prop,
+                        property(
+                            functools.partial(_get_prop, prop),
+                            functools.partial(_set_prop, set_func, prop)
+                        ),
+                    )
 
-        # note: we have to take care with the 'prop' argument of lambda,
-        # which may have changed before they are called.
-        # enclosing this process in another function with the value assigned
-        # as a parameter default will ensure the prop variable used in lambda
-        # is the parameter of this function, different at each loop.
-        for k in get_func().keys():
-            prop = k.replace(".", "_")
+            def __get_remote_info__(self):
+                return get_func()
 
-            def assign_property(prop=prop):
-                setattr(
-                    APINodeConfig,
-                    prop,
-                    property(
-                        lambda self: self._get_prop(prop),
-                        lambda self, value: self._set_prop(prop, value),
-                    ),
-                )
-
-            assign_property()
         return APINodeConfig()
