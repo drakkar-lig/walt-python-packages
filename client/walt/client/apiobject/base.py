@@ -191,7 +191,7 @@ class APIObjectBase:
     def __volatile_attrs__(self):  # overwrite in subclass if needed
         return ()
 
-    def __force_refesh__(self):  # overwrite in subclass if needed
+    def __force_refresh__(self):  # overwrite in subclass if needed
         return
 
     @property
