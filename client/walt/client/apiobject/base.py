@@ -62,7 +62,7 @@ def short_repr(obj):
         return res
 
 
-def get_ro_rw_props(obj):
+def get_ro_rw_attrs(obj):
     import inspect
 
     ro_props, rw_props = (), ()
@@ -75,21 +75,32 @@ def get_ro_rw_props(obj):
             rw_props += (attr_name,)
         else:
             ro_props += (attr_name,)
-    return ro_props, rw_props
+    props = set(ro_props + rw_props)
+    ro_attrs = {k: v for k, v in obj.__doc_attrs__() if k not in props}
+    return ro_attrs, ro_props, rw_props
 
 
 def get_ro_names(obj):
-    ro_attrs = tuple(k for k, v in obj.__doc_attrs__())
-    ro_props, rw_props = get_ro_rw_props(obj)
-    return ro_attrs + ro_props
+    ro_attrs, ro_props, rw_props = get_ro_rw_attrs(obj)
+    return tuple(ro_attrs.keys()) + ro_props
+
+
+def is_prop(obj, attr):
+    import inspect
+
+    cls_attr = getattr(obj.__class__, attr, None)
+    return inspect.isdatadescriptor(cls_attr)
+
+
+def is_ro_prop(obj, attr):
+    cls_attr = getattr(obj.__class__, attr)
+    return cls_attr.fset is None
 
 
 def get_attrs_desc(obj):
-    # regular attributes
-    ro_attrs = {k: v for k, v in obj.__doc_attrs__()}
+    ro_attrs, ro_props, rw_props = get_ro_rw_attrs(obj)
     rw_attrs = {}
-    # properties
-    ro_props, rw_props = get_ro_rw_props(obj)
+    # read properties
     for attrs, props in ((ro_attrs, ro_props), (rw_attrs, rw_props)):
         for prop in props:
             try:
@@ -266,8 +277,15 @@ class APIObjectBase:
     def __setattr__(self, attr, value):
         if attr.startswith("_"):
             return super().__setattr__(attr, value)
-        ro_names = get_ro_names(self)
-        if attr in ro_names:
+        # first check if it is a property, because it would
+        # save us a request to the server for instance attributes
+        # (cf. the call to get_ro_names())
+        if is_prop(self, attr):
+            attr_is_ro = is_ro_prop(self, attr)
+        else:
+            ro_names = get_ro_names(self)
+            attr_is_ro = (attr in ro_names)
+        if attr_is_ro:
             raise AttributeError('Cannot write read-only attribute "%s"' % attr)
         else:
             return super().__setattr__(attr, value)

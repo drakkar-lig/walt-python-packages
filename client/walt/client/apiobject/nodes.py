@@ -179,9 +179,11 @@ class APINodeFactory:
             def _get_config(self):
                 with silent_server_link() as server:
                     dev_configs = server.get_device_config_data(self.name)
-                    return dev_configs[0]["settings"]
+                    settings = dev_configs[0]["settings"]
+                    return {k.replace(".", "_"): v for k, v in settings.items()}
 
             def _set_config(self, setting_name, setting_value):
+                setting_name = setting_name.replace("_", ".")
                 with silent_server_link() as server:
                     server.set_device_config(
                         self.name, (f"{setting_name}={setting_value}",)
