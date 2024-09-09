@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import functools
 import sys
 from socket import IPPROTO_TCP, TCP_NODELAY, create_connection
 from time import time
@@ -81,21 +82,23 @@ class APIChannel(object):
 # at once on the network.
 # Drawback: It works with remote function calls only, i.e. you cannot
 # read a remote attribute. Thus all remote attributes must be functions.
+@functools.lru_cache(maxsize=128)
+def AttrCallAggregator(handler, path="", p_args=()):
+    class _AttrCallAggregator:
+        def __init__(self, path):
+            self._path = path
 
+        def __getattr__(self, attr):
+            return _AttrCallAggregator(f"{self._path}.{attr}")
 
-class AttrCallAggregator(object):
-    def __init__(self, handler, path=""):
-        self.path = path
-        self.handler = handler
+        def __getitem__(self, idx):
+            return _AttrCallAggregator(f"{self._path}[{repr(idx)}]")
 
-    def __getattr__(self, attr):
-        return AttrCallAggregator(self.handler, f"{self.path}.{attr}")
+        def __call__(self, *args, **kwargs):
+            all_args = p_args + (self._path[1:], args, kwargs)
+            return handler(*all_args)
 
-    def __getitem__(self, idx):
-        return AttrCallAggregator(self.handler, f"{self.path}[{repr(idx)}]")
-
-    def __call__(self, *args, **kwargs):
-        return self.handler(self.path[1:], args, kwargs)
+    return _AttrCallAggregator(path)
 
 
 class AttrCallRunner(object):
