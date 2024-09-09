@@ -8,6 +8,7 @@ import setproctitle
 
 from collections import defaultdict
 from datetime import datetime
+from functools import cached_property
 from multiprocessing import Pipe, Process, current_process
 from os import getpid
 from pathlib import Path
@@ -355,23 +356,18 @@ class RPCService:
         del self.service_handlers[service_name]
 
 
-class RPCSession(object):
+class RPCSession:
     def __init__(self, connector, remote_req_id, local_service):
-        self.connector = connector
-        self.do_async = AttrCallAggregator(self.async_runner)
-        self.do_sync = AttrCallAggregator(self.sync_runner)
-        self.remote_req_id = remote_req_id
-        self.local_service = local_service
+        self._connector = connector
+        self._args = (remote_req_id, local_service)
 
-    def async_runner(self, path, args, kwargs):
-        return self.connector.async_runner(
-            self.remote_req_id, self.local_service, path, args, kwargs
-        )
+    @property
+    def do_sync(self):
+        return AttrCallAggregator(self._connector.sync_runner, p_args=self._args)
 
-    def sync_runner(self, path, args, kwargs):
-        return self.connector.sync_runner(
-            self.remote_req_id, self.local_service, path, args, kwargs
-        )
+    @property
+    def do_async(self):
+        return AttrCallAggregator(self._connector.async_runner, p_args=self._args)
 
 
 class RPCTask(object):
@@ -413,8 +409,14 @@ class RPCTask(object):
 
 class RPCContext(object):
     def __init__(self, connector, remote_req_id, local_service):
-        self.remote_service = RPCSession(connector, remote_req_id, local_service)
+        self._local_service = local_service
         self.task = RPCTask(connector, remote_req_id)
+
+    @cached_property
+    def remote_service(self):
+        return RPCSession(self.task.connector,
+                          self.task.remote_req_id,
+                          self._local_service)
 
 
 class RPCProcessConnector(ProcessConnector):

@@ -1,4 +1,4 @@
-from functools import lru_cache
+from functools import cache
 
 from walt.common.crypto.blowfish import BlowFish
 from walt.common.crypto.dh import DHPeer
@@ -24,11 +24,11 @@ class CachingRequester:
     def __init__(self, context):
         self._remote_requester = context.remote_service.do_sync.requester
 
-    @lru_cache
+    @cache
     def get_username(self):
         return self._remote_requester.get_username()
 
-    @lru_cache
+    @cache
     def get_registry_credentials(self, registry_label):
         dh_peer = DHPeer()
         credentials = self._remote_requester.get_registry_encrypted_credentials(
@@ -45,7 +45,7 @@ class CachingRequester:
         # not need the result
         self.get_registry_credentials(registry_label)
 
-    @lru_cache
+    @cache
     def get_registry_username(self, registry_label):
         return self._remote_requester.get_registry_username(registry_label)
 
