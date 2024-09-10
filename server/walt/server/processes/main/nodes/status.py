@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+import operator
+import numpy as np
+
 from socket import (
     IPPROTO_TCP,
     SO_KEEPALIVE,
@@ -24,6 +27,12 @@ NODE_MIN_BOOT_TIMEOUT = 60
 TCP_KEEPALIVE_IDLE_TIMEOUT = 15
 TCP_KEEPALIVE_PROBE_INTERVAL = 2
 TCP_KEEPALIVE_FAILED_COUNT = 5
+
+np_extract_cause = np.vectorize(operator.methodcaller("get", "cause", None), otypes="O")
+
+
+def np_apply_mapping(column, mapping):
+    return np.vectorize(mapping.get, otypes="O")(column)
 
 
 class NodeBootupStatusListener:
@@ -101,7 +110,8 @@ class NodeBootupStatusManager(object):
         self._logs = nodes_manager.logs
         self._devices = nodes_manager.devices
         self._booted_macs = set()
-        self._pending_boot_info = {}
+        self._boot_info = {}
+        self._boot_info_table = None
         self._next_bg_process = None
         self._bg_processing = False
         self._cleaning_up = False
@@ -121,82 +131,91 @@ class NodeBootupStatusManager(object):
 
     def forget_device(self, mac):
         self._booted_macs.discard(mac)  # if ever it was inside
-        if mac in self._pending_boot_info:
-            del self._pending_boot_info[mac]
+        if mac in self._boot_info:
+            del self._boot_info[mac]
+        mask = (self._boot_info_table.mac != mac)
+        self._boot_info_table = self._boot_info_table[mask]
+        # verify we just have a view of the original array
+        assert self._boot_info_table.base is not None
+
+    def _record_boot_info(self, boot_info):
+        dt_names = list(boot_info.dtype.names[1:])  # 'mac' excluded
+        self._boot_info_table = boot_info
+        self._boot_info = dict(zip(boot_info["mac"], boot_info[dt_names]))
+        self._plan_bg_process()
 
     def restore(self):
-        # initialize _pending_boot_info
+        # initialize _boot_info
         now = time()
-        for node in self._db.select("devices", type="node"):
-            boot_timeout = node.conf.get("boot.timeout", NODE_DEFAULT_BOOT_TIMEOUT)
-            boot_retries = node.conf.get("boot.retries", NODE_DEFAULT_BOOT_RETRIES)
-            self._pending_boot_info[node.mac] = dict(
-                    timeout=boot_timeout,
-                    retries=boot_retries,
-                    remaining_retries=boot_retries,
-                    cause="startup",
-                    boot_start_time=now
-            )
-        self._plan_bg_process()
+        boot_info = self._db.execute(f"""
+            SELECT
+                mac,
+                COALESCE((conf->'boot.timeout')::int, {NODE_DEFAULT_BOOT_TIMEOUT})
+                    AS timeout,
+                COALESCE((conf->'boot.retries')::int, {NODE_DEFAULT_BOOT_RETRIES})
+                    AS retries,
+                COALESCE((conf->'boot.retries')::int, {NODE_DEFAULT_BOOT_RETRIES})
+                    AS remaining_retries,
+                'startup' AS cause,
+                EXTRACT(EPOCH FROM current_timestamp)::float8 AS boot_start_time
+            FROM devices
+            WHERE type = 'node';
+        """)
+        self._record_boot_info(boot_info)
 
     def add_booted_event(self, *evt):
         self._booted_events.append(evt)
         self._plan_bg_process()
 
     def update_node_boot_retries(self, node_mac, retries):
-        old_retries = self._pending_boot_info[node_mac]["retries"]
-        old_remaining_retries = self._pending_boot_info[node_mac]["remaining_retries"]
+        old_retries = self._boot_info[node_mac]["retries"]
+        old_remaining_retries = self._boot_info[node_mac]["remaining_retries"]
         remaining_retries = old_remaining_retries + retries - old_retries
         if remaining_retries < 0:
             remaining_retries = 0
-        self._pending_boot_info[node_mac].update(
-                retries=retries,
-                remaining_retries=remaining_retries
-        )
+        self._boot_info[node_mac].retries = retries
+        self._boot_info[node_mac].remaining_retries = remaining_retries
         self._plan_bg_process()
 
     def update_node_boot_timeout(self, node_mac, timeout):
-        self._pending_boot_info[node_mac].update(timeout=timeout)
+        self._boot_info[node_mac].timeout = timeout
         self._plan_bg_process()
 
     def record_nodes_boot_start(self, nodes):
         now = time()
-        for node in nodes:
-            if node.mac not in self._booted_macs:
-                self._pending_boot_info[node.mac].update(boot_start_time=now)
+        update_macs = set(node.mac for node in nodes) - self._booted_macs
+        update_mask = np.isin(self._boot_info_table.mac, list(update_macs))
+        self._boot_info_table.boot_start_time[update_mask] = now
         self._plan_bg_process()
 
     def register_node(self, mac):
-        self._pending_boot_info[mac] = dict(
-            timeout=NODE_DEFAULT_BOOT_TIMEOUT,
-            retries=NODE_DEFAULT_BOOT_RETRIES,
-            remaining_retries=NODE_DEFAULT_BOOT_RETRIES,
-            cause="startup",
-            boot_start_time=time()
-        )
-        self._plan_bg_process()
+        dt = self._boot_info_table.dtype
+        values = (mac, NODE_DEFAULT_BOOT_TIMEOUT, NODE_DEFAULT_BOOT_RETRIES,
+                  NODE_DEFAULT_BOOT_RETRIES, "startup", time())
+        self._record_boot_info(np.append(
+                self._boot_info_table,
+                np.array([values], dtype=dt)).view(np.recarray))
 
     def reset_boot_retries(self, nodes):
-        for node in nodes:
-            retries = self._pending_boot_info[node.mac]["retries"]
-            self._pending_boot_info[node.mac].update(remaining_retries=retries)
+        update_macs = set(node.mac for node in nodes)
+        update_mask = np.isin(self._boot_info_table.mac, list(update_macs))
+        retries = self._boot_info_table.retries[update_mask]
+        self._boot_info_table.remaining_retries[update_mask] = retries
 
     def change_nodes_bootup_status(self, nodes, booted=True, **details):
-        for node in nodes:
-            self._booted_events.append((node.ip, booted, details))
+        self._booted_events += [(node.ip, booted, details) for node in nodes]
         self._plan_bg_process()
 
-    def _get_node_boot_timeout(self, mac):
-        if mac in self._booted_macs:
-            return None
-        info = self._pending_boot_info[mac]
-        if info["timeout"] is None:
-            return None
-        if info["remaining_retries"] == 0:
-            return None
-        if info.get("cause") == "powersave":
-            return None
-        return info["boot_start_time"] + info["timeout"]
+    def _mask_valid_boot_timeout(self):
+        # the node should not be booted yet
+        mask = ~np.isin(self._boot_info_table.mac, list(self._booted_macs))
+        # node's timeout should not have been set to none in config
+        mask &= (self._boot_info_table.timeout != None)
+        # node's remaining_retries should not be 0
+        mask &= (self._boot_info_table.remaining_retries != 0)
+        # node should not be in powersave mode
+        mask &= (self._boot_info_table.cause != "powersave")
+        return mask
 
     def _plan_bg_process(self):
         # if bg process is already running, just let it recall
@@ -210,14 +229,14 @@ class NodeBootupStatusManager(object):
         # otherwise, use the event loop to start bg process when the
         # next node should be booted
         next_boot_check = self._next_bg_process
-        for mac in set(self._pending_boot_info.keys()) - self._booted_macs:
-            node_boot_check = self._get_node_boot_timeout(mac)
-            if node_boot_check is None:
-                continue
+        mask = self._mask_valid_boot_timeout()
+        if mask.any():
+            boot_info = self._boot_info_table[mask]
+            min_boot_check = np.min(boot_info.boot_start_time + boot_info.timeout)
             if next_boot_check is None:
-                next_boot_check = node_boot_check
+                next_boot_check = min_boot_check
             else:
-                next_boot_check = min(node_boot_check, next_boot_check)
+                next_boot_check = min(min_boot_check, next_boot_check)
         if next_boot_check is None:
             return  # nothing to monitor
         if self._next_bg_process is None or self._next_bg_process > next_boot_check:
@@ -247,75 +266,116 @@ class NodeBootupStatusManager(object):
             self._plan_bg_process()
 
     def _bg_process_booted_events(self):
-        now = time()
-        while len(self._booted_events) > 0:
-            ev_info, self._booted_events = (
-                    self._booted_events[0], self._booted_events[1:])
-            node_ip, booted, details = ev_info
-            node_info = None
-            node_name = self._devices.get_name_from_ip(node_ip)
-            if node_name is not None:
-                node_info = self._nodes.get_node_info(None, node_name)
-            if node_info is None:
-                # if a virtual node was removed or a node was forgotten,
-                # when tcp connection timeout is reached we get here. ignore.
-                continue
-            old_booted = node_info.booted
-            if old_booted != booted:
-                mac = node_info.mac
-                # add or remove from self._booted_macs and generate a log line
-                if booted:
-                    self._booted_macs.add(mac)
-                    status = "booted"
-                else:
-                    self._booted_macs.discard(mac)
-                    status = "down"
-                    cause = details.get("cause", None)
+        if len(self._booted_events) > 0:
+            dt = [("ip", "O"), ("booted", "?"), ("details", "O")]
+            booted_evts = np.array(self._booted_events, dtype=dt)
+            self._booted_events = []    # reset
+            # if we have several events for one ip, consider the last one only
+            if booted_evts.size > 1:
+                booted_evts = np.flip(booted_evts)
+                _, uniq_idx = np.unique(booted_evts["ip"], return_index=True)
+                booted_evts = booted_evts[uniq_idx]
+            # analyse content of details
+            dt = [("ip", "O"), ("booted", "?"), ("cause", "O"), ("ll_details", "O")]
+            processed_evts = np.empty(booted_evts.size, dtype=dt)
+            processed_evts[["ip", "booted"]] = booted_evts[["ip", "booted"]]
+            # extract cause
+            processed_evts["cause"] = np_extract_cause(booted_evts["details"])
+            # compute logline details
+            logline_details = np.vectorize(repr)(booted_evts["details"])
+            logline_details = np.char.replace(logline_details, "'", '')
+            processed_evts["ll_details"] = np.char.strip(logline_details, "{}")
+            # note: if a virtual node was just removed or a node was forgotten,
+            # ip is missing from db, and the event is just ignored.
+            values_holder = ("%s," * processed_evts.size)[:-1]
+            sql = f"""WITH events(ip, booted, cause, ll_details) AS (
+                        VALUES {values_holder}
+                    )
+                    SELECT d.name, d.mac, e.booted, e.cause, e.ll_details,
+                           NULL as old_booted, NULL as logline
+                    FROM events e
+                    LEFT JOIN devices d ON e.ip = d.ip
+                    WHERE d.ip IS NOT NULL"""
+            evts = self._db.execute(sql, processed_evts.tolist())
+            evts.old_booted = np.isin(evts.mac, list(self._booted_macs))
+            # ignore events not changing current status
+            mask = np.bitwise_xor(evts.booted, evts.old_booted).astype(bool)
+            if mask.any():
+                evts = evts[mask]
+                now = time()
+                # prepare logline column
+                evts.logline = "node " + evts.name
+                if evts.booted.any():   # "booted" events
+                    mask = evts.booted.astype(bool)
+                    # update booted macs
+                    self._booted_macs |= set(evts[mask].mac)
+                    # update logline column
+                    evts.logline[mask] += " is booted"
+                    # unblock any related "walt node wait" command.
+                    for node_info in evts[mask]:
+                        self._nodes.wait_info.node_bootup_event(node_info)
+                        self._nodes.powersave.node_bootup_event(node_info)
+                if not evts.booted.all():  # "down" events
+                    mask = ~(evts.booted.astype(bool))
+                    macs = evts[mask].mac
+                    # update booted macs
+                    self._booted_macs -= set(macs)
+                    # update logline column
+                    evts.logline[mask] += " is down"
+                    details_mask = mask & (evts.ll_details != "")
+                    ll_details = " (" + evts.ll_details[details_mask] + ")"
+                    evts.logline[details_mask] += ll_details
                     # note: if this node went down unexpectedly, we have no idea
                     # when it started to reboot, so set boot_start_time to now
                     # (i.e., the time when we detect it is down).
                     # if it was expected, then boot_start_time will be updated
                     # again shortly (e.g., in the case of a hard-reboot, when PoE
                     # is re-enabled).
-                    self._pending_boot_info[mac].update(
-                        remaining_retries=self._pending_boot_info[mac]["retries"],
-                        boot_start_time=now,
-                        cause=cause
-                    )
-                logline = f"node {node_info.name} is {status}"
-                if len(details) > 0:
-                    s_details = ", ".join(
-                        f"{k}: {v}" for k, v, in details.items())
-                    logline += f" ({s_details})"
-                self._logs.platform_log("nodes", logline)
-                # unblock any related "walt node wait" command.
-                if booted:
-                    self._nodes.wait_info.node_bootup_event(node_info)
-                    self._nodes.powersave.node_bootup_event(node_info)
+                    update_mask = np.isin(self._boot_info_table.mac, macs)
+                    self._boot_info_table.boot_start_time[update_mask] = now
+                    retries = self._boot_info_table.retries[update_mask]
+                    self._boot_info_table.remaining_retries[update_mask] = retries
+                    if len(set(evts[mask].cause)) == 1:
+                        # same cause for all events (likely), fast path
+                        self._boot_info_table.cause[update_mask] = evts[mask].cause[0]
+                    else:
+                        # generic case
+                        cause_per_mac = dict(evts[mask][["mac", "cause"]])
+                        update_macs = self._boot_info_table.mac[update_mask]
+                        update_causes = np_apply_mapping(update_macs, cause_per_mac)
+                        self._boot_info_table.cause[update_mask] = update_causes
+                # emit log lines
+                for logline in evts.logline:
+                    self._logs.platform_log("nodes", logline)
         self._plan_bg_process()
 
     def _bg_boot_check(self):
-        now = time()
-        failing_nodes = []
-        for mac in set(self._pending_boot_info.keys()) - self._booted_macs:
-            node_boot_timeout = self._get_node_boot_timeout(mac)
-            if node_boot_timeout is None:
-                continue
-            if now >= node_boot_timeout:
-                info = self._pending_boot_info[mac]
-                node = self._devices.get_device_info(mac=mac)
-                info["remaining_retries"] -= 1
-                remaining_retries = info["remaining_retries"]
-                logline = f"{node.name}: boot timeout reached, trying hard-reboot "
-                if remaining_retries > 0:
-                    logline += f"({remaining_retries} retries left)."
-                else:
-                    logline += "(last try)."
-                self._logs.platform_log("nodes", logline)
-                failing_nodes.append(node)
+        mask = self._mask_valid_boot_timeout()
+        if mask.any():
+            now = time()
+            boot_info = self._boot_info_table[mask]
+            submask = (now >= boot_info.boot_start_time + boot_info.timeout)
+            if submask.any():
+                indices = np.flatnonzero(mask)[submask]
+                self._boot_info_table.remaining_retries[indices] -= 1
                 # We will hard reboot this node below, but if hard-reboot fails,
                 # boot start time will not be updated. So we artificially set it
                 # now to force a delay of NODE_DEFAULT_BOOT_TIMEOUT before the next
                 # hard-reboot try, in this failure case.
-                info["boot_start_time"] = now
-        return failing_nodes
+                self._boot_info_table.boot_start_time[indices] = now
+                boot_info = self._boot_info_table[indices]
+                where_sql = "d.mac = ANY(%s)"
+                failing_nodes = self._devices.get_multiple_device_info(
+                                    where_sql, (list(boot_info.mac),))
+                name_per_mac = dict(failing_nodes[["mac", "name"]])
+                names = np_apply_mapping(boot_info.mac, name_per_mac)
+                loglines = names + ": boot timeout reached, trying hard-reboot "
+                mask_more_tries = (boot_info.remaining_retries > 0)
+                num_retries = boot_info.remaining_retries[mask_more_tries]
+                num_retries = num_retries.astype(str).astype("O")
+                loglines[mask_more_tries] += "(" + num_retries + " retries left)."
+                loglines[~mask_more_tries] += "(last try)."
+                for logline in loglines:
+                    self._logs.platform_log("nodes", logline)
+                return failing_nodes
+        return []   # no failing nodes
