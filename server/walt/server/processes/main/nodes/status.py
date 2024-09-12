@@ -345,8 +345,7 @@ class NodeBootupStatusManager(object):
                         update_causes = np_apply_mapping(update_macs, cause_per_mac)
                         self._boot_info_table.cause[update_mask] = update_causes
                 # emit log lines
-                for logline in evts.logline:
-                    self._logs.platform_log("nodes", logline)
+                self._logs.platform_log("nodes", lines=evts.logline)
         self._plan_bg_process()
 
     def _bg_boot_check(self):
@@ -375,7 +374,6 @@ class NodeBootupStatusManager(object):
                 num_retries = num_retries.astype(str).astype("O")
                 loglines[mask_more_tries] += "(" + num_retries + " retries left)."
                 loglines[~mask_more_tries] += "(last try)."
-                for logline in loglines:
-                    self._logs.platform_log("nodes", logline)
+                self._logs.platform_log("nodes", lines=loglines)
                 return failing_nodes
         return []   # no failing nodes
