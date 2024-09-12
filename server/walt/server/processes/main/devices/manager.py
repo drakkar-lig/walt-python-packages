@@ -268,7 +268,7 @@ class DevicesManager(object):
                     name = self.generate_device_name(**args_data)
                     updates["name"] = name
                     self.logs.platform_log(
-                        "devices", f"renamed {db_data.name} to {name} for clarity"
+                        "devices", line=f"renamed {db_data.name} to {name} for clarity"
                     )
                     if requester is not None:
                         requester.stdout.write(
@@ -336,7 +336,7 @@ class DevicesManager(object):
                 details = f" type={db_data.type}"
             info = f"name={db_data.name}{details} mac={db_data.mac} ip={db_data.ip}"
             logline = f"new {dtype}{ident_log_line} {info}"
-            self.logs.platform_log("devices", logline)
+            self.logs.platform_log("devices", line=logline)
         if modified:
             self.db.commit()
         return modified

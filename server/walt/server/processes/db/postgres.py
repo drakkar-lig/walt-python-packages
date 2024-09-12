@@ -78,13 +78,10 @@ class PostgresDB:
         self.server_cursors[name] = (cursor, dt)
         return name
 
-    def step_server_cursor(self, name):
-        row = self.server_cursors[name][0].fetchone()
-        if row is None:
-            return None
-        else:
-            # construct a recarray with a single row, return this row
-            return np.array([row], self.server_cursors[name][1]).view(np.recarray)[0]
+    def step_server_cursor(self, name, size):
+        rows = self.server_cursors[name][0].fetchmany(size)
+        # convert to recarray
+        return np.array(rows, self.server_cursors[name][1]).view(np.recarray)
 
     def delete_server_cursor(self, name):
         self.server_cursors[name][0].close()

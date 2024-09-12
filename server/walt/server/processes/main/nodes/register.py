@@ -30,9 +30,9 @@ def handle_registration_request(
         # let's inform the user (by logs) and do this asynchronously
         db_info = db.select_unique("devices", mac=mac)
         logs.platform_log("devices",
-            f"Device {db_info.name} is a walt node of type '{model}'.")
+            line=f"Device {db_info.name} is a walt node of type '{model}'.")
         logs.platform_log("devices",
-            (
+            line=(
                 f"Trying to download a default image for '{model}' nodes:"
                 f" {image_fullname}..."
             ))
@@ -51,15 +51,15 @@ def wf_after_pull_image(wf, pull_result, image_fullname, model, logs, **env):
     if pull_result[0]:
         # ok
         logs.platform_log("devices",
-            f"Image {image_fullname} was downloaded successfully.")
+            line=f"Image {image_fullname} was downloaded successfully.")
         wf.next()
     else:
         failure = pull_result[1]
         # not being able to download default images for nodes
         # is a rather important issue
-        logs.platform_log("devices", decapitalize(failure), error=True)
+        logs.platform_log("devices", line=decapitalize(failure), error=True)
         logs.platform_log("devices",
-            (
+            line=(
                 f"New {model} nodes will be seen as devices of type 'unknown' until"
                 " this is solved."
             ), error=True)
