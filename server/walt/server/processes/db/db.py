@@ -62,7 +62,7 @@ class ServerDB(PostgresDB):
                     name TEXT);""")
         self.execute("""CREATE TABLE IF NOT EXISTS logs (
                     stream_id INTEGER REFERENCES logstreams(id),
-                    timestamp TIMESTAMP,
+                    timestamp TIMESTAMP WITH TIME ZONE,
                     line TEXT);""")
         self.execute("""CREATE TABLE IF NOT EXISTS checkpoints (
                     username TEXT,
@@ -140,6 +140,12 @@ class ServerDB(PostgresDB):
         # migration v8.2 -> v8.3
         if self.column_exists("nodes", "booted"):
             self.execute("""ALTER TABLE nodes DROP COLUMN booted;""")
+        # migration v9.0 ->
+        if self.column_type("logs", "timestamp") == "timestamp without time zone":
+            print("Updating logs database for new version... (this can take time)")
+            self.execute("""ALTER TABLE logs
+                            ALTER COLUMN timestamp TYPE timestamp with time zone;""")
+            print("Updating logs database for new version: done")
         # fix server entry
         self.fix_server_device_entry()
         # commit
@@ -192,14 +198,19 @@ class ServerDB(PostgresDB):
             )
             self.commit()
 
-    def column_exists(self, table_name, column_name):
-        col_info = self.select_unique(
+    def _column_info(self, table_name, column_name):
+        return self.select_unique(
             "information_schema.columns",
             table_schema="public",
             table_name=table_name,
             column_name=column_name,
         )
-        return col_info is not None
+
+    def column_exists(self, table_name, column_name):
+        return self._column_info(table_name, column_name) is not None
+
+    def column_type(self, table_name, column_name):
+        return self._column_info(table_name, column_name).data_type
 
     # Some types of events are numerous and commiting the
     # database each time would be costly.
@@ -216,8 +227,14 @@ class ServerDB(PostgresDB):
         assert ev_type == EV_AUTO_COMMIT
         self.commit()
 
+    LOGS_SQL_PROJ = (
+            "l.stream_id, " +
+            "EXTRACT(EPOCH FROM l.timestamp)::float8 as timestamp, " +
+            "l.line")
+
     def create_server_logs_cursor(self, **kwargs):
-        sql, args = self.format_logs_query("l.*", ordering="l.timestamp", **kwargs)
+        sql, args = self.format_logs_query(
+                ServerDB.LOGS_SQL_PROJ, ordering="l.timestamp", **kwargs)
         return self.create_server_cursor(sql, args)
 
     def get_logstream_ids(self, issuers):
@@ -266,7 +283,6 @@ class ServerDB(PostgresDB):
     def count_logs(
         self, history, streams=None, issuers=None, stream_mode=None, **kwargs
     ):
-        unpickled_history = (pickle.loads(e) if e else None for e in history)
         # filter relevant streams
         stream_ids = []
         if streams:
@@ -287,7 +303,7 @@ class ServerDB(PostgresDB):
         # (cf. stream_ids variable we just computed)
         sql, args = self.format_logs_query(
             "count(*)",
-            history=unpickled_history,
+            history=history,
             stream_ids=stream_ids,
             issuers=None,
             stream_mode=None,
@@ -307,23 +323,23 @@ class ServerDB(PostgresDB):
     ):
         args = []
         constraints = ["s.issuer_mac = d.mac", "l.stream_id = s.id"]
-        if stream_ids:
+        if stream_ids is not None:
             stream_ids_sql = """(%s)""" % ",".join(
                 str(stream_id) for stream_id in stream_ids
             )
             constraints.append("s.id IN %s" % stream_ids_sql)
         if stream_mode:
             constraints.append(f"s.mode = '{stream_mode}'")
-        if issuers:
+        if issuers is not None:
             issuer_names = """('%s')""" % "','".join(issuers)
             constraints.append("d.name IN %s" % issuer_names)
         start, end = history
         if start:
             constraints.append("l.timestamp > %s")
-            args.append(start)
+            args.append(datetime.fromtimestamp(start))
         if end:
             constraints.append("l.timestamp < %s")
-            args.append(end)
+            args.append(datetime.fromtimestamp(end))
         where_clause = self.get_where_clause_from_constraints(constraints)
         if ordering:
             ordering = "order by " + ordering
