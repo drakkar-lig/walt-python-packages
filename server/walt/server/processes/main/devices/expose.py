@@ -216,7 +216,7 @@ class ExposeManager:
             logline = (f"Failed to expose {device_ip}:{device_port} "
                        "on server:{server_port}: {err} (bypassing)\n")
             if requester is None:
-                self.server.logs.platform_log("expose", logline, error=True)
+                self.server.logs.platform_log("expose", line=logline, error=True)
             else:
                 requester.stderr.write(logline)
 
