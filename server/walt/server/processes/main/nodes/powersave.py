@@ -125,7 +125,7 @@ class PowersaveManager:
                     requester.stderr.write(f"{sentence}\n")
                 else:
                     self.server.logs.platform_log(
-                            "powersave.error", sentence, error=True)
+                            "powersave.error", line=sentence, error=True)
         if poe_toggle_value is True:
             self.server.nodes.record_nodes_boot_start(toggled)
         else:

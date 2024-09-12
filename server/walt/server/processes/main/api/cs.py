@@ -1,7 +1,6 @@
-import datetime
+from time import time
 
 from walt.common.api import api, api_expose_method
-from walt.common.tcp import MyPickle as pickle
 from walt.common.tools import format_image_fullname
 from walt.server.processes.main.apisession import APISession
 from walt.server.processes.main.images.image import validate_image_name
@@ -251,10 +250,7 @@ class CSAPI(APISession):
         )
 
     @api_expose_method
-    def add_checkpoint(self, context, cp_name, pickled_date):
-        date = None
-        if pickled_date:
-            date = pickle.loads(pickled_date)
+    def add_checkpoint(self, context, cp_name, date):
         context.logs.add_checkpoint(context.requester, cp_name, date)
 
     @api_expose_method
@@ -266,12 +262,12 @@ class CSAPI(APISession):
         context.logs.list_checkpoints(context.requester)
 
     @api_expose_method
-    def get_pickled_time(self, context):
-        return pickle.dumps(datetime.datetime.now())
+    def get_time(self, context):
+        return time()
 
     @api_expose_method
-    def get_pickled_checkpoint_time(self, context, cp_name):
-        return context.logs.get_pickled_checkpoint_time(context.requester, cp_name)
+    def get_checkpoint_time(self, context, cp_name):
+        return context.logs.get_checkpoint_time(context.requester, cp_name)
 
     @api_expose_method
     def update_hub_metadata(self, context, waltplatform_user):

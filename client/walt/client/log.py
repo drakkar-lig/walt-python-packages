@@ -41,16 +41,14 @@ def validate_checkpoint_name(name):
 
 def compute_relative_date(server_time, rel_date):
     try:
-        delay = datetime.timedelta(
-            seconds=int(rel_date[1:-1]) * SECONDS_PER_UNIT[rel_date[-1]]
-        )
+        delay = int(rel_date[1:-1]) * SECONDS_PER_UNIT[rel_date[-1]]
     except Exception:
         print(
             "Invalid relative date. Should be: -<int>[dhms]"
             " (e.g. '-6h' for 'six hours ago')"
         )
         sys.exit(1)
-    return pickle.dumps(server_time - delay)
+    return server_time - delay
 
 
 class LogsFlowFromServer(object):
@@ -132,7 +130,7 @@ class WalTLogShowOrWait(WalTApplication):
 
     @staticmethod
     def analyse_history_range(server, history_range):
-        server_time = pickle.loads(server.get_pickled_time())
+        server_time = server.get_time()
         MALFORMED = (False,)
         try:
             if history_range.lower() == "none":
@@ -150,14 +148,14 @@ class WalTLogShowOrWait(WalTApplication):
                     rel_date = compute_relative_date(server_time, part)
                     history.append(rel_date)
                 elif validate_checkpoint_name(part):
-                    cptime = server.get_pickled_checkpoint_time(part)
+                    cptime = server.get_checkpoint_time(part)
                     if cptime is None:
                         return MALFORMED
                     history.append(cptime)
                 else:
                     return MALFORMED
             if history[0] and history[1]:
-                if pickle.loads(history[0]) > pickle.loads(history[1]):
+                if history[0] > history[1]:
                     print(
                         "Issue with the HISTORY_RANGE specified: "
                         + "the starting point is newer than the ending point."
@@ -327,13 +325,12 @@ class WalTLogAddCheckpoint(WalTApplication):
         with ClientToServerLink() as server:
             if self.date:
                 if self.date.startswith("-"):
-                    server_time = pickle.loads(server.get_pickled_time())
+                    server_time = server.get_time()
                     self.date = compute_relative_date(server_time, self.date)
                 else:
                     try:
-                        self.date = pickle.dumps(
-                            datetime.datetime.strptime(self.date, DATE_FORMAT_STRING)
-                        )
+                        self.date = datetime.datetime.strptime(
+                                        self.date, DATE_FORMAT_STRING).timestamp()
                     except Exception:
                         print("Could not parse the date specified.")
                         print("Expected format is: %s" % DATE_FORMAT_STRING_HUMAN)
