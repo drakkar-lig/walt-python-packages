@@ -224,7 +224,7 @@ def wf_reply_requester(
     if len(rebooted) > 0:
         logline = format_sentence_about_nodes("%s: rebooted OK.", rebooted)
         if requester is None:
-            nodes_manager.logs.platform_log("nodes", logline)
+            nodes_manager.logs.platform_log("nodes", line=logline)
         else:
             requester.stdout.write(f"{logline}\n")
     if len(hardreboot_errors) == 0:
@@ -254,7 +254,7 @@ def wf_reply_requester(
                 )
             logline = format_sentence_about_nodes("%s: " + explain, node_names)
             if requester is None:
-                nodes_manager.logs.platform_log("nodes", logline, error=True)
+                nodes_manager.logs.platform_log("nodes", line=logline, error=True)
             else:
                 requester.stderr.write(f"{logline}\n")
         # unblock client

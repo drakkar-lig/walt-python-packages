@@ -3,18 +3,42 @@ import re
 import sys
 from collections import defaultdict
 from datetime import datetime
+from numpy.lib.recfunctions import rec_join as np_rec_join
 from time import time
 
 from walt.common.constants import WALT_SERVER_NETCONSOLE_PORT
 from walt.common.tcp import MyPickle as pickle, Requests, read_pickle, write_pickle
 from walt.common.udp import udp_server_socket
-from walt.server.tools import get_server_ip, np_record_to_dict
+from walt.server.tools import get_server_ip, np_recarray_to_tuple_of_dicts
 
 TEN_YEARS = 3600 * 24 * 365 * 10
-LOG_DT = np.dtype([('timestamp', np.float64),
-                   ('line', np.object_),
-                   ('stream_id', np.int32)])
+LOG_DT = [("timestamp", np.float64),
+          ("line", object),
+          ("stream_id", np.int32)]
+CLIENT_LOG_DT = [("timestamp", object),
+                 ("line", object),
+                 ("issuer", object),
+                 ("stream", object)]
 LOG_PENDING_SIZE = 512
+
+
+class LogsBuffer:
+    def __init__(self, init_size):
+        self._buffer = np.empty(init_size, LOG_DT)
+        self.size = 0   # public attr for performance
+
+    def append(self, logs):
+        new_size = self.size + logs.size
+        if new_size > self._buffer.size:
+            self._buffer = np.append(self._buffer[:self.size], logs)
+        else:
+            self._buffer[self.size:new_size] = logs
+        self.size = new_size
+
+    def pop(self):
+        size = self.size
+        self.size = 0
+        return self._buffer[:size].view(np.recarray)
 
 
 class LogsToDBHandler(object):
@@ -26,28 +50,23 @@ class LogsToDBHandler(object):
     def __init__(self, ev_loop, db):
         self.ev_loop = ev_loop
         self.db = db
-        self.pending_records = np.empty(LOG_PENDING_SIZE, LOG_DT)
-        self.num_pending_records = 0
+        self.pending_records = LogsBuffer(2*LOG_PENDING_SIZE)
 
-    def log(self, timestamp, line, stream_id):
-        idx = self.num_pending_records
-        self.pending_records[idx] = (timestamp, line, stream_id)
-        self.num_pending_records += 1
-        if self.num_pending_records == LOG_PENDING_SIZE:
+    def log(self, logs):
+        self.pending_records.append(logs)
+        # flush or plan flush
+        if self.pending_records.size >= LOG_PENDING_SIZE:
             self.flush()
-        elif self.num_pending_records == 1:
+        elif self.pending_records.size == logs.size:
             self.ev_loop.plan_event(
                 time() + LogsToDBHandler.BUFFERING_DELAY_SECS, callback=self.flush
             )
 
     def flush(self):
-        num_pending_records = self.num_pending_records
-        if num_pending_records > 0:
-            self.num_pending_records = 0
+        if self.pending_records.size > 0:
             # we use an async call for not blocking, for better performance and
             # to avoid reentrance problems we could have with a sync call.
-            self.db.do_async.insert_multiple_logs(
-                    self.pending_records[:num_pending_records])
+            self.db.do_async.insert_multiple_logs(self.pending_records.pop())
 
 
 class LogsHub(object):
@@ -60,11 +79,24 @@ class LogsHub(object):
     def removeHandler(self, handler):
         self.handlers.remove(handler)
 
-    def log(self, **kwargs):
+    def log(self, stream_id, line=None, lines=None,
+            timestamp=None, timestamps=None, secondary_file=None):
+        if lines is None:
+            assert line is not None
+            lines = np.array([line])
+        if secondary_file is not None:
+            block = np.add.reduce(lines.astype("O") + "\n")
+            secondary_file.write(block)
+        if timestamps is None:
+            if timestamp is None:
+                timestamp = time()
+            timestamps = np.full(lines.size, timestamp)
+        logs = np.empty(lines.size, LOG_DT).view(np.recarray)
+        logs.timestamp, logs.line, logs.stream_id = timestamps, lines, stream_id
         for handler in self.handlers.copy():
             if handler not in self.handlers:
                 continue
-            res = handler.log(**kwargs)
+            res = handler.log(logs)
             # a handler may request to be deleted
             # by returning False
             if res is False and handler in self.handlers:
@@ -78,6 +110,7 @@ class LogsStreamListener(object):
         self.sock_file = sock_file
         self.stream_id = None
         self.server_timestamps = None
+        self.chunk = ""
 
     def register_stream(self):
         name = self.sock_file.readline().strip().decode("UTF-8")
@@ -103,20 +136,26 @@ class LogsStreamListener(object):
             # let the event loop call us again if there is more.
             return True
         try:
-            inputline = self.sock_file.readline().strip().decode("UTF-8")
-            if inputline == "CLOSE":
-                return False  # stop here
-            if self.server_timestamps:
-                line = inputline
-                timestamp = ts
+            should_continue = True
+            self.chunk += self.sock_file.read().decode("UTF-8")
+            inputlines = np.array(self.chunk.split("\n"))
+            if (inputlines[-2:] == ('CLOSE', '')).all():
+                should_continue = False
+                inputlines = inputlines[:-2]
             else:
-                timestamp, line = inputline.split(None, 1)
-                timestamp = float(timestamp)
-                if timestamp < ts - TEN_YEARS or timestamp > ts + 1:
-                    # wrong timestamp, replace with ts
-                    timestamp = ts
-            self.hub.log(timestamp=timestamp, line=line, stream_id=self.stream_id)
-            return True
+                self.chunk = inputlines[-1]
+                inputlines = inputlines[:-1]
+            if inputlines.size > 0:
+                if self.server_timestamps:
+                    self.hub.log(self.stream_id, lines=inputlines, timestamp=ts)
+                else:
+                    partition = np.char.partition(inputlines, " ")
+                    timestamps, lines = partition[:,0].astype(float), partition[:,2]
+                    # detect wrong timestamps, replace with ts
+                    mask = (timestamps < ts - TEN_YEARS) | (timestamps > ts + 1)
+                    timestamps[mask] = ts
+                    self.hub.log(self.stream_id, lines=lines, timestamps=timestamps)
+            return should_continue
         except BaseException as e:
             print(e)
             print("Log stream with id %d is being closed." % self.stream_id)
@@ -188,17 +227,13 @@ class NetconsoleListener(object):
             # Second list element is the current pending message for this issuer
             # (in some cases we may receive a line in multiple parts before getting
             # the end-of-line char)
-            self.issuer_info[issuer_ip] = [stream_id, b""]
+            self.issuer_info[issuer_ip] = [stream_id, ""]
         stream_id, cur_msg = self.issuer_info[issuer_ip]
-        cur_msg += msg
+        cur_msg += msg.decode("utf8")
         # log terminated lines
-        lines = cur_msg.split(b"\n")
-        if len(lines) > 1:
-            for line in lines[:-1]:  # terminated lines
-                record = dict(
-                    timestamp=ts, line=line.decode("ascii"), stream_id=stream_id
-                )
-                self.hub.log(**record)
+        lines = np.array(cur_msg.split("\n"))
+        if lines.size > 1:
+            self.hub.log(stream_id, lines=lines[:-1], timestamp=ts)
         # update current message of this issuer
         cur_msg = lines[-1]  # last line (unterminated one)
         self.issuer_info[issuer_ip][1] = cur_msg
@@ -221,15 +256,17 @@ class LogsToSocketHandler(object):
     def __init__(self, manager, sock_file, **kwargs):
         self.manager = manager
         self.sock_file = sock_file
-        self.cache = {}
+        dt_cache = [("stream_id", "O"), ("issuer", "O"), ("stream", "O")]
+        self.cache = np.array([], dt_cache).view(np.recarray)
         self.params = None
         self.hub = manager.hub
         self.blocking = manager.blocking
         self.phase = None
-        self.realtime_buffer = []
+        self.realtime_buffer = LogsBuffer(0)
+        self.np_datetime_from_ts = np.vectorize(datetime.fromtimestamp)
         # sock.settimeout(1.0)
 
-    def log(self, **record):
+    def log(self, logs):
         if self.phase == PHASE_WAIT_FOR_BLCK_THREAD:
             # blocking process is not ready yet,
             # we will let the log go to db and
@@ -240,9 +277,9 @@ class LogsToSocketHandler(object):
             # from db
             # => do not send the realtime logs right now,
             # record them for later
-            self.realtime_buffer.append(record)
+            self.realtime_buffer.append(logs)
         elif self.phase == PHASE_SENDING_TO_CLIENT:
-            return self.write_to_client(**record)
+            return self.write_to_client(logs)
 
     def notify_history_processing_startup(self):
         self.phase = PHASE_RETRIEVING_FROM_DB
@@ -252,9 +289,7 @@ class LogsToSocketHandler(object):
         if self.params["realtime"]:
             # done with the history part.
             # we can flush the buffer of realtime logs
-            for record in self.realtime_buffer:
-                if self.write_to_client(**record) is False:
-                    break
+            self.write_to_client(self.realtime_buffer.pop())
             # notify that next logs can be sent
             # directly to the client
             self.phase = PHASE_SENDING_TO_CLIENT
@@ -262,39 +297,64 @@ class LogsToSocketHandler(object):
             # no realtime mode, we can quit
             self.close()
 
-    def write_to_client(self, stream_id, issuers_filtered=False, **record):
+    def write_to_client(self, logs, issuers_filtered=False):
+        if logs.size == 0:
+            return
         try:
-            if stream_id not in self.cache:
-                self.cache[stream_id] = np_record_to_dict(
-                        self.manager.get_stream_info(stream_id))
-            stream_info = self.cache[stream_id]
+            # matching the logline or the stream regexp is always done here,
+            # because if done in the sql query there may be inconsistencies
+            # between the regexp format of postgresql vs python.
+            if self.logline_re_search:
+                mask_lines = (self.logline_re_search(logs.line) != None)
+                if not mask_lines.any():
+                    return  # all logs filtered out
+                logs = logs[mask_lines]
+            # analyse the streams found in those logs:
+            # get issuer and stream name from cache, or from db if missing
+            stream_ids, rev = np.unique(logs.stream_id, return_inverse=True)
+            stream_info = np_rec_join("stream_id",
+                                      stream_ids.astype([("stream_id", "O")]),
+                                      self.cache, jointype="leftouter",
+                                      defaults={"issuer": None, "stream": None})
+            mask_cache_miss = (stream_info.issuer == None)
+            if mask_cache_miss.any():
+                # some stream info is missing from cache, query db
+                db_stream_ids = stream_info[mask_cache_miss].stream_id
+                db_res = self.manager.get_streams_info(db_stream_ids)
+                # update stream_info with those results from db
+                # note: this works correctly because rec_join() and the sql query
+                # both return items sorted by "stream_id"
+                stream_info[mask_cache_miss] = db_res
+                # update cache
+                self.cache = np.append(self.cache, db_res).view(np.recarray)
+            # match stream name regexp if specified
+            mask_streams = np.ones(stream_info.size, dtype=bool)
+            if self.streams_re_search:
+                mask_streams &= (self.streams_re_search(stream_info.stream) != None)
+                if not mask_streams.any():
+                    return  # all logs filtered out
             # when data comes from the db, issuers are already filtered,
             # while data coming from the hub has to be filtered.
-            if not issuers_filtered:
-                if stream_info["issuer"] not in self.params["issuers"]:
-                    return  # filter out
-            # matching the streams or the logline is always done here, otherwise
-            # there may be inconsistencies between the regexp format in the
-            # postgresql database and in python
-            if self.streams_regexp:
-                matches = self.streams_regexp.findall(stream_info["stream"])
-                if len(matches) == 0:
-                    return  # filter out
-            if self.logline_regexp:
-                matches = self.logline_regexp.findall(record["line"])
-                if len(matches) == 0:
-                    return  # filter out
-            d = {}
-            d.update(record)
-            # timestamps from db are already datetime objects
-            # realtime ones are float-encoded epochs
-            ts = d["timestamp"]
-            if not isinstance(ts, datetime):
-                d["timestamp"] = datetime.fromtimestamp(ts)
-            d.update(stream_info)
+            if self.params["issuers"] is not None and not issuers_filtered:
+                mask_streams &= np.isin(stream_info.issuer, self.params["issuers"])
+                # filter out wrong issuers
+                if not mask_streams.any():
+                    return  # all logs filtered out
+            # filter data according to mask_streams
+            if not mask_streams.all():
+                mask_logs = mask_streams[rev]
+                logs = logs[mask_logs]
+                rev = rev[mask_logs]
+            # compute resulting table
+            client_logs = np.empty(logs.size, CLIENT_LOG_DT).view(np.recarray)
+            client_logs.line = logs.line
+            client_logs.timestamp = self.np_datetime_from_ts(logs.timestamp)
+            client_logs[["issuer", "stream"]] = stream_info[rev][["issuer", "stream"]]
+            # send to the client
             if self.sock_file.closed:
                 raise IOError()
-            write_pickle(d, self.sock_file)
+            for d in np_recarray_to_tuple_of_dicts(client_logs):
+                write_pickle(d, self.sock_file)
         except IOError:
             # the socket was supposedly closed.
             print("client log connection closing")
@@ -307,18 +367,18 @@ class LogsToSocketHandler(object):
 
     # this is what we will do depending on the client request params
     def handle_params(self, history, realtime, issuers, streams, logline_regexp):
-        if history:
-            # unpickle the elements of the history range
-            history = tuple(pickle.loads(e) if e else None for e in history)
         if streams:
-            self.streams_regexp = re.compile(streams)
+            streams_regexp = re.compile(streams)
+            self.streams_re_search = np.vectorize(streams_regexp.search)
         else:
-            self.streams_regexp = None
+            self.streams_re_search = None
         if logline_regexp:
-            self.logline_regexp = re.compile(logline_regexp)
+            logline_regexp = re.compile(logline_regexp)
+            self.logline_re_search = np.vectorize(logline_regexp.search)
         else:
-            self.logline_regexp = None
-        self.params = dict(history=history, realtime=realtime, issuers=issuers)
+            self.logline_re_search = None
+        self.params = dict(history=history, realtime=realtime,
+                           issuers=np.array(issuers))
         if history:
             self.phase = PHASE_WAIT_FOR_BLCK_THREAD
             self.blocking.stream_db_logs(self)
@@ -362,9 +422,11 @@ class LoggerFile:
             if len(parts) == 1:
                 break
             self.buffer = parts[-1]
-            for line in parts[:-1]:
-                if "__DEBUG__" not in line:
-                    self.logs_manager.server_log(self.stream_name, line)
+            lines = np.array(parts[:-1])
+            # exclude lines tagged __DEBUG__
+            mask = (np.char.find(lines, "__DEBUG__") == -1)
+            if mask.any():
+                self.logs_manager.server_log(self.stream_name, lines=lines[mask])
         self._flushing = False
 
     def flush(self):
@@ -438,30 +500,28 @@ class LogsManager(object):
         self.stream_id_cache[issuer_ip][stream_name] = stream_id
         return stream_id
 
-    def get_stream_info(self, stream_id):
+    def get_streams_info(self, stream_ids):
         return self.db.execute(
-            """SELECT d.name as issuer, s.name as stream
-                   FROM logstreams s, devices d
-                   WHERE s.id = %s
-                     AND s.issuer_mac = d.mac
-                """
-            % stream_id
-        )[0]
+            """SELECT s.id as stream_id, d.name as issuer, s.name as stream
+               FROM logstreams s, devices d
+               WHERE s.id = ANY(%s)
+                 AND s.issuer_mac = d.mac
+               ORDER BY s.id
+            """, (list(stream_ids),))
 
-    def platform_log(self, stream_name, line, error=False):
+    def platform_log(self, stream_name, error=False, **kwargs):
         # print at stdout / stderr too
         std = sys.__stderr__ if error else sys.__stdout__
-        std.write(line + "\n")
         # record as log
-        self.server_log("platform." + stream_name, line)
+        self.server_log("platform." + stream_name, secondary_file=std, **kwargs)
 
-    def server_log(self, stream_name, line):
+    def server_log(self, stream_name, **kwargs):
         if stream_name not in self.server_log_cache:
             self.server_log_cache[stream_name] = self.get_stream_id(
                 self.server_ip, stream_name
             )
         stream_id = self.server_log_cache[stream_name]
-        self.hub.log(timestamp=time(), line=line, stream_id=stream_id)
+        self.hub.log(stream_id, **kwargs)
 
     def forget_device(self, device):
         self.logs_to_db.flush()
@@ -479,23 +539,33 @@ class LogsManager(object):
         cp_info = self.db.select_unique(
             "checkpoints", name=cp_name, username=requester.get_username()
         )
-        if expected and cp_info is None:
-            requester.stderr.write(
-                "Failed: no checkpoint with this name '%s'.\n" % cp_name
-            )
-            return (False,)
-        if not expected and cp_info is not None:
-            requester.stderr.write(
-                "Failed: a checkpoint with this name already exists.\n"
-            )
-            return (False,)
-        return (True, cp_info)
+        if expected:
+            if cp_info is None:
+                requester.stderr.write(
+                    "Failed: no checkpoint with this name '%s'.\n" % cp_name
+                )
+                return (False,)
+            else:
+                # datetime to float conversion
+                cp_info.timestamp = cp_info.timestamp.timestamp()
+                return (True, cp_info)
+        if not expected:
+            if cp_info is None:
+                return (True,)  # ok
+            else:
+                requester.stderr.write(
+                    "Failed: a checkpoint with this name already exists.\n"
+                )
+                return (False,)
 
     def add_checkpoint(self, requester, cp_name, date):
         # expect no existing checkpoint with the same name
         if not self.get_checkpoint(requester, cp_name, expected=False)[0]:
             return
-        if not date:
+        if date:
+            # convert to datetime
+            date = datetime.fromtimestamp(date)
+        else:
             date = datetime.now()
         self.db.insert(
             "checkpoints",
@@ -534,9 +604,9 @@ class LogsManager(object):
                 + "\n"
             )
 
-    def get_pickled_checkpoint_time(self, requester, cp_name):
+    def get_checkpoint_time(self, requester, cp_name):
         res = self.get_checkpoint(requester, cp_name, expected=True)
         if not res[0]:
             return
         cp_info = res[1]
-        return pickle.dumps(cp_info.timestamp)
+        return cp_info.timestamp
