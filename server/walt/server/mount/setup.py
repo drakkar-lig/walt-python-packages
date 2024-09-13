@@ -166,6 +166,26 @@ def fix_absolute_symlinks(image_root, dirpath, img_print):
             fix_if_absolute_symlink(image_root, path, img_print)
 
 
+def update_timezone(mount_path):
+    server_etc_localtime = Path("/etc/localtime")
+    assert server_etc_localtime.is_symlink()
+    tz_file = str(server_etc_localtime.readlink())
+    image_tz_file = Path(mount_path + tz_file)
+    if not image_tz_file.exists():
+        # timezone file missing in image, abort
+        return
+    image_etc_localtime = Path(mount_path + "/etc/localtime")
+    if image_etc_localtime.exists():
+        if not image_etc_localtime.is_symlink():
+            # unexpected OS conf
+            return
+        image_etc_localtime.unlink()
+    elif not image_etc_localtime.parent.exists():
+        # unexpected OS conf
+        return
+    image_etc_localtime.symlink_to(tz_file)
+
+
 def setup(image_id, mount_path, image_size_kib, img_print):
     # ensure FILES var is completely defined
     if FILES["/root/.ssh/authorized_keys"] is None:
@@ -231,3 +251,5 @@ def setup(image_id, mount_path, image_size_kib, img_print):
     spec.copy_server_spec_file(mount_path)
     # fix PTP conf regarding unicast default mode too verbose on LAN
     fix_ptp(mount_path, img_print)
+    # update timezone if the OS is using the standard Linux setup
+    update_timezone(mount_path)
