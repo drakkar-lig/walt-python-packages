@@ -12,6 +12,7 @@ from walt.common.formatting import COLUMNATE_SPACING
 from walt.common.tools import set_close_on_exec
 
 DEFAULT_JSON_HTTP_TIMEOUT = 10
+JSON_HTTP_RETRIES = 3
 
 
 def np_record_to_dict(record):
@@ -82,15 +83,22 @@ async def async_json_http_get(
     else:
         ssl_opt = False
     import aiohttp
-    timeout = aiohttp.ClientTimeout(total=timeout)
-    async with aiohttp.ClientSession(timeout=timeout) as session:
-        async with session.get(url, ssl=ssl_opt) as response:
-            links = response.links
-            json_body = await response.json()
-            if return_links:
-                return json_body, links
-            else:
-                return json_body
+    import asyncio
+    for _ in range(JSON_HTTP_RETRIES):
+        aiohttp_timeout = aiohttp.ClientTimeout(total=timeout)
+        try:
+            async with aiohttp.ClientSession(timeout=aiohttp_timeout) as session:
+                async with session.get(url, ssl=ssl_opt) as response:
+                    links = response.links
+                    json_body = await response.json()
+                    if return_links:
+                        return json_body, links
+                    else:
+                        return json_body
+        except asyncio.TimeoutError:
+            await asyncio.sleep(1.0)
+            continue
+    raise asyncio.TimeoutError
 
 
 async def async_gather_tasks(tasks):
