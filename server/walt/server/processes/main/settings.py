@@ -17,7 +17,7 @@ from walt.server.processes.main.nodes.manager import (
     NODE_DEFAULT_BOOT_TIMEOUT,
     NODE_MIN_BOOT_TIMEOUT,
 )
-from walt.server.tools import ip_in_walt_network, np_record_to_dict
+from walt.server.tools import ip_in_walt_network, np_record_to_dict, get_server_ip
 
 PPRINT_NONE = "<unspecified>"
 
@@ -545,7 +545,8 @@ class SettingsManager:
         return nodes_ok, not_nodes + not_virtual_nodes
 
     def update_vnodes_vm_setting(self, device_infos, setting_name, setting_value):
-        for device_info in device_infos:
+        vnodes_mask = device_infos.virtual.astype(bool) & (device_infos.type == "node")
+        for device_info in device_infos[vnodes_mask]:
             self.server.nodes.vnode_update_vm_setting(
                    device_info.mac, setting_name, setting_value)
 
@@ -615,6 +616,11 @@ class SettingsManager:
                             ),
                         )
                     )
+                if new_netsetup_state == NetSetup.NAT:
+                    gateway = get_server_ip()
+                else:  # LAN
+                    gateway = ""
+                self.update_vnodes_vm_setting(device_infos, "gateway", gateway)
                 db_settings["netsetup"] = int(new_netsetup_state)
                 should_reboot_devices = True
             elif setting_name == "cpu.cores":
