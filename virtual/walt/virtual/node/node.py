@@ -489,7 +489,7 @@ def boot_kvm_managed(env):
         while b'\n' in env.stdin_buffer:
             line, env.stdin_buffer = env.stdin_buffer.split(b'\n', maxsplit=1)
             line = line.decode(sys.stdin.encoding)
-            args = line.split()
+            args = line.split(" ")
             if len(args) == 0:
                 continue    # empty line, ignore
             if args[0] == "CONF":
