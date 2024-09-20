@@ -6,8 +6,9 @@ from time import time
 from walt.common.constants import WALT_SERVER_TCP_PORT
 from walt.common.devices.registry import get_device_info_from_mac
 from walt.common.formatting import format_sentence
+from walt.common.netsetup import NetSetup
 from walt.common.tcp import TCPServer
-from walt.common.tools import format_image_fullname, parse_image_fullname
+from walt.common.tools import do, format_image_fullname, parse_image_fullname
 from walt.server import conf
 from walt.server.popen import BetterPopen
 from walt.server.processes.main.apisession import APISession
@@ -234,6 +235,8 @@ class Server(object):
         wf.run()
 
     def wf_forget_device_other_steps(self, wf, task, device, **env):
+        if device.conf.get("netsetup", NetSetup.LAN) == NetSetup.NAT:
+            do(f"iptables --delete WALT --source '{device.ip}' --jump ACCEPT")
         self.logs.forget_device(device)
         self.db.forget_device(device.mac)
         self.dhcpd.update()
