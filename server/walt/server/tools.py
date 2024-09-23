@@ -25,13 +25,10 @@ def np_recarray_to_tuple_of_dicts(arr_src):
     fields = arr_src.dtype.names
     num_fields, num_items = len(fields), arr_src.size
     arr = np.empty((2*num_fields, num_items), object)
-    col = 0
-    for f in fields:
-        arr[col] = f
-        arr[col+1] = arr_src[f]
-        col += 2
+    arr[0:2*num_fields:2] = np.array(fields).reshape((num_fields, 1))
+    arr[1:2*num_fields:2] = [arr_src[f] for f in fields]
     arr = arr.T.reshape((num_items, num_fields, 2))
-    return tuple(dict(i) for i in arr)
+    return tuple(map(dict, arr))
 
 
 def update_template(path, template_env):
