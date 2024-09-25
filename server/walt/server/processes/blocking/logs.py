@@ -17,7 +17,7 @@ def stream_db_logs(db, logs_handler, **params):
         rows = db.step_server_cursor(cursor_name, DB_LOGS_BLOCK_SIZE)
         if rows.size == 0:  # end of stream detected
             break
-        if logs_handler.write_to_client(rows, issuers_filtered=True) is False:
+        if logs_handler.write_db_logs_to_client(rows) is False:
             break
         if rows.size < DB_LOGS_BLOCK_SIZE:  # end of stream detected
             break

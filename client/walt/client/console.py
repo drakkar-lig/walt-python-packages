@@ -68,7 +68,7 @@ def run_node_console(server, node_info):
         history=None,
         realtime=True,
         issuers=(node_info["name"],),
-        streams="virtualconsole",
+        streams_regexp="^virtualconsole$",
         logline_regexp=None,
     )
 

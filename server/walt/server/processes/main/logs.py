@@ -10,6 +10,7 @@ from time import time
 from walt.common.constants import WALT_SERVER_NETCONSOLE_PORT
 from walt.common.tcp import MyPickle as pickle, Requests, read_pickle, write_pickle
 from walt.common.udp import udp_server_socket
+from walt.server.regex import PosixExtendedRegex
 from walt.server.tools import get_server_ip, np_recarray_to_tuple_of_dicts
 
 TEN_YEARS = 3600 * 24 * 365 * 10
@@ -259,7 +260,7 @@ class LogsToSocketHandler(object):
         self.sock_file = sock_file
         dt_cache = [("stream_id", "O"), ("issuer", "O"), ("stream", "O")]
         self.cache = np.array([], dt_cache).view(np.recarray)
-        self.params = None
+        self.db_params = None
         self.hub = manager.hub
         self.blocking = manager.blocking
         self.phase = None
@@ -280,17 +281,18 @@ class LogsToSocketHandler(object):
             # record them for later
             self.realtime_buffer.append(logs)
         elif self.phase == PHASE_SENDING_TO_CLIENT:
-            return self.write_to_client(logs)
+            return self.write_realtime_logs_to_client(logs)
 
     def notify_history_processing_startup(self):
         self.phase = PHASE_RETRIEVING_FROM_DB
         self.manager.logs_to_db.flush()
 
     def notify_history_processed(self):
-        if self.params["realtime"]:
+        if self.realtime:
             # done with the history part.
             # we can flush the buffer of realtime logs
-            self.write_to_client(self.realtime_buffer.pop())
+            if self.realtime_buffer.size > 0:
+                self.write_realtime_logs_to_client(self.realtime_buffer.pop())
             # notify that next logs can be sent
             # directly to the client
             self.phase = PHASE_SENDING_TO_CLIENT
@@ -298,46 +300,56 @@ class LogsToSocketHandler(object):
             # no realtime mode, we can quit
             self.close()
 
-    def write_to_client(self, logs, issuers_filtered=False):
-        if logs.size == 0:
-            return
-        try:
-            # matching the logline or the stream regexp is always done here,
-            # because if done in the sql query there may be inconsistencies
-            # between the regexp format of postgresql vs python.
-            if self.logline_re_search:
-                mask_lines = (self.logline_re_search(logs.line) != None)
-                if not mask_lines.any():
-                    return  # all logs filtered out
-                logs = logs[mask_lines]
-            # analyse the streams found in those logs:
-            # get issuer and stream name from cache, or from db if missing
-            stream_ids, rev = np.unique(logs.stream_id, return_inverse=True)
-            stream_info = np_rec_join("stream_id",
-                                      stream_ids.astype([("stream_id", "O")]),
-                                      self.cache, jointype="leftouter",
-                                      defaults={"issuer": None, "stream": None})
-            mask_cache_miss = (stream_info.issuer == None)
-            if mask_cache_miss.any():
-                # some stream info is missing from cache, query db
-                db_stream_ids = stream_info[mask_cache_miss].stream_id
-                db_res = self.manager.get_streams_info(db_stream_ids)
-                # update stream_info with those results from db
-                # note: this works correctly because rec_join() and the sql query
-                # both return items sorted by "stream_id"
-                stream_info[mask_cache_miss] = db_res
-                # update cache
-                self.cache = np.append(self.cache, db_res).view(np.recarray)
-            # match stream name regexp if specified
+    # important notes:
+    # * when data comes from the db, then issuers, logline regexp and
+    #   stream regexp are already filtered, but realtime logs coming
+    #   from the hub have to be filtered.
+    # * since data is sometimes filtered by python, and sometimes
+    #   by postgresql, we need to agree on a common format for
+    #   regular expressions.
+    # * default python regex format ("re" module) is not standard,
+    #   so we use "walt.server.regex" with a cffi based interface
+    #   to access extended posix regex features of libc.
+    # * in postgresql queries (cf. db.py), we prefix regular expressions
+    #   with "(?e)" in order to limit the format to extended posix regex too.
+    def write_realtime_logs_to_client(self, logs):
+        # check the logline regexp if defined
+        if self.logline_re_match is not None:
+            mask_lines = self.logline_re_match(logs.line)
+            if not mask_lines.any():
+                return  # all logs filtered out
+            logs = logs[mask_lines]
+        # analyse the streams found in those logs:
+        # get issuer and stream name from cache, or from db if missing
+        stream_ids, rev = np.unique(logs.stream_id, return_inverse=True)
+        stream_info = np_rec_join("stream_id",
+                                  stream_ids.astype([("stream_id", "O")]),
+                                  self.cache, jointype="leftouter",
+                                  defaults={"issuer": None, "stream": None})
+        mask_cache_miss = (stream_info.issuer == None)
+        if mask_cache_miss.any():
+            # some stream info is missing from cache, query db
+            db_stream_ids = stream_info[mask_cache_miss].stream_id
+            db_res = self.manager.get_streams_info(db_stream_ids)
+            # update stream_info with those results from db
+            # note: this works correctly because rec_join() and the sql query
+            # both return items sorted by "stream_id"
+            stream_info[mask_cache_miss] = db_res
+            # update cache
+            self.cache = np.append(self.cache, db_res).view(np.recarray)
+        # apply filtering on issuers and streams if defined
+        issuers_filtering = self.issuers is not None
+        streams_filtering = self.streams_re_match is not None
+        if issuers_filtering or streams_filtering:
             mask_streams = np.ones(stream_info.size, dtype=bool)
-            if self.streams_re_search:
-                mask_streams &= (self.streams_re_search(stream_info.stream) != None)
+            if streams_filtering:
+                mask_streams &= self.streams_re_match(stream_info.stream)
                 if not mask_streams.any():
                     return  # all logs filtered out
             # when data comes from the db, issuers are already filtered,
             # while data coming from the hub has to be filtered.
-            if self.params["issuers"] is not None and not issuers_filtered:
-                mask_streams &= np.isin(stream_info.issuer, self.params["issuers"])
+            if issuers_filtering:
+                mask_streams &= np.isin(stream_info.issuer, self.issuers)
                 # filter out wrong issuers
                 if not mask_streams.any():
                     return  # all logs filtered out
@@ -346,26 +358,39 @@ class LogsToSocketHandler(object):
                 mask_logs = mask_streams[rev]
                 logs = logs[mask_logs]
                 rev = rev[mask_logs]
-            # compute resulting table
-            client_logs = np.empty(logs.size, CLIENT_LOG_DT).view(np.recarray)
-            client_logs.line = logs.line
-            if self.params["timestamps_format"] == "datetime":
-                client_logs.timestamp = self.np_datetime_from_ts(logs.timestamp)
-            elif self.params["timestamps_format"] == "float-s":
-                client_logs.timestamp = logs.timestamp
-            elif self.params["timestamps_format"] == "float-ms":
-                client_logs.timestamp = logs.timestamp * 1000
-            else:
-                raise NotImplementedError('Unexpected "timestamps_format" value.')
-            client_logs[["issuer", "stream"]] = stream_info[rev][["issuer", "stream"]]
-            # send to the client
+        # compute resulting table
+        client_logs = np.empty(logs.size, CLIENT_LOG_DT).view(np.recarray)
+        client_logs.line = logs.line
+        client_logs.timestamp = self.format_timestamps(logs.timestamp)
+        client_logs[["issuer", "stream"]] = stream_info[rev][["issuer", "stream"]]
+        # send to the client
+        return self.send_logs_to_client(client_logs)
+
+    def write_db_logs_to_client(self, db_logs):
+        # update the format of timestamps
+        db_logs.timestamp = self.format_timestamps(db_logs.timestamp)
+        # send to the client
+        return self.send_logs_to_client(db_logs)
+
+    def format_timestamps(self, timestamps):
+        if self.timestamps_format == "datetime":
+            return self.np_datetime_from_ts(timestamps)
+        elif self.timestamps_format == "float-s":
+            return timestamps
+        elif self.timestamps_format == "float-ms":
+            return timestamps * 1000
+        else:
+            raise NotImplementedError('Unexpected "timestamps_format" value.')
+
+    def send_logs_to_client(self, client_logs):
+        try:
             if self.sock_file.closed:
                 raise IOError()
-            if self.params["output_format"] == "dict-pickles":
+            if self.output_format == "dict-pickles":
                 tuple_of_dicts = np_recarray_to_tuple_of_dicts(client_logs)
                 for d in tuple_of_dicts:
                     write_pickle(d, self.sock_file)
-            elif self.params["output_format"] == "numpy-pickles":
+            elif self.output_format == "numpy-pickles":
                 write_pickle(client_logs, self.sock_file)
             else:
                 raise NotImplementedError('Unexpected "output_format" value.')
@@ -381,24 +406,29 @@ class LogsToSocketHandler(object):
 
     # this is what we will do depending on the client request params
     def handle_params(self, history, realtime,
-                      issuers=None, streams=None, logline_regexp=None,
+                      issuers=None, streams_regexp=None, logline_regexp=None,
                       timestamps_format="datetime", output_format="dict-pickles"):
-        if streams:
-            streams_regexp = re.compile(streams)
-            self.streams_re_search = np.vectorize(streams_regexp.search)
+        if streams_regexp:
+            regex = PosixExtendedRegex(streams_regexp)
+            self.streams_re_match = np.vectorize(regex.match)
         else:
-            self.streams_re_search = None
+            self.streams_re_match = None
         if logline_regexp:
-            logline_regexp = re.compile(logline_regexp)
-            self.logline_re_search = np.vectorize(logline_regexp.search)
+            regex = PosixExtendedRegex(logline_regexp)
+            self.logline_re_match = np.vectorize(regex.match)
         else:
-            self.logline_re_search = None
-        if issuers is not None:
-            issuers = np.array(issuers)
-        self.params = dict(history=history, realtime=realtime,
-                           issuers=issuers,
-                           timestamps_format=timestamps_format,
-                           output_format=output_format)
+            self.logline_re_match = None
+        if issuers is None:
+            self.issuers = None
+        else:
+            self.issuers = np.array(issuers)
+        self.realtime = realtime
+        self.timestamps_format = timestamps_format
+        self.output_format = output_format
+        self.db_params = dict(history=history,
+                              issuers=issuers,
+                              streams_regexp=streams_regexp,
+                              logline_regexp=logline_regexp)
         if history:
             self.phase = PHASE_WAIT_FOR_BLCK_THREAD
             self.blocking.stream_db_logs(self)
@@ -409,7 +439,7 @@ class LogsToSocketHandler(object):
 
     # this is what we do when the event loop detects an event for us
     def handle_event(self, ts):
-        if self.params is None:
+        if self.db_params is None:
             params = read_pickle(self.sock_file)
             self.handle_params(**params)
         else:

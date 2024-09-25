@@ -220,7 +220,7 @@ class WalTLogShowOrWait(WalTApplication):
             history=history_range,
             realtime=realtime,
             issuers=issuers,
-            streams=streams,
+            streams_regexp=streams,
             logline_regexp=logline_regexp,
         )
         with timeout_context(timeout):
@@ -284,11 +284,11 @@ class WalTLogShow(WalTLogShowOrWait):
                 return
             history_range = range_analysis[1]
             # Note : if a regular expression is specified, we do not bother computing
-            # the number of log records, because this computation would be too
-            # expensive, and the number of matching lines is probably low.
+            # the number of log records, because this computation may be quite expensive
+            # and the number of matching lines is probably low.
             if history_range and logline_regexp is None and isatty():
                 num_logs = server.count_logs(
-                    history=history_range, issuers=issuers, streams=self.streams
+                    history=history_range, issuers=issuers, streams_regexp=self.streams
                 )
                 if num_logs > NUM_LOGS_CONFIRM_TRESHOLD:
                     print(

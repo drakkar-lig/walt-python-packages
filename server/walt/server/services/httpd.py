@@ -102,7 +102,7 @@ def _web_api_v1(entry):
         return resp
 
 
-def _get_logs(ts_from, ts_to, ts_unit, issuers, streams):
+def _get_logs(ts_from, ts_to, ts_unit, issuers, streams_regexp):
     f = client_sock_file("localhost", WALT_SERVER_TCP_PORT)
     # send message
     TcpRequests.send_id(f, TcpRequests.REQ_DUMP_LOGS)
@@ -110,7 +110,7 @@ def _get_logs(ts_from, ts_to, ts_unit, issuers, streams):
         history=(ts_from, ts_to),
         realtime=False,
         issuers=issuers,
-        streams=streams,
+        streams_regexp=streams_regexp,
         logline_regexp=None,
         timestamps_format=f"float-{ts_unit}",
         output_format="numpy-pickles",
@@ -242,10 +242,10 @@ def run():
                     "Note: you can use 'ts_unit' query parameter to specify " +
                     "the unit (i.e. 's' for seconds, 'ms' for milliseconds).")
         stream = query_params.get("stream", "")
-        streams = stream if stream != "" else None
+        streams_regexp = f"^{stream}$" if stream != "" else None
         issuer = query_params.get("issuer", "")
         issuers = (issuer,) if issuer != "" else None
-        return _get_logs(ts_from, ts_to, ts_unit, issuers, streams)
+        return _get_logs(ts_from, ts_to, ts_unit, issuers, streams_regexp)
 
     # run web app
     server = WSGIServer(('', WALT_HTTPD_PORT), app)
