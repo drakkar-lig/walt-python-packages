@@ -19,9 +19,9 @@ build_subpackages() {
     for d in $SUBPACKAGES
     do
         make $d.build
-        if [ "$d" = "vpn" ]
+        if [ "$d" = "vpn" -o "$d" = "server" ]
         then
-            fix_binary_package_tag vpn
+            fix_binary_package_tag $d
         fi
     done
 }
