@@ -46,7 +46,7 @@ class BlockingTasksManager(RPCProcessConnector):
 
     def stream_db_logs(self, logs_handler):
         # request the blocking task to stream db logs
-        self.session(logs_handler).do_async.stream_db_logs(**logs_handler.params)
+        self.session(logs_handler).do_async.stream_db_logs(**logs_handler.db_params)
 
     def rescan_topology(self, requester, result_cb, *args, **kwargs):
         self.session(requester).do_async.rescan_topology(*args, **kwargs).then(
