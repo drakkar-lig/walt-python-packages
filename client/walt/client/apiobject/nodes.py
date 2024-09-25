@@ -230,7 +230,7 @@ class APINodeFactory:
                         logs_cnt = server.count_logs(
                             history=(None, None),
                             issuers=set([self.name]),
-                            streams="$(?<!console)",
+                            exclude_consoles=True
                         )
                         if logs_cnt > 0:
                             raise NodeHasLogsException()

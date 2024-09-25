@@ -228,25 +228,15 @@ class ServerDB(PostgresDB):
         self.commit()
 
     LOGS_SQL_PROJ = (
-            "l.stream_id, " +
             "EXTRACT(EPOCH FROM l.timestamp)::float8 as timestamp, " +
-            "l.line")
+            "l.line, " +
+            "d.name as issuer, " +
+            "s.name as stream")
 
     def create_server_logs_cursor(self, **kwargs):
         sql, args = self.format_logs_query(
                 ServerDB.LOGS_SQL_PROJ, ordering="l.timestamp", **kwargs)
         return self.create_server_cursor(sql, args)
-
-    def get_logstream_ids(self, issuers):
-        if issuers is None:
-            return self.select_no_fetch("logstreams")
-        else:
-            issuer_names = """('%s')""" % "','".join(issuers)
-            sql = """   SELECT s.*
-                        FROM logstreams s, devices d
-                        WHERE s.issuer_mac = d.mac
-                          AND d.name IN %s;""" % issuer_names
-            return self.execute(sql)
 
     def get_multiple_connectivity_info(self, device_macs):
         # we look for records where mac1 or mac2 equals device_mac.
@@ -280,35 +270,8 @@ class ServerDB(PostgresDB):
             left join devices d on d.mac = s.mac
             where rownum = 1""", device_macs)
 
-    def count_logs(
-        self, history, streams=None, issuers=None, stream_mode=None, **kwargs
-    ):
-        # filter relevant streams
-        stream_ids = []
-        if streams:
-            streams_re = re.compile(streams)
-        for row in self.get_logstream_ids(issuers):
-            if streams:
-                matches = streams_re.findall(row.name)
-                if len(matches) == 0:
-                    continue  # discard this one
-            if stream_mode:
-                if row.mode != stream_mode:
-                    continue  # discard this one
-            stream_ids.append(str(row.id))
-        if len(stream_ids) == 0:
-            return 0  # no streams => no logs
-        # note: we can release the constraint on issuers and stream mode
-        # since we restrict to relevant logstreams
-        # (cf. stream_ids variable we just computed)
-        sql, args = self.format_logs_query(
-            "count(*)",
-            history=history,
-            stream_ids=stream_ids,
-            issuers=None,
-            stream_mode=None,
-            **kwargs,
-        )
+    def count_logs(self, **kwargs):
+        sql, args = self.format_logs_query("count(*)", **kwargs)
         return self.execute(sql, args)[0][0]
 
     def format_logs_query(
@@ -317,22 +280,28 @@ class ServerDB(PostgresDB):
         ordering=None,
         issuers=None,
         history=(None, None),
-        stream_ids=None,
         stream_mode=None,
-        **kwargs,
+        streams_regexp=None,
+        logline_regexp=None,
+        exclude_consoles=False
     ):
         args = []
         constraints = ["s.issuer_mac = d.mac", "l.stream_id = s.id"]
-        if stream_ids is not None:
-            stream_ids_sql = """(%s)""" % ",".join(
-                str(stream_id) for stream_id in stream_ids
-            )
-            constraints.append("s.id IN %s" % stream_ids_sql)
         if stream_mode:
             constraints.append(f"s.mode = '{stream_mode}'")
         if issuers is not None:
             issuer_names = """('%s')""" % "','".join(issuers)
             constraints.append("d.name IN %s" % issuer_names)
+        # note: prefix "(?e)" allows to restrict the regular expression syntax
+        # of postgresql to the "ERE" (Extended Posix Regex)
+        if streams_regexp is not None:
+            constraints.append(f"s.name ~ %s")
+            args.append("(?e)" + streams_regexp)
+        if exclude_consoles:
+            constraints.append("s.name ~ '$(?<!console)'")
+        if logline_regexp is not None:
+            constraints.append(f"l.line ~ %s")
+            args.append("(?e)" + logline_regexp)
         start, end = history
         if start:
             constraints.append("l.timestamp > %s")
