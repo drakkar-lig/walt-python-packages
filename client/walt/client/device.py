@@ -191,7 +191,7 @@ class WalTDeviceForget(WalTApplication):
                 logs_cnt = server.count_logs(
                     history=(None, None),
                     issuers=set([device_name]),
-                    streams="$(?<!console)",
+                    exclude_consoles=True
                 )
                 if logs_cnt > 0:
                     print(
