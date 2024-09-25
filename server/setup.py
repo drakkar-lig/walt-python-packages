@@ -73,6 +73,7 @@ setup_info = {
     "keywords": "WalT testbed",
     "license": "3-Clause BSD",
     "url": "https://walt-project.liglab.fr",
+    "cffi_modules": ["walt/server/ext/build.py:ffibuilder"],
     "description": "WalT server components.",
     "entry_points": {
         "console_scripts": [
@@ -101,6 +102,7 @@ setup_info = {
         "sh/walt-server-cleanup",
         "sh/walt-device-ssh",
     ],
+    "setup_requires": ["cffi>=1.16.0"],
 }
 setup_info.update(packages=find_packages())
 setup(**setup_info)
