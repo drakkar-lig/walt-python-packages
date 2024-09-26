@@ -12,6 +12,7 @@ from walt.common.tcp import MyPickle as pickle, Requests, read_pickle, write_pic
 from walt.common.udp import udp_server_socket
 from walt.server.regex import PosixExtendedRegex
 from walt.server.tools import get_server_ip, np_recarray_to_tuple_of_dicts
+from walt.server.processes.main.workflow import Workflow
 
 TEN_YEARS = 3600 * 24 * 365 * 10
 LOG_DT = [("timestamp", np.float64),
@@ -22,6 +23,7 @@ CLIENT_LOG_DT = [("timestamp", object),
                  ("issuer", object),
                  ("stream", object)]
 LOG_PENDING_SIZE = 512
+DB_LOGS_BLOCK_SIZE = 128
 
 
 class LogsBuffer:
@@ -249,9 +251,8 @@ class NetconsoleListener(object):
         self.s.close()
 
 
-PHASE_WAIT_FOR_BLCK_THREAD = 0
-PHASE_RETRIEVING_FROM_DB = 1
-PHASE_SENDING_TO_CLIENT = 2
+PHASE_RETRIEVING_FROM_DB = 0
+PHASE_SENDING_TO_CLIENT = 1
 
 
 class LogsToSocketHandler(object):
@@ -262,54 +263,29 @@ class LogsToSocketHandler(object):
         self.cache = np.array([], dt_cache).view(np.recarray)
         self.db_params = None
         self.hub = manager.hub
-        self.blocking = manager.blocking
         self.phase = None
         self.realtime_buffer = LogsBuffer(0)
         self.np_datetime_from_ts = np.vectorize(datetime.fromtimestamp)
         # sock.settimeout(1.0)
 
     def log(self, logs):
-        if self.phase == PHASE_WAIT_FOR_BLCK_THREAD:
-            # blocking process is not ready yet,
-            # we will let the log go to db and
-            # the blocking process will retrieve it later.
-            return
-        elif self.phase == PHASE_RETRIEVING_FROM_DB:
-            # the blocking process is still sending logs
-            # from db
+        if self.phase == PHASE_RETRIEVING_FROM_DB:
+            # we are still sending logs from db
             # => do not send the realtime logs right now,
             # record them for later
             self.realtime_buffer.append(logs)
         elif self.phase == PHASE_SENDING_TO_CLIENT:
             return self.write_realtime_logs_to_client(logs)
 
-    def notify_history_processing_startup(self):
-        self.phase = PHASE_RETRIEVING_FROM_DB
-        self.manager.logs_to_db.flush()
-
-    def notify_history_processed(self):
-        if self.realtime:
-            # done with the history part.
-            # we can flush the buffer of realtime logs
-            if self.realtime_buffer.size > 0:
-                self.write_realtime_logs_to_client(self.realtime_buffer.pop())
-            # notify that next logs can be sent
-            # directly to the client
-            self.phase = PHASE_SENDING_TO_CLIENT
-        else:
-            # no realtime mode, we can quit
-            self.close()
-
     # important notes:
-    # * when data comes from the db, then issuers, logline regexp and
-    #   stream regexp are already filtered, but realtime logs coming
-    #   from the hub have to be filtered.
-    # * since data is sometimes filtered by python, and sometimes
-    #   by postgresql, we need to agree on a common format for
+    # * when data comes from the db, then issuers, logline regexp and stream regexp
+    #   are already filtered, but realtime logs have to be filtered.
+    # * this implies that data is sometimes filtered by python, and sometimes by
+    #   postgresql, so we need to agree on a common format for user-supplied
     #   regular expressions.
-    # * default python regex format ("re" module) is not standard,
-    #   so we use "walt.server.regex" with a cffi based interface
-    #   to access extended posix regex features of libc.
+    # * default python regex format ("re" module) is not standard, so we use
+    #   "walt.server.regex" iwhich is a cffi based interface to access extended
+    #   posix regex features of libc.
     # * in postgresql queries (cf. db.py), we prefix regular expressions
     #   with "(?e)" in order to limit the format to extended posix regex too.
     def write_realtime_logs_to_client(self, logs):
@@ -429,13 +405,75 @@ class LogsToSocketHandler(object):
                               issuers=issuers,
                               streams_regexp=streams_regexp,
                               logline_regexp=logline_regexp)
-        if history:
-            self.phase = PHASE_WAIT_FOR_BLCK_THREAD
-            self.blocking.stream_db_logs(self)
-        else:
-            self.phase = PHASE_SENDING_TO_CLIENT
         if realtime:
             self.hub.addHandler(self)
+        if history:
+            self.phase = PHASE_RETRIEVING_FROM_DB
+            self.stream_db_logs()
+        else:
+            self.phase = PHASE_SENDING_TO_CLIENT
+
+    def _wf_create_server_logs_cursor(self, wf, **env):
+        async_db, params = self.manager.db.do_async, self.db_params
+        async_db.create_server_logs_cursor(**params).then(wf.next)
+
+    def _wf_save_cursor_name(self, wf, cursor_name, **env):
+        wf.update_env(cursor_name = cursor_name)
+        wf.next()
+
+    def _wf_step_server_cursor(self, wf, cursor_name, **env):
+        async_db = self.manager.db.do_async
+        async_db.step_server_cursor(cursor_name, DB_LOGS_BLOCK_SIZE).then(wf.next)
+
+    def _wf_process_logs_block(self, wf, rows, **env):
+        # we end the stream when we detect its end
+        # (i.e., rows.size < DB_LOGS_BLOCK_SIZE) and
+        # when the client disconnects.
+        if rows.size > 0:
+            res = self.write_db_logs_to_client(rows)
+            should_continue = (
+                    (res is not False) and
+                    (rows.size == DB_LOGS_BLOCK_SIZE))
+        else:
+            should_continue = False
+        if should_continue:
+            # we will continue with next block
+            wf.insert_steps([
+                    self._wf_step_server_cursor,
+                    self._wf_process_logs_block
+            ])
+        wf.next()
+
+    def _wf_delete_server_cursor(self, wf, cursor_name, **env):
+        async_db = self.manager.db.do_async
+        async_db.delete_server_cursor(cursor_name).then(wf.next)
+
+    def _wf_end_db_logs(self, wf, _, **env):
+        # we are done with the history part
+        if self.realtime:
+            # we can flush the buffer of realtime logs
+            if self.realtime_buffer.size > 0:
+                self.write_realtime_logs_to_client(self.realtime_buffer.pop())
+            # notify that next logs can be sent
+            # directly to the client
+            self.phase = PHASE_SENDING_TO_CLIENT
+        else:
+            # no realtime mode, we can quit
+            self.close()
+        wf.next()
+
+    def stream_db_logs(self):
+        # ensure all past logs are commited
+        self.manager.logs_to_db.flush()
+        # for retrieving db logs asynchronously, we use a workflow object
+        steps = [self._wf_create_server_logs_cursor,
+                 self._wf_save_cursor_name,
+                 self._wf_step_server_cursor,
+                 self._wf_process_logs_block,
+                 self._wf_delete_server_cursor,
+                 self._wf_end_db_logs]
+        wf = Workflow(steps)
+        wf.run()
 
     # this is what we do when the event loop detects an event for us
     def handle_event(self, ts):
@@ -491,11 +529,10 @@ class LoggerFile:
 
 
 class LogsManager(object):
-    def __init__(self, db, tcp_server, blocking, ev_loop):
+    def __init__(self, db, tcp_server, ev_loop):
         self.ev_loop = ev_loop
         self.db = db
         self.server_ip = get_server_ip()
-        self.blocking = blocking
         self.server_log_cache = {}
         self.hub = LogsHub()
         self.logs_to_db = LogsToDBHandler(ev_loop, db)

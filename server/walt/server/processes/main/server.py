@@ -46,7 +46,7 @@ class Server(object):
         self.blocking = blocking
         self.blocking.configure(self)
         self.tcp_server = TCPServer(WALT_SERVER_TCP_PORT)
-        self.logs = LogsManager(self.db, self.tcp_server, self.blocking, self.ev_loop)
+        self.logs = LogsManager(self.db, self.tcp_server, self.ev_loop)
         self.devices = DevicesManager(self)
         self.dhcpd = DHCPServer(self.db, self.ev_loop)
         self.named = DNSServer(self.db, self.ev_loop)
