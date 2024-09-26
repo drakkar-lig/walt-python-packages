@@ -13,7 +13,6 @@ from walt.server.processes.blocking.images.pull import pull_image
 from walt.server.processes.blocking.images.search import search
 from walt.server.processes.blocking.images.squash import squash
 from walt.server.processes.blocking.images.update import update_default_images
-from walt.server.processes.blocking.logs import stream_db_logs
 from walt.server.processes.blocking.registries import (
     DockerDaemonClient,
     get_registry_client,
@@ -84,11 +83,6 @@ class BlockingTasksContextService:
 
     def update_default_images(self, *args, **kwargs):
         return update_default_images(self.requester, self.server, *args, **kwargs)
-
-    def stream_db_logs(self, **params):
-        # note: in this case self.requester is actually a proxy to
-        #       a LogsHandler object on the main thread
-        return stream_db_logs(self.db, self.requester, **params)
 
     def pull_image(self, image_fullname, anonymous):
         if anonymous:
