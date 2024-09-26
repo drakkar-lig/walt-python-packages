@@ -234,6 +234,7 @@ class ServerDB(PostgresDB):
             "s.name as stream")
 
     def create_server_logs_cursor(self, **kwargs):
+        self.commit()
         sql, args = self.format_logs_query(
                 ServerDB.LOGS_SQL_PROJ, ordering="l.timestamp", **kwargs)
         return self.create_server_cursor(sql, args)
