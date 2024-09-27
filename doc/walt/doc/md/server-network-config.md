@@ -150,11 +150,13 @@ can also write `ip: dhcp` in `walt-adm` section.
 ## Scenario 3: server with single wired LAN interface
 
 Let's consider the case where the machine you want to setup as a WALT server has only one wired
-interface (`eth0`).
+interface (`eth0`). The simplest workaround is to use a USB-ethernet dongle as a secondary
+wired interface. However, a few other options listed below exist.
+
 
 ### 3a: Using a wireless interface
 
-If this machine has a wireless interface too (`wlan0`) you can obviously configure `walt-net` on `eth0`
+If this machine has a wireless interface (`wlan0`) you can obviously configure `walt-net` on `eth0`
 and use `wlan0` for internet connectivity.
 However, keep in mind that this internet connectivity will be used to upload or download walt images,
 usually several hundreds of megabytes each. Thus, your wireless connection may not be the best option
@@ -224,7 +226,10 @@ We describe below the appropriate configuration to set up those virtual interfac
 
 ```
 $ cat /etc/network/interfaces
-# This file is empty this time!
+# internet connectivity (walt-out)
+auto eth0.34
+iface eth0.34 inet dhcp
+    vlan-raw-device eth0
 $
 ```
 
@@ -236,11 +241,6 @@ network:
         raw-device: eth0
         vlan: 33
         ip: 192.168.180.1/22
-    # internet connectivity
-    walt-out:
-        raw-device: eth0
-        vlan: 34
-        ip: dhcp
 $
 ```
 
