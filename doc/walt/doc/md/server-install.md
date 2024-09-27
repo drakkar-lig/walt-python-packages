@@ -19,16 +19,15 @@ The WalT server must be installed on a 64bits (intel / amd64 CPU) machine, equip
 * 16 Go RAM or more is recommended (RAM is mainly needed for the "virtual nodes" feature).
 * 2 wired LAN interfaces (recommended).
 
-Note: in some cases, 1 wired network interface may be enough with appropriate configuration of the
-server and/or network equipment. See section about network configuration.
+Note: one may use a USB-ethernet dongle as an alternative to the second LAN interface.
+See [`walt help show networking`](networking.md) and [`walt help show server-network-config`](server-network-config.md).
 
 WalT is often used in one of the following scenarios:
 * Standard deployment in a building
 * Mobile setup (for demos)
 
 In the first case, you could install WalT on a server in the datacenter of the building.
-In the second case, you could choose a small-form-factor PC. These rarely provide 2 LAN interfaces, but a
-few models do; and most of them are barebone (you need to buy RAM and disk separately).
+In the second case, you could choose a small-form-factor PC.
 Contact us (walt-contact at univ-grenoble-alpes.fr) for more advice.
 
 
