@@ -6,6 +6,7 @@
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
+import os
 import re
 from pathlib import Path
 
@@ -42,6 +43,16 @@ for md_file in tuple(md_dir.glob("*.md")):
         rst_content = re.sub(
             r"```([a-z0-9 -]*)`` <([a-z0-9-]*)\.md>`__", r":doc:`\1 <\2>`", rst_content
         )
+        # If this doc will be viewed on readthedocs, we want to remove the links
+        # to /api because they will obviously not work.
+        # We know if this build script is running on readthedocs servers or not
+        # because we define env var LOCAL_SPHINX_BUILD=1 in dev/compile-doc.sh,
+        # and this script is only executed when running a local build.
+        local_build = os.environ.get("LOCAL_SPHINX_BUILD", "0")
+        print("LOCAL_SPHINX_BUILD", local_build)
+        if local_build == "0":
+            # not a local build => this is a build on readthedocs server
+            rst_content = re.sub(r"`(\/api[a-z0-9-/]*) <\1>`__", r"``\1``", rst_content)
         if rst_file.name == "index.rst":
             index_rst_tables = (THIS_DIR / "index_rst_tables").read_text()
             rst_content = f"{rst_content}\n{index_rst_tables}"

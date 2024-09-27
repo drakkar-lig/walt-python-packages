@@ -94,8 +94,9 @@ Full table of Contents
 
 .. toctree::
    :maxdepth: 1
-   :caption: Web API
+   :caption: Web services
 
+   web-server
    web-api
 
 

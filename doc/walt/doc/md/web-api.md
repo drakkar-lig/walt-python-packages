@@ -5,9 +5,10 @@ This section explains how to interact with the web API WalT provides.
 It can be used to export WalT platform data to another system, such as Grafana
 and its "Infinity" datasource plugin.
 
-The web API entrypoints are described below.
-
-All entrypoints expect a `GET` request and return a JSON object or
+The web API is managed by the web-server component (see [`walt help show web-server`](web-server.md)) and is available
+ at `http://<walt-server>/api`.
+The entrypoints are described below.
+they all expect a `GET` request and return a JSON object or
 an HTTP error.
 
 
@@ -123,7 +124,7 @@ One can further refine the query by specifying one or more of the attributes
 ```
 
 
-## Entrypoint /api/v1/logs
+## Entrypoint `/api/v1/logs`
 
 This entrypoint allows to retrieve platform and experiment logs from
 WalT server database.
