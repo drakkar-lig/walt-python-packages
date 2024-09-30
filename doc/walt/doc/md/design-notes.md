@@ -29,3 +29,5 @@ The concept of WalT platform was described in a research paper called [WalT: A R
 Publishing the OS of nodes on a public repository such as the docker hub (using `walt image publish`) allows other people to later reproduce the experiment on other walt platforms.
 By doing so, the user shows she is confident enough that reproducing her experiment in slightly different conditions (different position for nodes, etc.) will still give good results.
 This is a stronger argument compared to just ensuring **repeatability** of the experiment on the same platform.
+
+When using the default boot mode, WalT also ensures a consistent behavior of nodes at each reboot: they just boot the read-only OS-image which was selected, free of any file change from previous runs. (see [`walt help show boot-modes`](boot-modes.md))
