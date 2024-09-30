@@ -17,12 +17,17 @@ WalT mainly provides the following set of features:
 * **Physical access** (see below) and/or **remote control** over nodes
 * Compatibility with various kinds of nodes:
   - **Raspberry Pi** B/B+/2B/3B/3B+/4B/400 nodes
-  - **PC nodes** booted from a USB dongle
+  - Google **Coral Dev Boards**
+  - **PC nodes** (PXE-capable, or otherwise booted from a USB dongle)
   - **Virtual nodes**
   - Distant Raspberry Pi nodes using WALT ssh-based **VPN** (experimental feature)
 * **Management of node OS images**
-  - Clone or publish them from/to the docker hub (or a private registry)
+  - Clone or publish OS images from/to the docker hub (or a private registry)
   - Modify them easily (virtual shell sessions, 1-command file copies)
+* **Powerful OS deployment techniques** (see [`walt help show boot-modes`](boot-modes.md))
+  - Near-zero OS image deployment delay
+  - WalT nodes boot a **full OS image** (not just a single-app container!)
+* **Reproducibity features** (see [`walt help show design-notes`](design-notes.md))
 * Means to collect, store and query **experiment logs**
 
 A WALT platform is cost-effective, easy to install, easy to use, lightweight, versatile and collaborative.
