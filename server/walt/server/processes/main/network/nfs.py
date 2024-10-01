@@ -48,7 +48,8 @@ def generate_persist_exports_file_content(persist_paths, subnet):
 class NFSExporter(object):
     def __init__(self, ev_loop):
         service_name = conf["services"]["nfsd"]["service-name"]
-        self.restarter = ServiceRestarter(ev_loop, "nfsd", service_name)
+        self.restarter = ServiceRestarter(ev_loop,
+                    "nfsd", service_name, allow_reload=True)
 
     def _get_prev_content_or_init(self, path):
         if not path.parent.exists():

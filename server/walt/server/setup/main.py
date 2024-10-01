@@ -48,6 +48,21 @@ RESTARTABLE_WALT_SERVICES = [
 # all walt services
 ALL_WALT_SERVICES = STOPPABLE_WALT_SERVICES + RESTARTABLE_WALT_SERVICES
 
+# NFS service override
+NFS_SERVICE_OVERRIDE = """\
+[Service]
+# When a WalT image is no longer exported, we want the NFS server
+# to flush any current mount no longer allowed, otherwise these mounts
+# will keep our WalT image overlay mount busy.
+# We could use "ExecRestart" operation to ensure this, but it slows
+# down walt server code because it is quite a long operation, so we
+# prefer to tune "ExecReload" to achieve the same.
+# Here, this ExecReload operation will be added to the existing one
+# with option "-r" (see "systemctl cat nfs-kernel-server") defined
+# in the main service file.
+ExecReload=-/usr/sbin/exportfs -f
+"""
+
 # WALT has its own version of the following services.
 # Since in their default configuration they would conflict with these
 # walt services, we have to disable them.
@@ -266,10 +281,21 @@ class WalTServerSetup(WaltGenericSetup):
     def install_os_on_image(self):
         install_os_on_image()
 
+    def setup_nfs_server_override(self):
+        p = Path("/etc/systemd/system/nfs-kernel-server.service.d/walt.conf")
+        if p.exists():
+            if p.read_text() != NFS_SERVICE_OVERRIDE:
+                p.unlink()
+        if not p.parent.exists():
+            p.parent.mkdir()
+        if not p.exists():
+            p.write_text(NFS_SERVICE_OVERRIDE)
+
     def setup_walt_services(self):
         print("Ensuring WalT services are properly registered on the OS... ", end="")
         sys.stdout.flush()
         self.setup_systemd_services(ALL_WALT_SERVICES)
+        self.setup_nfs_server_override()
         self.setup_apparmor_profiles()
         subprocess.run(
             "walt-vpn-setup --type SERVER".split(),

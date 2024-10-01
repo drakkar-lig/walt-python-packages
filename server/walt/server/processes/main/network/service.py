@@ -1,15 +1,12 @@
 from collections import defaultdict
 from time import time
 
-# The DHCP & NFS services are restarted (not reloaded) when configuration
-# changes, because dhcpd does not support a simple SIGHUP based reloading,
-# and using reload on NFSd instead of restart would prevent the NFS clients
-# no longer allowed to be disconnected immediately, which would prevent
-# unmounting of images.
+# The DHCP service is restarted (not reloaded) when configuration changes,
+# because dhcpd does not support a simple SIGHUP based reloading.
 
-# These services can be restarted quite often when a large set of new nodes
-# are being registered. This can cause heavy processing or even break because
-# of systemd service restart limit.
+# DHCP, TFTP, NFS services can be restarted quite often when a large set of
+# new nodes are being registered. This can cause heavy processing or even
+# break because of systemd service restart limit.
 # Here, we ensure only one restart command is running at a time,
 # and with a minimal interval of 5 seconds between restarts.
 # When the restart command completes and 5 more seconds are spent, we check if
