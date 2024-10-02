@@ -19,13 +19,14 @@ class ServiceRestarter:
                  allow_reload=False):
         self.ev_loop = ev_loop
         self.short_service_name = short_service_name
-        self.systemd_service_name = systemd_service_name
         self.service_version = 0
         self.config_version = 0
-        if allow_reload:
-            self.systemd_op = "reload-or-restart"
-        else:
-            self.systemd_op = "restart"
+        systemd_op = "ReloadOrRestartUnit" if allow_reload else "RestartUnit"
+        # note: using busctl is faster than calling systemctl [reload|restart] <unit>
+        self.systemd_cmd = (
+            "busctl call org.freedesktop.systemd1 /org/freedesktop/systemd1 "
+            f"org.freedesktop.systemd1.Manager {systemd_op} "
+            f"ss {systemd_service_name} replace")
         self.restarting = False
         self.callbacks = defaultdict(list)
 
@@ -72,6 +73,4 @@ class ServiceRestarter:
                     for cb in self.callbacks.pop(v, ()):
                         cb()
 
-            self.ev_loop.do(
-                    f"systemctl {self.systemd_op} {self.systemd_service_name}",
-                    callback)
+            self.ev_loop.do(self.systemd_cmd, callback)
