@@ -244,3 +244,26 @@ Since the filesystem mounted at `/proc` is linked to the linux kernel running on
 An example of those failing commands is `yum` package manager often installed in rpm-based systems.
 In order to handle this case properly, you may dump the file `/proc/cpuinfo` of a running target node, and provide this file at `[image_root]/etc/cpuinfo`.
 If this file is found in the image, walt server will bind-mount it at `/proc/cpuinfo`, which should solve this problem.
+
+### 9- Support for an advanced virtual environment in `walt image shell`
+
+By default, `walt image shell` is just implemented by running a shell (`bash` or `sh`) in a container created from the image.
+On user exit, the changes are saved as a new image.
+But this basic virtual environment with only the shell process is too minimalist for some cases. See [`walt help show shells`](shells.md) for more details.
+
+As an alternative, you can add support for an advanced virtual environment in `walt image shell`, where the OS init is started when the shell starts, and shut down when it exits.
+For this, provide the following files with execution bits set:
+* `[image_root]/bin/walt-image-shell-start`
+* `[image_root]/bin/walt-image-shell-shutdown`
+
+`/bin/walt-image-shell-start` is expected to eventually call `exec /sbin/init`, and possibly perform a little tuning before that point for the init system to run well in the container environment. For instance, in the systemd-based images we provide, we temporarily rename `/etc/network/interfaces`. Otherwise systemd will try to initialize `lo` (loopback interface), which fails because the container environment already initialized it.
+`/bin/walt-image-shell-shutdown` is expected to undo the tuning done by `/bin/walt-image-shell-start` and then request the init system to halt (e.g, `init 0`).
+
+When these files are provided, the WALT server performs these steps:
+1. Run the container in the background with `walt-image-shell-start` (i.e., `podman run -d --entrypoint /bin/walt-image-shell-start [...]`)
+2. Start the shell in an `exec` interactive session (i.e., `podman exec -it $container_id $shell`)
+3. When the shell session (step 2) ends, call `podman exec $container_id /bin/walt-image-shell-shutdown`
+4. Similarly to the basic case, wait for the background container to end, then save changes to a new image, etc.
+
+Note that this procedure hides the startup messages of the init system (steps 1 and 3) to the user.
+For debugging, you can work on an image without `/bin/walt-image-shell-start` or `/bin/walt-image-shell-shutdown` at first, so just a basic virtual environment is set when you run `walt image shell`. In this basic environment, you can test the commands you wish to embed in those files one by one, for instance `exec /sbin/init`, and verify that everything can run properly in a container environment.

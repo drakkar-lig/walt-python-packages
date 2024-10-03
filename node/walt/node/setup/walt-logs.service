@@ -6,6 +6,10 @@
 
 [Unit]
 Description=WalT logs daemon
+# The service relies on walt-log-cat, which is provided by the server
+# on the image export. So it only works on booted nodes, not in
+# "walt image shell".
+ConditionVirtualization=!container
 # start the daemon after network is ready
 After=network.target
 
