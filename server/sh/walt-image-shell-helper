@@ -12,31 +12,90 @@ image_fullname="$1"
 container_name="$2"
 
 HOSTNAME='image-shell'
-RUN_SHELL_COMMAND='if [ -e /bin/bash ]; then exec /bin/bash; else exec /bin/sh; fi'
-DUMP_CPUINFO_COMMAND='if [ -e /etc/cpuinfo ]; then cat /etc/cpuinfo; fi'
+
+tmp_dir=$(mktemp -d)
+trap "rm -rf $tmp_dir" EXIT
+
+# To explore various optional features of the image, we first
+# run the container once with a custom exploration script.
+
+cat > $tmp_dir/explore.sh << EOF
+#!/bin/sh
+if [ -e /etc/cpuinfo ]
+then
+    echo __CPU_INFO__
+    cat /etc/cpuinfo
+    echo __CPU_INFO_END__
+fi
+if [ -x /bin/walt-image-shell-start -a -x /bin/walt-image-shell-shutdown ]
+then
+    echo __ADVANCED_SHELL_MODE__
+fi
+if [ -x /bin/bash ]
+then
+    echo __SHELL__ /bin/bash
+else
+    echo __SHELL__ /bin/sh
+fi
+EOF
+chmod +x $tmp_dir/explore.sh
 
 docker_run_options="-w /root"
 
+podman run --rm --log-driver=none \
+        -v $tmp_dir/explore.sh:/bin/explore.sh \
+        --entrypoint /bin/explore.sh \
+        "$image_fullname" > $tmp_dir/explored
+
 # If the image has a file named /etc/cpuinfo, it should be bind-mounted
 # to /proc/cpuinfo (fixes emulation support for some programs such as yum).
-cpuinfo_file=$(mktemp)
-podman run --rm --log-driver=none --entrypoint /bin/sh \
-        "$image_fullname"                              \
-        -c "$DUMP_CPUINFO_COMMAND" > $cpuinfo_file
 
-if [ -s "$cpuinfo_file" ]   # if not empty
+s=__CPU_INFO__
+e=__CPU_INFO_END__
+sed -n "/^$s$/,/$e/ { /^$s$/d ; /$e/d ; p }" < $tmp_dir/explored > $tmp_dir/cpuinfo
+
+if [ -s "$tmp_dir/cpuinfo" ]   # if not empty
 then
-    docker_run_options="$docker_run_options -v $cpuinfo_file:/proc/cpuinfo"
-    trap "rm -f $cpuinfo_file" EXIT
-else
-    rm -f $cpuinfo_file
+    docker_run_options="$docker_run_options -v $tmp_dir/cpuinfo:/proc/cpuinfo"
 fi
 
-# Run the container that will hold the shell session
-podman run -it --log-driver=none  \
-        --entrypoint /bin/sh      \
+shell=$(awk '$1 == "__SHELL__" {print $2}' < $tmp_dir/explored)
+
+if grep __ADVANCED_SHELL_MODE__ $tmp_dir/explored >/dev/null
+then
+    # Advanced mode
+    # -------------
+    # 1- run the container in the background with command /bin/walt-image-shell-start;
+    #    typically, this command will tune a few things and then exec the init system.
+    container_id=$(podman run -d --log-driver=none   \
+            --systemd always          \
+            -v /run/rpc_pipefs:/run/rpc_pipefs \
+            --entrypoint /bin/walt-image-shell-start \
+            -h "$HOSTNAME"            \
+            --name "$container_name"  \
+            $docker_run_options       \
+            "$image_fullname")
+    echo "Note: the OS was started in a virtual environment."
+    echo "Run 'walt help show shells' for more info."
+    echo
+    # 2- in an exec session, run the shell
+    podman exec -it $container_id $shell
+    # 3- in an exec session, run /bin/walt-image-shell-shutdown
+    #    typically, this will revert previous tuning and shutdown the init system.
+    podman exec $container_id /bin/walt-image-shell-shutdown
+else
+    # Simple mode
+    # -----------
+    # Run the container with just a single shell process
+    echo "Note: this is a limited virtual environment (with just the shell process)."
+    echo "Run 'walt help show shells' for more info."
+    echo
+    podman run -it --log-driver=none  \
+        --systemd always          \
+        -v /run/rpc_pipefs:/run/rpc_pipefs \
+        --entrypoint $shell       \
         -h "$HOSTNAME"            \
         --name "$container_name"  \
         $docker_run_options       \
-        "$image_fullname"         \
-        -c "$RUN_SHELL_COMMAND"
+        "$image_fullname"
+fi

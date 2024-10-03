@@ -15,10 +15,6 @@ from walt.common.tcp import Requests, write_pickle, MyPickle as pickle
 SQL_SHELL_MESSAGE = """\
 Type \\dt for a list of tables.
 """
-IMAGE_SHELL_MESSAGE = """\
-Notice: this is a limited virtual environment.
-Run 'walt help show shells' for more info.
-"""
 NODE_SHELL_MESSAGE = """\
 Caution: changes outside /persist will be lost on next node reboot.
 Run 'walt help show shells' for more info.
@@ -156,7 +152,6 @@ def run_sql_prompt():
 
 
 def run_image_shell_prompt(image_fullname, container_name):
-    print(IMAGE_SHELL_MESSAGE)
     PromptClient(
         Requests.REQ_DOCKER_PROMPT,
         image_fullname=image_fullname,
