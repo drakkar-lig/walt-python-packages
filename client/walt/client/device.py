@@ -106,7 +106,7 @@ class WalTDeviceExpose(WalTApplication):
                 % (local_port, device_name, device_port)
             )
             exposer = TCPExposer(local_port, device_ip, device_port)
-            exposer.run()
+            return exposer.run()
 
 
 @WalTDevice.subcommand("rescan")

@@ -482,7 +482,7 @@ class WalTNodeExpose(WalTApplication):
             )
             from walt.client.expose import TCPExposer
             exposer = TCPExposer(local_port, node_ip, node_port)
-            exposer.run()
+            return exposer.run()
 
 
 @WalTNode.subcommand("config")
