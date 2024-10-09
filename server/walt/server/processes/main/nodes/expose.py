@@ -11,11 +11,14 @@ class NodeExposeFeedbackListener:
     def fileno(self):
         return self.env.node_sock_file.fileno()
 
-    # when the event loop detects an event for us, this means
-    # the node wrote something on the socket
-    # we just have to copy this to the user socket
     def handle_event(self, ts):
-        return read_and_copy(self.env.node_sock_file, self.env.client_sock_file)
+        if self.env.ready:
+            # when the event loop detects an event for us, this means
+            # the node wrote something on the socket
+            # we just have to copy this to the user socket
+            return read_and_copy(self.env.node_sock_file, self.env.client_sock_file)
+        else:
+            return False
 
     def close(self):
         self.env.close()
@@ -28,10 +31,16 @@ class NodeExposeSocketListener:
         self.ev_loop = ev_loop
         self.node_ip_and_port = None
         self.client_sock_file = sock_file
+        self._fileno = sock_file.fileno()
         self.node_sock_file = None
 
     def open_channel_to_node(self):
         return client_sock_file(*self.node_ip_and_port)
+
+    @property
+    def ready(self):
+        return (self.node_sock_file is not None and
+                self.client_sock_file is not None)
 
     def start(self):
         try:
@@ -51,9 +60,7 @@ class NodeExposeSocketListener:
 
     # let the event loop know what we are reading on
     def fileno(self):
-        if self.client_sock_file.closed:
-            return None
-        return self.client_sock_file.fileno()
+        return self._fileno
 
     # handle_event() will be called when the event loop detects
     # new input data for us.
@@ -67,6 +74,8 @@ class NodeExposeSocketListener:
             self.node_ip_and_port = (params["node_ip"], params["node_port"])
             # we now have all info to connect to the node
             return self.start()
+        elif not self.ready:
+            return False    # we should not get events!
         else:
             # otherwise we are all set. Thus, getting input data means
             # data was sent on the other end.
