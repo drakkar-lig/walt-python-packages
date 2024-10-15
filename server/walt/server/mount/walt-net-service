@@ -1,7 +1,6 @@
 #!/bin/sh
 . walt-script-common
 
-export vnode_mode="$1"  # used in walt-net-service-handler
 while true
 do
     busybox nc -l -p 12346 -e walt-net-service-handler

@@ -4,9 +4,15 @@
 . walt-script-common
 . walt-boot-modes
 . walt-clock-sync
+
 # setting clock
-boot_step_label_cr          "Setting clock..."
-sync_clock
+if [ $vnode_mode -eq 1 ]
+then
+    boot_step_label_cr "Setting clock... skipped (virtual node)"
+else
+    boot_step_label_cr "Setting clock..."
+    sync_clock
+fi
 # boot mode detection
 boot_step_label_cr          "Detecting boot-mode..."
 exec 6>&1  # provide an alias to stdout for detect_boot_mode()
