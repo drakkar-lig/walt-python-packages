@@ -32,6 +32,7 @@ VNODE_DEFAULT_PID_PATH = "/var/lib/walt/nodes/%(mac)s/pid"
 VNODE_DEFAULT_SCREEN_SESSION_PATH = "/var/lib/walt/nodes/%(mac)s/screen_session"
 VNODE_DEFAULT_DISKS_PATH = "/var/lib/walt/nodes/%(mac)s/disks"
 VNODE_DEFAULT_NETWORKS_PATH = "/var/lib/walt/nodes/%(mac)s/networks"
+VNODE_FS_PATH = "/var/lib/walt/nodes/%(mac)s/fs"
 VNODE_IFUP_SCRIPT_TEMPLATE = resource_string(__name__, "walt-vnode-ifup").decode(
     "utf-8"
 )
@@ -285,6 +286,10 @@ class VMParameters:
     # Handle parameters requiring special processing as properties
 
     @property
+    def fs_path(self):
+        return VNODE_FS_PATH % dict(mac = self.mac)
+
+    @property
     def ram(self):
         return self._ram
 
@@ -415,6 +420,8 @@ def boot_kvm(env):
 def get_vm_args(env):
     """Managed mode: receive commands on stdin and control VM accordingly"""
     qemu_args = QEMU_ARGS
+    qemu_args += (f" -virtfs local,id=dev,path={env.fs_path},"
+                  "security_model=none,mount_tag=walt_image,readonly")
     if env.attach_usb:
         qemu_args += " " + get_qemu_usb_args()
     if "boot-initrd" in env:
