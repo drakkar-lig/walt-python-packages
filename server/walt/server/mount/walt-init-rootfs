@@ -6,14 +6,9 @@ mount_persistent()
 {
     # Compute persistent storage path:
     # <server-ip>:/var/lib/walt/nodes/<hostname>/persist
-    # Caution: with NFSv4, client first mounts /var/lib/walt/nodes,
-    # then retrieves /var/lib/walt/nodes/<mac>/fs symlink target,
-    # and mounts this target path. Thus the mount target, as
-    # reported by findmnt for instance, is this second step
-    # mount target, of the form /var/lib/walt/images/<image-id>/fs.
-    server_ip="$(grep ' /mnt/nfsroot ' /proc/mounts | sed -e 's/:.*//')"
+    # walt_server_ip variable is given by walt-env.
     hostname="$(uname -n)"
-    persist_path="${server_ip}:/var/lib/walt/nodes/${hostname}/persist"
+    persist_path="${walt_server_ip}:/var/lib/walt/nodes/${hostname}/persist"
     options="rw,relatime,vers=3,nolock"
     if [ "$1" = "sync" ]
     then
@@ -53,6 +48,16 @@ switch_to_finalfs() {
 # preparation work
 . walt-script-common
 update_mounts_nfs_to_rootfs
+# we need to know if we are running in a virtual node,
+# for clock sync and walt-net-service.
+# check this now (we need /sys to be available) and save
+# the result as an env var.
+if is_vnode
+then
+    export vnode_mode=1
+else
+    export vnode_mode=0
+fi
 # mount /persist (at /mnt/persist for now)
 boot_step_label_cr          "Mounting /persist..."
 mount_persistent
