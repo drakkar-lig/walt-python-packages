@@ -187,3 +187,15 @@ mount_union()
 boot_step_label_cr() {
     busybox printf "*** %-60s ***\n" "$1"
 }
+
+is_vnode() {
+    if [ -r "/sys/class/dmi/id/sys_vendor" ]
+    then
+        sys_vendor="$(busybox cat "/sys/class/dmi/id/sys_vendor")"
+        if [ "$sys_vendor" = "QEMU" ]
+        then
+            return 0  # yes, vnode
+        fi
+    fi
+    return 1  # no, not a vnode
+}
