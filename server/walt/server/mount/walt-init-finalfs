@@ -1,28 +1,7 @@
 #!/bin/sh
 
-is_vnode() {
-    if [ -r "/sys/class/dmi/id/sys_vendor" ]
-    then
-        sys_vendor="$(busybox cat "/sys/class/dmi/id/sys_vendor")"
-        if [ "$sys_vendor" = "QEMU" ]
-        then
-            return 0  # yes, vnode
-        fi
-    fi
-    return 1  # no, not a vnode
-}
-
 start_background_processes()
 {
-    # walt-net-service needs to know if it is on a vnode,
-    # let's check it now because we need /sys and it may be
-    # unmounted before walt-net-service is started.
-    if is_vnode
-    then
-        vnode_mode=1
-    else
-        vnode_mode=0
-    fi
     # check if walt-init logs are enabled
     log_dir="/persist/logs/walt-init"
     if [ -d "$log_dir" ]
@@ -37,7 +16,7 @@ start_background_processes()
     # a tmpfs in RAM where the busybox binary has been copied,
     # in order to be able to run properly in case of NFS share
     # disconnection.
-    walt-log-script bg "$log_dir" walt-net-service $vnode_mode
+    walt-log-script bg "$log_dir" walt-net-service
     walt-log-script bg "$log_dir" walt-notify-bootup
     cd "/run/walt/rootfs"
     busybox chroot . bin/walt-log-script bg "$rootfs_log_dir" walt-fs-watchdog
