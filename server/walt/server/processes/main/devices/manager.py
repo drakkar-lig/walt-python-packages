@@ -457,10 +457,11 @@ class DevicesManager(object):
         do("iptables --append FORWARD --in-interface walt-net --jump WALT")
         # NAT nodes traffic that is allowed to go outside
         do(
-            "iptables --table nat --append POSTROUTING "
-            "! --out-interface walt-net --source %s "
+            "iptables -m addrtype --table nat --append POSTROUTING "
+             f"--source {WALT_SUBNET} "
+           f"! --destination {WALT_SUBNET} "
+            "! --dst-type LOCAL "
             "--jump MASQUERADE"
-            % str(get_walt_subnet())
         )
         # Set the configuration of all NAT-ed devices
         for device_info in self.db.execute("""\
@@ -472,10 +473,11 @@ class DevicesManager(object):
     def cleanup_netsetup(self):
         # drop rules set by prepare_netsetup
         do(
-            "iptables --table nat --delete POSTROUTING "
-            "! --out-interface walt-net --source %s "
+            "iptables -m addrtype --table nat --delete POSTROUTING "
+             f"--source {WALT_SUBNET} "
+           f"! --destination {WALT_SUBNET} "
+            "! --dst-type LOCAL "
             "--jump MASQUERADE"
-            % str(get_walt_subnet())
         )
         do("iptables --delete FORWARD --in-interface walt-net --jump WALT")
         do(
