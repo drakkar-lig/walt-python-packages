@@ -7,7 +7,7 @@ from walt.common.formatting import indicate_progress
 from walt.server import conf
 from walt.server.exttools import docker, podman, skopeo
 from walt.server.processes.blocking.images.tools import update_main_process_about_image
-from walt.server.tools import async_json_http_get, get_registry_info, parse_date
+from walt.server.tools import async_json_http_get, parse_date
 
 SKOPEO_RETRIES = 10
 REGISTRY = "docker.io"
@@ -310,9 +310,30 @@ class DockerRegistryV2Client(SkopeoRegistryClient):
             yield res
 
 
-def get_custom_registry_client(label):
-    reg_info = get_registry_info(label)
-    return DockerRegistryV2Client(**reg_info)
+# Jfrog follows the registry v2 API, but:
+# - It may serve one or several image "repositories". In API URLs,
+#   The name of the "repository" corresponds to the user or team who
+#   owns the image in a regular registry v2. You cannot preserve
+#   your user or team name when you are pushing to a given JFrog
+#   "repository".
+# - The user name used for authentication is not used in image URLs.
+# - _catalog is not available at the root (v2/_catalog), only at
+#   v2/<repository>/_catalog
+
+class JFrogRegistryClient(DockerRegistryV2Client):
+    def __init__(self, repository, **kwargs):
+        self._repository = repository
+        super().__init__(**kwargs)
+
+    async def async_catalog(self, requester):
+        async for image_name in self.async_multi_page_registry_v2_query(
+            requester, f"v2/{self._repository}/_catalog", "repositories"
+        ):
+            yield f"{self._repository}/{image_name}"
+
+    def get_fullname_with_remote_user(self, requester, image_fullname):
+        image_user, image_name = image_fullname.split("/")
+        return f"{self._repository}/{image_name}"
 
 
 def get_registry_clients(requester=None):
@@ -327,12 +348,15 @@ def get_registry_clients(requester=None):
             client = DockerHubClient()
         elif api == "docker-registry-v2":
             client = DockerRegistryV2Client(**reg_info)
+        elif api == "jfrog-artifactory":
+            client = JFrogRegistryClient(**reg_info)
         else:
             errstream.write(
                 f"Unknown registry api '{api}' in configuration, ignoring.\n"
             )
             continue
         clients.append((reg_info["label"], client))
+    clients.append(("docker", DockerDaemonClient()))
     return clients
 
 

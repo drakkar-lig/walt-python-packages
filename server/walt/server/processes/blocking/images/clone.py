@@ -9,9 +9,8 @@ from walt.common.formatting import format_sentence
 from walt.server.exttools import docker
 from walt.server.processes.blocking.images.metadata import pull_user_metadata
 from walt.server.processes.blocking.registries import (
-    DockerDaemonClient,
     DockerHubClient,
-    get_custom_registry_client,
+    get_registry_client,
 )
 from walt.server.tools import get_clone_url_locations
 
@@ -225,15 +224,8 @@ def tag_server_image_to_requester(
 
 
 def pull_image(requester, server, remote_location, remote_image_fullname, **args):
-    if remote_location == "hub":
-        hub = DockerHubClient()
-        hub.pull(requester, server, remote_image_fullname)
-    elif remote_location == "docker":
-        docker_daemon = DockerDaemonClient()
-        docker_daemon.pull(requester, server, remote_image_fullname)
-    else:
-        registry = get_custom_registry_client(remote_location)
-        registry.pull(requester, server, remote_image_fullname)
+    registry = get_registry_client(requester, remote_location)
+    registry.pull(requester, server, remote_image_fullname)
 
 
 class WorkflowCleaner:
@@ -340,18 +332,8 @@ def perform_clone(requester, clonable_link, image_store, force, image_name, **kw
             return exit_no_such_image(requester)
         image_info = remote_user_metadata["walt.user.images"][remote_image_fullname]
         labels = image_info["labels"]
-    elif remote_location == "docker":
-        if docker is None:
-            requester.stderr.write("Docker is not available on the server.\n")
-            return ("FAILED",)
-        try:
-            docker_daemon = DockerDaemonClient()
-            labels = docker_daemon.get_labels(requester, remote_image_fullname)
-        except subprocess.CalledProcessError:
-            requester.stderr.write("Error while loading images from Docker.\n")
-            return ("FAILED",)
     else:
-        registry = get_custom_registry_client(remote_location)
+        registry = get_registry_client(requester, remote_location)
         try:
             labels = registry.get_labels(requester, remote_image_fullname)
         except Exception:
