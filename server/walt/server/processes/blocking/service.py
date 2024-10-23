@@ -33,6 +33,8 @@ class CachingRequester:
         credentials = self._remote_requester.get_registry_encrypted_credentials(
             registry_label, dh_peer.pub_key
         )
+        if credentials is None:
+            return None, None
         dh_peer.establish_session(credentials["client_pub_key"])
         symmetric_key = dh_peer.symmetric_key
         cypher = BlowFish(symmetric_key)
@@ -42,7 +44,8 @@ class CachingRequester:
     def ensure_registry_conf_has_credentials(self, registry_label):
         # this is an alias to get_registry_credentials() but we do
         # not need the result
-        self.get_registry_credentials(registry_label)
+        username, password = self.get_registry_credentials(registry_label)
+        return username is not None
 
     @cache
     def get_registry_username(self, registry_label):

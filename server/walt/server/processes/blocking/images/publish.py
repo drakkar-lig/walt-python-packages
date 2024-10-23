@@ -7,7 +7,7 @@ from walt.server.processes.blocking.images.metadata import (
 )
 from walt.server.processes.blocking.registries import (
     DockerHubClient,
-    get_custom_registry_client,
+    get_registry_client,
 )
 
 if typing.TYPE_CHECKING:
@@ -17,20 +17,16 @@ if typing.TYPE_CHECKING:
 # this implements walt image publish
 def publish(requester, server: Server, registry_label, image_fullname, **kwargs):
     try:
+        registry = get_registry_client(requester, registry_label)
+        # push image
+        success = registry.push(requester, image_fullname)
+        # if hub, update user metadata ('walt_metadata' image on user's hub account)
         if registry_label == "hub":
-            # prepare
-            labels = server.images.store[image_fullname].get_labels()
-            # push image
-            registry = DockerHubClient()
-            success = registry.push(requester, image_fullname)
             if success:
-                # update user metadata ('walt_metadata' image on user's hub account)
+                labels = server.images.store[image_fullname].get_labels()
                 update_user_metadata_for_image(
                     requester, registry, image_fullname, labels
                 )
-        else:
-            registry = get_custom_registry_client(registry_label)
-            success = registry.push(requester, image_fullname)
     except Exception:
         requester.stderr.write(
             f"Failed to communicate with {registry_label} registry. Aborted.\n"
