@@ -134,7 +134,8 @@ def main_menu_info(context, regconf, valid):
         options.update({"disable the docker hub registry": (disable_docker_hub,)})
     else:
         options.update({"enable the docker hub registry": (define_docker_hub,)})
-    options.update({"define a custom docker image registry": (define_custom_reg,)})
+    options.update({"connect to a custom docker image registry": (define_custom_reg,)})
+    options.update({"connect to a JFrog Artifactory instance": (define_jfrog_reg,)})
     options.update({"display help page about WalT registries": (show_registries_doc,)})
     if context["initial_regconf"] != regconf:
         options.update({"discard changes": (discard_changes,)})
@@ -156,6 +157,20 @@ def define_custom_reg(context, regconf):
     regconf.append(
         {
             "api": "docker-registry-v2",
+            "description": "Local registry",
+            "port": DEFAULT_PORT,
+            "protocol": DEFAULT_PROTOCOL,
+            "auth": DEFAULT_AUTH,
+        }
+    )
+    select_reg_edit_menu(context, regconf, i, True)
+
+
+def define_jfrog_reg(context, regconf):
+    i = len(regconf)
+    regconf.append(
+        {
+            "api": "jfrog-artifactory",
             "description": "Local registry",
             "port": DEFAULT_PORT,
             "protocol": DEFAULT_PROTOCOL,
@@ -189,21 +204,24 @@ def select_reg_edit_menu(context, regconf, i, is_new):
 
 
 def edit_reg_menu_info(context, regconf, i, is_new):
-    # if we are here, we know we are editing a custom reg, not the hub which
-    # is not editable.
+    # if we are here, we know we are editing a custom reg or a jfrog reg,
+    # not the hub which is not editable.
     reg = regconf[i]
     if is_new:
         reg_name = "New registry"
     else:
         reg_name = '"' + reg["label"] + '"'
     options = {}
-    for k in ("label", "description", "host", "port", "protocol", "auth"):
+    props = ("label", "description", "host", "port", "protocol", "auth")
+    if reg['api'] == 'jfrog-artifactory':
+        props += ("repository",)
+    for k in props:
         verb = "change" if k in reg else "define"
         options.update(
             {f"{reg_name} -- {verb} the {k} property": (define_reg_property, i, k)}
         )
     options.update({f"{reg_name} -- remove it": (remove_custom_reg, i)})
-    if "label" in reg and "host" in reg and "port" in reg:
+    if len(set(props) - set(reg.keys())) == 0:
         # fully defined
         options.update(
             {"Validate and return to main menu": (validate_registry_changes, i)}
@@ -216,8 +234,10 @@ def validate_registry_changes(context, regconf, i):
     # configuration file
     # (note: python dictionaries record the order their entries were inserted)
     reg = regconf[i]
-    for prop in ("label", "api", "description", "host", "port", "protocol", "auth"):
-        reg[prop] = reg.pop(prop)
+    for prop in ("label", "api", "description", "host", "port", "protocol", "auth",
+                 "repository"):
+        if prop in reg:
+            reg[prop] = reg.pop(prop)
     # return to main menu
     select_main_menu(context, regconf)
 
@@ -282,6 +302,16 @@ def define_reg_property(context, regconf, i, k):
                         "none: No user authentication (anonymous access)": "none",
                     },
                 )
+            # the jfrog-repository is handled similarly to a team account
+            # on the docker hub, API-wise.
+            elif k == "repository":  # jfrog-repository (similar to a team account)
+                value = prompt(
+                    "Please indicate the name of the Repository to push/pull to, "
+                    "on this JFrog registry: ", type=str
+                )
+                if len(value) == 0:
+                    print("Invalid entry.")
+                    value = None
             # exit or loop again
             if value is None:
                 print("Note: type ctrl-C to abort.")

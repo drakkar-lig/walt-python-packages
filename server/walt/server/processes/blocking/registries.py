@@ -7,7 +7,7 @@ from walt.common.formatting import indicate_progress
 from walt.server import conf
 from walt.server.exttools import docker, podman, skopeo
 from walt.server.processes.blocking.images.tools import update_main_process_about_image
-from walt.server.tools import async_json_http_get, get_registry_info, parse_date
+from walt.server.tools import async_json_http_get, parse_date
 
 SKOPEO_RETRIES = 10
 REGISTRY = "docker.io"
@@ -310,11 +310,6 @@ class DockerRegistryV2Client(SkopeoRegistryClient):
             yield res
 
 
-def get_custom_registry_client(label):
-    reg_info = get_registry_info(label)
-    return DockerRegistryV2Client(**reg_info)
-
-
 def get_registry_clients(requester=None):
     clients = []
     if requester is None:
@@ -327,6 +322,8 @@ def get_registry_clients(requester=None):
             client = DockerHubClient()
         elif api == "docker-registry-v2":
             client = DockerRegistryV2Client(**reg_info)
+        elif api == "jfrog-artifactory":
+            client = JFrogRegistryClient(**reg_info)
         else:
             errstream.write(
                 f"Unknown registry api '{api}' in configuration, ignoring.\n"
