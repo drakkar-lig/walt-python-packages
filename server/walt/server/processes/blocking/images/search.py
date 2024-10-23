@@ -10,8 +10,7 @@ from walt.server.exttools import docker
 from walt.server.processes.blocking.images.metadata import async_pull_user_metadata
 from walt.server.processes.blocking.registries import (
     DockerDaemonClient,
-    DockerHubClient,
-    DockerRegistryV2Client,
+    get_registry_client,
 )
 from walt.server.tools import async_merge_generators, format_node_models_list
 
@@ -67,23 +66,22 @@ class Search(object):
         if docker is not None:
             generators += [self.async_search_daemon()]
         for reg_info in conf["registries"]:
+            registry = get_registry_client(self.requester, reg_info["label"])
+            if registry is None:  # problem with the configuration (already reported)
+                continue
             api = reg_info["api"]
             if api == "docker-hub":
-                registry = DockerHubClient()
                 generators += [self.async_search_hub(registry)]
-            elif api == "docker-registry-v2":
-                registry = DockerRegistryV2Client(**reg_info)
-                generators += [self.async_search_registry_v2(registry)]
             else:
-                self.requester.stderr.write(
-                    f"Unknown registry api '{api}' in configuration, ignoring."
-                )
-                continue
+                generators += [self.async_search_registry_v2(registry)]
             # First-time logins will require the user to input its credentials,
             # which takes time and may cause unrelated coroutine timeouts if we do that
             # later (when all coroutines will be running concurrently).
             if registry.op_needs_authentication("search"):
-                self.requester.ensure_registry_conf_has_credentials(registry.label)
+                creds_ok = self.requester.ensure_registry_conf_has_credentials(
+                                    registry.label)
+                if not creds_ok:
+                    continue  # ignore this registry
         async for record in async_merge_generators(*generators):
             yield record
 

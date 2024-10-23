@@ -27,7 +27,8 @@ by using `walt image clone <url>`.
 In their default configuration, WalT servers are configured to publish and clone images
 to/from the docker hub at [hub.docker.com](https://hub.docker.com/).
 
-The WalT development team publishes default images for various kinds of WalT nodes there:
+The WalT development team publishes default images for various kinds of WalT nodes there,
+including:
 * `waltplatform/rpi-*-default:latest`: default images for various Raspberry Pi models
 * `waltplatform/pc-x86-64-default:latest`: default image for 64-bit PCs
 * `waltplatform/pc-x86-32-default:latest`: default image for 32-bit PCs
@@ -44,26 +45,39 @@ It is possible to reconfigure WalT to use a local registry instead of the Docker
 or to use both the Docker Hub and a local registry, as described next.
 
 
-## Docker local registry
+## Private registries (Docker registry v2 or JFrog Artifactory)
 
-As an alternative to the Docker Hub, one can install its own docker image registry by using
-the [documented procedure](https://docs.docker.com/registry/deploying/).
+As an alternative to the Docker Hub, one can use a private docker image registry to share
+WALT OS images.
 
-Basically, running this command on a machine equipped with the `docker` engine is enough:
-```
-[registry-machine]$ docker run -d -p 5000:5000 --restart=always --name registry registry:2
-```
+WALT is able to communicate with two kinds of private registries:
+* [vanilla Docker registry v2](https://distribution.github.io/distribution/about/deploying)
+* [JFrog Artifactory with the Docker Registry add-on](https://jfrog.com/integration/docker-registry/)
 
-Host `registry-machine` now has an image registry server listening on port 5000.
+Installing a server holding those private registries is out of scope of
+this documentation, but you can checkout the links above for more information.
 
-WalT can be reconfigured to use this registry server by using:
+One can then reconfigure WalT to interact with such a private registry by using:
 ```
 root@walt-server:~$ walt-server-setup --edit-conf
 ```
 
-A network configuration editor will be displayed first, and the configuration editor
+A network configuration editor appears first, and the configuration editor
 for registries next. Using this configuration editor to declare the new registry server
-available on `registry-machine` should be obvious.
+should be obvious.
+
+When configuring a local registry, a label should be given on the editor interface.
+This label is then used in the clone URL of `walt image search`, `walt image clone`,
+and possibly for the `--registry` option of `walt image publish`.
+For instance, if the label "local" is chosen, then clone URLs of images stored in
+the local registry will be prefixed with `local:`, and one can use
+`walt image publish --registry local <image-name>` to upload an image into this
+local registry.
+
+The Jfrog Artifactory platform is special because a given platform can manage
+several image registries (or "Repository" in JFrog terminology). So obviously
+one has to indicate the target "Repository" name when configuring such a registry
+on WALT.
 
 Using this configuration editor, one might also disable the Docker Hub, but it is not
 recommended, because of the default images stored there.
@@ -75,14 +89,6 @@ As a consequence, disabling the Docker Hub should only be done after all needed 
 images are downloaded (at least one node of each kind could boot at least once), and
 keeping in mind that the WalT server will not be able to manage new kinds of nodes in
 the future, unless a default image is made available for them in the local registry.
-
-When configuring a local registry, a label should be given on the editor interface.
-This label is then used in the clone URL of `walt image search`, `walt image clone`,
-and possibly for the `--registry` option of `walt image publish`.
-For instance, if the label "local" is chosen, then clone URLs of images stored in
-the local registry will be prefixed with `local:`, and one can use
-`walt image publish --registry local <image-name>` to upload an image into this
-local registry.
 
 
 ## Docker daemon on walt server
