@@ -291,14 +291,16 @@ def resolve_new_user():
 def resolve_registry_creds(reg_name):
     if reg_name == "hub":
         creds_name = "Docker hub credentials"
+        password_prompt = "password"
     else:
         creds_name = f'Credentials for access to "{reg_name}" registry'
+        password_prompt = "password (or token)"
     print(f"{creds_name} are missing or invalid. Please enter them below.")
     ensure_group_path(conf_dict, "registries", reg_name)
     while True:
         conf_dict["registries"][reg_name].update(
             username=ask_config_item("username"),
-            password=ask_config_item("password", coded=True),
+            password=ask_config_item(password_prompt, coded=True),
         )
         errors = test_config(reg_name)
         if not any(errors):

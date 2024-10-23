@@ -206,14 +206,6 @@ def add_image_repo(fullname):
         return "docker.io/" + fullname
 
 
-def get_registry_info(label):
-    from walt.server import conf
-
-    for reg_info in conf["registries"]:
-        if reg_info["label"] == label:
-            return reg_info
-
-
 def get_registry_labels():
     from walt.server import conf
 
