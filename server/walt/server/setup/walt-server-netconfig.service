@@ -13,6 +13,7 @@ ConditionPathExists=/etc/walt/server.conf
 
 [Service]
 Type=oneshot
+EnvironmentFile=-/etc/walt/server.env
 StateDirectory=walt
 ExecStart=walt-net-config up
 ExecStop=walt-net-config down

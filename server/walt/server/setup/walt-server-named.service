@@ -10,6 +10,7 @@ ConditionPathExists=/var/lib/walt/services/named/named.conf
 ConditionPathExists=/sys/class/net/walt-net
 
 [Service]
+EnvironmentFile=-/etc/walt/server.env
 RuntimeDirectory=walt/named
 StateDirectory=walt/services/named
 PIDFile=/run/walt/named/named.pid

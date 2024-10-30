@@ -9,5 +9,6 @@ Description=WalT service for Podman containers
 
 [Service]
 # note: socket fd is given by systemd socket activation feature
+EnvironmentFile=-/etc/walt/server.env
 ExecStart=podman system service
 Restart=on-failure

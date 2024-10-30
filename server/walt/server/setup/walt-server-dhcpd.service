@@ -10,6 +10,7 @@ ConditionPathExists=/var/lib/walt/services/dhcpd/dhcpd.conf
 ConditionPathExists=/sys/class/net/walt-net
 
 [Service]
+EnvironmentFile=-/etc/walt/server.env
 RuntimeDirectory=walt/dhcpd
 StateDirectory=walt/services/dhcpd
 PIDFile=/run/walt/dhcpd/dhcpd.pid
