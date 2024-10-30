@@ -21,6 +21,7 @@ ConditionPathExists=/sys/class/net/walt-net
 Type=simple
 Environment=PTPD_BINARY_NAME=ptpd
 Environment=PTPD_STATUS_FILE=/run/walt/ptpd/ptpd.status
+EnvironmentFile=-/etc/walt/server.env
 RuntimeDirectory=walt/ptpd
 StateDirectory=walt/services/ptpd
 ExecStart=walt-server-ptpd

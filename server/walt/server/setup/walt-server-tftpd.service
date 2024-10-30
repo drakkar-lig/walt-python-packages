@@ -17,6 +17,7 @@ Type=forking
 Environment=TFTPD_BINARY_NAME=in.tftpd
 Environment=TFTPD_USER=tftp
 Environment=TFTP_ROOT=/var/lib/walt
+EnvironmentFile=-/etc/walt/server.env
 RuntimeDirectory=walt/tftpd
 StateDirectory=walt/services/tftpd
 PIDFile=/run/walt/tftpd/tftpd.pid
