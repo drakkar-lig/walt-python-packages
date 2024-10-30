@@ -13,6 +13,7 @@ ConditionPathExists=/etc/walt/server.conf
 
 [Service]
 Environment=PYTHONUNBUFFERED=1
+EnvironmentFile=-/etc/walt/server.env
 # After the initialization phase, we will notify systemd
 # that we are started successfully.
 Type=notify
