@@ -351,5 +351,5 @@ def edit_regconf_interactive(regconf):
             action(context, regconf, *action_args)
             if not context["should_continue"]:
                 break
-    print("done")
+    print("\rEntering registries configuration editor... done")
     return regconf
