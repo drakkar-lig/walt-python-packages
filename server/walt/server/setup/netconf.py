@@ -446,7 +446,7 @@ def edit_netconf_interactive(netconf):
             action(context, netconf, *action_args)
             if not context["should_continue"]:
                 break
-    print("done")
+    print("\rEntering network configuration editor... done")
     sanitize_netconf(netconf)
     if is_virtual_only_netconf(netconf):
         print(MESSAGE_VIRTUAL_ONLY)
