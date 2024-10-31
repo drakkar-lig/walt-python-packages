@@ -1,8 +1,7 @@
 import sys
 
-from podman import PodmanClient
+from walt.server.tools import get_podman_client
 
-PODMAN_API_SOCKET = "unix:///run/walt/podman/podman.socket"
 USAGE = """\
 Usage:  $ walt-image-check <image-name-or-id>
 """
@@ -13,7 +12,7 @@ def run():
         print(USAGE)
         sys.exit(2)
     image_name = sys.argv[1]
-    p = PodmanClient(base_url=PODMAN_API_SOCKET)
+    p = get_podman_client()
     data = p.images.get_registry_data(image_name)
     labels = data.attrs["Labels"]
     node_models = []

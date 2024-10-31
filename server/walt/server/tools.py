@@ -484,3 +484,16 @@ def filter_items_with_query_params(items, field_types, query_params):
         value = res[1]
         items = items[items[field] == value]
     return (True, items)
+
+
+def get_podman_client():
+    from walt.server.const import PODMAN_API_SOCK_PATH
+    from podman import PodmanClient
+
+    c = PodmanClient(base_url=f"http+unix://{PODMAN_API_SOCK_PATH}")
+    # When an HTTP_PROXY is defined, requests & urllib3 libraries
+    # wrongly redirect there although it is a UNIX socket!
+    # and the NO_PROXY env seems not taken into account.
+    # The following line works around this issue.
+    c.api.trust_env = False
+    return c

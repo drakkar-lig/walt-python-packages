@@ -5,11 +5,10 @@ from podman import PodmanClient
 from podman.errors.exceptions import ImageNotFound
 from walt.server.exttools import podman
 from walt.server.tools import add_image_repo, format_node_models_list
-from walt.server.tools import parse_date
+from walt.server.tools import parse_date, get_podman_client
 
 MAX_IMAGE_LAYERS = 128
 METADATA_CACHE_FILE = Path("/var/cache/walt/images.metadata")
-PODMAN_API_SOCKET = "unix:///run/walt/podman/podman.socket"
 
 
 def date_to_str_local(dt):
@@ -25,7 +24,7 @@ class WalTLocalRegistry:
 
     def prepare(self):
         self.metadata_cache = self.load_metadata_cache_file()
-        self.p = PodmanClient(base_url=PODMAN_API_SOCKET)
+        self.p = get_podman_client()
         self.scan()
 
     def load_metadata_cache_file(self):
