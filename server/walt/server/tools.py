@@ -84,8 +84,11 @@ async def async_json_http_get(
     import asyncio
     for _ in range(JSON_HTTP_RETRIES):
         aiohttp_timeout = aiohttp.ClientTimeout(total=timeout)
+        # note: trust_env=True ensure any HTTP[S]_PROXY env variable
+        # (most probably in /etc/walt/server.env) is taken into account.
+        session_kwargs = dict(timeout=aiohttp_timeout, trust_env=True)
         try:
-            async with aiohttp.ClientSession(timeout=aiohttp_timeout) as session:
+            async with aiohttp.ClientSession(**session_kwargs) as session:
                 async with session.get(url, ssl=ssl_opt) as response:
                     links = response.links
                     json_body = await response.json()
