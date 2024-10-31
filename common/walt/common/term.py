@@ -7,6 +7,8 @@ import termios
 import tty
 from contextlib import contextmanager
 
+ESC_CLEAR = b"\x1b[2J\x1b[H"
+
 
 class TTYSettings(object):
     def __init__(self):
@@ -36,21 +38,37 @@ class TTYSettings(object):
         return buf
 
 
+def  _run_get_stdout(cmd):
+    from subprocess import run, PIPE
+    return run(cmd, stdout=PIPE, stderr=PIPE, shell=True).stdout
+
+
 @contextmanager
 def alternate_screen_buffer(mouse_wheel_as_arrow_keys=False):
-    sys.stdout.write("\x1b[?1049h")
-    if mouse_wheel_as_arrow_keys:
-        sys.stdout.write("\x1b[?1007h")
+    escape_enter = _run_get_stdout("tput smcup")
+    escape_exit = _run_get_stdout("tput rmcup")
+    if escape_enter == b'' or escape_exit == b'':
+        # the terminal does not support this, just clear
+        escape_enter = ESC_CLEAR
+        escape_exit = ESC_CLEAR
+    else:
+        # the terminal probably also supports alternate scroll mode
+        # (i.e., scroll using the mouse wheel; unfortunately there is
+        # no tput property to check this).
+        if mouse_wheel_as_arrow_keys:
+            escape_enter = escape_enter + b"\x1b[?1007h"
+            escape_exit = b"\x1b[?1007l" + escape_exit
+    # ok let's go
+    sys.stdout.buffer.write(escape_enter)
     sys.stdout.flush()
     yield
-    if mouse_wheel_as_arrow_keys:
-        sys.stdout.write("\x1b[?1007l")
-    sys.stdout.write("\x1b[?1049l")
+    sys.stdout.buffer.write(escape_exit)
     sys.stdout.flush()
 
 
 def clear_screen():
-    sys.stdout.write("\x1b[2J\x1b[H")
+    sys.stdout.buffer.write(ESC_CLEAR)
+    sys.stdout.flush()
 
 
 NORMAL = "\x1b[0m"
