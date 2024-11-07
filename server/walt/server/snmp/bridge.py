@@ -1,14 +1,14 @@
 #!/usr/bin/env python
 from collections import defaultdict
 
-from walt.server.processes.blocking.snmp.base import (
+from walt.server.snmp.base import (
     Variant,
     VariantProxy,
     VariantsSet,
     decode_mac_address,
     enum_label,
 )
-from walt.server.processes.blocking.snmp.mibs import load_mib, unload_mib
+from walt.server.snmp.mibs import load_mib, unload_mib
 
 
 class VLANCapableBridge(Variant):
