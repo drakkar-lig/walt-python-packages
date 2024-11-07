@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 from snimpy.manager import Manager
 from walt.server import const
-from walt.server.processes.blocking.snmp.bridge import BridgeProxy
-from walt.server.processes.blocking.snmp.lldp import LLDPProxy
-from walt.server.processes.blocking.snmp.poe import PoEProxy
+from walt.server.snmp.bridge import BridgeProxy
+from walt.server.snmp.lldp import LLDPProxy
+from walt.server.snmp.poe import PoEProxy
 
 SNMP_OPTS = {"retries": 2, "timeout": const.SNMP_TIMEOUT, "cache": True}
 
