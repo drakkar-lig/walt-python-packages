@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import re
 
-from walt.server.processes.blocking.snmp.base import (
+from walt.server.snmp.base import (
     Variant,
     VariantProxy,
     VariantsSet,
@@ -9,7 +9,7 @@ from walt.server.processes.blocking.snmp.base import (
     decode_mac_address,
     enum_label,
 )
-from walt.server.processes.blocking.snmp.mibs import load_mib, unload_mib
+from walt.server.snmp.mibs import load_mib, unload_mib
 
 
 class StandardLLDP(Variant):

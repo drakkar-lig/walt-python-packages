@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 from collections import defaultdict
-from walt.server.processes.blocking.snmp.base import Variant, VariantProxy, VariantsSet
-from walt.server.processes.blocking.snmp.mibs import (
+from walt.server.snmp.base import Variant, VariantProxy, VariantsSet
+from walt.server.snmp.mibs import (
     get_loaded_mibs,
     load_mib,
     unload_mib,

@@ -5,4 +5,4 @@ include walt/server/processes/main/vpn-proxy-setup.sh
 include walt/server/setup/*.service
 include walt/server/setup/*.socket
 include walt/server/setup/conmon.gz
-include walt/server/processes/blocking/snmp/mibs/*.mib
+include walt/server/snmp/mibs/*.mib
