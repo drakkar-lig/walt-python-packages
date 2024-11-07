@@ -4,11 +4,10 @@ from collections import defaultdict
 
 from snimpy.snmp import SNMPException
 from walt.common.formatting import format_sentence, human_readable_delay
-from walt.server import const
-from walt.server.processes.blocking import snmp
+from walt.server import const, snmp
 from walt.server.processes.blocking.devices.grouper import Grouper
 from walt.server.processes.blocking.devices.tree import Tree
-from walt.server.processes.blocking.snmp import NoSNMPVariantFound
+from walt.server.snmp import NoSNMPVariantFound
 from walt.server.tools import get_server_ip, ip_in_walt_adm_network, ip_in_walt_network
 
 NOTE_EXPLAIN_UNREACHABLE = (
