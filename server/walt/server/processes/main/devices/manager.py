@@ -169,7 +169,8 @@ class DevicesManager(object):
             else:
                 return device_info[min_fields]
 
-    def get_multiple_device_info(self, where_sql, where_values, sortby=None):
+    def get_multiple_device_info(self, where_sql, where_values,
+                                 sortby=None, include_connectivity=False):
         # gateway, netmask and booted flag will be filled below,
         # for now this sql query just reserve a column for these attributes.
         sql = f"""
@@ -181,6 +182,55 @@ class DevicesManager(object):
         LEFT JOIN nodes n ON d.mac = n.mac
         LEFT JOIN switches s ON d.mac = s.mac
         WHERE {where_sql}"""
+        # if requested, we will add columns indicating the location
+        # of the device in the network.
+        # we look into table topology for records where mac1 or mac2
+        # equals a given device mac.
+        # our result will have the following columns added:
+        # - fields "sw_*" describing the switch the device
+        #   is connected on
+        # - field "sw_port" indicating the switch port the device
+        #   is connected on
+        # - field "poe_error" with value NULL or an error string
+        #   indicating why a PoE request is not possible
+        # cte2 and cte3 allow to filter out cases where a device has
+        # multiple connection points in the topology table (this may occur
+        # because of an internal switch cache, when we move a device
+        # from one network position to another), preferring any
+        # position with flag confirmed=True.
+        if include_connectivity:
+            sql = f"""
+            with cte0 as (
+                {sql}),
+            cte1 as (
+                select mac1 as mac, mac2 as sw_mac, port2 as sw_port, confirmed
+                from topology, cte0
+                where mac1 = cte0.mac
+                union
+                select mac2 as mac, mac1 as sw_mac, port1 as sw_port, confirmed
+                from topology, cte0
+                where mac2 = cte0.mac),
+            cte2 as (
+                select *,
+                    ROW_NUMBER() OVER(
+                        PARTITION BY mac ORDER BY confirmed desc, mac) as rownum
+                from cte1),
+            cte3 as (
+                select * from cte2 where rownum = 1
+            )
+            select d.*,
+                   t.sw_mac, t.sw_port,
+                   sw_d.ip as sw_ip,
+                   sw_d.conf->'snmp.version' as sw_snmp_version,
+                   sw_d.conf->'snmp.community' as sw_snmp_community,
+                   CASE WHEN t.sw_port is NULL OR sw_d.ip is NULL
+                          THEN 'unknown LLDP network position'
+                        WHEN not COALESCE((sw_d.conf->'poe.reboots')::bool, false)
+                          THEN 'forbidden on switch'
+                   END as poe_error
+            from cte0 d
+            left join cte3 t on t.mac = d.mac
+            left join devices sw_d on sw_d.mac = t.sw_mac"""
         devices_info = self.db.execute(sql, where_values)
         if devices_info.size > 0:
             nodes_mask = (devices_info.type == 'node')
@@ -379,12 +429,24 @@ class DevicesManager(object):
                     "No matching devices found! (tip: walt help show node-ownership)\n"
                 )
                 return None
-            else:
-                where_sql = "false"
+        return self.get_multiple_device_info_for_macs(device_macs, sortby="name")
+
+    def get_multiple_device_info_for_macs(self, device_macs, **kwargs):
+        if len(device_macs) == 0:
+            where_sql = "false"
         else:
             where_sql = "d.mac IN (" + ",".join(["%s"] * len(device_macs)) + ")"
-        return self.get_multiple_device_info(
-                    where_sql, device_macs, sortby="name")
+        return self.get_multiple_device_info(where_sql, device_macs, **kwargs)
+
+    def ensure_connectivity_info(self, devices):
+        if isinstance(devices, np.recarray):
+            if 'sw_mac' in devices.dtype.names:
+                return devices  # connectivity info is already there
+            device_macs = devices.mac
+        else:
+            device_macs = tuple(d.mac for d in devices)
+        return self.get_multiple_device_info_for_macs(
+                    device_macs, include_connectivity=True)
 
     def get_device_set_macs(self, requester, device_set):
         device_macs = []
@@ -426,15 +488,6 @@ class DevicesManager(object):
         if devices is None:
             return None
         return self.as_device_set(d.name for d in devices)
-
-    def get_multiple_connectivity_info(self, device_macs):
-        assert len(device_macs) > 0
-        arr = self.db.get_multiple_connectivity_info(device_macs)
-        sw_info_fields = set(arr.dtype.names) - {"device_mac", "port"}
-        sw_infos = arr[list(sw_info_fields)]
-        sw_info_it = (None if sw_info.mac is None else sw_info for sw_info in sw_infos)
-        it = zip(arr.device_mac, sw_info_it, arr.port)
-        return {mac: (sw_info, sw_port) for (mac, sw_info, sw_port) in it}
 
     def prepare_netsetup(self):
         # force-create the chain WALT and assert it is empty
