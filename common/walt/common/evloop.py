@@ -50,19 +50,27 @@ class PIDListener:
 
 # This object allows to implement ev_loop.do(<cmd>, <callback>)
 class ProcessListener:
-    def __init__(self, cmd, callback, silent):
+    def __init__(self, cmd, callback, silent, catch_stdout, catch_stderr):
         self._cmd = cmd
         self._callback = callback
         self._silent = silent
+        self._catch_stdout = catch_stdout
+        self._catch_stderr = catch_stderr
         self._popen = None
         self._pidfd = None
 
     def start(self):
-        if self._silent:
+        if self._catch_stdout:
+            stdout = PIPE
+        elif self._silent:
             stdout = DEVNULL
         else:
             stdout = None   # no redirection, print to parent stdout
-        self._popen = Popen(self._cmd, stdout=stdout, shell=True)
+        if self._catch_stderr:
+            stderr = PIPE
+        else:
+            stderr = None   # no redirection, print to parent stdout
+        self._popen = Popen(self._cmd, stdout=stdout, stderr=stderr, shell=True)
         self._pidfd = os.pidfd_open(self._popen.pid, 0)
 
     def fileno(self):
@@ -76,7 +84,12 @@ class ProcessListener:
         os.close(self._pidfd)
         retcode = self._popen.wait()
         if self._callback is not None:
-            self._callback(retcode)
+            kwargs = {}
+            if self._catch_stdout:
+                kwargs.update(stdout_msg=self._popen.stdout.read())
+            if self._catch_stderr:
+                kwargs.update(stderr_msg=self._popen.stderr.read())
+            self._callback(retcode, **kwargs)
 
 
 class PollersCache:
@@ -338,8 +351,9 @@ class EventLoop(object):
         # print(f'__DEBUG__ {current_process().name} end depth={self.recursion_depth}')
         self.recursion_depth -= 1
 
-    def do(self, cmd, callback=None, silent=True):
-        p = ProcessListener(cmd, callback, silent)
+    def do(self, cmd, callback=None, silent=True,
+           catch_stdout=False, catch_stderr=False):
+        p = ProcessListener(cmd, callback, silent, catch_stdout, catch_stderr)
         p.start()
         self.register_listener(p)
 

@@ -240,14 +240,6 @@ class ServerDB(PostgresDB):
         return self.create_server_cursor(sql, args)
 
     def get_multiple_connectivity_info(self, device_macs):
-        # we look for records where mac1 or mac2 equals device_mac.
-        # we return a numpy table with fields "device_mac", "port",
-        # and other fields describing the switch.
-        # cte2 allows to filter out cases where a device has multiple
-        # connection points in the topology table (this may occur
-        # because of an internal switch cache, when we move a device
-        # from one network position to another), preferring any
-        # position with flag confirmed=True.
         row_values_placeholder = ",".join(["(%s)"] * len(device_macs))
         return self.execute(f"""
             with cte0 as (
@@ -265,10 +257,20 @@ class ServerDB(PostgresDB):
                     ROW_NUMBER() OVER(
                         PARTITION BY device_mac ORDER BY confirmed desc, device_mac)
                     AS rownum from cte1)
-            select t.device_mac, t.port, d.*, s.model
+            select dev_d.mac as dev_mac, dev_d.name as dev_name,
+                   sw_d.mac as sw_mac, t.port as sw_port,
+                   sw_d.ip as sw_ip,
+                   sw_d.conf->'snmp.version' as sw_snmp_version,
+                   sw_d.conf->'snmp.community' as sw_snmp_community,
+                   CASE WHEN sw_d.ip is NULL OR t.port is NULL
+                          THEN 'unknown LLDP network position'
+                        WHEN not COALESCE((sw_d.conf->'poe.reboots')::bool, false)
+                          THEN 'forbidden on switch'
+                   END as poe_error
             from cte2 t
             left join switches s on s.mac = t.mac
-            left join devices d on d.mac = s.mac
+            left join devices sw_d on sw_d.mac = s.mac
+            left join devices dev_d on dev_d.mac = t.device_mac
             where rownum = 1""", device_macs)
 
     def count_logs(self, **kwargs):
@@ -367,21 +369,24 @@ class ServerDB(PostgresDB):
                     GROUP BY i.fullname;"""
         return self.execute(sql)
 
-    def record_poe_port_status(self, sw_mac, sw_port, poe_status, reason=None):
+    def record_poe_ports_status(self, sw_ports_info, poe_status, reason=None):
         if poe_status is True:  # poe on
-            self.execute(
+            self.c.executemany(
                 """DELETE FROM poeoff
                                    WHERE mac = %s
                                      AND port = %s;""",
-                (sw_mac, sw_port),
+                sw_ports_info[["sw_mac", "sw_port"]],
             )
         else:  # poe off
             assert reason is not None
-            self.execute(
-                """INSERT INTO poeoff
-                            VALUES (%s, %s, %s);""",
-                (sw_mac, sw_port, reason),
-            )
+            arr = np.empty(sw_ports_info.size,
+                           dtype=[("sw_mac", object),
+                                  ("sw_port", object),
+                                  ("reason", object)]).view(np.recarray)
+            arr[["sw_mac", "sw_port"]] = sw_ports_info[["sw_mac", "sw_port"]]
+            arr["reason"] = reason
+            psycopg2.extras.execute_values(self.c,
+                    """INSERT INTO poeoff VALUES %s;""", arr)
         self.commit()
 
     def get_poe_off_macs(self, reason=None):

@@ -32,6 +32,7 @@ from walt.server.processes.main.transfer import (
 )
 from walt.server.processes.main.unix import UnixSocketServer
 from walt.server.processes.main.vpn import VPNManager
+from walt.server.processes.main.poe import PoEManager
 from walt.server.processes.main.workflow import Workflow
 
 KVM_DEV_FILE = Path("/dev/kvm")
@@ -60,6 +61,7 @@ class Server(object):
         self.port_settings = PortSettingsManager(server=self)
         self.vpn = VPNManager()
         self.expose = ExposeManager(server=self)
+        self.poe = PoEManager(server=self)
 
     def prepare(self):
         self.logs.prepare()
@@ -86,7 +88,7 @@ class Server(object):
         # mount images needed
         self.images.update(startup=True)
         # enable PoE if some ports remained off
-        self.blocking.restore_poe_on_all_ports()
+        self.poe.restore_poe_on_all_ports()
         # restores nodes setup
         self.nodes.restore()
         # restore permanent expose sockets
@@ -202,16 +204,29 @@ class Server(object):
         # will not be available right now
         task.set_async()
 
-        # function that will be called when blocking process has done the job
-        def cb(res):
-            self.dhcpd.update()
-            self.named.update()
-            tftp.update(self.db, self.images.store)
-            task.return_result(res)
+        # 1. restore poe on switch ports
+        # 2. let the blocking process do its job
+        # 3. update network daemons and unblock the client
+        wf = Workflow([self.poe.wf_rescan_restore_poe_on_switch_ports,
+                       self._wf_device_rescan_blocking,
+                       self._wf_device_rescan_end])
+        wf.update_env(requester=requester,
+                      devices=devices,
+                      remote_ip=remote_ip,
+                      task=task)
+        wf.run()
 
+    def _wf_device_rescan_blocking(self, wf, requester, remote_ip, devices, **env):
         self.blocking.rescan_topology(
-            requester, cb, remote_ip=remote_ip, devices=devices
+            requester, wf.next, remote_ip=remote_ip, devices=devices
         )
+
+    def _wf_device_rescan_end(self, wf, res, task, **env):
+        self.dhcpd.update()
+        self.named.update()
+        tftp.update(self.db, self.images.store)
+        task.return_result(res)
+        wf.next()   # end the workflow
 
     def forget_device(self, requester, task, device_name):
         device = self.devices.get_device_info(requester, device_name)
