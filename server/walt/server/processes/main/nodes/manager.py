@@ -47,6 +47,7 @@ CMD_START_VNODE = (
 
 class NodesManager(object):
     def __init__(self, server):
+        self.server = server
         self.db = server.db
         self.devices = server.devices
         self.logs = server.logs
@@ -304,6 +305,7 @@ class NodesManager(object):
         if reset_boot_retries:
             self.status_manager.reset_boot_retries(nodes)
         reboot_nodes(
+            server=self.server,
             nodes_manager=self,
             blocking=self.blocking,
             ev_loop=self.ev_loop,
