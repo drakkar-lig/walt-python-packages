@@ -92,6 +92,7 @@ setup_info = {
             "walt-annotate-cmd = walt.server.annotatecmd:run",
             "walt-image-mount = walt.server.mount.mount:run",
             "walt-image-umount = walt.server.mount.umount:run",
+            "walt-set-poe = walt.server.snmp.run:walt_set_poe",
         ]
     },
     "include_package_data": True,

@@ -1,3 +1,5 @@
+import numpy as np
+
 from collections import defaultdict
 from time import time
 
@@ -120,22 +122,10 @@ def wf_client_hard_reboot(wf, requester, remaining_nodes, nodes_manager, reboot_
     wf.next()
 
 
-def wf_filter_poe_rebootable(wf, nodes_manager, remaining_nodes, **env):
-    hardreboot_errors = {}
-    connectivity = nodes_manager.devices.get_multiple_connectivity_info(
-            tuple(node.mac for node in remaining_nodes))
-    for node in remaining_nodes.copy():
-        sw_info, sw_port = connectivity.get(node.mac, (None, None))
-        if sw_info is not None and sw_port is not None:
-            if sw_info.conf.get("poe.reboots", False) is True:
-                pass  # ok, allowed
-            else:
-                hardreboot_errors[node.name] = "forbidden on switch"
-                remaining_nodes.remove(node)
-        else:
-            hardreboot_errors[node.name] = "unknown LLDP network position"
-            remaining_nodes.remove(node)
-    wf.update_env(hardreboot_errors=hardreboot_errors)
+def wf_filter_poe_rebootable(wf, server, remaining_nodes, **env):
+    nodes_ok, _, errors = server.poe.filter_poe_rebootable(remaining_nodes)
+    wf.update_env(remaining_nodes=nodes_ok,
+                  hardreboot_errors=errors)
     wf.next()
 
 
@@ -147,15 +137,15 @@ def wf_poe_reboot(
         wf.update_env(hardrebooted=[])
         wf.next()
         return
-    not_already_off, already_off = [], []
     off_macs = db.get_poe_off_macs()
-    for node in remaining_nodes:
-        if node.mac in off_macs:
-            already_off.append(node)
-        else:
-            not_already_off.append(node)
+    already_off_mask = np.isin(remaining_nodes.mac, list(off_macs))
+    already_off = remaining_nodes[already_off_mask]
+    not_already_off = remaining_nodes[~already_off_mask]
+    powered_off = remaining_nodes[:0]  # empty set for now
     wf.update_env(
-        not_already_off=not_already_off, already_off=already_off, powered_off=[]
+        not_already_off=not_already_off,
+        already_off=already_off,
+        powered_off=powered_off
     )
     if len(not_already_off) > 0:
         wf.insert_steps(
@@ -171,38 +161,48 @@ def wf_poe_reboot(
     wf.next()
 
 
-def wf_poe_poweroff(wf, ev_loop, blocking, not_already_off, hardreboot_errors,
-                    nodes_manager, reboot_cause, **env):
-    blocking.nodes_set_poe(wf.next, not_already_off, False, "hard-reboot")
-    nodes_manager.change_nodes_bootup_status(
-        nodes=not_already_off, booted=False,
-        cause=reboot_cause, method="PoE hard-reboot")
+def wf_poe_poweroff(wf, not_already_off, server, **env):
+    wf.insert_steps([server.poe.wf_nodes_set_poe])
+    wf.update_env(nodes=not_already_off,
+                  poe_status=False,  # off
+                  reason="hard-reboot")
+    wf.next()
 
 
-def wf_poe_after_poweroff(wf, poweroff_result, ev_loop, hardreboot_errors, **env):
-    powered_off, in_hardreboot_errors = poweroff_result
-    hardreboot_errors.update(**in_hardreboot_errors)
-    wf.update_env(powered_off=powered_off)
-    timeout_at = time() + POE_REBOOT_DELAY
-    ev_loop.plan_event(ts=timeout_at, callback=wf.next)
-
-
-def wf_poe_poweron(
-    wf, ev_loop, blocking, already_off, powered_off, hardreboot_errors, **env
-):
-    all_off = already_off + powered_off
-    if len(all_off) > 0:
-        blocking.nodes_set_poe(wf.next, all_off, True)
+def wf_poe_after_poweroff(wf, ev_loop, nodes_manager, hardreboot_errors,
+                          nodes_ok, poe_errors, reboot_cause, **env):
+    hardreboot_errors.update(**poe_errors)
+    wf.update_env(powered_off=nodes_ok)
+    if len(nodes_ok) > 0:
+        nodes_manager.change_nodes_bootup_status(
+            nodes=nodes_ok, booted=False,
+            cause=reboot_cause, method="PoE hard-reboot")
+        timeout_at = time() + POE_REBOOT_DELAY
+        ev_loop.plan_event(ts=timeout_at, callback=wf.next)
     else:
-        wf.update_env(poweron_result=([], {}))
         wf.next()
 
 
-def wf_poe_after_poweron(wf, poweron_result, hardreboot_errors, nodes_manager, **env):
-    powered_on, in_hardreboot_errors = poweron_result
-    nodes_manager.record_nodes_boot_start(powered_on)
-    hardreboot_errors.update(**in_hardreboot_errors)
-    wf.update_env(hardrebooted=[n.name for n in powered_on])
+def wf_poe_poweron(wf, ev_loop, server, already_off, powered_off,
+                   hardreboot_errors, **env):
+    all_off = np.concatenate((already_off, powered_off)).view(np.recarray)
+    if len(all_off) > 0:
+        wf.insert_steps([server.poe.wf_nodes_set_poe])
+        wf.update_env(nodes=all_off,
+                      poe_status=True,  # on
+                      reason=None)
+        wf.next()
+    else:
+        wf.update_env(nodes_ok=[], poe_errors={})
+        wf.next()
+
+
+def wf_poe_after_poweron(wf, nodes_manager,
+                         hardreboot_errors, nodes_ok, poe_errors, **env):
+    if len(nodes_ok) > 0:
+        nodes_manager.record_nodes_boot_start(nodes_ok)
+    hardreboot_errors.update(**poe_errors)
+    wf.update_env(hardrebooted=[n.name for n in nodes_ok])
     wf.next()
 
 

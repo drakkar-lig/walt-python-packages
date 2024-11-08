@@ -118,9 +118,6 @@ class BlockingTasksContextService:
     def topology_tree(self, *args, **kwargs):
         return self.topology.tree(self.requester, self.server, self.db, *args, **kwargs)
 
-    def nodes_set_poe(self, *args, **kwargs):
-        return self.topology.nodes_set_poe(self.server, self.db, *args, **kwargs)
-
     def restore_poe_on_all_ports(self):
         return self.topology.restore_poe_on_all_ports(self.server, self.db)
 

@@ -1,4 +1,7 @@
+import functools
+import numpy as np
 import sys
+
 
 class Workflow:
     _next_id = 0
@@ -85,6 +88,20 @@ class Workflow:
     def insert_parallel_steps(self, steps):
         self.update_env(_parallel_steps = steps)
         self.insert_steps([self._wf_run_parallel_steps])
+
+    @staticmethod
+    def _mapped_parallel_step(f, f_args, wf, **env):
+        # notes:
+        # * arguments (f, f_args) are given in advance
+        #   by the partial() function (see below).
+        # * arguments (wf, **env) are added when called
+        #   by self.next()
+        f(wf, *f_args, **env)
+
+    def map_as_parallel_steps(self, f, *f_args):
+        partial = functools.partial(functools.partial, self._mapped_parallel_step, f)
+        steps = list(map(partial, zip(*f_args)))
+        self.insert_parallel_steps(steps)
 
     def continue_after_other_workflow(self, other_wf):
         #print("continue_after_other_workflow")

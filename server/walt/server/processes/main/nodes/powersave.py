@@ -55,10 +55,8 @@ class PowersaveManager:
             self._next_check = None  # notify concurrent code that this check is done
             self._plan_check()  # plan next one
         else:
-            nodes_to_be_turned_off = [
-                self.server.db.select_unique("devices", mac=mac)
-                for mac in macs_to_be_turned_off
-            ]
+            to_be_turned_off = self.server.devices.get_multiple_device_info_for_macs(
+                    macs_to_be_turned_off, include_connectivity=True)
             wf = Workflow(
                 [
                     self._wf_toggle_power_on_nodes,
@@ -66,7 +64,7 @@ class PowersaveManager:
                     self._wf_recurse_check,
                 ],
                 requester=None,
-                poe_toggle_nodes=nodes_to_be_turned_off,
+                poe_toggle_nodes=to_be_turned_off,
                 poe_toggle_value=False,
             )
             wf.run()
@@ -79,40 +77,31 @@ class PowersaveManager:
     def _wf_toggle_power_on_nodes(
         self, wf, requester, poe_toggle_nodes, poe_toggle_value, **env
     ):
-        connectivity = self.server.devices.get_multiple_connectivity_info(
-            tuple(node.mac for node in poe_toggle_nodes))
-        for node in poe_toggle_nodes.copy():
-            sw_info, sw_port = connectivity.get(node.mac, (None, None))
-            if (sw_info is not None and sw_port is not None and
-                    sw_info.conf.get("poe.reboots", False) is True):
-                pass  # ok, allowed
-            else:  # unknown network position or forbidden on switch
-                poe_toggle_nodes.remove(node)
+        nodes_ok, nodes_ko, _ = self.server.poe.filter_poe_rebootable(poe_toggle_nodes)
+        if len(nodes_ko) > 0:
+            for node in nodes_ko:
                 # retry after a new powersave timeout delay
                 self._reset_node_mac_poweroff_timeout(node.mac)
-        if len(poe_toggle_nodes) > 0:
-            self.server.blocking.nodes_set_poe(
-                wf.next, poe_toggle_nodes, poe_toggle_value, "powersave"
-            )
+        wf.update_env(poe_toggle_nodes=nodes_ok)
+        if len(nodes_ok) > 0:
+            wf.insert_steps([self.server.poe.wf_nodes_set_poe])
+            wf.update_env(nodes=nodes_ok,
+                          poe_status=poe_toggle_value,
+                          reason="powersave")
+            wf.next()
         else:
-            wf.update_env(poe_toggle_result=([], {}))
+            wf.update_env(nodes_ok=poe_toggle_nodes[:0],  # none
+                          poe_errors={})
             wf.next()
 
-    def _wf_after_toggle_power_on_nodes(
-        self,
-        wf,
-        poe_toggle_result,
-        poe_toggle_nodes,
-        poe_toggle_value,
-        requester,
-        **env,
-    ):
-        toggled, error_per_name = poe_toggle_result
-        if len(error_per_name) > 0:
+    def _wf_after_toggle_power_on_nodes(self, wf, nodes_ok, poe_errors,
+                                        poe_toggle_nodes, poe_toggle_value,
+                                        requester, **env):
+        if len(poe_errors) > 0:
             verb = "reactivate" if poe_toggle_value is True else "turn off"
             node_per_name = {n.name: n for n in poe_toggle_nodes}
             per_error = defaultdict(list)
-            for node_name, error in error_per_name.items():
+            for node_name, error in poe_errors.items():
                 per_error[error].append(node_name)
                 # retry after a new powersave timeout delay
                 node_mac = node_per_name[node_name].mac
@@ -126,12 +115,13 @@ class PowersaveManager:
                 else:
                     self.server.logs.platform_log(
                             "powersave.error", line=sentence, error=True)
-        if poe_toggle_value is True:
-            self.server.nodes.record_nodes_boot_start(toggled)
-        else:
-            self.server.nodes.change_nodes_bootup_status(
-                nodes=toggled, booted=False,
-                cause="powersave", method="PoE")
+        if len(nodes_ok) > 0:
+            if poe_toggle_value is True:
+                self.server.nodes.record_nodes_boot_start(nodes_ok)
+            else:
+                self.server.nodes.change_nodes_bootup_status(
+                    nodes=nodes_ok, booted=False,
+                    cause="powersave", method="PoE")
         self._plan_check()
         wf.next()
 

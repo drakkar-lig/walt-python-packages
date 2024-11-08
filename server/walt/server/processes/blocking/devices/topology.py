@@ -48,12 +48,6 @@ MSG_UNKNOWN_TOPOLOGY = """\
 Sorry, topology is unknown. Ensure a switch is connected to server \
 (on walt-net interface) and run "walt device rescan".
 """
-WARNING_DEVICE_RESCAN_POE_OFF = """\
-NOTE: WALT previously turned off PoE on some switch ports for automatic powersaving.
-NOTE: This command will re-enable PoE on these ports.
-NOTE: However, devices connected there may not be re-detected before a little time.
-NOTE: Re-running a scan in 10 minutes may give better results.
-"""
 
 
 def format_explanation(item_type, items):
@@ -747,9 +741,6 @@ class TopologyManager(object):
         # update self.last_scan
         self.last_scan = time.time()
 
-        # restore poe on switch ports
-        self.rescan_restore_poe_on_switch_ports(requester, server, db, devices)
-
         # explore the network equipments
         lldp_topology, bridge_topology = self.collect_devices(
             requester, server, devices
@@ -850,83 +841,3 @@ class TopologyManager(object):
             port_names,
             show_all,
         )
-
-    def sw_port_set_poe(self, db, switch_info, switch_port, poe_status, reason=None):
-        snmp_conf = {
-            "version": switch_info.conf.get("snmp.version"),
-            "community": switch_info.conf.get("snmp.community"),
-        }
-        try:
-            proxy = snmp.Proxy(switch_info.ip, snmp_conf, poe=True)
-            # before trying to turn PoE power off, check if this switch port
-            # is actually delivering power (the node may be connected to a
-            # PoE capable switch, but powered by an alternate source).
-            if poe_status is False:
-                if proxy.poe.check_poe_enabled(
-                    switch_port
-                ) and not proxy.poe.check_poe_in_use(switch_port):
-                    return False, "node seems not PoE-powered"
-            # turn poe power on or off
-            proxy.poe.set_port(switch_port, poe_status)
-            # record the change in database
-            db.record_poe_port_status(switch_info.mac, switch_port, poe_status, reason)
-            # confirm success to caller
-            return (True,)
-        except SNMPException:
-            return False, "SNMP issue"
-        except Exception as e:
-            return False, e.__class__.__name__
-
-    def nodes_set_poe(self, server, db, nodes, poe_status, reason=None):
-        # turning off a PoE port without giving a reason is not allowed
-        assert not (poe_status is False and reason is None)
-        assert len(nodes) > 0
-        nodes_ok, errors = [], {}
-        # we have to know on which PoE switch port each node is
-        connectivity = server.devices.get_multiple_connectivity_info(
-            tuple(node.mac for node in nodes))
-        for node in nodes:
-            switch_info, switch_port = connectivity[node.mac]
-            # let's request the switch to enable or disable the PoE
-            result = self.sw_port_set_poe(
-                db, switch_info, switch_port, poe_status, reason=reason
-            )
-            if result[0] is True:
-                # validate this node
-                nodes_ok.append(node)
-            else:
-                errors[node.name] = result[1]
-        return nodes_ok, errors
-
-    def restore_poe_on_all_ports(self, server, db):
-        for sw_port_info in db.execute("""SELECT d.*, po.port
-                                   FROM devices d, poeoff po
-                                   WHERE d.mac = po.mac;"""):
-            result = self.sw_port_set_poe(db, sw_port_info, sw_port_info.port, True)
-            if result[0] is False:
-                print(
-                    "WARNING: Failed to restore PoE on switch "
-                    + f"{sw_port_info.name} port {sw_port_info}!\n"
-                )
-
-    def rescan_restore_poe_on_switch_ports(self, requester, server, db, devices):
-        first_one = False
-        device_macs = tuple(d.mac for d in devices)
-        for sw_port_info in db.execute(
-            """SELECT d.*, po.port
-                                          FROM devices d, poeoff po
-                                          WHERE d.mac = po.mac
-                                            AND d.mac IN %s;""",
-            (device_macs,),
-        ):
-            if first_one is False:
-                first_one = True
-                requester.stdout.write(WARNING_DEVICE_RESCAN_POE_OFF)
-            result = self.sw_port_set_poe(db, sw_port_info, sw_port_info.port, True)
-            if result[0] is False:
-                requester.stderr.write(
-                    "WARNING: Failed to restore PoE on switch "
-                    + f"{sw_port_info.name} port {sw_port_info}!\n"
-                )
-        if first_one:  # at least one change
-            server.nodes.powersave.handle_event("rescan_restore_poe")
