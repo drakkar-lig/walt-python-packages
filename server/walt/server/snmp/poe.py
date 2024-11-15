@@ -1,5 +1,8 @@
 #!/usr/bin/env python
+import functools
+
 from collections import defaultdict
+from walt.server.diskcache import DISK_CACHE
 from walt.server.snmp.base import Variant, VariantProxy, VariantsSet
 from walt.server.snmp.mibs import (
     get_loaded_mibs,
@@ -224,7 +227,9 @@ POE_VARIANTS = VariantsSet("PoE SNMP requests", (TPLinkPoE, StandardPoE, Netgear
 class PoEProxy(VariantProxy):
     def __init__(self, snmp_proxy, host):
         VariantProxy.__init__(self, snmp_proxy, host, POE_VARIANTS)
-        self.port_mapping = self.variant.get_poe_port_mapping(snmp_proxy, host)
+        cache_key = ("poe-port-mapping", host)
+        partial = functools.partial(self.variant.get_poe_port_mapping, snmp_proxy, host)
+        self.port_mapping = DISK_CACHE.get(cache_key, partial)
 
     def check_poe_enabled(self, switch_port):
         return self.variant.check_poe_enabled(self.snmp, self.port_mapping, switch_port)
