@@ -12,7 +12,7 @@ setup_info = {
     "name": "walt-server",
     "version": "9.0",
     "install_requires": [
-        "aiohttp==3.10.2",
+        "aiohttp==3.10.11",
         "aiosignal==1.3.1",
         "aiostream==0.5.2",
         "attrs==23.2.0",
