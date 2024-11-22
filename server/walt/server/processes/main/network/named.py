@@ -3,6 +3,7 @@ import time, re
 from pathlib import Path
 
 from walt.server.processes.main.network.service import ServiceRestarter
+from walt.server.processes.main.network.service import async_systemd_service_restart_cmd
 from walt.server.tools import get_dns_servers, get_server_ip, get_walt_subnet, ip
 
 NAMED_STATE_DIR = Path("/var/lib/walt/services/named")
@@ -195,8 +196,9 @@ FROM q1;
 class DNSServer:
     def __init__(self, db, ev_loop):
         self.db = db
-        self.restarter = ServiceRestarter(ev_loop,
-                "named", "walt-server-named.service", allow_reload=True)
+        restart_cmd = async_systemd_service_restart_cmd(
+                "walt-server-named.service", allow_reload=True)
+        self.restarter = ServiceRestarter(ev_loop, "named", restart_cmd)
 
     def update(self, force=False, cb=None):
         dns_info = self.db.execute(QUERY_DNS_INFO)
