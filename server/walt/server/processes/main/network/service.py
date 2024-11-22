@@ -1,34 +1,38 @@
 from collections import defaultdict
 from time import time
 
-# The DHCP & NFS services are restarted (not reloaded) when configuration
-# changes, because dhcpd does not support a simple SIGHUP based reloading,
-# and using reload on NFSd instead of restart would prevent the NFS clients
-# no longer allowed to be disconnected immediately, which would prevent
-# unmounting of images.
+# The DHCP service is restarted (not reloaded) when configuration changes,
+# because dhcpd does not support a simple SIGHUP based reloading.
 
-# These services can be restarted quite often when a large set of new nodes
-# are being registered. This can cause heavy processing or even break because
-# of systemd service restart limit.
+# DHCP and NAMED services can be restarted quite often when a large set of
+# new nodes are being registered. This can cause heavy processing or even
+# break because of systemd service restart limit.
 # Here, we ensure only one restart command is running at a time,
 # and with a minimal interval of 5 seconds between restarts.
 # When the restart command completes and 5 more seconds are spent, we check if
-# the config was updated again in the meanwhile; if yes, we loop again.
+# the config was updated again in the meantime; if yes, we loop again.
 MIN_DELAY_BETWEEN_SERVICE_RESTARTS = 5
 
 
+# note: using busctl is faster than calling systemctl [reload|restart] <unit>
+# but it does not wait for the service to be restarted, so it may not
+# be suitable for all cases (e.g., when umounting images, we have to wait
+# until nfs releases the export otherwise "umount" of the underlying overlay
+# filesystem will fail).
+def async_systemd_service_restart_cmd(systemd_service_name, allow_reload=False):
+    systemd_op = "ReloadOrRestartUnit" if allow_reload else "RestartUnit"
+    return ("busctl call org.freedesktop.systemd1 /org/freedesktop/systemd1 "
+            f"org.freedesktop.systemd1.Manager {systemd_op} "
+            f"ss {systemd_service_name} replace")
+
+
 class ServiceRestarter:
-    def __init__(self, ev_loop, short_service_name, systemd_service_name,
-                 allow_reload=False):
+    def __init__(self, ev_loop, short_service_name, restart_cmd):
         self.ev_loop = ev_loop
         self.short_service_name = short_service_name
-        self.systemd_service_name = systemd_service_name
         self.service_version = 0
         self.config_version = 0
-        if allow_reload:
-            self.systemd_op = "reload-or-restart"
-        else:
-            self.systemd_op = "restart"
+        self.restart_cmd = restart_cmd
         self.restarting = False
         self.callbacks = defaultdict(list)
 
@@ -75,6 +79,4 @@ class ServiceRestarter:
                     for cb in self.callbacks.pop(v, ()):
                         cb()
 
-            self.ev_loop.do(
-                    f"systemctl {self.systemd_op} {self.systemd_service_name}",
-                    callback)
+            self.ev_loop.do(self.restart_cmd, callback)
