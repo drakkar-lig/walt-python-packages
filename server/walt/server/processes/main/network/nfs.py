@@ -1,7 +1,5 @@
+import sys
 from pathlib import Path
-
-from walt.server import conf
-from walt.server.processes.main.network.service import ServiceRestarter
 
 NODE_SYMLINKS_EXPORT_PATTERN = """\
 # Access to node symlinks (necessary for NFSv4).
@@ -47,8 +45,7 @@ def generate_persist_exports_file_content(persist_paths, subnet):
 
 class NFSExporter(object):
     def __init__(self, ev_loop):
-        service_name = conf["services"]["nfsd"]["service-name"]
-        self.restarter = ServiceRestarter(ev_loop, "nfsd", service_name)
+        self._ev_loop = ev_loop
 
     def _get_prev_content_or_init(self, path):
         if not path.parent.exists():
@@ -58,16 +55,21 @@ class NFSExporter(object):
         else:
             return ""
 
+    def _wf_run_exportfs(self, wf, **env):
+        self._ev_loop.do("exportfs -r -f", wf.next)
+
+    def _wf_after_exportfs(self, wf, retcode, **env):
+        if retcode != 0:
+            print("Warning: exportfs failed!", file=sys.stderr)
+        wf.next()
+
     def wf_update_image_exports(self, wf, root_paths, subnet, **env):
         prev_content = self._get_prev_content_or_init(WALT_IMAGE_EXPORTS_PATH)
         content = generate_image_exports_file_content(root_paths, subnet)
         if content != prev_content:
             WALT_IMAGE_EXPORTS_PATH.write_text(content)
-            self.restarter.inc_config_version()
-        if not self.restarter.uptodate():
-            self.restarter.restart(wf.next)
-        else:
-            wf.next()
+            wf.insert_steps([self._wf_run_exportfs, self._wf_after_exportfs])
+        wf.next()
 
     def wf_update_persist_exports(self, wf,
             persist_paths, subnet, nfsd_restart=True, **env):
@@ -75,8 +77,5 @@ class NFSExporter(object):
         content = generate_persist_exports_file_content(persist_paths, subnet)
         if content != prev_content:
             WALT_PERSIST_EXPORTS_PATH.write_text(content)
-            self.restarter.inc_config_version()
-        if nfsd_restart and (not self.restarter.uptodate()):
-            self.restarter.restart(wf.next)
-        else:
-            wf.next()
+            wf.insert_steps([self._wf_run_exportfs, self._wf_after_exportfs])
+        wf.next()

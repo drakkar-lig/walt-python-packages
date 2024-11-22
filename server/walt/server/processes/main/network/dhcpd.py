@@ -8,6 +8,7 @@ from pathlib import Path
 
 from walt.common.netsetup import NetSetup
 from walt.server.processes.main.network.service import ServiceRestarter
+from walt.server.processes.main.network.service import async_systemd_service_restart_cmd
 from walt.server.tools import get_server_ip, get_walt_subnet, ip
 from walt.server.tools import np_str_pattern, np_apply_str_pattern
 from walt.server.tools import get_rpi_foundation_mac_vendor_ids
@@ -237,7 +238,8 @@ QUERY_DEVICES_WITH_IP = """
 class DHCPServer(object):
     def __init__(self, db, ev_loop):
         self.db = db
-        self.restarter = ServiceRestarter(ev_loop, "dhcpd", "walt-server-dhcpd.service")
+        restart_cmd = async_systemd_service_restart_cmd("walt-server-dhcpd.service")
+        self.restarter = ServiceRestarter(ev_loop, "dhcpd", restart_cmd)
 
     def update(self, force=False, cb=None):
         subnet = get_walt_subnet()
