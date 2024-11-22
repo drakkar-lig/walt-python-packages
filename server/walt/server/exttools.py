@@ -51,14 +51,16 @@ class ExtTool:
         setattr(self, attr, sub_tool)  # shortcut for next time
         return sub_tool
 
-    def __call__(self, *args, input=None):
-        return run(
-                self.path + args,
-                check=True,
-                input=input,
-                stdout=PIPE,
-                encoding=sys.stdout.encoding,
-            ).stdout.strip()
+    def __call__(self, *args, input=None, hide_stderr=False):
+        kwargs = dict(
+            check=True,
+            input=input,
+            stdout=PIPE,
+            encoding=sys.stdout.encoding,
+        )
+        if hide_stderr:
+            kwargs.update(stderr=PIPE)
+        return run(self.path + args, **kwargs).stdout.strip()
 
 
 class StreamExtTool:
@@ -107,4 +109,5 @@ skopeo = ExtTool.get_executable("skopeo")
 mount = ExtTool.get_executable("mount")
 umount = ExtTool.get_executable("umount")
 findmnt = ExtTool.get_executable("findmnt")
+lsof = ExtTool.get_executable("lsof")
 docker = ExtTool.get_executable("docker", required=False)
