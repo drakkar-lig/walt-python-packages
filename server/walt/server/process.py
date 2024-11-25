@@ -21,6 +21,7 @@ from walt.common.tools import interrupt_print
 from walt.server.tools import set_rlimits
 
 TRACKEXEC_LOG_DIR = Path("/var/log/walt/trackexec")
+INVALID_PIPE_ERRORS = (EOFError, ConnectionResetError, BrokenPipeError)
 
 
 # Notes about signals:
@@ -465,7 +466,7 @@ class RPCProcessConnector(ProcessConnector):
             events = [self.read()]
             while self.poll():
                 events.append(self.read())
-        except (EOFError, ConnectionResetError):
+        except INVALID_PIPE_ERRORS:
             print(f"{repr(self)}: closed on remote end, self-removing from loop.")
             return False
         events.sort(key=lambda x: PRIORITIES[x[0]])
@@ -514,10 +515,18 @@ class RPCProcessConnector(ProcessConnector):
         except BreakLoopRequested:
             raise
         except BaseException as e:
-            context.task.return_exception(e)
+            try:
+                context.task.return_exception(e)
+            except INVALID_PIPE_ERRORS:
+                print(f"{repr(self)}: closed on remote end, "
+                      "could not return exception.")
             return
         if not context.task.is_async():
-            context.task.return_result(res)
+            try:
+                context.task.return_result(res)
+            except INVALID_PIPE_ERRORS:
+                print(f"{repr(self)}: closed on remote end, "
+                      "could not return task result.")
 
     def then(self, cb):  # specify callback
         self.submitted_tasks[self.last_req_id].result_cb = cb
@@ -570,7 +579,10 @@ class RPCProcessConnector(ProcessConnector):
         )
         # print('__DEBUG__', current_process().name,
         #      'API_CALL', remote_req_id, local_req_id, path, args, kwargs)
-        self.write(("API_CALL", remote_req_id, local_req_id, path, args, kwargs))
+        try:
+            self.write(("API_CALL", remote_req_id, local_req_id, path, args, kwargs))
+        except INVALID_PIPE_ERRORS:
+            print(f"{repr(self)}: closed on remote end, could not send task.")
         return local_req_id
 
 
