@@ -62,8 +62,8 @@ class NodeBootupStatusListener:
             return None
         return self.sock_file.fileno()
 
-    def _add_booted_evt(self, booted):
-        self.manager.add_booted_event(self.node_ip, booted, {})
+    def _add_booted_evt(self, booted, **details):
+        self.manager.add_booted_event(self.node_ip, booted, details)
 
     # handle_event() will be called when the event loop detects
     # something for us
@@ -88,8 +88,12 @@ class NodeBootupStatusListener:
                 self._confirmed and
                 self.sock_files_per_ip.get(self.node_ip) is self.sock_file
            ):
-            print(f"bootup status listener of {self.node_ip}:", err)
-            self._add_booted_evt(False)
+            # note: self._add_booted_evt() will not print a message if the node
+            # was already down (e.g., because it was explicitely rebooted, or
+            # because the powersave module turned it off).
+            self._add_booted_evt(False,
+                                 cause="unknown",
+                                 note="server-detected disconnection")
         return False  # we should be removed from the event loop
 
     def close(self):
