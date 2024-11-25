@@ -25,7 +25,10 @@ def run():
     main_process.db.connect(db_process.main)
     blocking_process.db.connect(db_process.blocking)
     # start!
-    tman.start()
+    try:
+        tman.start()
+    except KeyboardInterrupt:
+        print("Interrupted.")
 
 
 if __name__ == "__main__":
