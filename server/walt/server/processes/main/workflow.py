@@ -29,7 +29,7 @@ class Workflow:
             env.update(**kwargs)
             #print(f"<Workflow{self._id}>.next()", step)
             step(self, *args, **env)
-        else:
+        elif not self.done:  # because wf.interrupt() may be called at any time
             #print(f"<Workflow{self._id}> end")
             end_callbacks = self._end_callbacks
             self._end_callbacks = None
