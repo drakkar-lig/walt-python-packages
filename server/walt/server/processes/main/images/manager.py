@@ -187,7 +187,12 @@ class NodeImageManager:
                     "set_image", node_mac, is_default
                 )
             self.db.commit()
+            # note: even if the set of docker image IDs in use did not change,
+            # the owner of the image may have changed, so the target of /persist
+            # will have to be updated on relevant nodes; so let's call
+            # wf_update_persist_exports() in all cases.
             wf = Workflow([self.store.wf_update_image_mounts,
+                           self.server.exports.wf_update_persist_exports,
                            self.dhcpd.wf_update, self.named.wf_update])
             wf.run()
             # inform requester
