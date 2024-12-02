@@ -29,11 +29,22 @@ def is_real_dir(path):
     return not path.is_symlink() and path.is_dir()
 
 
+# Note about <node>:/persist NFS target
+# - on oldest installations, the target was a directory <mac>/persist;
+# - later, in order to handle the new node setting "mount.persist=<bool>",
+#   <mac>/persist became a symlink to a directory <mac>/persist_dir
+#   or a broken target when mount.persist=false;
+# - now, <mac>/persist is a symlink to <mac>/persist_dirs/<owner>,
+#   or a broken target when mount.persist=false.
+# This new setting allows sharing the use of the persistent directory
+# of a node between several users.
+
+
 def revert_to_empty_status():
     global TFTP_STATUS
     print("tftp: invalid or missing status file, resetting.")
     # revert to an empty status and remove the previous content,
-    # except persist_dir, networks, disks if they exist
+    # except persist_dirs, persist_dir, networks, disks if they exist
     if Path(NODES_PATH).exists():
         for node_entry in list(Path(NODES_PATH).iterdir()):
             if node_entry == NODE_PROBING_PATH:
@@ -41,12 +52,14 @@ def revert_to_empty_status():
             if is_real_dir(node_entry):
                 # if <mac>/persist is a directory, rename it to 'persist_dir'
                 # (compatibility with older walt code)
+                # the content of 'persist_dir' will then be moved to
+                # 'persist_dirs/<owner>' as a later step.
                 persist_entry = (node_entry / "persist")
                 if is_real_dir(persist_entry):
                     persist_entry.rename("persist_dir")
                 for node_dir_entry in list(node_entry.iterdir()):
                     if node_dir_entry.name not in (
-                            "persist_dir", "networks", "disks"):
+                            "persist_dirs", "persist_dir", "networks", "disks"):
                         if is_real_dir(node_dir_entry):
                             shutil.rmtree(node_dir_entry)
                         else:
@@ -95,7 +108,7 @@ def prepare():
 #
 # That's why we actually manage a symlink at
 # /var/lib/walt/nodes/<mac>/persist. The symlink targets directory
-# /var/lib/walt/nodes/<mac>/persist_dir in the usual situation
+# /var/lib/walt/nodes/<mac>/persist_dirs/<owner> in the usual situation
 # (mount.persist=true) and a missing path otherwise (mount.persist=false),
 # in order to make the mount fail on client side.
 #
@@ -136,6 +149,7 @@ QUERY_DEVICES_WITH_IP = f"""
 SELECT d.mac, d.ip, d.name, d.type,
   REPLACE(d.mac, ':', '-') as mac_dash,
   n.model, n.image,
+  split_part(n.image, '/', 1) as owner,
   ((d.type = 'node') and
    COALESCE((d.conf->'mount.persist')::bool, true)) as persist,
   ({RPI_MAC_CONDITION}) as is_rpi
@@ -173,7 +187,8 @@ def update(db, images, cleanup=False):
     # -- declare persist symlinks
     mask_persist = db_nodes.persist.astype(bool)
     persist_ok_symlinks = (
-        "SYMLINK persist_dir " + db_nodes.mac[mask_persist] + "/persist")
+        "SYMLINK persist_dirs/" + db_nodes.owner[mask_persist] + " " +
+        db_nodes.mac[mask_persist] + "/persist")
     persist_ko_symlinks = (
         "SYMLINK forbidden_dir " + db_nodes.mac[~mask_persist] + "/persist")
     # -- declare symlinks to node-probing dir for unallocated ips
@@ -243,22 +258,35 @@ def update(db, images, cleanup=False):
         # -- add new entries
         # notes:
         # * we sort to ensure DIR directives are first
-        # * some dir entries might already be present because
-        #   we kept persist_dir, networks, disks subdirs in prepare() above.
+        # * some dir entries might already be present because we kept
+        #   persist_dirs, persist_dir, networks, disks subdirs in prepare() above.
         for directive in sorted(status - TFTP_STATUS):
             args = directive.split()
             if args[0] == "DIR":
                 #print(f"tftp: create {args[1]}")
                 mac_dir_path = Path(NODES_PATH + args[1])
                 mac_dir_path.mkdir(exist_ok=True)
-                (mac_dir_path / "persist_dir").mkdir(exist_ok=True)
             elif args[0] == "SYMLINK":
                 if Path(NODES_PATH + args[2]).exists():
                     # the status file contains invalid information
                     valid_status = False
                     break
                 #print(f"tftp: create {args[2]}")
-                Path(NODES_PATH + args[2]).symlink_to(args[1])
+                symlink_path = Path(NODES_PATH + args[2])
+                mac_dir_path = symlink_path.parent
+                target_path = mac_dir_path / args[1]
+                # automatically move <mac>/persist_dir (older walt version)
+                # to <mac>/persist_dirs/<owner>, or just create
+                # <mac>/persist_dirs/<owner> if missing.
+                if not target_path.exists():
+                    if target_path.parent.name == "persist_dirs":
+                        persist_dir_path = mac_dir_path / "persist_dir"
+                        if persist_dir_path.exists():
+                            target_path.parent.mkdir(exist_ok=True)
+                            persist_dir_path.rename(target_path)
+                        else:
+                            target_path.mkdir(parents=True)
+                symlink_path.symlink_to(args[1])
         if not valid_status:
             revert_to_empty_status()
             continue

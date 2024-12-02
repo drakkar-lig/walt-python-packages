@@ -1,10 +1,22 @@
-from walt.common.tools import failsafe_makedirs
+import functools
+from pathlib import Path
+
 from walt.server.processes.main.network import nbfs
 from walt.server.processes.main.network.nfs import NFSExporter
 from walt.server.processes.main.workflow import Workflow
 from walt.server.tools import get_walt_subnet
 
-PERSISTENT_PATH = "/var/lib/walt/nodes/%(node_mac)s/persist_dir"
+SQL_NODES_PERSIST_PATHS = f"""
+SELECT (
+    '/var/lib/walt/nodes/' || n.mac || '/persist_dirs/' || split_part(n.image, '/', 1)
+) as persist_path
+FROM nodes n
+"""
+
+
+def mkdir_multi(paths):
+    mkdir = functools.partial(Path.mkdir, parents=True, exist_ok=True)
+    list(map(mkdir, map(Path, paths)))
 
 
 class FilesystemsExporter:
@@ -23,16 +35,6 @@ class FilesystemsExporter:
             for (image_id, mount_path) in images_info
         }
 
-    def get_persist_exports_info(self, nodes):
-        # compute persistent node directories
-        persist_paths = []
-        for node in nodes:
-            persist_path = PERSISTENT_PATH % dict(node_mac=node.mac)
-            # ensure directory exists
-            failsafe_makedirs(persist_path)
-            persist_paths.append(persist_path)
-        return persist_paths
-
     def wf_update_image_exports(self, wf, images_info, **env):
         subnet = get_walt_subnet()
         root_paths = self.get_image_exports_info(images_info)
@@ -43,13 +45,13 @@ class FilesystemsExporter:
         wf.next()
 
     def wf_update_persist_exports(self, wf, cleanup=False, **env):
-        subnet = get_walt_subnet()
         if cleanup:
-            nodes = []
+            persist_paths = []
         else:
-            nodes = self.db.select("nodes")
-        persist_paths = self.get_persist_exports_info(nodes)
-        wf.update_env(persist_paths=persist_paths, subnet=subnet)
+            info = self.db.execute(SQL_NODES_PERSIST_PATHS)
+            persist_paths = info.persist_path.astype(str)
+            mkdir_multi(persist_paths)
+        wf.update_env(persist_paths=persist_paths)
         wf.insert_steps([self.nfs.wf_update_persist_exports])
         wf.next()
 
