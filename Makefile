@@ -46,11 +46,14 @@ uninstall:
 # namespace packages in parallel: so uninstall steps should be sequential.
 # however, build steps can be run in parallel.
 install-packages:
-	$(MAKE) PACKAGES="$(PACKAGES)" uninstall-packages $(patsubst %,%.build,$(PACKAGES))
+	$(MAKE) PACKAGES="$(PACKAGES)" uninstall-packages build-packages
 	$(PIP) install $(patsubst %,./%/dist/*.whl,$(PACKAGES))
 
 uninstall-packages:
 	for p in $(PACKAGES); do $(MAKE) $$p.uninstall; done
+
+build-packages: build.pip-package black.pip-package
+	dev/build-packages.sh $(PACKAGES)
 
 pull: $(patsubst %,%.pull,$(INSTALLABLE_PACKAGES_ON_SERVER))
 
@@ -65,10 +68,8 @@ clean: $(patsubst %,%.clean,$(ALL_PACKAGES))
 compile-doc:
 	dev/compile-doc.sh $(ROOT_DIR)
 
-%.build: build.pip-package black.pip-package
-	if [ "$*" = "doc" ]; then $(MAKE) compile-doc; fi
-	$(MAKE) $*/setup.py
-	cd $*; pwd; rm -rf dist && $(BUILD)
+%.build:
+	$(MAKE) PACKAGES="$*" build-packages
 
 %/setup.py: common/walt/common/version.py dev/metadata.py dev/setup-updater.py
 	@echo updating $*/setup.py
