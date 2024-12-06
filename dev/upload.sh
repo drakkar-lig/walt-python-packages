@@ -16,9 +16,9 @@ fix_binary_package_tag() {
 }
 
 build_subpackages() {
+    BUILD_KEEP_VERSION=1 PACKAGES="$SUBPACKAGES" make build-packages
     for d in $SUBPACKAGES
     do
-        make $d.build
         if [ "$d" = "vpn" -o "$d" = "server" ]
         then
             fix_binary_package_tag $d
@@ -78,13 +78,7 @@ build_subpackages
 # everything seems fine, let's start the real work
 
 # update files containing version number
-echo "__version__ = '${new_version}'" > common/walt/common/version.py
-if [ -f server/requirements.txt ]
-then
-    sed -i -e 's/^\(walt-.*\)==.*$/\1=='"$new_version"'/g' server/requirements.txt
-fi
-dev/setup-updater.py
-echo "setup.py, version.py files updated"
+dev/set-version.sh "${new_version}"
 
 git commit -a -m "$new_tag (automated by 'make upload')"
 
