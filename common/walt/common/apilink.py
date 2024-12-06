@@ -190,10 +190,9 @@ class ServerAPIConnection(object):
             self.api_channel = APIChannel(sock_file)
             # pickle4 is a faster mode for large transfers because line-repr-eval
             # uses readline() on the receiving side, which means reading chars one
-            # by one up to the end of line. If the server is up-to-date, use it.
-            if self.remote_has_pickle4_mode():
-                self.api_channel.write("SET_MODE", 'pickle4')  # set mode remotely
-                self.api_channel.set_mode('pickle4')           # set mode locally
+            # by one up to the end of line.
+            self.api_channel.write("SET_MODE", 'pickle4')  # set mode remotely
+            self.api_channel.set_mode('pickle4')           # set mode locally
             self.connected = True
 
     def create_connection(self, server_ip):
@@ -201,14 +200,6 @@ class ServerAPIConnection(object):
                 (server_ip, WALT_SERVER_DAEMON_PORT),
                 SERVER_SOCKET_TIMEOUT
         )
-
-    def remote_has_pickle4_mode(self):
-        if self.remote_version.startswith('0.'):  # dev version
-            return True
-        elif float(self.remote_version) >= 8.0:       # prod version
-            return True
-        else:
-            return False
 
     def disconnect(self):
         self.usage_refcount -= 1
