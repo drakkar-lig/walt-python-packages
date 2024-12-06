@@ -350,3 +350,11 @@ class CSAPI(APISession):
         return context.images.store.get_clones_of_default_images(
             context.requester, node_set
         )
+
+    @api_expose_method
+    def get_client_install_wheels(self, context):
+        # note: this CS entry is used for client auto-updates when a
+        # version mismatch is detected between the client and the server.
+        # So, if ever it changes, maintaining backward compatibility is
+        # mandatory!
+        return context.server.get_client_install_wheels()

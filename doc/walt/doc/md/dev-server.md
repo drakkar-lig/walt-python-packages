@@ -248,10 +248,18 @@ Modifying an API call in `ss.py` is never a problem since the caller is also
 installed on the server, so we know that its code will be updated at the same
 time.
 Modifying an API call in `cs.py` is also fine because the client verifies
-that server and client WALT version are the same when connecting to the API.
+that server and client WALT version are the same when connecting to the API
+(but see the note below about client auto-updates).
 Modifying `ns.py` should be carefully thought because old WALT images embedding
 `walt-node` code must continue working; similarly, some of the API calls at
 `vs.py` are useful for VPN nodes already deployed.
+
+Since WALT v10, the walt command line tool is able to auto-update its python
+modules when a version mismatch is detected with the server. Similarly,
+an auto-update may occur in case of version mismatch when using the `walt.client.api`
+object for the first time in a python script. This auto-update relies on the
+entry `get_client_install_wheels()` of the cs.py file, so this entry must not
+change (or any change should maintain backward compatibility).
 
 For an example of how to use this RPC endpoint from client code, checkout
 [`walt help show dev-client`](dev-client.md).

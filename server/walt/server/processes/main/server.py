@@ -1,7 +1,9 @@
 import functools
+import io
 import re
 from pathlib import Path
 from time import time
+from zipfile import ZipFile
 
 from walt.common.constants import WALT_SERVER_TCP_PORT
 from walt.common.devices.registry import get_device_info_from_mac
@@ -9,6 +11,7 @@ from walt.common.formatting import format_sentence
 from walt.common.netsetup import NetSetup
 from walt.common.tcp import TCPServer
 from walt.common.tools import do, format_image_fullname, parse_image_fullname
+from walt.common.version import __version__
 from walt.server import conf
 from walt.server.popen import BetterPopen
 from walt.server.processes.main.apisession import APISession
@@ -455,3 +458,49 @@ class Server(object):
 
     def shell_autocomplete(self, task, requester, username, argv, debug=False):
         return shell_autocomplete(self, task, requester, username, argv, debug=debug)
+
+    def get_client_install_wheels(self):
+        p = Path(__file__)
+        while p.name != "walt":
+            p = p.parent
+        dist_packages = p.parent
+        wheels = {}
+        for record_file in dist_packages.glob("walt_*.dist-info/RECORD"):
+            for component in ("common", "doc", "client", "client_g5k"):
+                if not record_file.parent.name.startswith(f"walt_{component}-"):
+                    continue
+                whl_name, whl_content = self.generate_whl(
+                        dist_packages, component, record_file)
+                wheels[whl_name] = whl_content
+        return wheels
+
+    def generate_whl(self, dist_packages, component, record_file):
+        versioned_component = f"walt_{component}-{__version__}"
+        whl_name = f"{versioned_component}-py3-none-any.whl"
+        record_file = dist_packages / f"{versioned_component}.dist-info/RECORD"
+        whl_file = io.BytesIO()  # in-memory file
+        with ZipFile(whl_file, 'w') as myzip:
+            filtered_record = ""
+            for line in record_file.read_text().splitlines():
+                if line.startswith(".."):
+                    continue
+                if "__pycache__" in line:
+                    continue
+                if "direct_url.json" in line:
+                    continue
+                if "INSTALLER," in line:
+                    continue
+                if "REQUESTED," in line:
+                    continue
+                archive_path = line.split(",", maxsplit=1)[0]
+                file_path = dist_packages / archive_path
+                if file_path.name == "RECORD":
+                    record_archive_path = archive_path
+                else:
+                    myzip.write(str(file_path), arcname=archive_path)
+                filtered_record += f"{archive_path},,\n"
+            myzip.writestr(record_archive_path, filtered_record)
+        whl_file.seek(0)  # return to head of file
+        whl_content = whl_file.read()
+        whl_file.close()
+        return whl_name, whl_content
