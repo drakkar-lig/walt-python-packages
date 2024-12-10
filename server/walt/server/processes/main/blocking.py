@@ -3,7 +3,9 @@ from walt.server.process import RPCProcessConnector, RPCService
 
 class BlockingTasksManager(RPCProcessConnector):
     def __init__(self):
-        super().__init__(local_context=False, label="main-to-blocking")
+        super().__init__(local_context=False,
+                         label="main-to-blocking",
+                         serialize_reqs=True)  # send tasks to blocking 1 by 1
 
     def configure(self, server):
         RPCProcessConnector.configure(self, RPCService(server=server))
