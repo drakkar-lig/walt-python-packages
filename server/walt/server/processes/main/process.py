@@ -20,7 +20,8 @@ class ServerMainProcess(EvProcess):
     def __init__(self, tman, level):
         EvProcess.__init__(self, tman, "server-main", level)
         self.server = None  # not configured yet
-        self.db = SyncRPCProcessConnector(label="main-to-db")
+        self.db = SyncRPCProcessConnector(label="main-to-db",
+                                          serialize_reqs=True)
         tman.attach_file(self, self.db)
         self.blocking = BlockingTasksManager()
         tman.attach_file(self, self.blocking)

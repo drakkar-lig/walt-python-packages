@@ -421,7 +421,7 @@ class RPCContext(object):
 
 
 class RPCProcessConnector(ProcessConnector):
-    def __init__(self, local_context=True, label=None):
+    def __init__(self, local_context=True, label=None, serialize_reqs=False):
         ProcessConnector.__init__(self)
         self.submitted_tasks = {}
         self.ids_generator = None
@@ -433,6 +433,8 @@ class RPCProcessConnector(ProcessConnector):
         self.local_context = local_context
         self.label = label
         self.ev_loop = None
+        self._serialize_reqs = serialize_reqs
+        self._next_reqs = None
 
     def __getstate__(self):
         assert self.default_service is None, \
@@ -476,6 +478,15 @@ class RPCProcessConnector(ProcessConnector):
                 self.handle_api_call(*event[1:])
                 continue
             elif event[0] == "RESULT":
+                # if we serialize, now that we have a new result check if
+                # another request was waiting to be sent
+                if self._serialize_reqs:
+                    if len(self._next_reqs) > 0:
+                        req, self._next_reqs = self._next_reqs[0], self._next_reqs[1:]
+                        self._write_task(req)  # write next pending req
+                    else:
+                        self._next_reqs = None   # no more pending reqs
+                # process this new result
                 local_req_id, result = event[1], event[2]
                 sync_call = self.submitted_tasks[local_req_id].sync_call
                 if sync_call:  # result (or exception) of sync call
@@ -579,11 +590,22 @@ class RPCProcessConnector(ProcessConnector):
         )
         # print('__DEBUG__', current_process().name,
         #      'API_CALL', remote_req_id, local_req_id, path, args, kwargs)
+        req = ("API_CALL", remote_req_id, local_req_id, path, args, kwargs)
+        if self._serialize_reqs:
+            if self._next_reqs is None:     # no current req
+                self._next_reqs = []        # start enqueuing next reqs
+                self._write_task(req)       # and send this one
+            else:
+                self._next_reqs.append(req) # enqueue this req
+        else:
+            self._write_task(req)
+        return local_req_id
+
+    def _write_task(self, req):
         try:
-            self.write(("API_CALL", remote_req_id, local_req_id, path, args, kwargs))
+            self.write(req)
         except INVALID_PIPE_ERRORS:
             print(f"{repr(self)}: closed on remote end, could not send task.")
-        return local_req_id
 
 
 class SyncRPCProcessConnector(RPCProcessConnector):
