@@ -36,8 +36,8 @@ test_walt_cp() {
     tempdir=$(mktemp -d)
     checkfile=$(mktemp -u)
     echo $$ > $tempdir/testfile
-    walt $category cp $tempdir $target:/tmp/
-    walt $category cp $target:/tmp/$(basename $tempdir)/testfile $checkfile
+    walt $category cp $tempdir $target:/root/
+    walt $category cp $target:/root/$(basename $tempdir)/testfile $checkfile
     diff $tempdir/testfile $checkfile
     rm -rf $tempdir $checkfile
 }
@@ -59,7 +59,7 @@ expect {
     "# \$"  { }
     timeout { puts "timeout: 'walt node shell' did not show the prompt!"; exit 1 }
 }
-send "echo ok > /tmp/test\r"
+send "echo ok > /root/test\r"
 expect "# \$"
 send "exit\r"
 expect "closed.\$"
@@ -72,7 +72,7 @@ expect {
     "# \$"  { }
     timeout { puts "timeout: 'walt image shell' did not show the prompt!"; exit 1 }
 }
-send "echo ok > /tmp/test\r"
+send "echo ok > /root/test\r"
 expect "# \$"
 send "exit\r"
 expect ": \$"
@@ -82,7 +82,7 @@ expect "updated.\$"
 EOF
     fi
     checkfile=$(mktemp -u)
-    walt $category cp $target:/tmp/test $checkfile
+    walt $category cp $target:/root/test $checkfile
     out=$(cat $checkfile)
     rm -f $checkfile
     [ "$out" = "ok" ]
