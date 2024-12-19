@@ -3,12 +3,15 @@
 
 ## Overview
 
-We provide instructions to setup walt server software and dependencies on a freshly installed
-debian 12 (bookworm) operating system.
+We provide instructions to setup walt server software and dependencies on a fresh (and minimal)
+installation of debian 12 (bookworm) operating system.
 
 Note that walt server software starts various network daemons (lldpd, snmpd, dhcpd, ptpd, ntpd,
-tftpd, nfsd), thus you should not run other software related to network management on this walt server
-machine.
+tftpd, nfsd), thus you should not run other software related to network management on this walt
+server machine.
+You should also avoid installing a desktop environment (e.g. Gnome) on this machine, as this
+will probably try to "setup" network interfaces when loading and interfere with WALT.
+Use SSH instead.
 
 
 ## Hardware requirements
