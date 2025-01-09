@@ -388,7 +388,7 @@ class RPCTask(object):
         assert (
             not self._completed
         ), f"{current_process().name} Returning twice from the same task"
-        # print(current_process().name, 'RESULT', self.remote_req_id, res)
+        # print('__DEBUG__', repr(self.connector), 'RESULT', self.remote_req_id, res)
         if not self.connector.closed:
             self.connector.write(("RESULT", self.remote_req_id, res))
         self._completed = True
@@ -472,7 +472,7 @@ class RPCProcessConnector(ProcessConnector):
             print(f"{repr(self)}: closed on remote end, self-removing from loop.")
             return False
         events.sort(key=lambda x: PRIORITIES[x[0]])
-        # print(current_process().name, 'new events', events)
+        # print('__DEBUG__', repr(self), 'new events', events)
         for event in events:
             if event[0] == "API_CALL":
                 self.handle_api_call(*event[1:])
@@ -588,7 +588,7 @@ class RPCProcessConnector(ProcessConnector):
             result_cb=None,
             exception_cb=None,
         )
-        # print('__DEBUG__', current_process().name,
+        # print('__DEBUG__', repr(self),
         #      'API_CALL', remote_req_id, local_req_id, path, args, kwargs)
         req = ("API_CALL", remote_req_id, local_req_id, path, args, kwargs)
         if self._serialize_reqs:
