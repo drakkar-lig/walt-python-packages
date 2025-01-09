@@ -142,7 +142,10 @@ class WalTLocalRegistry:
                 continue
             missing_ids.add(image_id)
         for image_id in missing_ids:
-            self.metadata_cache[image_id] = self.deep_inspect(image_id)
+            try:
+                self.metadata_cache[image_id] = self.deep_inspect(image_id)
+            except Exception:
+                print(f"WARNING: inspecting podman image {image_id} failed. Ignored.")
         self.save_metadata_cache_file()
         print("done scanning images.")
 
