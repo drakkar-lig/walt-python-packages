@@ -90,7 +90,7 @@ then
 fi
 
 echo "** Building the image"
-buildah bud --format docker -t "docker.io/$image_fullname" .
+podman build --format docker -t "docker.io/$image_fullname" .
 
 echo "** Verifying the image"
 walt-image-check "docker.io/$image_fullname"
