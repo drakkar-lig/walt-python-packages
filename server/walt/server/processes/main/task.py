@@ -1,3 +1,4 @@
+import functools
 import sys
 
 # This object represents a task that was requested by the hub
@@ -15,8 +16,9 @@ class APISessionTask(object):
             task=self, requester=rpc_context.remote_service.do_sync.requester
         )
         # use the get_username() function of the session object
-        # to avoid multiple remote calls
-        self.context.requester.get_username = api_session.get_username
+        # which will cache it to avoid multiple remote calls
+        self.context.requester.get_username = functools.partial(
+                api_session.get_username, rpc_context)
 
     def set_async(self):
         self.rpc_context.task.set_async()
