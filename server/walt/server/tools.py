@@ -220,6 +220,7 @@ def get_clone_url_locations():
 # - "2023-07-04T13:58:03.480332+02:00"
 # - "2023-07-04T13:58:03.480332667+02:00"
 # - "2023-07-04T13:58:03.480332667Z"
+# - "2023-07-04T13:58:03Z"
 # - "2023-07-04 13:58:03.480332 +0000 UTC"
 # - "2023-07-04 13:58:03.480332 +0000"
 # - "2023-07-04 13:58:03.480332 +00:00"
@@ -235,7 +236,10 @@ def parse_date(created_at):
     # strptime does not support parsing nanosecond precision
     # remove last 3 decimals of this number
     created_at = re.sub(r"([0-9]{6})[0-9]*", r"\1", created_at)
-    return datetime.strptime(created_at, "%Y-%m-%d %H:%M:%S.%f %z")
+    if '.' in created_at:
+        return datetime.strptime(created_at, "%Y-%m-%d %H:%M:%S.%f %z")
+    else:
+        return datetime.strptime(created_at, "%Y-%m-%d %H:%M:%S %z")
 
 
 def np_str_pattern(pattern):
