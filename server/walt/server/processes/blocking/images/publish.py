@@ -8,6 +8,7 @@ from walt.server.processes.blocking.images.metadata import (
 from walt.server.processes.blocking.registries import (
     DockerHubClient,
     get_registry_client,
+    MissingRegistryCredentials,
 )
 
 if typing.TYPE_CHECKING:
@@ -27,15 +28,17 @@ def publish(requester, server: Server, registry_label, image_fullname, **kwargs)
                 update_user_metadata_for_image(
                     requester, registry, image_fullname, labels
                 )
+    except MissingRegistryCredentials as e:
+        return ('MISSING_REGISTRY_CREDENTIALS', e.registry_label)
     except Exception:
         requester.stderr.write(
             f"Failed to communicate with {registry_label} registry. Aborted.\n"
         )
-        return (False,)
+        return ('FAILED',)
     if success:
         clone_url = registry.get_origin_clone_url(requester, image_fullname)
         if clone_url.endswith(":latest"):
             clone_url = clone_url[:-7]
-        return (True, clone_url)
+        return ('OK', clone_url)
     else:
-        return (False,)
+        return ('FAILED',)

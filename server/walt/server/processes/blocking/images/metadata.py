@@ -5,7 +5,10 @@ import base64
 import json
 
 from walt.server.exttools import buildah
-from walt.server.processes.blocking.registries import DockerHubClient
+from walt.server.processes.blocking.registries import (
+    DockerHubClient,
+    MissingRegistryCredentials,
+)
 from walt.server.tools import async_gather_tasks
 
 
@@ -84,7 +87,14 @@ def update_user_metadata_for_image(requester, hub, image_fullname, labels):
 
 def update_hub_metadata(requester, user):
     hub = DockerHubClient()
+    try:
+        requester.ensure_registry_conf_has_credentials('hub')
+    except MissingRegistryCredentials as e:
+        return ('MISSING_REGISTRY_CREDENTIALS', e.registry_label)
     # collect
     metadata = collect_user_metadata(hub, user)
     # push back on docker hub
-    return push_user_metadata(requester, hub, user, metadata)
+    if push_user_metadata(requester, hub, user, metadata):
+        return ('OK',)
+    else:
+        return ('FAILED',)
