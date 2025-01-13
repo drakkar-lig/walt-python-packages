@@ -16,6 +16,7 @@ from walt.server.processes.blocking.images.update import update_default_images
 from walt.server.processes.blocking.registries import (
     DockerDaemonClient,
     get_registry_client,
+    MissingRegistryCredentials,
 )
 
 
@@ -34,7 +35,7 @@ class CachingRequester:
             registry_label, dh_peer.pub_key
         )
         if credentials is None:
-            return None, None
+            raise MissingRegistryCredentials(registry_label)
         dh_peer.establish_session(credentials["client_pub_key"])
         symmetric_key = dh_peer.symmetric_key
         cypher = BlowFish(symmetric_key)
@@ -44,12 +45,15 @@ class CachingRequester:
     def ensure_registry_conf_has_credentials(self, registry_label):
         # this is an alias to get_registry_credentials() but we do
         # not need the result
-        username, password = self.get_registry_credentials(registry_label)
-        return username is not None
+        self.get_registry_credentials(registry_label)
 
     @cache
     def get_registry_username(self, registry_label):
-        return self._remote_requester.get_registry_username(registry_label)
+        username = self._remote_requester.get_registry_username(registry_label)
+        if username is None:
+            raise MissingRegistryCredentials(registry_label)
+        else:
+            return username
 
     # other attributes & methods are not cached because they have
     # side effects remotely or remote values may change during the time

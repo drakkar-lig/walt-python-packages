@@ -93,15 +93,27 @@ class WaltClientService(BaseAPIService):
     @api_expose_method
     def get_registry_encrypted_credentials(self, registry_label, server_pub_key):
         reg_conf = getattr(conf.registries, registry_label)
-        from walt.client.auth import get_encrypted_credentials
-        return get_encrypted_credentials(
-            server_pub_key, reg_conf.username, reg_conf.password
-        )
+        if reg_conf.hasattr("username") and reg_conf.hasattr("password"):
+            from walt.client.auth import get_encrypted_credentials
+            return get_encrypted_credentials(
+                server_pub_key, reg_conf.username, reg_conf.password
+            )
+        else:
+            return None
 
     @api_expose_method
     def get_registry_username(self, registry_label):
         reg_conf = getattr(conf.registries, registry_label)
-        return reg_conf.username
+        if reg_conf.hasattr("username"):
+            return reg_conf.username
+        else:
+            return None
+
+    @api_expose_method
+    def prompt_missing_registry_credentials(self, registry_label):
+        # this will force the client to prompt the user
+        reg_conf = getattr(conf.registries, registry_label)
+        reg_conf.username
 
 
 class InternalClientToServerLink(ServerAPILink):
