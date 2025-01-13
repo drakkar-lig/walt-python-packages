@@ -11,6 +11,7 @@ from walt.server.processes.blocking.images.metadata import pull_user_metadata
 from walt.server.processes.blocking.registries import (
     DockerHubClient,
     get_registry_client,
+    MissingRegistryCredentials,
 )
 from walt.server.tools import get_clone_url_locations
 
@@ -327,6 +328,7 @@ def perform_clone(requester, clonable_link, image_store, force, image_name, **kw
         labels = image_store[remote_image_fullname].get_labels()
     elif remote_location == "hub":
         hub = DockerHubClient()
+        requester.ensure_registry_conf_has_credentials('hub')
         remote_user_metadata = pull_user_metadata(hub, remote_user)
         if remote_image_fullname not in remote_user_metadata["walt.user.images"]:
             return exit_no_such_image(requester)
@@ -334,6 +336,8 @@ def perform_clone(requester, clonable_link, image_store, force, image_name, **kw
         labels = image_info["labels"]
     else:
         registry = get_registry_client(requester, remote_location)
+        if registry.op_needs_authentication("clone"):
+            requester.ensure_registry_conf_has_credentials(registry.label)
         try:
             labels = registry.get_labels(requester, remote_image_fullname)
         except Exception:
@@ -449,6 +453,8 @@ def clone(requester, server: Server, **kwargs):
             nodes_manager=server.nodes,
             **kwargs,
         )
+    except MissingRegistryCredentials as e:
+        return ("MISSING_REGISTRY_CREDENTIALS", e.registry_label)
     except Exception as e:
         requester.stderr.write(str(e) + "\n")
         return ("FAILED",)

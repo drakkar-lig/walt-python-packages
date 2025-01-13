@@ -427,7 +427,7 @@ class Conf:
         else:  # category
             return Conf(path)
 
-    def __hasattr__(self, attr):
+    def hasattr(self, attr):
         path = self._path + (attr,)
         path_info = self._analyse_path(path)
         return path_info["type"] != "missing-leaf"

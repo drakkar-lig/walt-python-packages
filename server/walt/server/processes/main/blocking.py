@@ -1,4 +1,6 @@
+import functools
 from walt.server.process import RPCProcessConnector, RPCService
+from walt.server.processes.main.images.tools import handle_missing_credentials
 
 
 class BlockingTasksManager(RPCProcessConnector):
@@ -35,13 +37,26 @@ class BlockingTasksManager(RPCProcessConnector):
             result_cb
         )
 
+    def _anon_pull_image(self, image_fullname, result_cb):
+        self.do_async.pull_image(image_fullname, anonymous=True).then(result_cb)
+
+    def _auth_pull_image(self, requester, image_fullname, result_cb):
+        self.session(requester).do_async.pull_image(
+            image_fullname, anonymous=False
+        ).then(result_cb)
+
     def pull_image(self, requester, image_fullname, result_cb):
+        def callback(result):
+            if result[0] == "OK":
+                result_cb((True,))
+            else:
+                result_cb((False, result[1]))  # result[1]: failure message
         if requester is None:
-            self.do_async.pull_image(image_fullname, anonymous=True).then(result_cb)
+            blocking_func = functools.partial(self._anon_pull_image, image_fullname)
         else:
-            self.session(requester).do_async.pull_image(
-                image_fullname, anonymous=False
-            ).then(result_cb)
+            blocking_func = functools.partial(
+                    self._auth_pull_image, requester, image_fullname)
+        handle_missing_credentials(requester, blocking_func, callback)
 
     def registry_login(self, requester, result_cb, *args, **kwargs):
         self.session(requester).do_async.registry_login(*args, **kwargs).then(result_cb)
@@ -57,9 +72,9 @@ class BlockingTasksManager(RPCProcessConnector):
     def run_shell_cmd(self, requester, result_cb, cmd, **kwargs):
         self.session(requester).do_async.run_shell_cmd(cmd, **kwargs).then(result_cb)
 
-    def update_default_images(self, requester, cb, update_info):
+    def update_default_images(self, requester, cb, *args, **kwargs):
         return self.session(requester).do_async.update_default_images(
-                update_info).then(cb)
+                *args, **kwargs).then(cb)
 
     # sync calls will block the 'main' process, so should only be used e.g. during
     # service startup.

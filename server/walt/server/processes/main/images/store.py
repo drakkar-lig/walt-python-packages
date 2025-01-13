@@ -11,6 +11,7 @@ from walt.server.mount.tools import get_mount_path
 from walt.server.processes.main.exports import FilesystemsExporter
 from walt.server.processes.main.filesystem import FilesystemsCache
 from walt.server.processes.main.images.image import NodeImage
+from walt.server.processes.main.images.tools import handle_missing_credentials
 from walt.server.processes.main.network import tftp
 from walt.server.processes.main.workflow import Workflow
 
@@ -149,15 +150,21 @@ class NodeImageStore(object):
             ):
                 update_info[fullname] = image.created_ts
         if len(update_info) > 0:
-            def after_update_cb(updated_fullnames):
-                if len(updated_fullnames) > 0:
-                    self.server.reboot_nodes_after_image_change(
-                        requester, final_task_cb, *updated_fullnames
-                    )
+            def after_update_cb(result):
+                if result[0] == 'OK':
+                    updated_fullnames = result[1]
+                    if len(updated_fullnames) > 0:
+                        self.server.reboot_nodes_after_image_change(
+                            requester, final_task_cb, *updated_fullnames
+                        )
+                    else:
+                        final_task_cb()
                 else:
                     final_task_cb()
-            self.blocking.update_default_images(
-                    requester, after_update_cb, update_info)
+            blocking_func = functools.partial(
+                    self.blocking.update_default_images,
+                    requester, update_info=update_info)
+            handle_missing_credentials(requester, blocking_func, after_update_cb)
         else:
             final_task_cb()
 
