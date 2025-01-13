@@ -2,6 +2,7 @@ import asyncio
 
 from collections import defaultdict
 from walt.server.processes.blocking.images.search import Search
+from walt.server.processes.blocking.registries import MissingRegistryCredentials
 from walt.server.tools import async_gather_tasks
 
 
@@ -46,6 +47,8 @@ async def async_update_default_images(requester, server, update_info):
 
 # this implements walt advanced update-default-images
 def update_default_images(requester, server, update_info):
-    return asyncio.run(
-        async_update_default_images(requester, server, update_info)
-    )
+    try:
+        return ('OK', asyncio.run(
+            async_update_default_images(requester, server, update_info)))
+    except MissingRegistryCredentials as e:
+        return ('MISSING_REGISTRY_CREDENTIALS', e.registry_label)

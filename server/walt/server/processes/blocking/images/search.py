@@ -11,6 +11,7 @@ from walt.server.processes.blocking.images.metadata import async_pull_user_metad
 from walt.server.processes.blocking.registries import (
     DockerDaemonClient,
     get_registry_client,
+    MissingRegistryCredentials,
 )
 from walt.server.tools import async_merge_generators, format_node_models_list
 
@@ -75,13 +76,10 @@ class Search(object):
             else:
                 generators += [self.async_search_registry_v2(registry)]
             # First-time logins will require the user to input its credentials,
-            # which takes time and may cause unrelated coroutine timeouts if we do that
-            # later (when all coroutines will be running concurrently).
+            # so fail early if they are missing
             if registry.op_needs_authentication("search"):
-                creds_ok = self.requester.ensure_registry_conf_has_credentials(
+                self.requester.ensure_registry_conf_has_credentials(
                                     registry.label)
-                if not creds_ok:
-                    continue  # ignore this registry
         async for record in async_merge_generators(*generators):
             yield record
 
@@ -262,6 +260,10 @@ async def async_perform_search(image_store, requester, keyword, tty_mode):
 
 # this implements walt image search
 def search(requester, server: Server, keyword, tty_mode):
-    return asyncio.run(
-        async_perform_search(server.images.store, requester, keyword, tty_mode)
-    )
+    try:
+        asyncio.run(
+            async_perform_search(server.images.store, requester, keyword, tty_mode)
+        )
+    except MissingRegistryCredentials as e:
+        return ('MISSING_REGISTRY_CREDENTIALS', e.registry_label)
+    return ('OK',)

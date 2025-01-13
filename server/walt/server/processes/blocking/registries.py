@@ -17,6 +17,12 @@ class RegistryAuthRequired(Exception):
     pass
 
 
+class MissingRegistryCredentials(Exception):
+    def __init__(self, label):
+        self.registry_label = label
+        Exception.__init__(self, "MissingRegistryCredentials")
+
+
 class RegistryClientBase:
     def __init__(
         self, label, podman_url_prefix, login_host, protocol, auth, anonymous_operations
