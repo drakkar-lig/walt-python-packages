@@ -37,7 +37,7 @@ persistent.
 ## `walt image shell`: modification of operating system
 
 In order to automate a given test or experience, you must modify the OS
-images the nodes will boot. `walt image shell` is probably the easiest way
+images the nodes will boot. `walt image shell` is one easy way
 to do this. It provides a shell running in a virtual environment (docker
 container) where you can make the changes, for example install packages and
 automate the startup of your experiment script at bootup (using `cron`, or
@@ -96,9 +96,19 @@ relevant for the experiment.
 
 In the second case, doing the same is hard because there is no OS tooling
 ready to start and manage the postgresql service once it is installed.
-In this case, one may resort to automate a part of this setup procedure
-at node bootup, and possibly use the hybrid-persistent boot mode (cf.
-[`walt help show boot-modes`](boot-modes.md)).
+In this case, one may resort to:
+- do the changes directly on the node and then save the modified OS using
+  `walt node save`; see [`walt help show node-save`](node-save.md).
+- or automate a part of this setup procedure at node bootup
+- or use the hybrid-persistent boot mode (cf. [`walt help show boot-modes`](boot-modes.md)).
+
+Actually, even if the image supports starting the OS, `walt image shell`
+still runs in a container, which may be a problem in some cases.
+For instance, you may want to run a complex installation procedure you
+did not write yourself, and this procedure may contain actions not allowed
+in a container (e.g., modify the OS firewall rules). In this case,
+using `walt node save` or one of the other alternatives listed above can
+probably help you.
 
 Note that advanced virtual environments (as in the 1st case above) are only
 available with an up-to-date WALT server (cf. [`walt help show server-upgrade`](server-upgrade.md)),
@@ -134,6 +144,8 @@ in this shell will involve **CPU emulation**, leading to a slower behavior.
 The other options to modify an OS image are:
 * `walt image cp`: add a file or directory to a given image. See [`walt help show image-cp`](image-cp.md).
 * `walt image build`: build an image by using a Dockerfile. See [`walt help show image-build`](image-build.md).
+* `walt node save`: save OS modifications you have done directly on a node to a new WalT image.
+  See [`walt help show node-save`](node-save.md).
 
 
 ## Summary table

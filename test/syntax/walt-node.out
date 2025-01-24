@@ -19,6 +19,7 @@ Sub-commands:
     shell    run an interactive shell connected to the node
     run      run a command on a (set of) node(s)
     cp       transfer files/dirs to or from a node
+    save     Save the current state of a node as a new WalT image
     reboot   reboot a (set of) node(s)
     config   get or set nodes configuration
     create   create a virtual WalT node

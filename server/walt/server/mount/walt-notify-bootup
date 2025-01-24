@@ -89,6 +89,9 @@ call_image_bootup_script
 # very early and the OS considers bootup procedure is not complete)
 remove_nologin
 
+# save uptime to know when the OS got ready
+[ ! -e /run/uptime-ready ] && cp /proc/uptime /run/uptime-ready
+
 # we maintain a permanent connection to walt server.
 # opening it will set our status to "booted".
 # if this connection is closed on our side, the server

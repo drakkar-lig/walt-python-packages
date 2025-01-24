@@ -3,6 +3,7 @@ from __future__ import annotations
 import typing
 
 from walt.server.processes.main.workflow import Workflow
+from walt.server.processes.main.transfer import format_node_diff_dump_command
 
 if typing.TYPE_CHECKING:
     from walt.server.processes.main.images.store import NodeImageStore
@@ -32,11 +33,7 @@ class ImageBuildSession(object):
             **self.info,
         )
 
-    def run_image_build_from_url(self, requester, task):
-        cmd = (
-            "walt-image-build-helper --from-url"
-            f" {self.info['url']} {self.image_fullname}"
-        )
+    def _run_image_build_from_cmd(self, requester, task, cmd):
         task.set_async()
 
         def cb(retcode):
@@ -45,6 +42,26 @@ class ImageBuildSession(object):
         self.blocking.run_shell_cmd(
             requester, cb, cmd, shell=False, pipe_outstreams=True
         )
+
+    def run_image_build_from_url(self, requester, task):
+        cmd = (
+            "walt-image-build-helper --from-url"
+            f" {self.info['url']} {self.image_fullname}"
+        )
+        self._run_image_build_from_cmd(requester, task, cmd)
+
+    def run_image_build_from_node_diff(self, requester, server, task):
+        node_name = self.info["node_name"]
+        node = server.nodes.get_node_info(requester, node_name)
+        if node is None:
+            return False
+        node_diff_dump_cmd = format_node_diff_dump_command(node.ip)
+        self._run_image_build_from_cmd(requester, task, [
+                                       "walt-image-build-helper",
+                                       "--from-node-diff",
+                                       node_diff_dump_cmd,
+                                       node.image,
+                                       self.image_fullname ])
 
     def finalize_image_build_session(self, requester, server, task):
         task.set_async()

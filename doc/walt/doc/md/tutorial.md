@@ -245,8 +245,10 @@ WalT users usually follow these steps when using WalT:
 4. If the experiment gave good results, publish OS images for allowing experiment reproducibility.
 
 It is still possible to modify things while the node is running (i.e., at step 3 instead of step 1).
-This is mostly useful in the debugging phase, because step 1 is done in a virtual and limited environment (since the OS is not running on the node yet).
+This is mostly useful in the debugging phase, because step 1 is done in a virtual and limited environment.
 However, for the sake of reproducibility, it is better to have everything set up and automated in the WalT OS image before publishing it.
+
+Command `walt node save` also allows to work the other way: if you made modifications directly on a node, it allows to save the modified OS as a new WalT image. See [`walt help show node-save`](node-save.md) for more info.
 
 
 ## Workflow step 1: Customizing your image

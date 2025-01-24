@@ -25,6 +25,13 @@ do
             mode=stdin
             shift
             ;;
+        "--from-node-diff")
+            shift
+            node_diff_dump_cmd="$1"
+            from_image_fullname="$2"
+            shift 2
+            mode="node-diff"
+            ;;
         "--debug")
             debug=1
             shift
@@ -41,6 +48,8 @@ then
 	echo "Usage:" >&2
     echo "  $0 [--debug] --from-url <git-remote-build-repo> <image_fullname>" >&2
     echo "  tar cf - . | $0 [--debug] --from-stdin <image_fullname>" >&2
+    echo "  $0 [--debug] --from-node-diff <node-diff-dump-cmd> <node-image-fullname>" \
+                "<image_fullname>" >&2
 	exit
 fi
 
@@ -55,6 +64,7 @@ on_exit() {
     # save return code
     retcode="$?"
     # cleanup
+    cd /tmp
     rm -rf "${tmp_dir}"
     # print failure message if relevant
     if [ "$retcode" -ne 0 ]
@@ -65,33 +75,78 @@ on_exit() {
 
 trap "on_exit" EXIT
 
-cd "$tmp_dir"
-if [ "$mode" = "url" ]
-then
+verify_repo() {
+    echo "** Verifying the repository"
+    if [ ! -f Dockerfile -a ! -f ContainerFile ]
+    then
+        if [ "$mode" = "url" ]
+        then
+            word="repository"
+        else
+            word="directory"
+        fi
+        echo "FAILED: the specified $word does not contain a Dockerfile" \
+             "or ContainerFile."
+        exit 1
+    fi
+}
+
+clone_from_url() {
     # note: 'buildah bud' should be able to use a remote git URL, but it seems too picky,
     # so use git clone ourselves.
     echo "** Cloning the git repository at $url"
     git clone --depth 1 --single-branch "$url" .
-else
+}
+
+receive_tar() {
     echo "** Receiving the client directory content"
     tar x
-fi
+}
 
-echo "** Verifying the repository"
-if [ ! -f Dockerfile -a ! -f ContainerFile ]
-then
-    if [ "$mode" = "url" ]
+prepare_build_dir_from_node_diff() {
+    echo "** Analysing changes made on this node"
+    $node_diff_dump_cmd > ar.tar
+    cat > Dockerfile << EOF
+FROM ${from_image_fullname}
+ADD ar.tar /
+EOF
+}
+
+podman_build() {
+    podman build --format docker -t "docker.io/$image_fullname" .
+}
+
+build_image() {
+    echo "** Building the image"
+    if [ "$1" = "--silent" ]
     then
-        word="repository"
+        podman_build >/dev/null
     else
-        word="directory"
+        podman_build
     fi
-    echo "FAILED: the specified $word does not contain a Dockerfile or ContainerFile."
+}
+
+verify_image() {
+    echo "** Verifying the image"
+    walt-image-check "docker.io/$image_fullname"
+}
+
+cd "$tmp_dir"
+if [ "$mode" = "url" ]
+then
+    clone_from_url
+    verify_repo
+    build_image
+    verify_image
+elif [ "$mode" = "node-diff" ]
+then
+    prepare_build_dir_from_node_diff
+    build_image --silent
+    verify_image
+elif [ "$mode" = "stdin" ]
+then
+    receive_tar
+    verify_repo
+    build_image
+    verify_image
 fi
-
-echo "** Building the image"
-podman build --format docker -t "docker.io/$image_fullname" .
-
-echo "** Verifying the image"
-walt-image-check "docker.io/$image_fullname"
-

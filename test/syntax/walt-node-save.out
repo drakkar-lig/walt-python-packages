@@ -1,0 +1,8 @@
+Save the current state of a node as a new WalT image
+
+Usage:
+    walt node save [SWITCHES] node_name image_name
+
+Meta-switches:
+    -h, --help      Prints this help message and quits
+
