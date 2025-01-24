@@ -95,6 +95,10 @@ class IMAGE_BUILD_NAME(STRTYPE):
     pass
 
 
+class TARGET_IMAGE_NAME(STRTYPE):
+    pass
+
+
 class SWITCH(STRTYPE):
     pass
 

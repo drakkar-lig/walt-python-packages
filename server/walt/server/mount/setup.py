@@ -41,6 +41,7 @@ NODE_SCRIPTS = {
     "walt-init-rootfs": (False, True),
     "walt-init-rootfs-main": (False, True),
     "walt-init-finalfs": (False, True),
+    "walt-dump-diff-tar": (False, True),
 }
 
 TEMPLATE_ENV = dict(

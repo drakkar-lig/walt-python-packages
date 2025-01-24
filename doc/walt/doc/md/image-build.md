@@ -1,6 +1,7 @@
 # Building a WalT image from a Dockerfile
 
 In order to modify an image easily, one can use `walt image shell` or `walt image cp`.
+One can also do modifications directly on a node and then use `walt node save` to record the modified OS as a new image (see [`walt help show node-save`](node-save.md)).
 However, listing build steps in a [Dockerfile](https://docs.docker.com/engine/reference/builder) makes an image build reproducible, a valuable feature for image maintenance.
 Command `walt image build` allows to build images this way.
 
