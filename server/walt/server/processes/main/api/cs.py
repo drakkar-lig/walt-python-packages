@@ -339,6 +339,12 @@ class CSAPI(APISession):
         return session.run_image_build_from_url(context.requester, context.task)
 
     @api_expose_method
+    def run_image_build_from_node_diff(self, context, session_id):
+        session = self.get_session_object(session_id)
+        return session.run_image_build_from_node_diff(
+                context.requester, context.server, context.task)
+
+    @api_expose_method
     def finalize_image_build_session(self, context, session_id):
         session = self.get_session_object(session_id)
         return session.finalize_image_build_session(

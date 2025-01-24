@@ -418,3 +418,8 @@ def format_node_to_booted_image_transfer_cmd(src_path, **params):
     )
     image_recv_cmd = docker_wrap_cmd(TarReceiveCommand, input_needed=True) % params
     return node_send_cmd + " | " + image_recv_cmd
+
+
+def format_node_diff_dump_command(node_ip):
+    return ssh_wrap_cmd("""/bin/_walt_internal_/walt-dump-diff-tar""") % dict(
+            node_ip=node_ip)

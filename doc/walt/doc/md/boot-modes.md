@@ -81,10 +81,7 @@ WalT image contents at first.
 
 The **persistent** variant behaves differently: all file modifications are
 preserved accross reboots. Thus reproducibility at each reboot is **not** ensured
-in this case. Actually, some experiments involve a long preparatory phase of the
-OS files that cannot be done on the image itself (e.g., using `walt image shell`),
-for whatever reasons. This **persistent** mode may be handy in this case because
-this preparatory work will not be lost when the node reboots.
+in this case.
 
 One can activate the **volatile** hybrid boot on a physical node by creating a
 directory named `walt-hybrid` at the root of an ext4 partition, on a local disk

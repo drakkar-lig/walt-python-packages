@@ -35,6 +35,7 @@ Full table of Contents
    node-config
    node-console
    node-cp
+   node-save
    node-expose
    node-netsetup
    vnode-networks
