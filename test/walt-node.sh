@@ -64,6 +64,21 @@ define_test "walt node run" as {
     walt node run $(test_suite_node) hostname | grep "$(test_suite_node)"
 }
 
+define_test "walt node save" as {
+    walt node run $(test_suite_node) touch /root/node-save
+    temp_img="$(test_suite_image)-$$"
+    walt node save $(test_suite_node) $temp_img
+    walt image cp ${temp_img}:/root/node-save /tmp/node-save-$$
+    if [ -f /tmp/node-save-$$ ]
+    then
+        # ok, cleanup
+        rm /tmp/node-save-$$
+        walt image remove $temp_img
+    else
+        return 1  # failed
+    fi
+}
+
 define_test "walt node expose" as {
     node="$(test_suite_node)"
 

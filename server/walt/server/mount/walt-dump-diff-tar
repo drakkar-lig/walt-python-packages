@@ -1,0 +1,156 @@
+#!/bin/sh
+
+. /bin/walt-env
+
+set -e
+
+# This script aims to dump an archive containing the files modified
+# after the bootup.
+# In order to achieve this, it inspects the r-w layer directory of the
+# RAM overlay all walt nodes mount on bootup. It checks which files
+# have a modification or inode change timestamp higher than the ones
+# of /run/uptime-ready, a file which was created at the time the OS
+# bootup was completed, and then dumps an archive of these files
+# on stdout.
+
+# The script seems much more complex than it should because of the limited
+# busybox features of "tar" and "find" applets. We want this script to run
+# whichever the OS...
+
+busybox_stat_has_tz_fields() {
+    f3="$(busybox stat -c "%y -" . | busybox awk '{print $3}')"
+    [ "$f3" != '-' ]
+}
+
+busybox_stat_uniform() {
+    if busybox_stat_has_tz_fields
+    then
+        busybox stat -c "%Y %y %Z %z %n" "$@"
+    else
+        busybox stat -c "%Y %y - %Z %z - %n" "$@"
+    fi
+}
+
+get_files_times() {
+    # notes: the two sed commands are for replacing only the
+    # first two occurences of "." with " "
+    # (because the file path at the end of the line may also contain
+    # dots and those should no be replaced).
+    busybox_stat_uniform "$@" | \
+        busybox sed 's/\./ /' | \
+        busybox sed 's/\./ /' | \
+        busybox awk '{print $1 "." $4 " " $6 "." $9 " " $0}' | \
+        busybox cut -d' ' -f 1,2,13-
+}
+
+clone_parent_dirs_of() {
+    local src_pdir="$(busybox dirname "$1")"
+    local dst_pdir="${tmp_dir}/${src_pdir}"
+    if [ ! -d "$dst_pdir" ]
+    then
+        # depth-first recursion
+        clone_parent_dirs_of "$src_pdir"
+        mode="$(busybox stat -c "%a" "$src_pdir")"
+        owner="$(busybox stat -c "%U:%G" "$src_pdir")"
+        busybox mkdir "$dst_pdir"
+        busybox chmod "$mode" "$dst_pdir"
+        busybox chown "$owner" "$dst_pdir"
+    fi
+}
+
+hard_link_files() {
+    busybox mkdir -p "$tmp_dir"
+    while read f
+    do
+        # clone parent directories of $f recursively in $tmp_dir,
+        # preserving mode and ownership.
+        clone_parent_dirs_of "$f"
+        # make a hardlink of $f in $tmp_dir.
+        busybox ln "$f" "${tmp_dir}/$f"
+    done
+}
+
+filter_out_files() {
+    busybox grep -v "/log/" | \
+    busybox grep -v "\.lock$" | \
+    busybox grep -v "machine-id" | \
+    busybox grep -v "walt-env" | \
+    busybox grep -v "_walt_internal_" | \
+    busybox grep -v "README.nonlocal"
+}
+
+list_files_modified_after_os_bootup() {
+    set -- $(get_files_times /run/uptime-ready | awk '{print $1 " " $2}')
+    local mref="$1"
+    local cref="$2"
+    busybox find . '(' -type f -o -type l ')' -print0 | \
+        busybox xargs -0 "$0" "__get_files_times__" | \
+        busybox awk -v mref="$mref" -v cref="$cref" \
+            '$1>=mref || $2>=cref {print $0}' | \
+        busybox cut -d' ' -f 3- | \
+        filter_out_files
+}
+
+list_files() {
+    busybox find "$1" '(' -type f -o -type l ')' | filter_out_files
+}
+
+dump_archive_network_boot() {
+    tmp_dir="/run/walt/rootfs/tmp/d$$"
+    cd /run/walt/rootfs/mnt/fs_rw
+    list_files_modified_after_os_bootup | hard_link_files
+    cd "${tmp_dir}"
+    busybox tar cf - .
+    rm -rf "${tmp_dir}"
+}
+
+dump_archive_hybrid_v_boot() {
+    tmp_dir="/run/walt/rootfs/mnt/hm_part/walt_hybrid/tmp/d$$"
+    cd "/run/walt/rootfs/mnt/hm_part/walt_hybrid/${walt_image_id}/diff"
+    list_files_modified_after_os_bootup | hard_link_files
+    # note: there is no reason why the OS would modify files in /local
+    # during bootup, so include all files there
+    cd "/run/walt/rootfs/mnt/hm_part/walt_hybrid/${walt_image_id}/"
+    list_files "./local" | hard_link_files
+    cd "${tmp_dir}"
+    busybox tar cf - .
+    rm -rf "${tmp_dir}"
+}
+
+dump_archive_hybrid_p_boot() {
+    # we cannot filter the "diff" on dates as we do for other boot modes
+    # (get only files modified after /run/uptime-ready) because files
+    # there are persisted across reboots, so they may be much older than
+    # /run/uptime-ready.
+    tmp_dir="/run/walt/rootfs/mnt/hm_part/walt_hybrid/tmp/d$$"
+    cd "/run/walt/rootfs/mnt/hm_part/walt_hybrid/${walt_image_id}/diff"
+    list_files "." | hard_link_files
+    cd "/run/walt/rootfs/mnt/hm_part/walt_hybrid/${walt_image_id}/"
+    list_files "./local" | hard_link_files
+    cd "${tmp_dir}"
+    busybox tar cf - .
+    rm -rf "${tmp_dir}"
+}
+
+dump_archive() {
+    if [ "$walt_boot_mode" = 'network' ]
+    then
+        dump_archive_network_boot
+    elif [ "$walt_boot_mode" = 'hybrid-volatile' ]
+    then
+        dump_archive_hybrid_v_boot
+    elif [ "$walt_boot_mode" = 'hybrid-persistent' ]
+    then
+        dump_archive_hybrid_p_boot
+    fi
+}
+
+if [ "$1" = "__get_files_times__" ]
+then
+    shift
+    get_files_times "$@"
+    exit 0
+else
+    dump_archive
+    exit 0
+fi

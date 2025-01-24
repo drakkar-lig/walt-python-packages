@@ -34,7 +34,6 @@ update_mounts_rootfs_to_finalfs() {
         busybox mount -o bind mnt/persist /persist
     fi
     busybox mount -o bind /dev dev  # needed for walt-log-script & walt-fs-watchdog
-    [ -d mnt/hm_part ] && busybox umount mnt/hm_part
     cd /
 }
 

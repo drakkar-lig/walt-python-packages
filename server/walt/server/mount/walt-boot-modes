@@ -2,6 +2,20 @@
 # vim: ft=sh
 
 HYBRID_MODE_COMMANDS="awk df tail tar mv wc"
+MSG_IMAGE_HAS_LOCAL_DIR=$(cat << EOF
+Note: this /local directory is actually not mounted locally on node storage,
+because a /local directory was already present in this WalT OS image!
+So this reflects the /local directory of the WalT image.
+
+This situation usually occurs with this workflow:
+1. configure <node> for hybrid-persistent boot mode.
+2. connect to <node> and put something in /local.
+3. use 'walt node save <node> <image>' to save modications as a new WalT image.
+
+If you want to restore mounting /local on node storage as usual, edit this
+image using "walt image shell" and remove "/local".
+EOF
+)
 
 _free_size_kib() {
     dir=$1
@@ -204,6 +218,12 @@ mount_hybrid_mode_localfs() {
     # default snapshotter).
     local_dir="/mnt/hm_part/walt_hybrid/${walt_image_id}/local"
     mkdir -p "$local_dir" "/mnt/finalfs/local"
+    if [ ! -z "$(ls -A "/mnt/finalfs/local")" ]
+    then
+        echo "skipped, image already has a non-empty /local directory."
+        echo "$MSG_IMAGE_HAS_LOCAL_DIR" > "/mnt/finalfs/local/README.nonlocal"
+        return
+    fi
     mount -o bind "$local_dir" "/mnt/finalfs/local"
 }
 

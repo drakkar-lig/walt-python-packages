@@ -19,3 +19,5 @@ Without this third form, users would have to use `walt node cp` to retrieve modi
 
 Using keyword `booted-image` allows to transfer files directly from the node to the image it has booted.
 Note that this update of the image will trigger a reboot of this node once the transfer is done. It will also reboot any other node which has booted the same image.
+
+For saving more complex changes you have done on a node, see [`walt help show node-save`](node-save.md).
