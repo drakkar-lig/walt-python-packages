@@ -1,0 +1,52 @@
+#!/bin/busybox sh
+# vim: ft=sh
+
+SWAP_SETUP_COMMANDS="nbd-client mkswap swapon"
+SWAP_SIZE="16G"
+TMPFS_SIZE_IF_SWAP="8G"
+
+mount_nbd_swap() {
+    boot_step_label_cr          "Mounting remote swap space on server..."
+    # network boot implies storing file modifications in RAM, which can be
+    # quickly exhausted if the user does large modifications on the node
+    # instead of doing them on the OS image.
+    # So we provide swap using the NBD protocol and extend the tmpfs overlay
+    # size accordingly.
+    # Note: for the sake of simplicity, we try to mount this swap whatever
+    # the boot mode.
+    if [ ! -d /sys/module/nbd ]
+    then
+        echo "skipped, this feature needs missing kernel module 'nbd'."
+        return
+    fi
+    for cmd in $SWAP_SETUP_COMMANDS
+    do
+        if ! which $cmd >/dev/null && ! busybox_has_applet $cmd
+        then
+            echo "skipped, this feature needs '$cmd' on the image."
+            return
+        fi
+    done
+    # 1- connect to a NBD device on the server
+    expname="swap-${SWAP_SIZE}"
+    options="-N $expname ${walt_server_ip} /dev/nbd0 -swap"
+    # prefer the OS command over the busybox applet because
+    # it usually provides option "-swap"
+    if which nbd-client >/dev/null
+    then
+        nbdc="nbd-client"
+    else
+        nbdc="busybox nbd-client"
+    fi
+    if ! $nbdc $options >/dev/null 2>&1
+    then
+        echo "skipped, nbd-client failed or miss '-swap' option."
+        return
+    fi
+    # 2- activate the swap on it
+    run_busybox_or_not mkswap /dev/nbd0 >/dev/null
+    run_busybox_or_not swapon /dev/nbd0
+    # 3- extend the size of rootfs (= root tmpfs mount)
+    #    (this with allow /mnt/fs_rw to grow much more)
+    busybox mount -o remount,size=${TMPFS_SIZE_IF_SWAP} /run/walt/rootfs
+}

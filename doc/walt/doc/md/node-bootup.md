@@ -16,12 +16,16 @@ contains the boot files needed (see bootup steps below).
 
 ## Bootup steps
 
-The following applies to a raspberry pi node.
-However, PC nodes boot very much the same, except that:
+The following applies to a raspberry pi node, in the default boot-mode (i.e., network
+boot mode).
+
+PC nodes boot very much the same, except that:
 - the bootloader is iPXE instead of u-Boot
 - the SD card is usually replaced by a USB device
 
-Here are the bootup steps for a raspberry pi:
+For more information about alternate boot modes, see [`walt help show boot-modes`](boot-modes.md).
+
+Here are the bootup steps:
 1.  The board is powered on and starts its firmware
 2.  The firmware starts u-boot as a 2nd stage bootloader stored on the SD card
 3.  u-boot starts the 1st stage script stored on the SD card
@@ -71,21 +75,16 @@ Here are the bootup steps for a raspberry pi:
 16. walt-init runs `walt-clock-sync` to ensure an initial clock synchronization with the server
     (for more precise clock synchronization, the image should provide a PTP daemon)
 17. walt-init mounts a union of the NFS root and a virtual filesystem in RAM (see note 2)
-18. walt-init calls `/sbin/init` (the regular OS init system, such as systemd) in a chroot on
+18. if the OS image supports it, walt-init mounts a remote NBD device (Network Block Device)
+    to be be able to swap memory on the server in selected scenarios (see note 2)
+19. walt-init calls `/sbin/init` (the regular OS init system, such as systemd) in a chroot on
     top of the union
-19. the walt image OS starts up
+20. the walt image OS starts up
 
 Notes and details:
 1.  Actually, in directory `/var/lib/walt/nodes`, several entries are created for each node,
     all pointing to the same structure described above. The `{mac_address}` is also present
     in two forms, together with the `{ip_address}` entry. This allows to deal with the
     limitations of the bootloaders and TFTP server remapping syntax.
-2.  This union of the NFS root and a virtual filesystem in RAM is a very important feature.
-    It allows:
-    - to keep the NFS share read-only (allowing several nodes booting the same image to
-      modify files would obviously cause problems).
-    - to avoid writing files on the SD card, thus keep it read-only, which greatly extends its
-      lifetime.
-    - to discard any file modification each time the node reboots, ensuring a high level of
-      reproducibility: as long as the user keeps the same image, the node will boot exactly
-      the same files.
+2.  This union of the NFS root and a virtual filesystem in RAM is a very important feature,
+    see [`walt help show boot-modes`](boot-modes.md) for more info.

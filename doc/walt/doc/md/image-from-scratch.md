@@ -267,3 +267,11 @@ When these files are provided, the WALT server performs these steps:
 
 Note that this procedure hides the startup messages of the init system (steps 1 and 3) to the user.
 For debugging, you can work on an image without `/bin/walt-image-shell-start` or `/bin/walt-image-shell-shutdown` at first, so just a basic virtual environment is set when you run `walt image shell`. In this basic environment, you can test the commands you wish to embed in those files one by one, for instance `exec /sbin/init`, and verify that everything can run properly in a container environment.
+
+### 10- Support for RAM swapping using NBD
+
+If the OS image supports it, the node will be able to use a Network Block Device (NBD) for RAM swapping.
+It is quite an interesting feature, because heavy file modifications on the nodes (e.g., package installations) fail otherwise, since they are stored in a RAM overlay with limited size.
+See [`walt help show boot-modes`](boot-modes.md) for more info.
+
+To support this, the image must provide commands `nbd-client`, `mkswap`, `swapon` and the kernel module called `nbd`.

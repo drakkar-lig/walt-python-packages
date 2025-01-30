@@ -46,14 +46,26 @@ run_real_init()
     exec /sbin/init "$@" </dev/console >/dev/console 2>&1
 }
 
+enable_zswap() {
+    # enable zswap if the kernel supports it, for more optimized RAM usage
+    # (or limited NBD swap usage if NBD mounting succeeds)
+    [ -e /sys/module/zswap/parameters/enabled ] && \
+        echo 1 > /sys/module/zswap/parameters/enabled || true
+}
+
 # complete transition to finalfs
 . walt-script-common
+. walt-init-nbd
 update_mounts_rootfs_to_finalfs
 export walt_init_done=1
 
 # start bg processes
 boot_step_label_cr          "Starting bg processes..."
 start_background_processes
+
+# enable zswap and mount remote NBD swap
+enable_zswap
+mount_nbd_swap
 
 # start image init
 boot_step_label_cr          "Starting walt image init..."

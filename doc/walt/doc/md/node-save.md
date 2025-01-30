@@ -30,8 +30,14 @@ In this case, making the changes directly on a node and then saving the OS image
 This command is not able to detect files and directories which were **removed**
 (comparing to the original OS image booted by the node); only files which were
 **modified** or **created** are detected.
-
 If you need to remove some files of an OS image, use `walt image shell` instead.
+
+Heavy operations on files (such as installation of OS packages) should preferably
+be done on the OS image, not directly on the node, because it will probably cause
+the node to **swap** or run out of RAM. See [`walt help show boot-modes`](boot-modes.md) for
+more info. If a part of your setup procedure uses `walt node save`, then it should
+preferably be called with an image where those preliminary steps have already been
+applied.
 
 
 ## How the command works
