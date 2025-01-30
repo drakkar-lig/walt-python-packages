@@ -1,0 +1,13 @@
+# walt-vpn-server - WalT network VPN server
+#
+# This daemon allows distant walt nodes to connect to walt-net.
+#
+# It will be activated on first connexion to TCP port 10809
+# (see file walt-server-nbd.socket)
+
+[Unit]
+Description=WalT NBD server (Network Block Device)
+
+[Service]
+Environment=PYTHONUNBUFFERED=1
+ExecStart=walt-server-nbd

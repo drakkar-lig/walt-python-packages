@@ -23,10 +23,6 @@ _free_size_kib() {
     echo $(($2-$3))
 }
 
-_busybox_has() {
-    busybox $1 --help >/dev/null 2>&1
-}
-
 _make_room_for_new_image() {
     estimated_image_size_kib=$((walt_image_size_kib * 2))
     cd "/mnt/hm_part/walt_hybrid"
@@ -51,7 +47,7 @@ detect_boot_mode() {
     missing=""
     for applet in $HYBRID_MODE_COMMANDS
     do
-        if _busybox_has $applet
+        if busybox_has_applet $applet
         then
             ln -s busybox /bin/$applet
         else
@@ -63,7 +59,7 @@ detect_boot_mode() {
         echo "failed" "[image]/bin/busybox misses" $missing
         return
     fi
-    # detect block devices of disk partitions. We exclude loop, ram and
+    # detect block devices of disk partitions. We exclude loop, ram, nbd and
     # optical disk devices; partition devices end with a digit, whereas
     # full disk devices do not (e.g. sda1 vs sda), except SD cards
     # (e.g. mmcblk0p1 vs mmcblk0). If ever we forgot to discard something,
@@ -71,6 +67,7 @@ detect_boot_mode() {
     devs=$(ls -l /dev/ | _happy_grep '^b' | awk '{print $NF}' | \
             _happy_grep '[0-9]$' | \
             _happy_grep -v '^loop' | \
+            _happy_grep -v '^nbd' | \
             _happy_grep -v '^ram' | \
             _happy_grep -v '^sr' | \
             _happy_grep -v 'mmcblk[0-9]$')
@@ -82,7 +79,7 @@ detect_boot_mode() {
     do
         # if busybox has xxd applet, we can check the ext4 magic number
         # (otherwise we will just try if mount.ext4 works...)
-        if _busybox_has xxd
+        if busybox_has_applet xxd
         then
             ext4_magic="$(busybox xxd -s 1080 -l 2 -p "/dev/$dev" 2>/dev/null)"
             # note: some versions of busybox xxd return "53ef<lots-of-spaces>"
@@ -237,4 +234,3 @@ mount_secondaryfs() {
         ;;
     esac
 }
-
