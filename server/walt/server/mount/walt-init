@@ -28,6 +28,7 @@ ROOTFS_IMAGE_SCRIPTS="
     /bin/_walt_internal_/walt-init-rootfs
     /bin/_walt_internal_/walt-init-rootfs-main
     /bin/_walt_internal_/walt-init-finalfs
+    /bin/_walt_internal_/walt-init-nbd
     /bin/_walt_internal_/walt-log-script
     /bin/_walt_internal_/walt-fs-watchdog
 "
@@ -70,9 +71,10 @@ do_mounts()
 # This function loads modules which we may need and may not be compiled in the kernel.
 load_modules() {
     # ata_piix & sd_mod: useful for local disk detection (hybrid modes)
+    # nbd & zswap: useful for mounting a swap file stored remotely on server
     # if other modules are needed, the image may provide a file /bin/walt-preinit
     # to load them.
-    for mod in ata_piix sd_mod overlay overlayfs ext4 nfs nfsv3
+    for mod in ata_piix sd_mod overlay overlayfs ext4 nfs nfsv3 nbd zswap
     do
         busybox modprobe $mod >/dev/null 2>&1 || true
     done

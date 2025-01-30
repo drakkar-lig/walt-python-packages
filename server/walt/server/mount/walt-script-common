@@ -199,3 +199,18 @@ is_vnode() {
     fi
     return 1  # no, not a vnode
 }
+
+busybox_has_applet() {
+    busybox $1 --help >/dev/null 2>&1
+}
+
+run_busybox_or_not() {
+    if busybox_has_applet "$1"
+    then
+        # run as busybox command
+        busybox "$@"
+    else
+        # run as direct command
+        "$@"
+    fi
+}

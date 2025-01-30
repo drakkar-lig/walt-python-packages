@@ -33,6 +33,8 @@ STOPPABLE_WALT_SERVICES = [
     "walt-server-lldpd.service",
     "walt-server-ptpd.service",
     "walt-server-httpd.service",
+    "walt-server-nbd.service",
+    "walt-server-nbd.socket",
     "walt-server-podman.service",
     "walt-server-podman.socket",
 ]
@@ -60,7 +62,7 @@ UNCOMPATIBLE_OS_SERVICES = [
     "ptpd.service",
 ]
 
-WALT_SOCKET_SERVICES = ["walt-server-podman.socket"]
+WALT_SOCKET_SERVICES = ["walt-server-podman.socket", "walt-server-nbd.socket"]
 WALT_MAIN_SERVICE = "walt-server.service"
 
 OS_ACTIONS = {
