@@ -39,10 +39,20 @@ This setup has the following pros:
   are usually the most fragile components of a platform, so avoiding their use is
   preferable.
 
-The main disadvantage of this network boot method is the limited storage space on RAM.
-The following actions can be taken to avoid problems:
-* **Heavy operations on files should be prepared in the walt image** (e.g, using
-  `walt image shell`), not run once the node is booted.
+In order to avoid exhausting the RAM space with created and modified files, WalT
+nodes also mount a **special memory swap device** at bootup if the WalT OS image
+supports it (recent default images do). It is based on `/dev/nbd0`, a "Network
+Block Device", so if the node starts swapping, data will actually be stored in a
+temporary file on the WalT server.
+
+However, please note that swapping can reduce the reproducibility of an experiment
+and might cause OS issues in extreme situations. So you should avoid getting to
+this situation by following these tips:
+* **Heavy operations on files should be prepared in the walt images**, not run on
+  the nodes. You can use `walt image shell` or `walt image build` to prepare the
+  OS images with those heavy operations (such as the installation of OS packages).
+  If a part of your setup procedure uses `walt node save`, it should be called with
+  an image where those preliminary steps have already been applied.
 * **Large experiment result files should be generated in the directory `/persist` of
   the node**. This directory is excluded from the RAM overlay setup; instead, it is
   a read-write NFS share, so files stored there are actually stored on the server,

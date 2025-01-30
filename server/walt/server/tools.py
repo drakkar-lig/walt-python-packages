@@ -496,3 +496,52 @@ def get_podman_client():
     # The following line works around this issue.
     c.api.trust_env = False
     return c
+
+
+class NetworkBuf:
+    def __init__(self, s):
+        self._s = s
+        self._buf = b''
+    def read(self, length):
+        while len(self._buf) < length:
+            chunk = self._s.recv(4096)
+            if len(chunk) == 0:
+                raise Exception("Empty read")
+            self._buf += chunk
+        res = self._buf[:length]
+        self._buf = self._buf[length:]
+        return res
+    def write(self, buf):
+        while (len(buf) > 0):
+            length = self._s.send(buf)
+            buf = buf[length:]
+    def sendfile(self, f, offset, length):
+        self._s.sendfile(f, offset, length)
+    def pending_buflen(self):
+        return len(self._buf)
+    def fileno(self):
+        return self._s.fileno()
+    def close(self):
+        self._s.close()
+
+
+def NetworkMsg(fmt, *static_args):
+    import struct
+    length = struct.calcsize(fmt)
+    class NetworkMsgCls:
+        @staticmethod
+        def read(netbuf):
+            buf = netbuf.read(length)
+            t = struct.unpack(fmt, buf)
+            if len(t) == 1:
+                return t[0]
+            else:
+                return t
+        @classmethod
+        def format(cls, *args):
+            return struct.pack(fmt, *(static_args + args))
+        @classmethod
+        def write(cls, netbuf, *args):
+            buf = cls.format(*args)
+            netbuf.write(buf)
+    return NetworkMsgCls

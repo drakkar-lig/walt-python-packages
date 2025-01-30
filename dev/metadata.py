@@ -109,6 +109,7 @@ PACKAGE_SPECIFIC_INFO = {
                     "walt-server-snmpd = walt.server.services.snmpd:run",
                     "walt-server-lldpd = walt.server.services.lldpd:run",
                     "walt-server-ptpd = walt.server.services.ptpd:run",
+                    "walt-server-nbd = walt.server.services.nbd:run",
                     "walt-server-trackexec-replay = walt.server.trackexec.player:run",
                     "walt-server-trackexec-analyse = walt.server.trackexec.analyse:run",
                     "walt-dhcp-event = walt.server.dhcpevent:run",

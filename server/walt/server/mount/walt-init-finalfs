@@ -48,12 +48,16 @@ run_real_init()
 
 # complete transition to finalfs
 . walt-script-common
+. walt-init-nbd
 update_mounts_rootfs_to_finalfs
 export walt_init_done=1
 
 # start bg processes
 boot_step_label_cr          "Starting bg processes..."
 start_background_processes
+
+# mount remote NBD swap
+mount_nbd_swap
 
 # start image init
 boot_step_label_cr          "Starting walt image init..."
