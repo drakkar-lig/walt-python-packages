@@ -8,6 +8,7 @@ from walt.common.api import api, api_expose_method
 from walt.common.constants import WALT_SERVER_DAEMON_PORT
 from walt.common.reusable import reusable
 from walt.common.tcp import Requests, RWSocketFile, MyPickle as pickle
+from walt.common.tcp import set_tcp_nodelay
 from walt.common.tools import BusyIndicator
 
 SERVER_SOCKET_TIMEOUT = 10.0
@@ -180,7 +181,7 @@ class ServerAPIConnection(object):
                 self.sock = self.create_connection(server_ip)
             except Exception:
                 self.sock = self.create_connection(self.server_ip)
-            self.sock.setsockopt(IPPROTO_TCP, TCP_NODELAY, 1)  # disable Nagle
+            set_tcp_nodelay(self.sock)
             sock_file = RWSocketFile(self.sock)
             sock_file.write(
                 b"%d\n%s\n"
