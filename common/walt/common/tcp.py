@@ -8,6 +8,39 @@ PICKLE_VERSION = 4  # from python 3.4
 LISTEN_BACKLOG = 256
 
 
+# Send a keepalive probe every TCP_KEEPALIVE_IDLE_TIMEOUT seconds
+# unless one of them gets no response.
+# In this case send up to TCP_KEEPALIVE_FAILED_COUNT probes
+# with an interval of TCP_KEEPALIVE_PROBE_INTERVAL, and if all
+# probes fail consider the connection is lost.
+
+TCP_KEEPALIVE_IDLE_TIMEOUT = 15
+TCP_KEEPALIVE_PROBE_INTERVAL = 2
+TCP_KEEPALIVE_FAILED_COUNT = 5
+
+
+def set_tcp_keepalive(sock):
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+    sock.setsockopt(socket.IPPROTO_TCP,
+                    socket.TCP_KEEPIDLE,
+                    TCP_KEEPALIVE_IDLE_TIMEOUT)
+    sock.setsockopt(socket.IPPROTO_TCP,
+                    socket.TCP_KEEPINTVL,
+                    TCP_KEEPALIVE_PROBE_INTERVAL)
+    sock.setsockopt(socket.IPPROTO_TCP,
+                    socket.TCP_KEEPCNT,
+                    TCP_KEEPALIVE_FAILED_COUNT)
+
+
+def set_sock_reuseaddr(sock):
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
+
+def set_tcp_nodelay(sock):
+    # disable Nagle
+    sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+
+
 class Requests(ServiceRequests):
     REQ_NEW_INCOMING_LOGS = 0
     REQ_DUMP_LOGS = 1
@@ -97,8 +130,11 @@ class RWSocketFile:
     def getpeername(self):
         return self._s.getpeername()
 
-    def setsockopt(self, *args):
-        return self._s.setsockopt(*args)
+    def set_keepalive(self):
+        set_tcp_keepalive(self._s)
+
+    def set_nodelay(self):
+        set_tcp_nodelay(self._s)
 
     def fileno(self):
         return self._s.fileno()
@@ -204,7 +240,7 @@ class ServerSocketWrapper:
 
 def server_socket(port):
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    set_sock_reuseaddr(s)
     s.bind(("", port))
     s.listen(LISTEN_BACKLOG)
     # set close-on-exec flag (subprocesses should not inherit it)

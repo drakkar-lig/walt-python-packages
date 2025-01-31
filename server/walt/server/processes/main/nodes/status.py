@@ -1,15 +1,6 @@
 #!/usr/bin/env python
 import operator
 import numpy as np
-
-from socket import (
-    IPPROTO_TCP,
-    SO_KEEPALIVE,
-    SOL_SOCKET,
-    TCP_KEEPCNT,
-    TCP_KEEPIDLE,
-    TCP_KEEPINTVL,
-)
 from time import time
 
 from walt.common.tcp import Requests
@@ -17,16 +8,6 @@ from walt.common.tcp import Requests
 NODE_DEFAULT_BOOT_RETRIES = 9
 NODE_DEFAULT_BOOT_TIMEOUT = 180
 NODE_MIN_BOOT_TIMEOUT = 60
-
-# Send a keepalive probe every TCP_KEEPALIVE_IDLE_TIMEOUT seconds
-# unless one of them gets no response.
-# In this case send up to TCP_KEEPALIVE_FAILED_COUNT probes
-# with an interval of TCP_KEEPALIVE_PROBE_INTERVAL, and if all
-# probes fail consider the connection is lost.
-
-TCP_KEEPALIVE_IDLE_TIMEOUT = 15
-TCP_KEEPALIVE_PROBE_INTERVAL = 2
-TCP_KEEPALIVE_FAILED_COUNT = 5
 
 np_extract_cause = np.vectorize(operator.methodcaller("get", "cause", None), otypes="O")
 
@@ -49,12 +30,7 @@ class NodeBootupStatusListener:
         self._confirmed = False
 
     def set_keepalive(self):
-        self.sock_file.setsockopt(SOL_SOCKET, SO_KEEPALIVE, 1)
-        self.sock_file.setsockopt(IPPROTO_TCP, TCP_KEEPIDLE, TCP_KEEPALIVE_IDLE_TIMEOUT)
-        self.sock_file.setsockopt(
-            IPPROTO_TCP, TCP_KEEPINTVL, TCP_KEEPALIVE_PROBE_INTERVAL
-        )
-        self.sock_file.setsockopt(IPPROTO_TCP, TCP_KEEPCNT, TCP_KEEPALIVE_FAILED_COUNT)
+        self.sock_file.set_keepalive()
 
     # let the event loop know what we are reading on
     def fileno(self):
