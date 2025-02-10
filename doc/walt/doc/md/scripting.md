@@ -3,7 +3,7 @@
 This section describes the `python` scripting features WalT provides.
 
 Python package `walt-client` includes the scripting features described here.
-Installing `walt-client` in a virtual environment is recommended:
+Installing `walt-client` in a virtual environment is required:
 
 ```
 ~$ mkdir experiment
