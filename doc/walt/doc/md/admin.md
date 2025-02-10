@@ -12,6 +12,14 @@ To build a WalT platform, install and connect the following components:
 
 A basic understanding of WalT network structure may be useful, see [`walt help show networking`](networking.md).
 
+## (Optional) Installation of client software
+
+Most users use ssh to connect to the WalT server and use the walt client already
+installed there.
+
+If you want to install the WalT client tool on another machine, check the client
+install documentation: [`walt help show client-install`](client-install.md).
+
 ## Upgrade
 
 Upgrading your WalT platform just consists of a simple upgrade procedure on server side,
