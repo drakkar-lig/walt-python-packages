@@ -11,12 +11,9 @@ at: https://hub.docker.com/.
 Most users use ssh to connect to the WalT server and use the walt client already
 installed there.
 
-If you want to install the WalT client on your own machine (Mac OS X or GNU/Linux)
-instead, you can type:
-
-```console
-$ sudo pip install walt-client
-```
+If you want to install the WalT client on your own machine (Mac OS X, GNU/Linux,
+or using Windows Subsystem for Linux (WSL)) instead, check the client install
+documentation: [`walt help show client-install`](client-install.md).
 
 ## The `walt` command
 
