@@ -13,6 +13,7 @@ PACKAGE_SPECIFIC_INFO = {
         requires=[
             "commonmark>=0.7.5",
             "pygments>=2.2.0",
+            "setuptools>=70.0.0",   # includes pkg_resources, for finding md files
             "walt-common==%(walt_version)s",
         ],
         version_str="%(walt_version)s",
