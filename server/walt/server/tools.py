@@ -4,9 +4,8 @@ import json
 import numpy as np
 import socket
 import sys
-from ipaddress import IPv4Address, ip_address, ip_network
+from ipaddress import ip_address, ip_network
 from time import time
-from typing import Union
 
 from walt.common.evloop import POLL_OPS_READ, POLL_OPS_WRITE
 from walt.common.formatting import COLUMNATE_SPACING
@@ -157,36 +156,6 @@ def ip_in_walt_adm_network(input_ip):
         return False
     else:
         return ip(input_ip) in subnet
-
-
-def get_dns_servers() -> [Union[str, IPv4Address]]:
-    local_server_is_dns_server = False
-    dns_list = []
-    with open("/etc/resolv.conf", "r") as f:
-        for line in f:
-            line = line.strip()
-            if len(line) == 0:
-                continue
-            if line[0] == "#":
-                continue
-            if line.startswith("nameserver"):
-                for dns_ip in line.split(" ")[1:]:
-                    dns_ip = ip_address(dns_ip)
-                    if dns_ip.version != 4:
-                        # Not supported by dhcpd in our IPv4 configuration
-                        continue
-                    if dns_ip.is_loopback:
-                        local_server_is_dns_server = True
-                        continue
-                    dns_list.append(dns_ip)
-    # If walt server is a DNS server, and no other DNS is available, let the
-    # walt nodes use it (but not with its localhost address!)
-    if local_server_is_dns_server and len(dns_list) == 0:
-        dns_list.append(get_server_ip())
-    # Still no DNS server...  Hope that this one is reachable
-    if len(dns_list) == 0:
-        dns_list.append("8.8.8.8")
-    return dns_list
 
 
 def ensure_text_file_content(path, content):

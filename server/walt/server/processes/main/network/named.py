@@ -1,10 +1,12 @@
 import numpy as np
 import time, re
 from pathlib import Path
+from ipaddress import IPv4Address, ip_address
+from typing import Union
 
 from walt.server.processes.main.network.service import ServiceRestarter
 from walt.server.processes.main.network.service import async_systemd_service_restart_cmd
-from walt.server.tools import get_dns_servers, get_server_ip, get_walt_subnet, ip
+from walt.server.tools import get_server_ip, get_walt_subnet, ip
 
 NAMED_STATE_DIR = Path("/var/lib/walt/services/named")
 NAMED_CONF = NAMED_STATE_DIR / "named.conf"
@@ -94,6 +96,64 @@ $TTL    604800
 
 """
 
+ETC_RESOLV_CONF_HEADER = "# PLEASE DO NOT EDIT: reconfigured for walt-server-named"
+
+
+# We process /etc/resolv.conf for two reasons:
+# * Detect "nameserver" directives to be passed as "forwarders" option in named.conf.
+#   This function returns this list of forwarders to the caller.
+# * If it seems reasonable to do so (i.e., /etc/resolv.conf is a regular file, not
+#   a symlink), we rewrite /etc/resolv.conf to catch the DNS queries issued on this
+#   local walt server machine. Thus if a user types "ping <walt-device-name>" in an
+#   SSH session on this walt server, it should work.
+# The file is written a 1st time on system bootup when receiving a DHCP answer
+# including DNS information. Then process "walt-server-daemon" starts, analyses
+# the content of /etc/resolv.conf and if possible rewrites it. If ever
+# "walt-server.service" is later restarted, this function detects that
+# /etc/resolv.conf was already updated so its content is left unchanged.
+def process_etc_resolv_conf():
+    print("LOGGGGGGGG process_etc_resolv_conf")
+    updatable = True
+    walt_configured = False
+    forwarders = []
+    nameservers = []
+    search_domains = []
+    path = Path("/etc/resolv.conf")
+    if path.is_symlink():
+        updatable = False
+        print("Warning: /etc/resolv.conf is a symlink, leaving it untouched.",
+              file=sys.stderr)
+    for line in path.read_text().splitlines():
+        if line == ETC_RESOLV_CONF_HEADER:
+            # already configured
+            walt_configured = True
+        elif line.startswith("# forwarding-to:"):
+            forwarders += line.split()[2:]
+        else:
+            # remove comments
+            line = line.split("#", maxsplit=1)[0].strip()
+            if len(line) == 0:
+                continue
+            elif line.startswith("nameserver"):
+                nameservers += line.split()[1:]
+            elif line.startswith("search"):
+                search_domains += line.split()[1:]
+    if walt_configured:
+        return forwarders
+    else:
+        if updatable:
+            server_ip = get_server_ip()
+            s_nameservers = " ".join(nameservers)
+            s_search_domains = " ".join(search_domains)
+            new_content = f"{ETC_RESOLV_CONF_HEADER}\n"
+            new_content += f"# forwarding-to: {s_nameservers}\n"
+            new_content += "domain walt\n"
+            new_content += f"search walt. {s_search_domains}\n"
+            for ns_ip in [server_ip] + nameservers:
+                new_content += f"nameserver {ns_ip}\n"
+            path.write_text(new_content)
+        return nameservers
+
 
 def serial_removed(zone_content):
     return re.sub(r'^.*Serial$', '', zone_content, flags=re.MULTILINE)
@@ -155,7 +215,7 @@ def update_named_conf(dns_info):
     for rev_zone_file in (prev_rev_zone_files - rev_zone_files):
         rev_zone_file.unlink()
         changed = True
-    dns_forwarders = map(str, get_dns_servers())
+    dns_forwarders = process_etc_resolv_conf()
     conf = CONF_PATTERN % dict(
             named_state_dir = NAMED_STATE_DIR,
             named_pid_file = NAMED_PID_FILE,

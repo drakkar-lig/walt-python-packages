@@ -8,6 +8,8 @@
 Description=WalT server daemon
 Requires=walt-server-netconfig.service
 After=walt-server-netconfig.service
+# we will analyse /etc/resolv.conf, so...
+After=network-online.target
 # needs lldp
 Wants=walt-server-lldpd.service
 # we need a configuration file
