@@ -126,11 +126,19 @@ class NodeBootupStatusManager(object):
 
     def restore(self):
         # initialize _boot_info
+        # note: 3 cases must be considered for conf->'boot.timeout':
+        # * it may be an integer
+        # * it may be missing, in which case a default value NODE_DEFAULT_BOOT_TIMEOUT
+        #   is returned
+        # * it may be disabled, in which case the value stored is 'null'::jsonb and
+        #   the value to return is None.
         now = time()
         boot_info = self._db.execute(f"""
             SELECT
                 mac,
-                COALESCE((conf->'boot.timeout')::int, {NODE_DEFAULT_BOOT_TIMEOUT})
+                NULLIF(COALESCE(conf->'boot.timeout',
+                                '{NODE_DEFAULT_BOOT_TIMEOUT}'::jsonb),
+                       'null'::jsonb)::int
                     AS timeout,
                 COALESCE((conf->'boot.retries')::int, {NODE_DEFAULT_BOOT_RETRIES})
                     AS retries,
