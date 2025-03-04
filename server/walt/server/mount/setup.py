@@ -77,7 +77,7 @@ nameserver %(nameserver)s
 # one using:
 # $ dropbearconvert openssh dropbear \
 #   /etc/ssh/ssh_host_ecdsa_key /etc/dropbear/dropbear_ecdsa_host_key
-FILES = {
+FILES_OVERWRITE = {
     "/etc/ssh/ssh_host_ecdsa_key": UNSECURE_ECDSA_KEYPAIR["openssh-priv"],
     "/etc/ssh/ssh_host_ecdsa_key.pub": UNSECURE_ECDSA_KEYPAIR["openssh-pub"],
     "/etc/dropbear/dropbear_ecdsa_host_key": UNSECURE_ECDSA_KEYPAIR["dropbear"],
@@ -87,10 +87,12 @@ FILES = {
 ff02::1     ip6-allnodes
 ff02::2     ip6-allrouters
 """,
+}
+
+FILES_APPEND = {
     "/root/.ssh/authorized_keys": None,
 }
 
-AUTHORIZED_KEYS_PATH = "/root/.ssh/authorized_keys"
 SERVER_KEY_PATH = "/root/.ssh/id_rsa"
 
 HOSTS_FILE_CONTENT = """\
@@ -189,12 +191,12 @@ def update_timezone(mount_path):
 
 
 def setup(image_id, mount_path, image_size_kib, img_print):
-    # ensure FILES var is completely defined
-    if FILES["/root/.ssh/authorized_keys"] is None:
+    # ensure FILES_APPEND var is completely defined
+    if FILES_APPEND["/root/.ssh/authorized_keys"] is None:
         # ensure server has a pub key
         ensure_root_key_exists()
         # we will authorize the server to connect to nodes
-        FILES["/root/.ssh/authorized_keys"] = Path(
+        FILES_APPEND["/root/.ssh/authorized_keys"] = Path(
             SERVER_KEY_PATH + ".pub"
         ).read_bytes()
     # /etc/dropbear is a symlink to /var/run/dropbear on some images.
@@ -205,10 +207,21 @@ def setup(image_id, mount_path, image_size_kib, img_print):
     # We may have the same issues with /etc/ssh.
     remove_if_link(mount_path + "/etc/ssh")
     remove_if_link(mount_path + "/etc/dropbear")
-    # copy files listed in variable FILES on the image
-    for path, content in FILES.items():
-        failsafe_makedirs(mount_path + os.path.dirname(path))
-        Path(mount_path + path).write_bytes(content)
+    # copy files listed in variable FILES_OVERWRITE on the image
+    for path, content in FILES_OVERWRITE.items():
+        p = Path(mount_path + path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(content)
+    # append specified content to files listed in variable FILES_APPEND
+    for path, content in FILES_APPEND.items():
+        p = Path(mount_path + path)
+        if p.exists():
+            old_content = p.read_bytes()
+            new_content = old_content + b'\n' + content
+            p.write_bytes(new_content)
+        else:
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_bytes(content)
     # ensure /etc/hosts has correct rights
     os.chmod(mount_path + "/etc/hosts", 0o644)
     # update /etc/resolv.conf
