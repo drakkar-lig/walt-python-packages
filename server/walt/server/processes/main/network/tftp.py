@@ -14,6 +14,7 @@ TFTP_ROOT = "/var/lib/walt/"
 PXE_PATH = TFTP_ROOT + "pxe/"
 NODES_PATH = TFTP_ROOT + "nodes/"
 TFTP_STATIC_DIR = Path(TFTP_ROOT + "tftp-static")
+TFTP_STATIC_DIR_TS = 1741598952
 NODE_PROBING_PATH = Path(NODES_PATH) / 'probing'
 NODE_PROBING_TFTP_PATH = NODE_PROBING_PATH / 'tftp'
 TFTP_STATUS_PATH = Path(NODES_PATH) / "status.pickle"
@@ -76,6 +77,14 @@ def prepare():
         failsafe_makedirs(PXE_PATH)
         orig_path = resource_filename(__name__, "walt-x86-undionly.kpxe")
         shutil.copy(orig_path, PXE_PATH)
+    if TFTP_STATIC_DIR.exists():
+        static_dir_ts = 0
+        date_file = TFTP_STATIC_DIR / "walt.date"
+        if date_file.exists():
+            static_dir_ts = int(date_file.read_text().splitlines()[-1])
+        if static_dir_ts < TFTP_STATIC_DIR_TS:
+            # obsolete static dir, remove it (will be recreated below)
+            shutil.rmtree(TFTP_STATIC_DIR)
     if not TFTP_STATIC_DIR.exists():
         archive_path = resource_filename(__name__, "tftp-static.tar.gz")
         with tarfile.open(archive_path) as tar:
