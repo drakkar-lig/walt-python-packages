@@ -56,83 +56,75 @@ $ walt node remove <node-name>
 
 ## Raspberry Pi boards
 
-### Hardware tips
+WalT supports the following Raspberry Pi models:
 
-WalT supports raspberry pi models B, B+, 2B, 3B, 3B+, 4B, and Pi-400.
+| Model | Recommended PoE splitter      | Needs an SD-card | Setup task         |
+|-------|-------------------------------|------------------|--------------------|
+| B     | external (1)                  | Yes              | SD-card (2)        |
+| B+    | external (1)                  | Yes              | SD-card (2)        |
+| 2B    | external (1)                  | Yes              | SD-card (2)        |
+| 3B    | external (1)                  | Yes              | SD-card (2)        |
+| 3B+   | external (1) or official (3)  | No               | None! (4)          |
+| 4B    | external (5) or official (3)  | No               | Set boot-order (4) |
+| 5B    | external (5) or waveshare (6) | No               | Set boot-order (4) |
 
-We recommend raspberry pi model 3B+ or 4B.
+Notes:
+1. Use a PoE splitter providing micro-USB type B connectivity.
+2. See "Booting older models with a SD card" below.
+3. Purchase the official "Raspberry Pi PoE+ HAT". It can fit in the official Rpi 3B+ or 4B cases. However, the integrated fan is a little noisy.
+4. See "Booting recent models" below.
+5. Use a PoE splitter providing USB-C connectivity. Model 5B needs more power (PoE+ is required for a reliable behavior), especially if you connect USB peripherals; look for PoE+ compatibility and output power 4A.
+6. At the time of this writing there is no official PoE HAT for model 5B, but we tested the Waveshare PoE HAT model F successfully. Note that it is not compatible with the official case.
 
-PoE support can be provided by the official PoE HAT addon board of the raspberry pi foundation,
-but it is a little noisy.
+We highly recommend powering Raspberry Pi nodes with PoE.
+In this case, and if PoE reboots are allowed on the switch, then walt can
+automatically "hard-reboot" (i.e. power-cycle) a board remotely if ever it
+stops responding.
 
-As an alternative, we have also tested compact external PoE splitters (YuanLey brand) which are cheaper,
-more silent (no fan), and work fine.
-Take care on puchasing the right model for powering your board:
-- rpi 4B boards need a splitter model with a USB-C connector,
-- rpi 3B+ boards need a splitter model with a USB micro-B connector.
-
-Raspberry Pi models earlier than 3B+ require a SD card for bootup.
-Newer models can run with or without a SD card (see below).
-
-
-### Standard boot method: using a SD card
-
-Download archive `rpi-sd-files.tar.gz` at https://github.com/drakkar-lig/walt-project/releases/latest.
-Extract and copy files to a USB flash drive formatted the usual way (1 single partition, FAT32 fileystem).
-
-Then:
-* insert this SD card in its slot
-* connect the board to the WALT network (and, if PoE is not provided, power it on)
-
-The board will boot as a walt node.
-
-
-### Network boot method: no SD card
-
-Raspberry Pi 3B+ and 4B boards have a more advanced firmware that may be used to boot over the network.
-In this case, the SD card is no longer needed.
-But in any case, you can still use a SD card if you wish, see below for advice.
-
-Raspberry Pi 3B+ boards without a SD card should directly boot as a walt node, no specific setup steps
-are needed.
-
-Considering 4B boards, depending on the board release, the default boot order may or may not include
-a network boot attempt. When connected to a display at bootup, the boot order is displayed on the
-diagnosis screen. If it prints "0xf41", then network boot is missing (network boot is digit "2").
-In this case, you will need to flash the eeprom to activate the network boot, by booting at least once
-with a SD card, as described below.
+The following story highlights the importance of PoE.
+In an industrial context, we experienced stability issues with a testbed of
+100 Raspberry Pi boards. Approximately once every 2000 reboots, a board could
+fail to boot and stopped at the "rainbow" screen.
+But this testbed was later replaced with another one, PoE-powered, so the
+automatic "hard-reboot" feature allowed to reach complete reliability.
 
 
-### 4B boards: flash the EEPROM to enable network booting (optional)
+### Booting recent models
 
-If using a 4B board, the eeprom can be flashed to enable network booting. Thanks to appropriate
-boot files in `rpi-sd-files.tar.gz` this is done automatically when the board is first booted with
-a SD card prepared for walt (see standard boot method above). The boot order we select is
-"try network boot, if it fails, try SD card boot, and if it fails too, restart".
+Raspberry Pi 3B+ and newer boards have an advanced firmware that allows us to
+bootstrap the network boot procedure directly.
+So these boards should be installed without a SD card.
 
-Important note: in order to prevent this eeprom flashing operation to repeat each time the board is
-rebooted with the SD card, the firmware renames `recovery.bin` to `RECOVERY.000`. Thus, if you want to
-use the same SD card to update the boot order of several 4B boards, after each boot rename `RECOVERY.000`
-back to `recovery.bin` on the SD card before inserting it in another board.
+The 3B+ model is the easiest: just remove any SD card, connect the board
+to the walt network, power on the board (preferably with PoE), and it should boot
+directly as a walt node.
+
+Considering Raspberry Pi 4B and 5B boards, depending on the board release, the
+default boot order may or may not include a network boot attempt.
+(If it does, then the setup is as easy as the one of the 3B+.)
+When connected to a display at bootup, the boot order is displayed on the
+diagnosis screen. If it prints "0xf41", then network boot is missing (network boot
+is digit "2"). In this case, you need to boot the board just once with a SD card
+containing recovery files for updating the boot order:
+1. Checkout https://github.com/drakkar-lig/walt-project/releases/latest and download archive `rpi-4-sd-netboot.tar.gz` or `rpi-5-sd-netboot.tar.gz`
+2. Extract and copy files to a SD card formatted the usual way (1 single partition, FAT32 fileystem)
+3. Insert this SD card in its slot
+4. Power on the board and wait until the green LED starts blinking repeatedly (and if a HDMI display is connected, a plain green screen is displayed)
+5. Power off the board and remove the SD card (you can obviously reuse it for updating the boot order of other boards)
+6. Connect the board (without the SD card) to the WALT network and power it on (preferably with PoE); the board will boot as a walt node.
 
 
-### Advices for selecting a boot method
+### Booting older models with a SD card
 
-On the hardware side, the SD card is the most fragile part of a raspberry pi board, thus working without
-it prevents most common hardware problems. Note, however, that the smart bootup mechanism used in walt
+Older models cannot boot from the network directly, so they need a SD card containing
+network bootloader files:
+1. Download archive `rpi-sd-files.tar.gz` at https://github.com/drakkar-lig/walt-project/releases/latest
+2. Extract and copy files to a SD card formatted the usual way (1 single partition, FAT32 fileystem).
+3. Insert this SD card in its slot
+4. Connect the board to the WALT network and power it on (preferably with PoE); the board will boot as a walt node.
+
+The SD card is a fragile part. However, the network booting mechanism used in walt
 allows to keep the SD card readonly, which greatly improves its lifetime.
-
-On the software side, the boot procedure based on the SD card is slightly more robust: if, for any
-reason, network communication with the server is temporarily broken, the SD card boot procedure will
-take care of rebooting as many times as required until the communication with the server is recovered.
-The board firmware is not as smart and may hang forever in this case. If PoE is used to power the board,
-and PoE reboots are allowed on the switch, then walt will allow you to "hard-reboot" (i.e. power-cycle)
-the board remotely. Otherwise, one would have to manually disconnect and reconnect the power source of
-the board to unblock it.
-
-So our advices would be:
-1. If your 3B+ / 4B boards are powered by PoE switches walt can control, remove SD cards
-2. If not, use SD cards.
 
 
 ## Google Coral Dev Boards
@@ -148,7 +140,7 @@ $ tar xfz /tmp/coral-devb-boot.tar.gz
 ```
 
 You can now connect the board to a WALT network and it will boot as a WALT node.
-For PoE, we recommend the compact PoE splitter with a USB-C connector (cf. hardware tips about raspberry pi boards above).
+For PoE, use a PoE splitter providing USB-C connectivity.
 
 
 ## How to identify and use the new node
