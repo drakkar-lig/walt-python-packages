@@ -25,7 +25,7 @@ DHCPD_CONF_FILE = (
 
 RPI_MAC_FILTER = " or\n".join(
     f"""(b2a(16,8,":",substring(hardware, 1, 3)) = "{vendor_id}")""" \
-    for vendor_id in get_rpi_foundation_mac_vendor_ids())
+    for vendor_id in get_rpi_foundation_mac_vendor_ids(zero_padded=False))
 
 
 CONF_PATTERN = """
