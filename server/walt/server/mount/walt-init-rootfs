@@ -27,9 +27,12 @@ mount_persistent()
 update_mounts_nfs_to_rootfs()
 {
     # update mounts
+    # or, in the case /dev is not a mount (openwrt)
+    # copy contents.
     for d in dev proc sys run
     do
-        mount -o move /mnt/nfsroot/$d /$d
+        mount -o move /mnt/nfsroot/$d /$d 2>/dev/null || \
+            cp -a /mnt/nfsroot/$d/* /$d
     done
 }
 
@@ -37,7 +40,8 @@ switch_to_finalfs() {
     cd /mnt/finalfs
     for d in dev proc sys run
     do
-        mount -o move /$d $d
+        mount -o move /$d $d 2>/dev/null || \
+            cp -a /$d/* $d
     done
     pivot_root . run/walt/rootfs
     exec chroot . bin/_walt_internal_/walt-init-finalfs "$@" \

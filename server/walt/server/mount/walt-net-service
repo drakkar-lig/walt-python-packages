@@ -1,9 +1,36 @@
 #!/bin/sh
 . walt-script-common
 
+# Unfortunately some versions of busybox do not provide nc server "-e" option
+# to start a handler command for each connexion, so we have to emulate this.
+
+NC_FIFO="/tmp/nc-$$-net.fifo"
+NC_FIFO_PID="/tmp/nc-$$-net.pid"
+mkfifo $NC_FIFO
+mkfifo $NC_FIFO_PID
+
+exec 4<>$NC_FIFO 5>&1 6<>$NC_FIFO_PID
+
 while true
 do
-    busybox nc -l -p 12346 -e walt-net-service-handler
-    echo "[walt:bg] walt-net-service: restarting nc"
+    {
+        busybox nc -l -p 12346 <&4 &
+        nc_pid=$!
+        echo $nc_pid >&6
+        wait $nc_pid
+    } | {
+        read nc_pid <&6
+        # block until we get a first line before starting walt-net-service-handler
+        # (because walt-net-service-handler handles a timeout)
+        read first_line
+        {
+            echo "$first_line"
+            cat
+        } | {
+            walt-net-service-handler
+            sleep 1 # ensure nc has time to flush everything
+            kill $nc_pid 2>/dev/null || true
+            echo "[walt:bg] walt-net-service: restarting nc" >&5
+        }
+    } >&4
 done
-
