@@ -1,7 +1,7 @@
 #!/bin/busybox sh
 # vim: ft=sh
 
-HYBRID_MODE_COMMANDS="awk df tail tar mv wc"
+HYBRID_MODE_COMMANDS="awk df tail tar mv wc tr mknod"
 MSG_IMAGE_HAS_LOCAL_DIR=$(cat << EOF
 Note: this /local directory is actually not mounted locally on node storage,
 because a /local directory was already present in this WalT OS image!
@@ -39,8 +39,17 @@ _make_room_for_new_image() {
     return 0  # ok
 }
 
-_happy_grep() {
-    grep "$@" || true   # always return status ok
+detect_partition_devices() {
+    # detect block devices of disk partitions. We exclude loop, ram, nbd and
+    # optical disk devices; partition devices end with a digit, whereas
+    # full disk devices do not (e.g. sda1 vs sda), except SD cards
+    # (e.g. mmcblk0p1 vs mmcblk0).
+    # If ever we forgot to discard something,
+    # it will be mount-tested, which should not harm anyway.
+    cd /sys/class/block/
+    ls -1 | happy_grep '[0-9]$' | \
+            happy_grep -v '^\(\(loop\)\|\(nbd\)\|\(ram\)\|\(sr\)\|\(mmcblk[0-9]$\)\)'
+    cd - >/dev/null
 }
 
 detect_boot_mode() {
@@ -59,24 +68,29 @@ detect_boot_mode() {
         echo "failed" "[image]/bin/busybox misses" $missing
         return
     fi
-    # detect block devices of disk partitions. We exclude loop, ram, nbd and
-    # optical disk devices; partition devices end with a digit, whereas
-    # full disk devices do not (e.g. sda1 vs sda), except SD cards
-    # (e.g. mmcblk0p1 vs mmcblk0). If ever we forgot to discard something,
-    # it will be mount-tested, which should not harm anyway.
-    devs=$(ls -l /dev/ | _happy_grep '^b' | awk '{print $NF}' | \
-            _happy_grep '[0-9]$' | \
-            _happy_grep -v '^loop' | \
-            _happy_grep -v '^nbd' | \
-            _happy_grep -v '^ram' | \
-            _happy_grep -v '^sr' | \
-            _happy_grep -v 'mmcblk[0-9]$')
+    devs="$(detect_partition_devices)"
     mkdir -p /mnt/hm_part   # hm stands for hybrid mode
     image_dir="/mnt/hm_part/walt_hybrid/${walt_image_id}/image"
     num_devs=$(echo $devs | wc -w)
     echo "Note: detected ${num_devs} local partition(s)" >&6
     for dev in $devs
     do
+        created_dev=0
+        if [ ! -e "/dev/$dev" ]
+        then
+            if [ ! -e "/sys/class/block/$dev/dev" ]
+            then
+                echo "Don't know how to create /dev/$dev, omitting." >&2
+                continue
+            fi
+            major_minor="$(busybox tr ':' ' ' </sys/class/block/$dev/dev)"
+            if ! busybox mknod /dev/$dev b $major_minor
+            then
+                echo "Failed to create /dev/$dev, omitting." >&2
+                continue
+            fi
+            created_dev=1
+        fi
         # if busybox has xxd applet, we can check the ext4 magic number
         # (otherwise we will just try if mount.ext4 works...)
         if busybox_has_applet xxd
@@ -115,6 +129,11 @@ detect_boot_mode() {
             fi
         else
             echo "$dev: not ext4-mountable" >&6
+        fi
+        if [ "$created_dev" = "1" ]
+        then
+            # remove dev file, we no longer need it
+            rm /dev/$dev
         fi
     done
     if [ -f "/mnt/hm_part/walt_hybrid/.persistent" ]

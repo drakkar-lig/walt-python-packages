@@ -142,6 +142,10 @@ _do_walt_reboot() {
 # public functions
 # ################
 
+happy_grep() {
+    grep "$@" || true   # always return status ok
+}
+
 allow_script_exit() {
     trap '' EXIT
 }

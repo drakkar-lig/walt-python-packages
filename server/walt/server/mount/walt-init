@@ -68,16 +68,29 @@ do_mounts()
     fi
 }
 
+autodetect_block_modules() {
+    # we need to load at list the modules needed for block devices, and bus
+    # modules they are connected to (for hybrid boot modes).
+    # the original idea of looking into /sys/devices is borrowed from alpine's
+    # /etc/init.d/hwdrivers
+    busybox find /sys/devices/ -name modalias -type f -print0 2>/dev/null | \
+        busybox xargs -0 busybox sort -u | \
+        happy_grep -v \
+            "^\(\(acpi\)\|\(platform\)\|\(cpu\)\|\(serio\)\|\(dmi\)\|\(input\)\)"
+}
+
 # This function loads modules which we may need and may not be compiled in the kernel.
 load_modules() {
-    # ata_piix & sd_mod: useful for local disk detection (hybrid modes)
+    # crc32c may be needed for mounting ext4 filesystems without error (hybrid modes)
     # nbd & zswap: useful for mounting a swap file stored remotely on server
     # if other modules are needed, the image may provide a file /bin/walt-preinit
     # to load them.
-    for mod in ata_piix sd_mod overlay overlayfs ext4 nfs nfsv3 nbd zswap
-    do
-        busybox modprobe $mod >/dev/null 2>&1 || true
-    done
+    modules="crc32c overlay overlayfs ext4 nfs nfsv3 nbd zswap"
+    more_modules=$(autodetect_block_modules)
+    run_busybox_or_not modprobe -a $modules $more_modules 2>/dev/null || true
+    # loading a bus module may uncover another module needed, so re-run autodetection
+    more_modules=$(autodetect_block_modules)
+    run_busybox_or_not modprobe -a $more_modules 2>/dev/null || true
 }
 
 preinit() {
