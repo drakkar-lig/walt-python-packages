@@ -85,12 +85,17 @@ load_modules() {
     # nbd & zswap: useful for mounting a swap file stored remotely on server
     # if other modules are needed, the image may provide a file /bin/walt-preinit
     # to load them.
+    # note: "busybox modprobe" may cause dmesg warnings "Invalid ELF header magic"
+    # when dealing with compressed kernel modules, so we prefer the modprobe command
+    # provided by the OS if any.
     modules="crc32c overlay overlayfs ext4 nfs nfsv3 nbd zswap"
     more_modules=$(autodetect_block_modules)
-    run_busybox_or_not modprobe -a $modules $more_modules 2>/dev/null || true
+    run_busybox_or_not --prefer-system \
+        modprobe -a $modules $more_modules 2>/dev/null || true
     # loading a bus module may uncover another module needed, so re-run autodetection
     more_modules=$(autodetect_block_modules)
-    run_busybox_or_not modprobe -a $more_modules 2>/dev/null || true
+    run_busybox_or_not --prefer-system \
+        modprobe -a $more_modules 2>/dev/null || true
 }
 
 preinit() {

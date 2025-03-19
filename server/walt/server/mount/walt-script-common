@@ -209,12 +209,19 @@ busybox_has_applet() {
 }
 
 run_busybox_or_not() {
-    if busybox_has_applet "$1"
+    # run as a busybox or direct command
+    if [ "$1" = "--prefer-system" ]
     then
-        # run as busybox command
-        busybox "$@"
+        shift
+        cmd="$(busybox which "$1")" || cmd="busybox $1"
     else
-        # run as direct command
-        "$@"
+        if busybox_has_applet "$1"
+        then
+            cmd="busybox $1"
+        else
+            cmd="$1"
+        fi
     fi
+    shift
+    $cmd "$@"
 }
