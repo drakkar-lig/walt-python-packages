@@ -36,9 +36,16 @@ do
     podman rm $cid
 done
 
-# remove temporary walt images
+# remove temporary walt images (prefix: localhost/walt/) and
+# any image starting with "localhost/" instead of "docker.io/".
+# walt actually stores all its podman images with prefix docker.io;
+# but when interacting directly with podman, developers may import
+# images with a "localhost/" prefix (e.g. when using "podman load"
+# to import images built elsewhere) and possibly forget to rename
+# them. Those images sometimes conflict with images having the proper
+# "docker.io/" prefix.
 tmp_images=$(podman images | \
-             grep localhost/walt/ | \
+             grep localhost/ | \
              awk '{print $1 ":" $2}')
 if [ ! -z "$tmp_images" ]
 then
