@@ -127,7 +127,6 @@ class NodesManager(object):
     def register_node(self, mac, model, image_fullname=None):
         if self._cleaning_up:
             return
-        self.status_manager.register_node(mac)
         handle_registration_request(
             db=self.db,
             devices=self.devices,
@@ -137,6 +136,7 @@ class NodesManager(object):
             blocking=self.blocking,
             logs=self.logs,
             exports=self.exports,
+            status_manager=self.status_manager,
             **self.node_register_kwargs,
         )
 
