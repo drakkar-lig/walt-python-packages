@@ -320,9 +320,11 @@ def np_columnate(tabular_data, shrink_empty_cols=False, align=None):
 
 def get_rpi_foundation_mac_vendor_ids(zero_padded=True):
     if zero_padded:
-        return ("28:cd:c1", "b8:27:eb", "d8:3a:dd", "dc:a6:32", "e4:5f:01")
+        return ("28:cd:c1", "b8:27:eb", "d8:3a:dd", "dc:a6:32", "e4:5f:01",
+                "2c:cf:67", "88:a2:9e")
     else:
-        return ("28:cd:c1", "b8:27:eb", "d8:3a:dd", "dc:a6:32", "e4:5f:1")
+        return ("28:cd:c1", "b8:27:eb", "d8:3a:dd", "dc:a6:32", "e4:5f:1",
+                "2c:cf:67", "88:a2:9e")
 
 
 def non_blocking_connect(sock, ip, port):
