@@ -14,7 +14,7 @@ test_walt_image_build() {
     cd
 
     # build from url
-    walt image build --from-url $IMAGE_BUILD_GIT_URL $image_name_url
+    walt image build --from-url $IMAGE_BUILD_GIT_URL --sub-dir / $image_name_url
 
     # retrieve the file /root/test-result of each image
     # and verify they both contain OK

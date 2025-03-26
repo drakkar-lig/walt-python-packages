@@ -8,6 +8,7 @@ export LC_ALL=C
 mode=""
 image_fullname=""
 debug=0
+subdir=""
 
 while [ ! -z "$1" ]
 do
@@ -20,6 +21,11 @@ do
                 mode=url
                 shift
             fi
+            ;;
+        "--sub-dir")
+            shift
+            subdir="$1"
+            shift
             ;;
         "--from-stdin")
             mode=stdin
@@ -46,7 +52,8 @@ done
 if [ -z "$mode" -o -z "$image_fullname" -o ! -z "$1" ]
 then
 	echo "Usage:" >&2
-    echo "  $0 [--debug] --from-url <git-remote-build-repo> <image_fullname>" >&2
+    echo "  $0 [--debug] --from-url [--sub-dir <path>]" \
+         "<git-remote-build-repo> <image_fullname>" >&2
     echo "  tar cf - . | $0 [--debug] --from-stdin <image_fullname>" >&2
     echo "  $0 [--debug] --from-node-diff <node-diff-dump-cmd> <node-image-fullname>" \
                 "<image_fullname>" >&2
@@ -77,16 +84,21 @@ trap "on_exit" EXIT
 
 verify_repo() {
     echo "** Verifying the repository"
+    precision=""
     if [ ! -f Dockerfile -a ! -f ContainerFile ]
     then
         if [ "$mode" = "url" ]
         then
             word="repository"
+            if [ ! -z "$subdir" ]
+            then
+                precision=" in sub-directory '$subdir'"
+            fi
         else
             word="directory"
         fi
         echo "FAILED: the specified $word does not contain a Dockerfile" \
-             "or ContainerFile."
+             "or ContainerFile${precision}."
         exit 1
     fi
 }
@@ -135,6 +147,15 @@ cd "$tmp_dir"
 if [ "$mode" = "url" ]
 then
     clone_from_url
+    if [ ! -z "$subdir" ]
+    then
+        if [ ! -d "$subdir" ]
+        then
+            echo "No such directory \"$subdir\"." >&2
+            exit 1
+        fi
+        cd "$subdir"
+    fi
     verify_repo
     build_image
     verify_image

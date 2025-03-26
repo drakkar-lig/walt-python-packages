@@ -12,8 +12,10 @@ This command has two modes of operation:
 * option `--from-url` allows to specify the URL of a git repository (e.g., on github)
 * option `--from-dir` allows to specify a local directory on the client.
 
-In both cases, a Dockerfile must be present at the root of the specified repository or directory.
-The other files contained in the repository or directory may be used in ADD and COPY instructions.
+When using `--from-url`, one may use option `--sub-dir` to target a specific sub-directory
+of the git repository to be used for the build. Otherwise the root directory is used.
+In any case, a Dockerfile must be present in the target directory.
+The other files contained in the target directory may be used in ADD and COPY instructions.
 
 As a last command argument, one has to specify the name of the resulting image.
 If this name is already in use, the previous image will be overwritten (after a confirmation prompt).

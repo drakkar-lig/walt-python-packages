@@ -127,7 +127,7 @@ class APIImagesSubModule(APIObjectBase):
         """Return images of your working set"""
         return get_images()
 
-    def build(self, image_name, dir_or_url):
+    def build(self, image_name, dir_or_url, sub_dir="/"):
         """Build an image using a Dockerfile"""
         mode = "dir" if Path(dir_or_url).exists() else "url"
         info = dict(mode=mode, image_name=image_name)
@@ -141,6 +141,14 @@ class APIImagesSubModule(APIObjectBase):
             info["src_dir"] = str(dir_or_url)
         else:
             info["url"] = dir_or_url
+        if sub_dir.strip("/") != "":
+            if mode != "url":
+                sys.stderr.write(
+                    "Failed: parameter sub_dir is only supported when using"
+                    " a repository URL.\n"
+                )
+                return
+            info["subdir"] = sub_dir.strip("/")
         with silent_server_link() as server:
             info = server.create_image_build_session(**info)
             if info is None:
