@@ -243,7 +243,7 @@ class WalTImageBuild(WalTApplication):
 
     ORDERING = 5
     USAGE = """\
-    walt image build --from-url <git-repo-url> <image-name>
+    walt image build --from-url <git-repo-url> [--sub-dir <path>] <image-name>
     walt image build --from-dir <local-directory> <image-name>
 
     See 'walt help show image-build' for more info.
@@ -254,6 +254,13 @@ class WalTImageBuild(WalTApplication):
         argname="GIT_URL",
         default=None,
         help="""Git repository URL containing a Dockerfile""",
+    )
+    sub_dir = cli.SwitchAttr(
+        "--sub-dir",
+        str,
+        argname="PATH",
+        default=None,
+        help="""Sub-directory of git repo to use for the build""",
     )
     src_dir = cli.SwitchAttr(
         "--from-dir",
@@ -271,13 +278,18 @@ class WalTImageBuild(WalTApplication):
             print("You must specify 1 of the options --from-url and --from-dir.")
             print("See 'walt help show image-build' for more info.")
             return
+        if self.sub_dir is not None and self.src_url is None:
+            print("Option --sub-dir is only supported when combined with --from-url.")
+            return
         mode = "dir" if self.src_url is None else "url"
+        subdir = self.sub_dir.strip("/") if self.sub_dir is not None else ""
         with ClientToServerLink() as server:
             info = dict(mode=mode, image_name=image_name)
             if mode == "dir":
                 info["src_dir"] = self.src_dir
             else:
                 info["url"] = self.src_url
+                info["subdir"] = subdir
             info = server.create_image_build_session(**info)
             if info is None:
                 return False  # issue already reported

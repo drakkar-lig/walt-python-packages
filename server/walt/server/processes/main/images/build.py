@@ -44,10 +44,11 @@ class ImageBuildSession(object):
         )
 
     def run_image_build_from_url(self, requester, task):
-        cmd = (
-            "walt-image-build-helper --from-url"
-            f" {self.info['url']} {self.image_fullname}"
-        )
+        url, subdir = self.info["url"], self.info.get("subdir", "")
+        options = f"--from-url {url}"
+        if len(subdir) > 0:
+            options = f'{options} --sub-dir "{subdir}"'
+        cmd = f"walt-image-build-helper {options} {self.image_fullname}"
         self._run_image_build_from_cmd(requester, task, cmd)
 
     def run_image_build_from_node_diff(self, requester, server, task):
