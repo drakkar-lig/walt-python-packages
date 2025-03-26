@@ -1,6 +1,6 @@
 from cffi import FFI
-from walt.server.ext._posix_regex.lib import _regcomp, _regfree, _regmatch
-from walt.server.ext._posix_regex.lib import _regerror_alloc, free;
+from walt.server.ext._c_ext.lib import _regcomp, _regfree, _regmatch
+from walt.server.ext._c_ext.lib import _regerror_alloc, free;
 ffi = FFI()
 
 

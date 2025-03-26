@@ -83,7 +83,7 @@ CURSOR_UP_N_ROWS = "\x1b[%dA"
 CURSOR_DOWN_N_ROWS = "\x1b[%dB"
 
 
-def choose(prompt, options):
+def choose(prompt, options, allow_ctrl_c=False):
     # options can be a dict where keys are descriptions of options
     # and values indicating the corresponding value to return.
     # otherwise, it can be a simple list or tuple and the selected
@@ -132,6 +132,9 @@ def choose(prompt, options):
                 selected = max(selected - 1, 0)
             elif req in ("B", "C"):  # <down> or <right>: next
                 selected = min(selected + 1, len(options_desc) - 1)
+            elif allow_ctrl_c and req == '\x03':
+                selected = None
+                break
     finally:
         if single_row_mode:
             print()
@@ -140,6 +143,8 @@ def choose(prompt, options):
         sys.stdout.write(CURSOR_VISIBLE)
         tty.restore()
         print()
+    if selected is None:
+        return None
     if options_values is None:
         return options_desc[selected]
     else:

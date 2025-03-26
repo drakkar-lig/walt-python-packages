@@ -1,5 +1,5 @@
 [Socket]
-ListenDatagram=/var/run/walt-vpn.sock
+ListenDatagram=/run/walt-vpn.sock
 SocketUser=walt-vpn
 SocketMode=0600
 

@@ -91,3 +91,35 @@ Notes:
 * If ever a node attempts to get authentication material and no such command was typed, the request is denied.
   In this case, the node waits a few seconds before issuing a new request.
 * This authentication step runs only once when successful.
+
+
+## Security and enforced vs permissive VPN boot modes
+
+The Raspberry Pi boards do not include a secure element, so
+the VPN secrets are left readable in their EEPROM. To prevent
+unauthorized people to read those secrets and use them to
+breach the WalT VPN, the WalT OS images are designed to only
+allow a remote login from the WalT server. So the secrets are
+only readable by WalT users.
+
+However, if unauthorized people can access a board physically,
+they could try to make it boot another OS, and bypass this
+security measure. The "VPN boot mode" setting, accessible in the
+server setup screens (i.e., `walt-server-setup --edit-conf`),
+can be set to "enforced" to solve this issue.
+
+* enforced: disallow booting any OS not coming from this specific
+  WalT server.
+* permissive: try to boot the OS coming from the WalT server;
+  if this fails, try an unsecure TFTP boot (e.g., this allows a
+  board to boot after it was moved to another WalT platform), and
+  if this fails too, try to boot from the SD card (e.g., for
+  recovery purposes).
+
+If VPN nodes are installed in public places, "enforced" mode is
+recommended. Otherwise, "permissive" mode is sufficient.
+
+This choice can be reverted at any time by returning again to
+the server setup screens (i.e., `walt-server-setup --edit-conf`).
+On bootup, VPN nodes automatically reflash their EEPROM to
+reflect changes in VPN settings.

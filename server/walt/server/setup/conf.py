@@ -15,6 +15,11 @@ from walt.server.setup.netconf import (
     sanitize_netconf,
 )
 from walt.server.setup.regconf import edit_regconf_interactive, get_default_regconf
+from walt.server.setup.vpn import (
+    edit_vpnconf_interactive,
+    get_default_vpnconf,
+    warn_about_blank_vpn_conf,
+)
 
 YAML_INDENT = 4
 
@@ -33,6 +38,7 @@ WALT_SERVER_CONF = {
         (0, "network:"): category_comment("network configuration"),
         (0, "registries:"): category_comment("image registries"),
         (0, "services:"): category_comment("service files"),
+        (0, "vpn:"): category_comment("VPN configuration"),
     },
 }
 
@@ -71,7 +77,7 @@ def get_current_conf():
     try:
         from walt.server import conf
 
-        return conf
+        return copy.deepcopy(conf)
     except Exception:
         return None
 
@@ -90,30 +96,45 @@ def edit_conf_keep():
     if conf is None:
         print("WARNING: Failed to load current configuration at /etc/walt/server.conf!")
         print("WARNING: Falling back to a default configuration.")
-        conf = edit_conf_set_default()
+    conf = edit_conf_add_defaults(conf)
+    if conf["vpn"] == {}:
+        warn_about_blank_vpn_conf(interactive=False)
     return conf
 
 
 def edit_conf_set_default():
     # verify we will not overwrite an existing conf
     conf = get_current_conf()
-    if conf is None:
-        # this was actually expected
-        return {"network": get_default_netconf(), "registries": get_default_regconf()}
-    else:
+    if conf is not None:
         print("Note: found valid yaml file at /etc/walt/server.conf, keeping it.")
-        return conf
+    conf = edit_conf_add_defaults(conf)
+    if conf["vpn"] == {}:
+        warn_about_blank_vpn_conf(interactive=False)
+    return conf
+
+
+def edit_conf_add_defaults(conf):
+    if conf is None:
+        conf = {}
+    if "network" not in conf:
+        conf["network"] = get_default_netconf()
+    if "registries" not in conf:
+        conf["registries"] = get_default_regconf()
+    if "vpn" not in conf:
+        conf["vpn"] = get_default_vpnconf()
+    return conf
 
 
 def edit_conf_interactive():
     conf = get_current_conf()
-    if conf is None:
-        conf = edit_conf_set_default()
+    conf = edit_conf_add_defaults(conf)
+    conf["network"] = edit_netconf_interactive(conf["network"])
+    conf["registries"] = edit_regconf_interactive(conf["registries"])
+    if conf["vpn"] == {}:
+        warn_about_blank_vpn_conf(interactive=True)
+        # and bypass VPN conf screen, since VPN will not work anyway.
     else:
-        conf = copy.deepcopy(conf)  # copy
-    netconf, regconf = conf["network"], conf["registries"]
-    conf["network"] = edit_netconf_interactive(netconf)
-    conf["registries"] = edit_regconf_interactive(regconf)
+        conf["vpn"] = edit_vpnconf_interactive(conf["vpn"])
     return conf
 
 
@@ -147,7 +168,7 @@ def same_confs(c1, c2):
 
 def dump_commented_conf(conf, comment_info):
     reordered_conf = {}
-    for k in ["network", "registries", "services"]:
+    for k in ["network", "registries", "services", "vpn"]:
         if k in conf:
             reordered_conf[k] = conf.pop(k)
     conf.update(reordered_conf)

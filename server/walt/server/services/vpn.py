@@ -6,8 +6,8 @@ from pathlib import Path
 from shutil import chown
 
 from walt.common.unix import send_msg_fds
-from walt.vpn.const import VPN_SOCK_PATH
-from walt.vpn.tools import createtap
+from walt.server.vpn.const import VPN_SOCK_PATH
+from walt.server.vpn.tools import createtap
 
 BRIDGE_INTF = "walt-net"
 

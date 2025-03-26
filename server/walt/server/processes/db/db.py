@@ -72,6 +72,22 @@ class ServerDB(PostgresDB):
                     mac TEXT REFERENCES devices(mac),
                     port INTEGER,
                     reason TEXT);""")
+        # We have two different tables "vpnnodes" and "vpnauth"
+        # because in the case of "walt device forget" we may want
+        # to forget a vpn node, but still keep track of the auth data
+        # in case we want to revoke it in the future.
+        # The device is identified by either a corresponding entry in
+        # table vpnnodes or a non-NULL device_label value,
+        # depending on whether the device was forgotten or not.
+        self.execute("""CREATE TABLE IF NOT EXISTS vpnauth (
+                    vpnmac TEXT PRIMARY KEY,
+                    pubkeycert TEXT,
+                    certid TEXT,
+                    device_label TEXT,
+                    revoked BOOLEAN DEFAULT FALSE);""")
+        self.execute("""CREATE TABLE IF NOT EXISTS vpnnodes (
+                    mac TEXT REFERENCES devices(mac),
+                    vpnmac TEXT REFERENCES vpnauth(vpnmac));""")
         # migration v4 -> v5
         if not self.column_exists("devices", "conf"):
             self.execute("""ALTER TABLE devices
@@ -324,6 +340,24 @@ class ServerDB(PostgresDB):
         )
 
     def forget_device(self, mac):
+        # note: We deliberately never remove the entries of
+        # table vpnauth, in order to be able to revoke any key
+        # in the future. But we update the device_label column.
+        self.execute(
+            """
+            UPDATE vpnauth va
+            SET device_label = (
+                SELECT 'forgotten device "' ||
+                    d.name || '" mac=' || d.mac
+                FROM devices d
+                WHERE d.mac = %s
+            )
+            FROM vpnnodes vn
+            WHERE va.vpnmac = vn.vpnmac
+              AND vn.mac = %s
+            """, (mac, mac)
+        )
+
         self.execute(
             """
             DELETE FROM logs l USING logstreams s
@@ -334,11 +368,32 @@ class ServerDB(PostgresDB):
             DELETE FROM switches s WHERE s.mac = %s;
             DELETE FROM topology t WHERE t.mac1 = %s OR t.mac2 = %s;
             DELETE FROM poeoff po WHERE po.mac = %s;
+            DELETE FROM vpnnodes vn WHERE vn.mac = %s;
             DELETE FROM devices d WHERE d.mac = %s;
         """,
-            (mac,) * 9,
+            (mac,) * 10,
         )
         self.commit()
+
+    def get_vpn_auth_keys(self):
+        return self.execute("""
+            SELECT va.certid, va.revoked,
+                   (va.device_label is not NULL) as forgotten_device,
+                   COALESCE(va.device_label,
+                    'node "' || d.name || '" mac=' || d.mac) as device_label
+            FROM vpnauth va
+            LEFT JOIN vpnnodes vn
+              ON vn.vpnmac = va.vpnmac
+            LEFT JOIN devices d
+              ON d.mac = vn.mac
+        """)
+
+    def revoke_vpn_auth_key(self, vpnmac):
+        return self.execute("""
+                UPDATE vpnauth
+                SET revoked = true
+                WHERE vpnmac = %s""",
+                (vpnmac,))
 
     def insert_multiple_logs(self, records):
         # due to buffering, we might still get stream_ids of a device
