@@ -1,10 +1,15 @@
-import os
+import bottle
 import json
+import os
+import sdnotify
+import shlex
 import socket
 
-import bottle
+from functools import lru_cache
 from gevent.fileobject import FileObject
 from gevent.pywsgi import WSGIServer
+from gevent import subprocess
+from pathlib import Path
 from time import time
 from walt.common.apilink import ServerAPILink
 from walt.common.constants import WALT_SERVER_TCP_PORT
@@ -14,6 +19,7 @@ from walt.common.unix import Requests as UnixRequests
 from walt.common.unix import bind_to_random_sockname, recv_msg_fds
 from walt.server.const import UNIX_SERVER_SOCK_PATH
 from walt.server.tools import np_recarray_to_tuple_of_dicts, convert_query_param_value
+from walt.server.tools import ttl_cache, get_server_ip
 from pkg_resources import resource_filename
 
 WALT_HTTPD_PORT = 80
@@ -50,34 +56,114 @@ MAIN_DAEMON_SOCKET_TIMEOUT = 3
 HTML_DOC_DIR = resource_filename("walt.doc", "html")
 
 WALT_T0 = 1340000000  # Epoch timestamp corresponding to some time in june 2012
+HTTP_BOOT_SERVER_PRIV_KEY = Path("/var/lib/walt/http-boot/private.pem")
+HTTP_BOOT_SERVER_PUB_KEY = Path("/var/lib/walt/http-boot/public.pem")
 
 
-def fake_tftp_read(s_conn, ip, path):
-    # send message
+# this will hold the socket to walt-server-daemon
+s_conn = None
+
+
+def open_from_server_daemon(path, node_ip):
     req_id = UnixRequests.REQ_FAKE_TFTP_GET_FD
     args = ()
-    kwargs = dict(node_ip=ip, path=path)
-    msg = req_id, args, kwargs
-    s_conn.send(pickle.dumps(msg))
-    # receive the response
-    msg, fds = recv_msg_fds(s_conn, 256, 1)
-    msg = pickle.loads(msg)
-    # return result
-    assert "status" in msg
-    if msg["status"] == "OK":
-        assert len(fds) == 1
-        fd = fds[0]
-        f = FileObject(fd, mode="rb")
-        return "OK", f
+    kwargs = dict(node_ip=node_ip, path=path)
+    fds = query_main_daemon(req_id, args, kwargs, maxfds=1)
+    if isinstance(fds, Exception):
+        raise fds
+    assert len(fds) == 1
+    fd = fds[0]
+    return fd
+
+
+def query_main_daemon(req_id, args, kwargs, msglen=256, maxfds=0):
+    global s_conn
+    req = req_id, args, kwargs
+    error = "Unknown error, sorry."
+    for i in range(2):
+        if s_conn is None:
+            s_conn = get_socket()
+        try:
+            # send message
+            s_conn.send(pickle.dumps(req))
+            # receive the response
+            if maxfds > 0:
+                msg, fds = recv_msg_fds(s_conn, msglen, maxfds)
+            else:
+                msg = s_conn.recv(msglen)
+            resp = pickle.loads(msg)
+            # return result
+            assert "status" in resp
+            if resp["status"] == "OK":
+                if maxfds > 0:
+                    return fds
+                elif "response_text" in resp:
+                    return resp["response_text"]
+                else:
+                    return "OK\n"
+            else:
+                assert "error_msg" in resp
+                error = resp["error_msg"]
+                continue
+        except OSError as e:
+            if i == 0:
+                # try to re-init the socket to walt-server-daemon
+                s_conn.close()
+                s_conn = None
+                continue
+            else:
+                return bottle.HTTPError(500, str(e))
+    if error == "NO SUCH FILE":
+        return bottle.HTTPError(404, "No such file.")
     else:
-        assert "error_msg" in msg
-        return msg["error_msg"], None
+        return bottle.HTTPError(400, error)
+
+
+def requester_ip():
+    requester_ip = bottle.request.environ.get("REMOTE_ADDR")
+    requester_ip = requester_ip.lstrip("::ffff:")
+    # For running tests (i.e. make test) the client can add
+    # a parameter called "fake_requester_ip".
+    # However, for security reason, this is only allowed
+    # when the real client IP is the server IP.
+    server_ip = get_server_ip()
+    if requester_ip == server_ip:
+        fake_requester_ip = bottle.request.query.get("fake_requester_ip")
+        if fake_requester_ip is not None:
+            return fake_requester_ip
+    return requester_ip
+
+
+def vpn_enroll(node_ip, pubkey_file):
+    pubkey = pubkey_file.read()
+    kwargs = dict(node_ip=node_ip, pubkey=pubkey)
+    return query_main_daemon(UnixRequests.REQ_VPN_ENROLL, (), kwargs)
+
+
+def dump_generated_file(file_id, **kwargs):
+    req_id = UnixRequests.REQ_GENERATE_FILE
+    kwargs.update(file_id=file_id)
+    return query_main_daemon(req_id, (), kwargs, msglen=65536)
+
+
+def get_property_value(property_id, **kwargs):
+    req_id = UnixRequests.REQ_PROPERTY
+    kwargs.update(property_id=property_id)
+    return query_main_daemon(req_id, (), kwargs)
+
+
+@ttl_cache(5)
+def dump_ssh_entrypoint_host_keys():
+    return dump_generated_file("ssh-ep-host-keys")
+
+
+def dump_ssh_pubkey_cert():
+    return dump_generated_file("ssh-pubkey-cert",
+                               node_ip=requester_ip())
 
 
 def notify_systemd():
     if "NOTIFY_SOCKET" in os.environ:
-        import sdnotify
-
         sdnotify.SystemdNotifier().notify("READY=1")
 
 
@@ -133,13 +219,78 @@ def _get_logs(ts_from, ts_to, ts_unit, issuers, streams_regexp):
     )
 
 
-# this will hold the socket to walt-server-daemon
-s_conn = None
+_cache_context = {}
+
+
+@lru_cache
+def _generate_boot_sig(key):
+    # notes:
+    # * we had to pass fd using a _cache_context global
+    #   variable and not as a parameter because it should
+    #   not be taken into account by lru_cache for cache
+    #   lookup.
+    # * for coherency between cache and non-cache paths
+    #   it is important not to close fd here (thus the
+    #   parameter closefd=False)
+    fd = _cache_context["fd"]
+    boot_img = FileObject(fd, mode="rb", closefd=False)
+    boot_img_content = boot_img.read()
+    boot_img.close()
+    cmd = f"openssl dgst -sha256 -hex"
+    res = subprocess.run(shlex.split(cmd),
+                         input=boot_img_content,
+                         capture_output=True)
+    sha256 = res.stdout.decode().split()[1]
+    cmd = f"openssl dgst -sign {HTTP_BOOT_SERVER_PRIV_KEY} -sha256 -hex"
+    res = subprocess.run(shlex.split(cmd),
+                         input=boot_img_content,
+                         capture_output=True)
+    rsa2048 = res.stdout.decode().split()[1]
+    ts = int(time())
+    return f"{sha256}\nts: {ts}\nrsa2048: {rsa2048}\n"
+
+
+def get_boot_sig(fd):
+    stat =  os.fstat(fd)
+    key = (stat.st_ino, stat.st_mtime, stat.st_size)
+    _cache_context.update(fd=fd)
+    return _generate_boot_sig(key)
+
+
+def generate_boot_server_keys():
+    if not HTTP_BOOT_SERVER_PRIV_KEY.exists():
+        HTTP_BOOT_SERVER_PRIV_KEY.parent.mkdir(parents=True, exist_ok=True)
+        cmd = f"openssl genrsa -out {HTTP_BOOT_SERVER_PRIV_KEY} 2048"
+        subprocess.run(shlex.split(cmd), check=True)
+    if not HTTP_BOOT_SERVER_PUB_KEY.exists():
+        HTTP_BOOT_SERVER_PUB_KEY.parent.mkdir(parents=True, exist_ok=True)
+        cmd = (f"openssl rsa -in {HTTP_BOOT_SERVER_PRIV_KEY} "
+               f"-out {HTTP_BOOT_SERVER_PUB_KEY} -pubout -outform PEM")
+        subprocess.run(shlex.split(cmd), check=True)
+
+
+class MyBottle(bottle.Bottle):
+    def default_error_handler(self, error):
+        prefer_header = bottle.request.get_header("Prefer")
+        if prefer_header is not None:
+            if prefer_header.startswith("errors="):
+                error_format = prefer_header[7:]
+                if error_format == "text-only":
+                    bottle.response.content_type = "text/plain"
+                    return error.body + "\n"
+                if error_format == "json":
+                    bottle.response.content_type = 'application/json'
+                    return json.dumps(dict(error = error.body,
+                                           status_code = error.status_code))
+        return super().default_error_handler(error)
 
 
 def run():
+    # generate rsa boot server keys if not done yet
+    generate_boot_server_keys()
+
     # instanciate web app
-    app = bottle.Bottle()
+    app = MyBottle()
 
     @app.route("/")
     @app.route("/index.html")
@@ -152,35 +303,87 @@ def run():
 
     @app.route("/boot/<path:path>")
     def serve_boot(path):
-        global s_conn
         # for a virtual node actually running on the server,
         # the IP address of the socket peer does not match
         # the node IP. For this case, URL may indicate the
         # node_ip as an URL parameter.
         node_ip = bottle.request.query.get("node_ip")
         if node_ip is None:
-            node_ip = bottle.request.environ.get("REMOTE_ADDR")
-            node_ip = node_ip.lstrip("::ffff:")
-        for i in range(2):
-            if s_conn is None:
-                s_conn = get_socket()
-            try:
-                status, f = fake_tftp_read(s_conn, node_ip, "/" + path)
-            except OSError:
-                if i == 0:
-                    # try to re-init the socket to walt-server-daemon
-                    s_conn.close()
-                    s_conn = None
-                    continue
-                else:
-                    raise
-        if status == "OK":
-            return f
-        elif status == "NO SUCH FILE":
-            return bottle.HTTPError(404, "No such file.")
-        else:
-            return bottle.HTTPError(400, status)
+            node_ip = requester_ip()
+        fd = open_from_server_daemon(node_ip=node_ip, path="/"+path)
+        bottle.response.add_header("Content-Length", os.fstat(fd).st_size)
+        return FileObject(fd, mode="rb")
 
+    @app.route("/walt-vpn/per-ip/<path:path>")
+    def serve_vpn_per_mac(path):
+        ip_dash, path = path.split('/', maxsplit=1)
+        ip = ip_dash.replace('-', '.')
+        if path == "boot.sig":
+            # this file is generated from boot.img on the fly
+            # because it includes a signature using the VPN private key
+            fd = open_from_server_daemon(node_ip=ip, path="/boot.img")
+            content = get_boot_sig(fd)
+            os.close(fd)
+            return content
+        else:
+            fd = open_from_server_daemon(node_ip=ip, path="/"+path)
+            bottle.response.add_header("Content-Length", os.fstat(fd).st_size)
+            return FileObject(fd, mode="rb")
+
+    @app.route("/walt-vpn/enroll", method='POST')
+    def serve_vpn_enroll():
+        node_ip = requester_ip()
+        pubkey = bottle.request.files.get('ssh-pubkey')
+        if pubkey is None:
+            return bottle.HTTPError(400, "Public key not provided.")
+        return vpn_enroll(node_ip, pubkey.file)
+
+    @app.route("/walt-vpn/node-conf/ssh-pubkey-cert")
+    def serve_ssh_pubkey_cert():
+        return dump_ssh_pubkey_cert()
+
+    @app.route("/walt-vpn/node-conf/ssh-entrypoint-host-keys")
+    def serve_ssh_entrypoint_host_keys():
+        return dump_ssh_entrypoint_host_keys()
+
+    @app.route("/walt-vpn/node-conf/http-path")
+    def serve_vpn_http_path():
+        node_ip = requester_ip()
+        node_ip_dash = node_ip.replace('.', '-')
+        return f"walt-vpn/per-ip/{node_ip_dash}"
+
+    @app.route("/walt-vpn/node-conf/vpn-mac")
+    def serve_vpn_mac():
+        return get_property_value("node.vpn.mac", node_ip=requester_ip())
+
+    @app.route("/walt-vpn/node-conf/ssh-entrypoint")
+    def serve_ssh_entrypoint():
+        return get_property_value("server.vpn.ssh-entrypoint")
+
+    @app.route("/walt-vpn/node-conf/http-entrypoint")
+    def serve_http_entrypoint():
+        return get_property_value("server.vpn.http-entrypoint")
+
+    @app.route("/walt-vpn/node-conf/boot-mode")
+    def serve_vpn_boot_mode():
+        return get_property_value("server.vpn.boot-mode")
+
+    @app.route("/walt-vpn/node-conf/public.pem")
+    def serve_http_boot_public_pem():
+        return bottle.static_file(HTTP_BOOT_SERVER_PUB_KEY.name,
+                                  str(HTTP_BOOT_SERVER_PUB_KEY.parent))
+
+    # This route can be used to manually check that an HTTP VPN endpoint
+    # properly redirects "/walt-vpn/<something>" URLs here.
+    # "walt-server-setup --edit-conf" also uses the same URL to validate
+    # user entries, but in this case walt-server-httpd is not running.
+    # So walt-server-setup implements a mini and temporary web server
+    # which also handles this route.
+    @app.route("/walt-vpn/server")
+    def serve_vpn_server():
+        return socket.getfqdn() + "\n"
+
+    @app.route("/doc")
     @app.route("/doc")
     def redirect_doc():
         bottle.redirect('/doc/')

@@ -23,6 +23,7 @@ from walt.server.setup.ossetup import (
     record_end_os_upgrade,
     upgrade_os,
 )
+from walt.server.setup.vpn import setup_vpn
 
 STOPPABLE_WALT_SERVICES = [
     "walt-server.service",
@@ -37,6 +38,8 @@ STOPPABLE_WALT_SERVICES = [
     "walt-server-nbd.socket",
     "walt-server-podman.service",
     "walt-server-podman.socket",
+    "walt-server-vpn.service",
+    "walt-server-vpn.socket",
 ]
 
 # The user may have configured the interface providing internet access
@@ -45,6 +48,12 @@ STOPPABLE_WALT_SERVICES = [
 # instead and just restart it at the end of the upgrade.
 RESTARTABLE_WALT_SERVICES = [
     "walt-server-netconfig.service",
+]
+
+# The following are obsolete walt services (or they were renamed)
+OBSOLETE_WALT_SERVICES = [
+    "walt-vpn-server.service",
+    "walt-vpn-server.socket",
 ]
 
 # all walt services
@@ -62,12 +71,26 @@ UNCOMPATIBLE_OS_SERVICES = [
     "ptpd.service",
 ]
 
-WALT_SOCKET_SERVICES = ["walt-server-podman.socket", "walt-server-nbd.socket"]
+WALT_SOCKET_SERVICES = ["walt-server-podman.socket",
+                        "walt-server-nbd.socket",
+                        "walt-server-vpn.socket"]
 WALT_MAIN_SERVICE = "walt-server.service"
 
+# Notes:
+# * when the user changes the SSH VPN entrypoint in the interactive
+#   configuration screen ("define_server_conf" step), the value
+#   is checked by trying an SSH connection. This requires the SSH
+#   CA keys to be ready, so the "setup_vpn" step should have been
+#   called already.
+# * when the user changes the HTTP VPN entrypoint in the interactive
+#   configuration screen ("define_server_conf" step), the value
+#   is checked by trying an HTTP connection and concurrently waiting
+#   for the proxy to connect to this server. This requires port 80
+#   to be free, so "stop_services" should have been called already.
 OS_ACTIONS = {
     "image-install": {
         "bookworm": (
+            "setup_vpn",
             "define_server_conf",
             "install_os_on_image",
             "fix_conmon",
@@ -81,10 +104,11 @@ OS_ACTIONS = {
     },
     "install": {
         "bookworm": (
+            "stop_services",
+            "setup_vpn",
             "define_server_conf",
             "install_os",
             "fix_conmon",
-            "stop_services",
             "disable_os_services",
             "setup_command_symlinks",
             "setup_walt_services",
@@ -99,11 +123,13 @@ OS_ACTIONS = {
     "upgrade": {
         "bullseye": (
             "record_start_os_upgrade",
-            "define_server_conf",
             "stop_services",
+            "setup_vpn",
+            "define_server_conf",
             "upgrade_os",
             "fix_conmon",
             "disable_os_services",
+            "remove_obsolete_services",
             "cleanup_old_walt_install",
             "setup_command_symlinks",
             "setup_walt_services",
@@ -114,11 +140,13 @@ OS_ACTIONS = {
             "msg_reboot",
         ),
         "bookworm": (
-            "define_server_conf",
             "stop_services",
+            "setup_vpn",
+            "define_server_conf",
             "fix_os",
             "fix_conmon",
             "disable_os_services",
+            "remove_obsolete_services",
             "cleanup_old_walt_install",
             "setup_command_symlinks",
             "setup_walt_services",
@@ -203,6 +231,9 @@ class WalTServerSetup(WaltGenericSetup):
     def msg_ready(self):
         print("** Your WalT server is ready. **")
 
+    def setup_vpn(self):
+        setup_vpn()
+
     def systemd_reload(self):
         print("Reloading systemd... ", end="")
         sys.stdout.flush()
@@ -214,7 +245,7 @@ class WalTServerSetup(WaltGenericSetup):
         sys.stdout.flush()
         to_be_stopped = list(UNCOMPATIBLE_OS_SERVICES)
         # previous versions of walt had fewer walt services
-        for walt_unit in STOPPABLE_WALT_SERVICES:
+        for walt_unit in STOPPABLE_WALT_SERVICES + OBSOLETE_WALT_SERVICES:
             if self.systemd_unit_exists(walt_unit):
                 to_be_stopped.append(walt_unit)
         self.stop_systemd_services(to_be_stopped)
@@ -247,6 +278,18 @@ class WalTServerSetup(WaltGenericSetup):
         self.disable_systemd_services(UNCOMPATIBLE_OS_SERVICES)
         print("done")
 
+    def remove_obsolete_services(self):
+        print("Removing any obsolete WalT services... ", end="")
+        sys.stdout.flush()
+        to_be_removed = []
+        for walt_unit in OBSOLETE_WALT_SERVICES:
+            if self.systemd_unit_exists(walt_unit):
+                to_be_removed.append(walt_unit)
+        self.disable_systemd_services(to_be_removed)
+        for walt_unit in to_be_removed:
+            Path(f"/etc/systemd/system/{walt_unit}").unlink()
+        print("done")
+
     def record_start_os_upgrade(self):
         record_start_os_upgrade()
 
@@ -273,12 +316,6 @@ class WalTServerSetup(WaltGenericSetup):
         sys.stdout.flush()
         self.setup_systemd_services(ALL_WALT_SERVICES)
         self.setup_apparmor_profiles()
-        subprocess.run(
-            "walt-vpn-setup --type SERVER".split(),
-            check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-        )
         print("done")
 
     def setup_apparmor_profiles(self):

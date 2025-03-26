@@ -1,171 +1,240 @@
+import os
+import pickle
+import shlex
+import signal
 import sys
 import tempfile
+
 from pathlib import Path
-from time import time
-
-from pkg_resources import resource_string
-from walt.common.constants import UNSECURE_ECDSA_KEYPAIR
+from subprocess import run
 from walt.common.tools import do
+from walt.server import conf
+from walt.server.vpn.const import (
+        VPN_CA_KEY,
+        VPN_SERVER_KRL,
+        VPN_HTTP_EP_HISTORY_FILE,
+)
+from walt.server.tools import get_walt_subnet
 
-# Walt VPN clients should first connect with our unsecure key pair (written below).
-# They will be forcibly directed to "walt-vpn-auth-tool" command.
-# This command connects to walt-server-daemon and asks for generation of VPN client
-# credentials.
-# If someone has been running "walt vpn monitor" when this happened, he can accept
-# or deny the request. Otherwise the request is immediately denied (except in a
-# specific case, see below).
-# If the request is accepted, "walt-vpn-auth-tool" dumps new credential information
-# on its output. Thus, the VPN client receives this information on the other side
-# of the ssh channel and can automatically set it up.
-# After this first step has been done, the client will use this new credentials to
-# connect to the VPN.
+ERR_VPN_EP_NOT_CONFIGURED = (
+"The VPN entrypoint is not fully configured "
+"(use 'walt-server-setup --edit-conf' on server-side).")
+ROUTE_LOCALNET_SETTING = Path("/proc/sys/net/ipv4/conf/walt-net/route_localnet")
+WALT_SUBNET = str(get_walt_subnet())
 
-# "walt vpn monitor" is run in a loop in order to easily accept a batch of access
-# requests. It first calls API function wait_grant_request(). When a device requests
-# VPN access, wait_grant_request() is unblocked and the "walt vpn monitor" command
-# prompts the request to the user. When the user answers, its response is transmitted
-# to the server using API function respond_grant_request(), and the device request
-# is unblocked with an appropriate result. Then, "walt vpn monitor" restarts its loop
-# and calls API function wait_grant_request() again, waiting for next device request.
-# However, if the user does not respond immediately to a given request, another device
-# may try to request a grant at this time. Since the "walt vpn monitor" loop is blocked
-# on user input, the server has no pending wait_grant_request(). Because of this, we
-# record the fact a given device request is pending user response. And, for a short
-# period of time, we allow any other device request to wait for "walt vpn monitor" to
-# loop again and respond to this new request.
-
-WALT_VPN_USER_HOME = Path("/var/lib/walt/vpn")
-VPN_CA_KEY = WALT_VPN_USER_HOME / ".ssh" / "vpn-ca-key"
-VPN_CA_KEY_PUB = WALT_VPN_USER_HOME / ".ssh" / "vpn-ca-key.pub"
-
-PENDING_USER_RESPONSE_DELAY = 5 * 60  # seconds
-
-WAITING = 0
-PENDING_USER_RESPONSE = 1
-
-UNSECURE_KEY = UNSECURE_ECDSA_KEYPAIR["openssh-priv"].decode("ascii")
-UNSECURE_KEY_PUB = UNSECURE_ECDSA_KEYPAIR["openssh-pub"].decode("ascii")
+# Notes:
+# * The raspberry pi 5 works as a WALT VPN node by using HTTP
+#   for the early boot steps and then an ssh tunnel.
+# * The board has no TPM, so the VPN secrets are stored in the
+#   eeprom, and anyone able to open a shell on the node is able
+#   to read them. We consider that people having access to
+#   the walt platform are legitimate users, and we just protect
+#   these secrets from other people. The raspberry pi is
+#   configured to boot only boot files signed by the walt server,
+#   including an intramfs which will connect the SSH tunnel
+#   and boot the remote walt image over the tunnel. The default
+#   image for rpi5 boards has no root password, so only walt users
+#   are able to log in and read the VPN secrets.
+# * The server is configured with itself as HTTP and SSH
+#   entrypoints by default (unless its FQDN appears invalid).
+# * Provided this server configuration is valid, rpi5 VPN nodes
+#   are automatically enrolled as VPN nodes on the first boot.
+# * As a VPN node, they can boot from another network as long as
+#   the VPN endpoints are reachable.
+# * But VPN nodes can still be booted from the walt network too.
+#   VPN Nodes detect that they are on the walt network when the
+#   domain name is "walt". In this case, an SSH connection is still
+#   attempted to "walt-vpn@server.walt" for verifying that the server
+#   is legitimate. This prevents any attempt to boot the node on
+#   a specially crafted network named "walt".
+# * The early rpi5 boot up phase is using the HTTP boot feature of
+#   the board firmware, once the VPN mode is enabled. It downloads
+#   a FAT image and a signature file from the VPN HTTP entrypoint,
+#   which redirects to the walt server.
+# * In case the VPN-enabled rpi5 is booting from the walt network,
+#   the VPN HTTP entrypoint may not be reachable (unless the node is
+#   configured with netsetup=NAT). For this reason, the walt server
+#   defines DNAT rules to catch this HTTP traffic and handle it
+#   locally (see the definition of firewall rules in the code below).
+# * If the HTTP entrypoint is reconfigured on server side, one can
+#   still make the rpi5 boards boot and auto-update their eeprom
+#   with the new value, by just connecting them to the walt network.
+#   This works even if the previous HTTP entrypoint is no longer
+#   reachable, because the DNAT rules match all VPN HTTP entrypoints
+#   ever configured on the platform. (However, this previous HTTP
+#   entrypoint must still exist in the DNS.)
 
 
 class VPNManager:
-    def __init__(self):
-        self.waiting_requests = {}
-        self.waiting_monitors = set()
+    def __init__(self, server):
+        self.server = server
+        self.http_ep_history = self.load_http_ep_history()
 
-    # when a user types "walt vpn monitor", we get here
-    def wait_grant_request(self, task):
-        self.cleanup()
-        # check if another device was waiting for this "walt vpn monitor" to loop again.
-        for device_mac, request_task_info in self.waiting_requests.items():
-            if request_task_info["status"] == WAITING:
-                # yes, immediately indicate to "walt vpn monitor" that it should respond
-                # the request of this device (by returning its mac),
-                # and update the device request task status.
-                request_task_info["status"] = PENDING_USER_RESPONSE
-                request_task_info["timeout"] = time() + PENDING_USER_RESPONSE_DELAY
-                return device_mac
-        # otherwise, there is no device request pending
-        task.set_async()  # result will be available later
-        self.waiting_monitors.add(task)
+    def get_vpn_entrypoint(self, proto):
+        entrypoint = None
+        vpn_conf = conf.get("vpn")
+        if vpn_conf is not None:
+            entrypoint = vpn_conf.get(f"{proto}-entrypoint")
+        if proto == "http" and entrypoint is not None:
+            ep = (entrypoint, 80)
+            if ep not in self.http_ep_history:
+                self.http_ep_history.add(ep)
+                self.save_http_ep_history()
+                self.update_vpn_dnat()
+        return entrypoint
 
-    # cleanup disconnected tasks and those which timed out
+    def get_vpn_boot_mode(self):
+        vpn_conf = conf.get("vpn")
+        if vpn_conf is None:
+            return None
+        return vpn_conf.get("boot-mode")
+
+    def prepare(self):
+        ROUTE_LOCALNET_SETTING.write_text("1\n")
+        do("iptables -t nat --new-chain WALT-DNAT")
+        do("iptables -t nat --append PREROUTING "
+           f"--source {WALT_SUBNET} "
+         f"! --destination {WALT_SUBNET} "
+            "--jump WALT-DNAT")
+        self.update_vpn_dnat()
+
+    def update_vpn_dnat(self):
+        do("iptables -t nat --flush WALT-DNAT")
+        for ep_host, ep_port in self.http_ep_history:
+            do("iptables -t nat --append WALT-DNAT "
+              f"-p tcp -d {ep_host} --dport {ep_port} "
+               "-j DNAT --to-destination 127.0.0.1")
+        do("iptables -t nat --append WALT-DNAT --jump RETURN")
+
     def cleanup(self):
-        for mac, task_info in self.waiting_requests.copy().items():
-            task = task_info["task"]
-            if not task.is_alive():
-                del self.waiting_requests[mac]
-                continue
-            if task_info["timeout"] < time():
-                task.return_result(("FAILED", "Timed out waiting for user response!"))
-                del self.waiting_requests[mac]
-                continue
-        for task in self.waiting_monitors.copy():
-            if not task.is_alive():
-                self.waiting_monitors.remove(task)
+        ROUTE_LOCALNET_SETTING.write_text("0\n")
+        do("iptables -t nat --delete PREROUTING "
+           f"--source {WALT_SUBNET} "
+         f"! --destination {WALT_SUBNET} "
+            "--jump WALT-DNAT")
+        do("iptables -t nat --flush WALT-DNAT")
+        do("iptables -t nat --delete-chain WALT-DNAT")
 
-    # check if some of the current "walt vpn monitor" commands are waiting for
-    # user input.
-    def have_pending_user_responses(self):
-        for request_task_info in self.waiting_requests.values():
-            if request_task_info["status"] == PENDING_USER_RESPONSE:
-                return True
-        return False
-
-    # a device requesting VPN access grant will call this method.
-    def request_grant(self, task, device_mac):
-        print("vpn grant request", device_mac)
-        self.cleanup()
-        if len(self.waiting_monitors) == 0 and not self.have_pending_user_responses():
-            return ("FAILED", "No pending 'walt vpn monitor' command.")
-        task.set_async()  # result will be available later
-        if len(self.waiting_monitors) > 0:
-            task_status = PENDING_USER_RESPONSE
-            for monitor_task in self.waiting_monitors:
-                monitor_task.return_result(device_mac)
-            self.waiting_monitors = set()
-        else:  # some monitors are there but not connected
-            # (waiting for user response about another device)
-            task_status = WAITING
-        timeout = time() + PENDING_USER_RESPONSE_DELAY
-        self.waiting_requests[device_mac] = {
-            "task": task,
-            "status": task_status,
-            "timeout": timeout,
-        }
-
-    # "walt vpn monitor" calls this function to transmit user's response about a
-    # device request.
-    def respond_grant_request(self, device_mac, auth_ok):
-        request_task_info = self.waiting_requests.get(device_mac, None)
-        if request_task_info is None:
-            return (
-                "FAILED",
-                (
-                    "No such device (it may have been processed by another"
-                    " 'walt vpn monitor' command)."
-                ),
-            )
-        request_task = request_task_info["task"]
-        if auth_ok:
-            keypair = self.generate_device_keys(device_mac)
-            request_task.return_result(("OK",) + keypair)
-            result = ("OK", "Device access was granted.")
+    def load_http_ep_history(self):
+        if VPN_HTTP_EP_HISTORY_FILE.exists():
+            return pickle.loads(VPN_HTTP_EP_HISTORY_FILE.read_bytes())
         else:
-            request_task.return_result(("FAILED", "Denied!"))
-            result = ("OK", "Device access was denied.")
-        self.waiting_requests.pop(device_mac)
-        return result
+            return set()
 
-    def generate_device_keys(self, device_mac):
-        device_id = "vpn_" + device_mac.replace(":", "")
+    def save_http_ep_history(self):
+        pickled = pickle.dumps(self.http_ep_history)
+        VPN_HTTP_EP_HISTORY_FILE.write_bytes(pickled)
+
+    def get_vpn_node_info(self, ip):
+        db_rows = self.server.db.execute(
+                """SELECT d.mac, vn.vpnmac, va.pubkeycert
+                   FROM devices d, nodes n
+                   LEFT JOIN vpnnodes vn on vn.mac = n.mac
+                   LEFT JOIN vpnauth va on va.vpnmac = vn.vpnmac
+                   WHERE n.mac = d.mac
+                     AND n.model = 'rpi-5-b'
+                     AND d.ip = %s""", (ip,))
+        if len(db_rows) == 0:
+            return None
+        else:
+            return db_rows[0]
+
+    def enrollment(self, ip, pubkey):
+        vpn_node = self.get_vpn_node_info(ip)
+        # if API request is not from a rpi5 node, error out
+        if vpn_node is None:
+            error_msg = ("VPN enrollment request not coming from "
+                         "a rpi5 node of the WalT network.")
+            return {"status": "KO", "error_msg": error_msg}
+        # if the VPN entrypoint is not fully configured, error out
+        if (self.get_vpn_entrypoint("ssh") is None or
+            self.get_vpn_entrypoint("http") is None):
+            return {"status": "KO", "error_msg": ERR_VPN_EP_NOT_CONFIGURED}
+        # OK let's continue
+        # Let's sign the pubkey
+        device_mac = vpn_node.mac
+        cert_id = "vpn_" + device_mac.replace(":", "")
         with tempfile.TemporaryDirectory() as tmpdirname:
-            do(
-                "ssh-keygen -C %(comment)s -N '' -t ecdsa -b 384 -f %(tmpdir)s/key"
-                % dict(comment="walt-vpn@" + device_id, tmpdir=tmpdirname)
-            )
-            do(
-                "ssh-keygen -s %(vpn_ca_key)s -I '%(device_id)s' -n %(principal)s"
-                " %(tmpdir)s/key.pub"
-                % dict(
-                    vpn_ca_key=str(VPN_CA_KEY),
-                    device_id=device_id,
-                    principal="walt-vpn",
-                    tmpdir=tmpdirname,
-                )
-            )
             tmpdir = Path(tmpdirname)
-            priv_key = (tmpdir / "key").read_text()
-            pub_cert_key = (tmpdir / "key-cert.pub").read_text()
-            return (priv_key, pub_cert_key)
+            pubkey_path = tmpdir / "key.pub"
+            pubkey_path.write_bytes(pubkey)
+            do(f"ssh-keygen -s {VPN_CA_KEY} -I '{cert_id}' "
+               f"-n 'walt-vpn' {pubkey_path}")
+            pubkeycert_path = (tmpdir / "key-cert.pub")
+            if not pubkeycert_path.exists():
+                error_msg = "Failed to sign the public key (probably wrong format)."
+                return {"status": "KO", "error_msg": error_msg}
+            pubkeycert = pubkeycert_path.read_text()
+        if vpn_node.vpnmac is None:
+            # generate a mac for the VPN node
+            vpnmac = self.server.nodes.generate_free_mac("52:54:00")
+            # insert in database
+            self.server.db.execute(
+                    """INSERT INTO vpnauth(vpnmac, pubkeycert, certid)
+                       VALUES (%s, %s, %s)""", (vpnmac, pubkeycert, cert_id))
+            self.server.db.execute(
+                    """INSERT INTO vpnnodes(mac, vpnmac)
+                       VALUES (%s, %s)""", (device_mac, vpnmac))
+            # update dhcpd to recognize the vpn mac
+            self.server.dhcpd.update()
+        else:
+            # the node was already enrolled, but it has sent a new
+            # enrollment request; its eeprom was probably reset.
+            # just update the pubkeycert in database.
+            self.server.db.execute(
+                    """UPDATE vpnauth
+                       SET pubkeycert = %s
+                       WHERE vpnmac = %s""", (pubkeycert, vpn_node.vpnmac))
+        self.server.db.commit()
+        # let the caller know everything went well
+        return {"status": "OK"}
 
-    def get_unsecure_key_pair(self):
-        return (UNSECURE_KEY, UNSECURE_KEY_PUB)
+    def get_vpn_node_property(self, node_ip, prop_name):
+        vpn_node = self.get_vpn_node_info(node_ip)
+        # if API request is not from a rpi5 node, error out
+        if vpn_node is None:
+            return {"status": "KO", "error_msg": "Invalid request."}
+        # if the node is not enrolled yet, return an empty property value
+        if vpn_node.vpnmac is None:
+            return {"status": "OK", "response_text": ""}
+        value = getattr(vpn_node, prop_name)
+        return {"status": "OK", "response_text": value}
 
-    def get_vpn_proxy_setup_script(self):
-        script_content = resource_string(__name__, "vpn-proxy-setup.sh").decode(
-            sys.getdefaultencoding()
-        )
-        return script_content % dict(
-            ca_pub_key=VPN_CA_KEY_PUB.read_text().strip(),
-            unsecure_pub_key=UNSECURE_KEY_PUB,
-        )
+    def dump_ssh_pubkey_cert(self, node_ip):
+        return self.get_vpn_node_property(node_ip, "pubkeycert")
+
+    def get_vpn_mac(self, node_ip):
+        return self.get_vpn_node_property(node_ip, "vpnmac")
+
+    def generate_ssh_ep_host_keys(self):
+        ssh_entrypoint = self.get_vpn_entrypoint("ssh")
+        if ssh_entrypoint is None:
+            return {"status": "KO", "error_msg": ERR_VPN_EP_NOT_CONFIGURED}
+        host_keys = run(shlex.split(f"ssh-keyscan -H {ssh_entrypoint}"),
+                        capture_output=True,
+                        text=True).stdout
+        return {"status": "OK", "response_text": host_keys}
+
+    def get_mac_from_vpn_mac(self, vpnmac):
+        db_row = self.server.db.select_unique("vpnnodes", vpnmac=vpnmac)
+        if db_row is None:
+            return None
+        else:
+            return db_row.mac
+
+    def revoke_vpn_auth_key(self, cert_id):
+        vpn_auth = self.server.db.select_unique("vpnauth", certid=cert_id)
+        if vpn_auth is None:
+            return {"status": "KO", "error_msg": "Did not find such VPN key."}
+        if vpn_auth.revoked:
+            return {"status": "KO", "error_msg": "This VPN key was already revoked."}
+        # update db
+        self.server.db.revoke_vpn_auth_key(vpn_auth.vpnmac)
+        # add cert ID to the Key Revocation List
+        run(shlex.split(
+            f"ssh-keygen -k -u -s {VPN_CA_KEY} -f {VPN_SERVER_KRL} -"),
+            input=f"id: {cert_id}",
+            text=True)
+        # reload sshd
+        pid = int(Path("/run/sshd.pid").read_text())
+        os.kill(pid, signal.SIGHUP)

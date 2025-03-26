@@ -15,9 +15,9 @@
 #   because the upload number is used for the version of each component,
 #   so we must upload them all at once.
 
-ALL_PACKAGES=common virtual vpn server node client client-g5k
+ALL_PACKAGES=common virtual server node client client-g5k
 # common must be installed 1st (needed by others), then virtual
-INSTALLABLE_PACKAGES_ON_SERVER=common virtual vpn doc client server
+INSTALLABLE_PACKAGES_ON_SERVER=common virtual doc client server
 INSTALLABLE_PACKAGES_ON_CLIENT=common doc client
 INSTALLABLE_PACKAGES_ON_CLIENT_G5K=common client doc client-g5k
 GNUMAKEFLAGS=--no-print-directory

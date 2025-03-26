@@ -101,6 +101,14 @@ Full table of Contents
    web-server
    web-api
 
+.. toctree::
+   :maxdepth: 1
+   :caption: VPN / distant nodes
+
+   vpn
+   vpn-security
+   vpn-http-entrypoint
+   vpn-ssh-entrypoint
 
 .. toctree::
    :maxdepth: 1
@@ -129,7 +137,6 @@ Full table of Contents
    design-notes
    optional-features
    shell-completion
-   vpn
    compatibility
    new-node-support
    packaging

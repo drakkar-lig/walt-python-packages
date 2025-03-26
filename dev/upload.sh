@@ -19,7 +19,7 @@ build_subpackages() {
     BUILD_KEEP_VERSION=1 PACKAGES="$SUBPACKAGES" make build-packages
     for d in $SUBPACKAGES
     do
-        if [ "$d" = "vpn" -o "$d" = "server" ]
+        if [ "$d" = "server" ]
         then
             fix_binary_package_tag $d
         fi

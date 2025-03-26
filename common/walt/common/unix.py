@@ -35,7 +35,10 @@ def bind_to_random_sockname(s):
 
 
 class Requests(ServiceRequests):
-    REQ_FAKE_TFTP_GET_FD = 0
+    REQ_FAKE_TFTP_GET_FD    = 0
+    REQ_VPN_ENROLL          = 1
+    REQ_GENERATE_FILE       = 2
+    REQ_PROPERTY            = 3
 
 
 # since we are on a UNIX socket, we know the client is on the same
@@ -64,7 +67,7 @@ class UnixServer(GenericServer):
     # what we will do: read the request, create the appropriate
     # listener, and run it.
     def handle_server_socket_event(self, serv_s):
-        msg, ancdata, flags, peer_addr = serv_s.recvmsg(256)
+        msg, ancdata, flags, peer_addr = serv_s.recvmsg(65536)
         req_id, args, kwargs = pickle.loads(msg)
         listener = self.get_listener(req_id)
         if listener is not None:

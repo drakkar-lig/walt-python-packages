@@ -61,12 +61,12 @@ class Server(object):
         self.exports = FilesystemsExporter(self.db)
         self.images = NodeImageManager(self)
         self.interaction = InteractionManager(self.tcp_server, self.ev_loop)
-        self.unix_server = UnixSocketServer()
+        self.unix_server = UnixSocketServer(self)
         self.transfer = TransferManager(self.tcp_server, self.ev_loop)
         self.settings = SettingsManager(server=self)
         self.nodes = NodesManager(self)
         self.port_settings = PortSettingsManager(server=self)
-        self.vpn = VPNManager()
+        self.vpn = VPNManager(server=self)
         self.expose = ExposeManager(server=self)
         self.poe = PoEManager(server=self)
 
@@ -110,6 +110,7 @@ class Server(object):
         self.images.prepare()
         self.devices.prepare()
         self.nodes.prepare()
+        self.vpn.prepare()
 
     def update(self):
         # mount images needed
@@ -122,6 +123,7 @@ class Server(object):
         self.expose.restore()
 
     def cleanup(self):
+        self.vpn.cleanup()
         self.unix_server.shutdown()
         self.tcp_server.shutdown()
         self.expose.cleanup()

@@ -58,15 +58,15 @@ $ walt node remove <node-name>
 
 WalT supports the following Raspberry Pi models:
 
-| Model | Recommended PoE splitter      | Needs an SD-card | Setup task         |
-|-------|-------------------------------|------------------|--------------------|
-| B     | external (1)                  | Yes              | SD-card (2)        |
-| B+    | external (1)                  | Yes              | SD-card (2)        |
-| 2B    | external (1)                  | Yes              | SD-card (2)        |
-| 3B    | external (1)                  | Yes              | SD-card (2)        |
-| 3B+   | external (1) or official (3)  | No               | None! (4)          |
-| 4B    | external (5) or official (3)  | No               | Set boot-order (4) |
-| 5B    | external (5) or waveshare (6) | No               | Set boot-order (4) |
+|     | Recommended PoE splitter    | SD-card | VPN node | Setup task        |
+|-----|-----------------------------|---------|----------|-------------------|
+| B   | external(1)                 | Yes     | No       | SD-card(2)        |
+| B+  | external(1)                 | Yes     | No       | SD-card(2)        |
+| 2B  | external(1)                 | Yes     | No       | SD-card(2)        |
+| 3B  | external(1)                 | Yes     | No       | SD-card(2)        |
+| 3B+ | external(1) or official(3)  | No      | No       | None!(4)          |
+| 4B  | external(5) or official(3)  | No      | No       | Set boot-order(4) |
+| 5B  | external(5) or waveshare(6) | No      | Yes(7)   | Set boot-order(4) |
 
 Notes:
 1. Use a PoE splitter providing micro-USB type B connectivity.
@@ -75,6 +75,7 @@ Notes:
 4. See "Booting recent models" below.
 5. Use a PoE splitter providing USB-C connectivity. Model 5B needs more power (PoE+ is required for a reliable behavior), especially if you connect USB peripherals; look for PoE+ compatibility and output power 4A.
 6. At the time of this writing there is no official PoE HAT for model 5B, but we tested the Waveshare PoE HAT model F successfully. Note that it is not compatible with the official case.
+7. See [`walt help show vpn`](vpn.md).
 
 We highly recommend powering Raspberry Pi nodes with PoE.
 In this case, and if PoE reboots are allowed on the switch, then walt can
@@ -106,7 +107,7 @@ When connected to a display at bootup, the boot order is displayed on the
 diagnosis screen. If it prints "0xf41", then network boot is missing (network boot
 is digit "2"). In this case, you need to boot the board just once with a SD card
 containing recovery files for updating the boot order:
-1. Checkout https://github.com/drakkar-lig/walt-project/releases/latest and download archive `rpi-4-sd-netboot.tar.gz` or `rpi-5-sd-netboot.tar.gz`
+1. Checkout https://github.com/drakkar-lig/walt-project/releases/latest and download archive `rpi-4-sd-recovery.tar.gz` or `rpi-5-sd-recovery.tar.gz`
 2. Extract and copy files to a SD card formatted the usual way (1 single partition, FAT32 fileystem)
 3. Insert this SD card in its slot
 4. Power on the board and wait until the green LED starts blinking repeatedly (and if a HDMI display is connected, a plain green screen is displayed)

@@ -17,7 +17,3 @@ class VSAPI(APISession):
         return np_record_to_dict(
                 context.server.devices.get_device_info(
                     requester=None, mac=device_mac))
-
-    @api_expose_method
-    def vpn_request_grant(self, context, device_mac):
-        return context.server.vpn.request_grant(context.task, device_mac)

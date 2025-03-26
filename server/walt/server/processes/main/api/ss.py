@@ -24,3 +24,11 @@ class SSAPI(APISession):
     @api_expose_method
     def web_api_v1_images(self, context, *args):
         return context.images.web_api_list_images("v1", *args)
+
+    @api_expose_method
+    def get_vpn_auth_keys(self, context):
+        return context.server.db.get_vpn_auth_keys()
+
+    @api_expose_method
+    def revoke_vpn_auth_key(self, context, cert_id):
+        return context.server.vpn.revoke_vpn_auth_key(cert_id)

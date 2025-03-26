@@ -1,0 +1,85 @@
+#!/bin/bash
+set -e
+SSH_CONNECT_TIMEOUT=5
+SSH_OPTIONS="-T -v -A \
+            -o PreferredAuthentications=publickey \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=no \
+            -o ConnectTimeout=$SSH_CONNECT_TIMEOUT"
+VPN_CA_KEY="/var/lib/walt/vpn-server/vpn-ca-key"
+MESSAGE_VERIFY="Please verify your entry, and the configuration of this SSH server."
+
+this_program="$(realpath $0)"
+
+step=1  # unless specified explicitely
+entrypoint=""
+
+while [ "$1" != "" ]
+do
+    case "$1" in
+        "--step")
+            step="$2"
+            shift 2
+            ;;
+        *)
+            entrypoint="$1"
+            shift
+            ;;
+    esac
+done
+
+if [ "$step" = "1" -a "$entrypoint" = "" ]
+then
+    echo "Usage: $0 <entrypoint>"
+    exit 1
+fi
+
+add_ssh_creds() {
+    tmpdir="$1"
+    # create temporary ssh keypair
+    ssh-keygen -q -N '' -t ecdsa -b 384 -f "$tmpdir/id_walt_vpn"
+    # sign the pubkey with the CA key
+    ssh-keygen -s /var/lib/walt/vpn-server/vpn-ca-key \
+        -I ssh-endpoint-test -n 'walt-vpn' "$tmpdir/id_walt_vpn.pub"
+    # add the key and signed pubkey to the agent
+    ssh-add "$tmpdir/id_walt_vpn"
+}
+
+case "$step" in
+    "1")
+        # we run a dedicated ssh agent to be able to forward
+        # authentication keys accross multiple hosts
+        exec ssh-agent "$this_program" --step 2 "$entrypoint"
+        ;;
+    "2")
+        # run the ssh test command
+        tmpdir="$(mktemp -d)"
+        chmod 700 "$tmpdir"
+        trap "rm -rf $tmpdir" EXIT
+        add_ssh_creds "$tmpdir"
+        ssh_target="walt-vpn@$entrypoint"
+        stderr_file=$(mktemp)
+        if fqdn="$(ssh $SSH_OPTIONS \
+                    -o IdentityFile="$tmpdir/id_walt_vpn-cert.pub" \
+                    "$ssh_target" get-server-hostname 2>$stderr_file)"
+        then
+            rm "$stderr_file"
+            real_fqdn="$(hostname --fqdn)"
+            if [ "$fqdn" = "$real_fqdn" ]
+            then
+                echo "OK."
+                exit 0
+            else
+                echo "Failed: Mismatch, it returned \"$fqdn\"" \
+                     "instead of \"${real_fqdn}\"!"
+                echo "$MESSAGE_VERIFY"
+                exit 1
+            fi
+        else
+            echo "Failed: SSH connection to \"$ssh_target\" was denied."
+            echo "SSH debug messages were saved in file \"${stderr_file}\"."
+            echo "$MESSAGE_VERIFY"
+            exit 1
+        fi
+        ;;
+esac

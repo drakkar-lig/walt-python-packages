@@ -38,31 +38,54 @@ _detect_input() {
     wait_for_input_line_shortly 5 >/dev/null 2>&1
 }
 
+_possibly_vpn_node() {
+    if [ -d /sys/class/net/ ]
+    then
+        if [ -d /sys/class/net/walt-vpn ]
+        then
+            echo 1  # yes, it is a VPN node
+        else
+            echo 0  # no, not a VPN node
+        fi
+    else
+        # At this step of the boot procedure
+        # /sys/class/net/ does not exist so
+        # we cannot tell.
+        # So we return 1 ("possibly" a VPN node).
+        echo 1
+    fi
+}
+
 _reboot_or_sh()
 {
     run_shell="no"
-    if [ -e "/sys/class/tty/console/active" ]
+    # for security reason, we disable the emergency
+    # shell on VPN nodes.
+    if [ "$(_possibly_vpn_node)" = "0" ]
     then
-        # if we could properly detect the console devices, detect
-        # on which one the standard input is connected
-        # by trying to read <ENTER> on each of them successively
-        for console_device in $(busybox cat /sys/class/tty/console/active)
-        do
-            if _detect_input <>/dev/$console_device 1>&0
+        if [ -e "/sys/class/tty/console/active" ]
+        then
+            # if we could properly detect the console devices, detect
+            # on which one the standard input is connected
+            # by trying to read <ENTER> on each of them successively
+            for console_device in $(busybox cat /sys/class/tty/console/active)
+            do
+                if _detect_input <>/dev/$console_device 1>&0
+                then
+                    curr_console_device=$console_device
+                    run_shell="yes"
+                    break
+                fi
+            done
+        else
+            # if we could not detect the console devices
+            # just wait for <ENTER> on standard input
+            if _detect_input
             then
-                curr_console_device=$console_device
+                curr_console_device="unknown"
                 run_shell="yes"
                 break
             fi
-        done
-    else
-        # if we could not detect the console devices
-        # just wait for <ENTER> on standard input
-        if _detect_input
-        then
-            curr_console_device="unknown"
-            run_shell="yes"
-            break
         fi
     fi
     if [ "$run_shell" = "yes" ]

@@ -171,16 +171,20 @@ class NodesManager(object):
     def web_api_list_nodes(self, *args):
         return web_api_list_nodes(self.devices, self.settings, *args)
 
-    def generate_vnode_info(self):
-        # random mac address generation
+    def generate_free_mac(self, prefix):
         while True:
-            free_mac = "52:54:00:%02x:%02x:%02x" % (
+            free_mac = f"{prefix}:%02x:%02x:%02x" % (
                 random.randint(0, 255),
                 random.randint(0, 255),
                 random.randint(0, 255),
             )
-            if self.db.select_unique("devices", mac=free_mac) is None:
-                break  # ok, mac is free
+            if (self.db.select_unique("devices", mac=free_mac) is None and
+                self.db.select_unique("vpnauth", vpnmac=free_mac) is None):
+                return free_mac  # ok, mac is free
+
+    def generate_vnode_info(self):
+        # random mac address generation
+        free_mac = self.generate_free_mac("52:54:00")
         # find a free ip
         subnet = get_walt_subnet()
         server_ip = get_server_ip()

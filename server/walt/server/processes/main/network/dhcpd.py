@@ -197,7 +197,7 @@ RANGE_CONF_PATTERN = "    range %(first)s %(last)s;"
 
 
 HOST_CONF_PATTERN = np_str_pattern("""\
-    host %(hostname)s {
+    host %(hostlabel)s {
         hardware ethernet %(mac)s;
         fixed-address %(ip)s;
         option host-name "%(hostname)s";
@@ -245,18 +245,53 @@ def generate_dhcpd_conf(subnet, devices):
             )
     return CONF_PATTERN % infos
 
+# We handle VPN nodes differently:
+# - they are referenced twice, once with the regular mac and once
+#   with the vpnmac.
+# - to handle the case of a rpi5 booting inside the walt network,
+#   the HTTP boot of the firmware does not work if no router is
+#   returned by the DHCP; so we force the VPN entry associated
+#   with the regular mac (the one used for VPN boot) to be processed
+#   with netsetup=NAT.
 
-QUERY_DEVICES_WITH_IP = """
-    SELECT d.mac, ip, name as hostname, type,
-        COALESCE((conf->'netsetup')::int, 0) as netsetup,
+QUERY_DEVICES_WITH_IP = f"""
+WITH q1 as (
+    SELECT d.mac, ip, name, type,
+        COALESCE((conf->'netsetup')::int, {NetSetup.LAN}) as netsetup,
         (ip::inet - '0.0.0.0'::inet) as ip_int,
-        '' as formatted_conf
-    FROM devices d LEFT JOIN nodes n ON d.mac = n.mac
+        vn.vpnmac,
+        (vn.vpnmac IS NOT NULL) as is_vpn_node
+    FROM devices d
+    LEFT JOIN nodes n ON d.mac = n.mac
+    LEFT JOIN vpnnodes vn ON d.mac = vn.mac
     WHERE ip IS NOT NULL
       AND type != 'server'
       AND ip::inet << %s::cidr
-    ORDER BY d.mac;
+),
+q2 as (
+    SELECT mac, ip, name as hostname, type, ip_int,
+           name as hostlabel, netsetup
+    FROM q1
+    WHERE NOT is_vpn_node
+UNION
+    SELECT mac, ip, name as hostname, type, ip_int,
+           (name || '-vpnboot') as hostlabel, {NetSetup.NAT} as netsetup
+    FROM q1
+    WHERE is_vpn_node
+UNION
+    SELECT vpnmac as mac, ip, name as hostname, type, ip_int,
+           (name || '-vpn') as hostlabel, netsetup
+    FROM q1
+    WHERE is_vpn_node
+)
+SELECT *, '' as formatted_conf
+FROM q2
+ORDER BY mac
 """
+
+
+def format_conf(devices, mask, pattern):
+    devices.formatted_conf[mask] = np_apply_str_pattern(pattern, devices[mask])
 
 
 class DHCPServer(object):

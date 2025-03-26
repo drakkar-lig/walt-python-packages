@@ -150,7 +150,7 @@ class DevicesManager(object):
             where_sql, where_values = "d.name = %s", (name,)
             err_message = f"""No device with name '{name}' found.\n"""
         elif mac is not None:
-            where_sql, where_values = "d.mac = %s", (mac,)
+            where_sql, where_values = "d.mac = %s OR vn.vpnmac = %s", (mac, mac)
             err_message = f"""No device with mac '{mac}' found.\n"""
         else:
             raise Exception("get_device_info() needs 'name' or 'mac' parameter.")
@@ -182,6 +182,7 @@ class DevicesManager(object):
         FROM devices d
         LEFT JOIN nodes n ON d.mac = n.mac
         LEFT JOIN switches s ON d.mac = s.mac
+        LEFT JOIN vpnnodes vn ON d.mac = vn.mac
         WHERE {where_sql}"""
         # if requested, we will add columns indicating the location
         # of the device in the network.

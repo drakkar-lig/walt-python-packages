@@ -84,7 +84,7 @@ PACKAGE_SPECIFIC_INFO = {
             "psycopg2-binary>=2.8.2",
             "gevent>=21.1.2",
             "bottle>=0.12.19",
-            "aiohttp>=3.8.1",
+            "aiohttp>=3.10.11",
             "aiostream>=0.4.4",
             "netifaces>=0.11.0",
             "podman>=4.2.0",
@@ -92,11 +92,11 @@ PACKAGE_SPECIFIC_INFO = {
             "numpy>=1.24.3",
             "numba>=0.58.1",
             "cffi>=1.16.0",
+            "dnspython>=2.7.0",
             "walt-client==%(walt_version)s",
             "walt-common==%(walt_version)s",
             "walt-doc==%(walt_version)s",
             "walt-virtual==%(walt_version)s",
-            "walt-vpn==%(walt_version)s",
         ],
         version_str="%(walt_version)s",
         setup=dict(
@@ -120,13 +120,17 @@ PACKAGE_SPECIFIC_INFO = {
                     "walt-image-mount = walt.server.mount.mount:run",
                     "walt-image-umount = walt.server.mount.umount:run",
                     "walt-set-poe = walt.server.snmp.run:walt_set_poe",
+                    "walt-server-vpn = walt.server.services.vpn:run",
+                    "walt-server-vpn-endpoint = walt.server.vpn.endpoint:run",
+                    "walt-vpn-admin = walt.server.vpn.admin:run",
                 ]
             },
             scripts=["sh/walt-image-shell-helper",
                      "sh/walt-image-build-helper",
                      "sh/walt-image-fs-helper",
                      "sh/walt-server-cleanup",
-                     "sh/walt-device-ssh"],
+                     "sh/walt-device-ssh",
+                     "sh/walt-server-vpn-test-ssh-entrypoint"],
             setup_requires=["cffi>=1.16.0"],
             cffi_modules=["walt/server/ext/build.py:ffibuilder"],
             include_package_data=True,
@@ -144,32 +148,6 @@ PACKAGE_SPECIFIC_INFO = {
                     "walt-virtual-node = walt.virtual.node:run",
                 ]
             },
-            include_package_data=True,
-        ),
-    ),
-    "walt-vpn": dict(
-        subdir="vpn",
-        requires=[
-            "walt-common==%(walt_version)s",
-            "python-daemon<3",  # for compatibility with setuptools<60 (see server)
-            "cffi>=1.0.0",
-        ],
-        version_str="%(walt_version)s",
-        setup=dict(
-            description="WalT VPN components.",
-            entry_points={
-                "console_scripts": [
-                    "walt-vpn-server = walt.vpn.server:run",
-                    "walt-vpn-endpoint = walt.vpn.endpoint:run",
-                    "walt-vpn-client = walt.vpn.client:vpn_client",
-                    "walt-vpn-setup-credentials = walt.vpn.client:setup_credentials",
-                    "walt-vpn-ssh-helper = walt.vpn.ssh:helper",
-                    "walt-vpn-auth-tool = walt.vpn.authtool:run",
-                    "walt-vpn-setup = walt.vpn.setup:run",
-                ]
-            },
-            setup_requires=["cffi>=1.0.0"],
-            cffi_modules=["walt/vpn/ext/build.py:ffibuilder"],
             include_package_data=True,
         ),
     ),

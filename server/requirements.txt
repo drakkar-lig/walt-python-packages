@@ -9,6 +9,7 @@ cffi==1.16.0
 charset-normalizer==3.3.2
 commonmark==0.9.1
 cryptography==44.0.2
+dnspython==2.7.0
 docutils==0.20.1
 frozenlist==1.4.1
 gevent==24.2.1
@@ -50,7 +51,6 @@ walt-client==9.0
 walt-common==9.0
 walt-doc==9.0
 walt-virtual==9.0
-walt-vpn==9.0
 yarl==1.17.2
 zope.event==5.0
 zope.interface==6.3

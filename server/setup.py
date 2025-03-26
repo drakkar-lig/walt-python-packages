@@ -22,6 +22,7 @@ setup_info = {
         "charset-normalizer==3.3.2",
         "commonmark==0.9.1",
         "cryptography==44.0.2",
+        "dnspython==2.7.0",
         "docutils==0.20.1",
         "frozenlist==1.4.1",
         "gevent==24.2.1",
@@ -63,7 +64,6 @@ setup_info = {
         "walt-common==9.0",
         "walt-doc==9.0",
         "walt-virtual==9.0",
-        "walt-vpn==9.0",
         "yarl==1.17.2",
         "zope.event==5.0",
         "zope.interface==6.3",
@@ -94,6 +94,9 @@ setup_info = {
             "walt-image-mount = walt.server.mount.mount:run",
             "walt-image-umount = walt.server.mount.umount:run",
             "walt-set-poe = walt.server.snmp.run:walt_set_poe",
+            "walt-server-vpn = walt.server.services.vpn:run",
+            "walt-server-vpn-endpoint = walt.server.vpn.endpoint:run",
+            "walt-vpn-admin = walt.server.vpn.admin:run",
         ]
     },
     "include_package_data": True,
@@ -103,6 +106,7 @@ setup_info = {
         "sh/walt-image-fs-helper",
         "sh/walt-server-cleanup",
         "sh/walt-device-ssh",
+        "sh/walt-server-vpn-test-ssh-entrypoint",
     ],
     "setup_requires": ["cffi>=1.16.0"],
 }

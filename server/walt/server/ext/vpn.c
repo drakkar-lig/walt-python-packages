@@ -219,14 +219,6 @@ static int cbuf_peek_big_endian_short(circular_buffer_t *cbuf) {
     return (i1 << 8) + i0;
 }
 
-static int cbuf_empty(circular_buffer_t *cbuf) {
-    return (cbuf->level == 0);
-}
-
-static int cbuf_full(circular_buffer_t *cbuf) {
-    return (cbuf->level == cbuf->size);
-}
-
 #define ETHERNET_MAX_SIZE   1514
 #define BUFFER_SIZE_BITS    16
 #define BUFFER_SIZE         (1<<BUFFER_SIZE_BITS)
@@ -337,23 +329,13 @@ static int ssh_tap_transfer_loop(int ssh_read_fd, int ssh_write_fd, int tap_fd) 
     return (status == STOPPED_SHOULD_REINIT);
 }
 
-int client_transmission_loop(int ssh_stdin, int ssh_stdout, int tap_fd) {
-    /* client runs a ssh process using subprocess.popen.
-     * - ssh_stdin allows to write packets on the standard input of this process
-     * - ssh_stdout allows to read packets transfered the other way and written
-     *   on the standard output of this process */
-    return ssh_tap_transfer_loop(ssh_stdout /* read from ssh channel */,
-                                 ssh_stdin /* write to ssh channel */,
-                                 tap_fd);
-}
-
-void endpoint_transmission_loop(int tap_fd) {
-    /* the client runs ssh <options> walt-vpn@<server> walt-vpn-endpoint
-     * (or, more precisely, walt-vpn-endpoint command is enforced by the
+void _vpn_endpoint_transmission_loop(int tap_fd) {
+    /* the client runs ssh <options> walt-vpn@<server> walt-server-vpn-endpoint
+     * (or, more precisely, walt-server-vpn-endpoint command is enforced by the
      * authorized_keys file)
-     * - walt-vpn-endpoint stdin allows to read packets sent over the ssh
+     * - walt-server-vpn-endpoint stdin allows to read packets sent over the ssh
      *   channel from the client
-     * - writting on walt-vpn-endpoint stdout allows to transfer packets
+     * - writting on walt-server-vpn-endpoint stdout allows to transfer packets
      *   the other way */
     ssh_tap_transfer_loop(0 /* stdin: read from ssh channel */,
                           1 /* stdout: write to ssh channel */,

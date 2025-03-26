@@ -15,31 +15,12 @@ negate() {
     fi
 }
 
-end_of_mac() {
-    set -- $(echo "$1" | tr ':' ' ')
-    echo $4$5$6
-}
-
 define_test "walt device config" as {
     cat << EOF
-Preparation work: we want to create an unknown device in database.
-We will first create it as a virtual node, retrieve
-its ip and mac, then remove this virtual node and recreate
-it as an unknown device using walt-dhcp-event.
+Preparation work: create a fake unknown device.
 EOF
     dev_name="unknown-device-$$"
-    walt node create "$dev_name"
-    ip_mac="$(
-        psql walt -t -c "select ip, mac from devices where name='$dev_name'" | tr -d '|'
-    )"
-    set -- $ip_mac
-    ip=$1
-    mac=$2
-    mac_suffix=$(end_of_mac $mac)
-    walt node remove "$dev_name"
-    walt-dhcp-event commit "" "" $ip $mac "unknown" "0" "unknown"
-    dev_name="unknown-$mac_suffix"
-    sleep 2
+    create_fake_device "$dev_name" ""
 
     # real tests...
 
@@ -76,7 +57,7 @@ define_test "walt device show" as {
 
 define_test "walt device rename" as {
     output="$(
-        psql walt -t -c "$SQL_ONE_DEVICE_NAME" | tr -d '|'
+        psql --no-psqlrc walt -t -c "$SQL_ONE_DEVICE_NAME" | tr -d '|'
     )"
 
     if [ "$output" = "" ]

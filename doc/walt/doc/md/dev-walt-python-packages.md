@@ -20,7 +20,6 @@ python packages on pypi.org:
 | walt-node       | node       | node/walt/node             | walt.node       |
 | walt-server     | server     | server/walt/server         | walt.server     |
 | walt-virtual    | virtual    | virtual/walt/virtual       | walt.virtual    |
-| walt-vpn        | vpn        | vpn/walt/vpn               | walt.vpn        |
 
 You can find walt-server package at https://pypi.org/project/walt-server for instance
 (this is the same for others).
@@ -116,7 +115,7 @@ of dependencies of those packages.
 The other packages installed on the server do not have those restrictions, because
 server installation docs describe quite fine requirements about the OS and machine
 on which `walt-server` should be installed, so even complex dependencies should
-install just fine. In fact, package `walt-vpn` relies on a compiled extension itself.
+install just fine.
 
 Package dependencies are described in `dev/metadata.py`, in a loose way:
 `<dependency> >= <version>` (unless a specific issue requires more elaborate criteria).
@@ -166,7 +165,7 @@ The same kind of restriction applies to the code involved in `walt-server-setup`
 in some cases, this tool has to upgrade the OS, which implies it is first called
 with the python interpreter of the old OS.
 The code of `walt-server-setup` is at `server/walt/server/setup/` and relies
-on some code of `walt-common`, `walt-doc`, and `walt-vpn` (setup part too).
+on some code of `walt-common` and `walt-doc`.
 
 The remaining server code can theoretically use modern python features,
 but for coherency we avoid using python features not supported by python 3.9.
@@ -202,7 +201,7 @@ The source code can load them when needed. Various examples in current source co
 use module `pkg_resources` for that purpose.
 See `server/walt/server/processes/main/network/tftp.py` for instance.
 
-For compiled extensions, refer to the definition of package `walt-vpn` in
+For compiled extensions, refer to the definition of package `walt-server` in
 `dev/metadata.py`.
 
 

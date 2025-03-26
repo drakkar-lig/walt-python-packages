@@ -1,8 +1,0 @@
-setup an ssh frontend server as a WalT VPN proxy
-
-Usage:
-    walt vpn setup-proxy [SWITCHES] 
-
-Meta-switches:
-    -h, --help      Prints this help message and quits
-

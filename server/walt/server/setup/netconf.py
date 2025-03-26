@@ -17,6 +17,7 @@ from walt.common.term import (
         clear_screen,
         wait_for_large_enough_terminal,
 )
+from walt.server.tools import wait_message_read
 
 EDITOR_TOP_MESSAGE = """\
 Please review and validate or edit the proposed network configuration.
@@ -97,17 +98,6 @@ def sanitize_netconf(netconf):
             netnameconf["raw-device"] = None
         if netnameconf["raw-device"] is None:
             netnameconf.pop("vlan", None)
-
-
-def wait_message_read():
-    print(" " * 71 + "]\r[", end="")
-    sys.stdout.flush()
-    for i in range(70):
-        print("*", end="")
-        sys.stdout.flush()
-        time.sleep(0.28)
-    print("\r" + " " * 72 + "\r", end="")
-    sys.stdout.flush()
 
 
 # pretty printing netconf

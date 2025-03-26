@@ -211,7 +211,7 @@ def fix_packets(upgrade_dist=False, upgrade_packets=False):
         remove_packages(APT_OLD_DIST_PACKAGES, purge=True)
         upgrade_and_install_packages("OS upgrade", [], upgrade_packets=True)
     upgrade_and_install_packages(
-        "WALT dependencies",
+        "WalT dependencies",
         APT_WALT_DEPENDENCIES_PACKAGES,
         upgrade_packets=upgrade_packets
     )
@@ -375,7 +375,7 @@ def cleanup_old_walt_install():
         for path_entry in os.environ["PATH"].split(":")
         if not path_entry.startswith(sys.prefix)
     )
-    print("Looking for obsolete walt packages... ", end="")
+    print("Looking for obsolete WalT packages... ", end="")
     sys.stdout.flush()
     proc = subprocess.run(
         "python3 -m pip list --format json".split(),
@@ -393,7 +393,7 @@ def cleanup_old_walt_install():
             if package_name.startswith("walt-"):
                 walt_packages.append(package_name)
         if len(walt_packages) > 0:
-            print("Removing obsolete walt packages... ", end="")
+            print("Removing obsolete WalT packages... ", end="")
             sys.stdout.flush()
             subprocess.run(
                 "python3 -m pip uninstall -y".split() + walt_packages,

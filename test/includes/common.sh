@@ -117,3 +117,38 @@ send "\x01"; sleep 1; send "d"
 expect "Disconnected from console."
 EOF
 }
+
+get_walt_server_ip() {
+    which jq >/dev/null || {
+        skip_test 'requires the "jq" command'
+    }
+
+    ip -4 -j addr show dev walt-net | \
+        jq -r .[0].addr_info[0].local
+}
+
+end_of_mac() {
+    set -- $(echo "$1" | tr ':' ' ')
+    echo $4$5$6
+}
+
+create_fake_device() {
+    # We first create the fake device as a virtual node, retrieve
+    # its ip and mac, then remove this virtual node and recreate
+    # it as an unknown device using walt-dhcp-event.
+    dev_name="$1"
+    vci="$2"
+    walt node create "$dev_name"
+    ip_mac="$(
+        psql --no-psqlrc walt -t \
+            -c "select ip, mac from devices where name='$dev_name'" | tr -d '|'
+    )"
+    set -- $ip_mac
+    ip=$1
+    mac=$2
+    mac_suffix=$(end_of_mac $mac)
+    walt node remove "$dev_name"
+    walt-dhcp-event commit --force-name \
+        "$vci" "" $ip $mac "$dev_name" "0" "unknown"
+    echo "ip: $ip"
+}

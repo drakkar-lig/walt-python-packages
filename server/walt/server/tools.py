@@ -5,7 +5,7 @@ import numpy as np
 import socket
 import sys
 from ipaddress import IPv4Address, ip_address, ip_network
-from time import time
+from time import time, sleep
 from typing import Union
 
 from walt.common.evloop import POLL_OPS_READ, POLL_OPS_WRITE
@@ -550,3 +550,52 @@ def NetworkMsg(fmt, *static_args):
             buf = cls.format(*args)
             netbuf.write(buf)
     return NetworkMsgCls
+
+
+class TTLCache:
+    def __init__(self):
+        self._cache = {}
+    def get(self, item):
+        if item in self._cache:
+            deadline, delay, value = self._cache.pop(item)
+            if deadline < time():
+                # obsolete
+                return (False,)
+            else:
+                # still valid
+                deadline = time() + delay
+                self._cache[item] = (deadline, delay, value)
+                return (True, value)
+        else:
+            return (False,)
+    def save(self, item, value, delay):
+        deadline = time() + delay
+        self._cache[item] = (deadline, delay, value)
+
+
+def ttl_cache(delay):
+    def ttl_cache_decorator(f):
+        cache = TTLCache()
+        def decorated(*args, **kwargs):
+            import pickle
+            h = pickle.dumps((args, kwargs))
+            cache_result = cache.get(h)
+            if cache_result[0] is True:
+                return cache_result[1]
+            else:
+                result = f(*args, **kwargs)
+                cache.save(h, result, delay)
+                return result
+        return decorated
+    return ttl_cache_decorator
+
+
+def wait_message_read():
+    print(" " * 71 + "]\r[", end="")
+    sys.stdout.flush()
+    for i in range(70):
+        print("*", end="")
+        sys.stdout.flush()
+        sleep(0.28)
+    print("\r" + " " * 72 + "\r", end="")
+    sys.stdout.flush()

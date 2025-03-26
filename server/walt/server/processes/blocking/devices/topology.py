@@ -69,8 +69,8 @@ def two_levels_dict_browse(d):
 
 
 class BridgeTopology:
-    def __init__(self):
-        self.secondary_to_main_mac = {}
+    def __init__(self, vpnmac_to_mac):
+        self.secondary_to_main_mac = vpnmac_to_mac
         self.candidate_macs_per_port = defaultdict(set)
 
     def register_secondary_macs(self, sw_mac, secondary_macs):
@@ -192,7 +192,7 @@ class BridgeTopology:
         # We now build ll_topology considering switch ports with only one candidate mac.
         # Edge devices reported on the ports of the backbone are ignored.
         # (We actually process them first so that they are overridden in this case)
-        ll_topology = LinkLayerTopology()
+        ll_topology = LinkLayerTopology({})
         for candidate_macs_per_port in (
             edge_candidate_macs_per_port,
             backbone_candidate_macs_per_port,
@@ -207,14 +207,17 @@ class BridgeTopology:
 
 
 class LinkLayerTopology(object):
-    def __init__(self):
+    def __init__(self, vpnmac_to_mac):
         # links as a dict (mac1, mac2) -> (port1, port2, confirmed)
         self.links = {}
+        self.secondary_to_main_mac = vpnmac_to_mac
 
     def is_empty(self):
         return len(self.links) == 0
 
     def register_neighbor(self, local_mac, local_port, neighbor_mac):
+        local_mac = self.secondary_to_main_mac.get(local_mac, local_mac)
+        neighbor_mac = self.secondary_to_main_mac.get(neighbor_mac, neighbor_mac)
         mac1, mac2 = sorted((local_mac, neighbor_mac))
         link = self.links.get((mac1, mac2))
         if link is None:
@@ -538,7 +541,10 @@ class TopologyManager(object):
         print(message)
 
     def collect_devices(self, requester, server, devices):
-        lldp_topology, bridge_topology = LinkLayerTopology(), BridgeTopology()
+        vpnnodes = server.db.select("vpnnodes")
+        vpnmac_to_mac = dict(vpnnodes[["vpnmac", "mac"]])
+        lldp_topology = LinkLayerTopology(vpnmac_to_mac)
+        bridge_topology = BridgeTopology(vpnmac_to_mac)
         server_mac = server.devices.get_server_mac()
         server_ip = get_server_ip()
         for device in devices:
@@ -694,7 +700,9 @@ class TopologyManager(object):
                 server.add_or_update_device(**info)
             elif ip != db_info.ip:
                 # call add_or_update_device to update ip
-                info.update(type=db_info.type, name=db_info.name)
+                info.update(mac=db_info.mac,
+                            type=db_info.type,
+                            name=db_info.name)
                 server.add_or_update_device(**info)
         return None  # no error
 
@@ -759,7 +767,7 @@ class TopologyManager(object):
         new_topology.set_confirm_all(True)
 
         # retrieve past topology data from db
-        db_topology = LinkLayerTopology()
+        db_topology = LinkLayerTopology({})
         db_topology.load_from_db(db)
         db_topology.unconfirm(devices)
 
@@ -811,7 +819,7 @@ class TopologyManager(object):
         return (False, out)
 
     def tree(self, requester, server, db, show_all):
-        db_topology = LinkLayerTopology()
+        db_topology = LinkLayerTopology({})
         db_topology.load_from_db(db)
         if db_topology.is_empty():
             return MSG_UNKNOWN_TOPOLOGY

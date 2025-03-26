@@ -1,7 +1,21 @@
 #!/bin/sh
 . walt-script-common
 
-# Unfortunately some versions of busybox do not provide nc server "-e" option
+# If needed the initramfs of an image may prepare
+# a script /run/nc-custom.sh for use instead of
+# "busybox nc".
+# Ex: VPN capable images use this to listen only
+# on the VPN interface, for security reasons.
+# Note: /run may be mounted with noexec, so
+# prefixing with "sh" is mandatory.
+if [ -e "/run/nc-custom.sh" ]
+then
+    nc_server="sh /run/nc-custom.sh -l -p 12346"
+else
+    nc_server="busybox nc -l -p 12346"
+fi
+
+# Unfortunately most versions of busybox do not provide nc server "-e" option
 # to start a handler command for each connexion, so we have to emulate this.
 
 NC_FIFO="/tmp/nc-$$-net.fifo"
@@ -14,7 +28,7 @@ exec 4<>$NC_FIFO 5>&1 6<>$NC_FIFO_PID
 while true
 do
     {
-        busybox nc -l -p 12346 <&4 &
+        $nc_server <&4 &
         nc_pid=$!
         echo $nc_pid >&6
         wait $nc_pid

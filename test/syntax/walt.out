@@ -17,6 +17,5 @@ Categories:
     node      management of WalT nodes
     log       management of logs
     device    management of WalT platform devices
-    vpn       VPN related sub-commands
     advanced  advanced sub-commands
     help      help sub-commands

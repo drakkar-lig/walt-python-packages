@@ -44,10 +44,48 @@ def check_conf():
         raise Exception(f"Invalid configuration at '{SERVER_CONF}'.")
 
 
+def sanitize_conf(conf):
+    if "vpn" in conf:
+        vpnconf = conf["vpn"]
+        if "enabled" in vpnconf:
+            if vpnconf["enabled"]:
+                attrs = set((
+                    'enabled',
+                    'ssh-entrypoint',
+                    'http-entrypoint',
+                    'boot-mode'))
+                if set(vpnconf.keys()) != attrs:
+                    # invalid, discard
+                    conf["vpn"] = {"enabled": False}
+            else:
+                # enabled=No but other VPN conf attributes specified,
+                # auto fix by removing other attributes
+                if len(vpnconf) > 1:
+                    conf["vpn"] = {"enabled": False}
+        else:
+            attrs = set((
+                'ssh-entrypoint',
+                'http-entrypoint',
+                'boot-mode'))
+            if set(vpnconf.keys()) == attrs:
+                # early VPN deployments did not have the "enabled" attr
+                # but this one seemed to be configured.
+                # add the "enabled" attr as 1st attr.
+                prev_vpnconf = conf["vpn"]
+                conf["vpn"] = {"enabled": True}
+                conf["vpn"].update(prev_vpnconf)
+            else:
+                # empty or invalid, discard
+                conf["vpn"] = {"enabled": False}
+    else:
+        conf["vpn"] = {"enabled": False}
+
+
 def get_conf():
     """Load the server configuration"""
     conf = copy.copy(DEFAULT_CONF)
     conf.update(load_conf(SERVER_CONF))
+    sanitize_conf(conf)
     return conf
 
 

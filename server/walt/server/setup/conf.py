@@ -15,6 +15,7 @@ from walt.server.setup.netconf import (
     sanitize_netconf,
 )
 from walt.server.setup.regconf import edit_regconf_interactive, get_default_regconf
+from walt.server.setup.vpn import edit_vpnconf_interactive, get_default_vpnconf
 
 YAML_INDENT = 4
 
@@ -33,6 +34,7 @@ WALT_SERVER_CONF = {
         (0, "network:"): category_comment("network configuration"),
         (0, "registries:"): category_comment("image registries"),
         (0, "services:"): category_comment("service files"),
+        (0, "vpn:"): category_comment("VPN configuration"),
     },
 }
 
@@ -71,7 +73,7 @@ def get_current_conf():
     try:
         from walt.server import conf
 
-        return conf
+        return copy.deepcopy(conf)
     except Exception:
         return None
 
@@ -90,30 +92,37 @@ def edit_conf_keep():
     if conf is None:
         print("WARNING: Failed to load current configuration at /etc/walt/server.conf!")
         print("WARNING: Falling back to a default configuration.")
-        conf = edit_conf_set_default()
+    conf = edit_conf_add_defaults(conf)
     return conf
 
 
 def edit_conf_set_default():
     # verify we will not overwrite an existing conf
     conf = get_current_conf()
-    if conf is None:
-        # this was actually expected
-        return {"network": get_default_netconf(), "registries": get_default_regconf()}
-    else:
+    if conf is not None:
         print("Note: found valid yaml file at /etc/walt/server.conf, keeping it.")
-        return conf
+    conf = edit_conf_add_defaults(conf)
+    return conf
+
+
+def edit_conf_add_defaults(conf):
+    if conf is None:
+        conf = {}
+    if "network" not in conf:
+        conf["network"] = get_default_netconf()
+    if "registries" not in conf:
+        conf["registries"] = get_default_regconf()
+    if "vpn" not in conf or len(conf["vpn"]) == 0:
+        conf["vpn"] = get_default_vpnconf()
+    return conf
 
 
 def edit_conf_interactive():
     conf = get_current_conf()
-    if conf is None:
-        conf = edit_conf_set_default()
-    else:
-        conf = copy.deepcopy(conf)  # copy
-    netconf, regconf = conf["network"], conf["registries"]
-    conf["network"] = edit_netconf_interactive(netconf)
-    conf["registries"] = edit_regconf_interactive(regconf)
+    conf = edit_conf_add_defaults(conf)
+    conf["network"] = edit_netconf_interactive(conf["network"])
+    conf["registries"] = edit_regconf_interactive(conf["registries"])
+    conf["vpn"] = edit_vpnconf_interactive(conf["vpn"])
     return conf
 
 
@@ -147,12 +156,14 @@ def same_confs(c1, c2):
 
 def dump_commented_conf(conf, comment_info):
     reordered_conf = {}
-    for k in ["network", "registries", "services"]:
+    for k in ["network", "registries", "services", "vpn"]:
         if k in conf:
-            reordered_conf[k] = conf.pop(k)
-    conf.update(reordered_conf)
-    conf_dump = yaml.dump(conf, indent=YAML_INDENT, sort_keys=False)
-
+            section_conf = conf[k]
+            if len(section_conf) > 0:
+                reordered_conf[k] = section_conf
+    conf_dump = yaml.dump(reordered_conf,
+                          indent=YAML_INDENT,
+                          sort_keys=False)
     # add comments
     def add_desc_comment(match):
         indent, pattern = match.groups()
@@ -206,15 +217,18 @@ def dump_containers_registries_conf(regconf):
 
 
 def update_server_conf(conf):
-    same_conf = same_confs(get_current_conf(), conf)
+    conf = cleanup_defaults(conf)
+    comment_info = dict(WALT_SERVER_CONF["COMMENT_INFO"])
+    netconf = conf["network"]
+    netconf_entry_comments = get_netconf_entry_comments(netconf)
+    comment_info.update({(1, k): v for (k, v) in netconf_entry_comments.items()})
+    conf_text = dump_commented_conf(conf, comment_info)
+    curr_conf_text = None
+    if WALT_SERVER_CONF["PATH"].exists():
+        curr_conf_text = WALT_SERVER_CONF["PATH"].read_text()
+    same_conf = (conf_text == curr_conf_text)
     if not same_conf:
         print(f'Saving configuration at {WALT_SERVER_CONF["PATH"]}... ', end="")
-        conf = cleanup_defaults(conf)
-        comment_info = dict(WALT_SERVER_CONF["COMMENT_INFO"])
-        netconf = conf["network"]
-        netconf_entry_comments = get_netconf_entry_comments(netconf)
-        comment_info.update({(1, k): v for (k, v) in netconf_entry_comments.items()})
-        conf_text = dump_commented_conf(conf, comment_info)
         WALT_SERVER_CONF["PATH"].parent.mkdir(parents=True, exist_ok=True)
         WALT_SERVER_CONF["PATH"].write_text(conf_text)
         print("done")
