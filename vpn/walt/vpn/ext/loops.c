@@ -30,7 +30,7 @@ static enum {
     STOPPED_SHOULD_ABORT
 } status;
 
-void handle_signal(int sig) {
+static void handle_signal(int sig) {
     /* restore initial signaling */
     sigaction(SIGINT, &old_sigact, NULL);
     /* let python handle the signal */
@@ -38,7 +38,7 @@ void handle_signal(int sig) {
     status = STOPPED_SHOULD_ABORT;
 }
 
-void redirect_sigint() {
+static void redirect_sigint() {
     struct sigaction sigact;
     /* we may be interrupted by SIGINT */
     sigact.sa_handler = handle_signal;
@@ -106,7 +106,7 @@ typedef struct {
     unsigned char *flush_pos;
 } circular_buffer_t;
 
-int cbuf_setup(circular_buffer_t *cbuf, int size) {
+static int cbuf_setup(circular_buffer_t *cbuf, int size) {
     cbuf->size = size;
     cbuf->level = 0;
     cbuf->buf = malloc(sizeof(unsigned char) * size);
@@ -119,11 +119,11 @@ int cbuf_setup(circular_buffer_t *cbuf, int size) {
     return 0;
 }
 
-void cbuf_release(circular_buffer_t *cbuf) {
+static void cbuf_release(circular_buffer_t *cbuf) {
     free(cbuf->buf);
 }
 
-int cbuf_fill(circular_buffer_t *cbuf, int fd_in) {
+static int cbuf_fill(circular_buffer_t *cbuf, int fd_in) {
     int read_size, iov_idx = 0;
     struct iovec iov[2];
     if (cbuf->fill_pos < cbuf->flush_pos) {
@@ -158,7 +158,7 @@ int cbuf_fill(circular_buffer_t *cbuf, int fd_in) {
     return -1;
 }
 
-int cbuf_flush(circular_buffer_t *cbuf, int size, int fd_out) {
+static int cbuf_flush(circular_buffer_t *cbuf, int size, int fd_out) {
     int write_size, iov_idx = 0;
     struct iovec iov[2];
     if (cbuf->fill_pos > cbuf->flush_pos) {
@@ -200,7 +200,7 @@ int cbuf_flush(circular_buffer_t *cbuf, int size, int fd_out) {
     return 0;
 }
 
-void cbuf_pass(circular_buffer_t *cbuf, int shift) {
+static void cbuf_pass(circular_buffer_t *cbuf, int shift) {
     cbuf->flush_pos += shift;
     if (cbuf->flush_pos >= cbuf->buf_end) {
         cbuf->flush_pos -= cbuf->size;
@@ -208,7 +208,7 @@ void cbuf_pass(circular_buffer_t *cbuf, int shift) {
     cbuf->level -= shift;
 }
 
-int cbuf_peek_big_endian_short(circular_buffer_t *cbuf) {
+static int cbuf_peek_big_endian_short(circular_buffer_t *cbuf) {
     int i1 = *(cbuf->flush_pos), i0;
     if (cbuf->flush_pos + 1 == cbuf->buf_end) {
         i0 = *(cbuf->buf);
@@ -219,11 +219,11 @@ int cbuf_peek_big_endian_short(circular_buffer_t *cbuf) {
     return (i1 << 8) + i0;
 }
 
-int cbuf_empty(circular_buffer_t *cbuf) {
+static int cbuf_empty(circular_buffer_t *cbuf) {
     return (cbuf->level == 0);
 }
 
-int cbuf_full(circular_buffer_t *cbuf) {
+static int cbuf_full(circular_buffer_t *cbuf) {
     return (cbuf->level == cbuf->size);
 }
 
@@ -245,7 +245,7 @@ static inline void store_packet_len(unsigned char *len_pos, ssize_t sres) {
     len_pos[1] = (unsigned char)(sres & 0xff);
 }
 
-int ssh_tap_transfer_loop(int ssh_read_fd, int ssh_write_fd, int tap_fd) {
+static int ssh_tap_transfer_loop(int ssh_read_fd, int ssh_write_fd, int tap_fd) {
     unsigned char *buf_tap_to_ssh, *pos_tap_to_ssh;
     int res, max_fd;
     ssize_t sres, packet_len;
