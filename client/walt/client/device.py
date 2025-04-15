@@ -91,8 +91,7 @@ class WalTDeviceExpose(WalTApplication):
 
     ORDERING = 9
 
-    @cli.positional(str, int, int)
-    def main(self, device_name: DEVICE, device_port, local_port):
+    def main(self, device_name: DEVICE, device_port: int, local_port: int):
         device_ip = None
         with ClientToServerLink() as server:
             device_info = server.get_device_info(device_name)

@@ -499,8 +499,7 @@ class WalTNodeExpose(WalTApplication):
 
     ORDERING = 18
 
-    @cli.positional(str, int, int)
-    def main(self, node_name: NODE, node_port, local_port):
+    def main(self, node_name: NODE, node_port: int, local_port: int):
         node_ip = None
         with ClientToServerLink() as server_link:
             node_ip = server_link.get_node_ip(node_name)
