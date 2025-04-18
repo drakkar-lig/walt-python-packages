@@ -103,6 +103,7 @@ class DevicesManager(object):
         self.server_mac = get_mac_address(const.WALT_INTF)
         self.server_ip = get_server_ip()
         self.netmask = str(get_walt_subnet().netmask)
+        self._fw_rules = []
 
     def prepare(self):
         # prepare the network setup for NAT support
@@ -491,57 +492,58 @@ class DevicesManager(object):
 
     def prepare_netsetup(self):
         # force-create the chain WALT and assert it is empty
-        do("iptables --new-chain WALT")
-        do("iptables --flush WALT")
-        do("iptables --append WALT --jump DROP")
+        self._fw_rules.append("iptables --new-chain WALT")
+        self._fw_rules.append("iptables --flush WALT")
+        self._fw_rules.append("iptables --append WALT --jump DROP")
         # allow traffic on the bridge (virtual <-> physical nodes)
-        do(
+        self._fw_rules.append(
             "iptables --append FORWARD "
             "--in-interface walt-net --out-interface walt-net "
             "--jump ACCEPT"
         )
-        # allow connections back to WalT
-        do(
+        # direct the traffic going out of walt network to WALT chain
+        # (see the configuration of devices having netsetup=NAT below)
+        self._fw_rules.append(
             "iptables --append FORWARD "
-            "--out-interface walt-net --match state --state RELATED,ESTABLISHED "
+           f"--source {WALT_SUBNET} "
+         f"! --destination {WALT_SUBNET} "
+            "--jump WALT"
+        )
+        # allow incoming traffic to the walt network if the corresponding
+        # outgoing traffic was previously allowed.
+        self._fw_rules.append(
+            "iptables --append FORWARD "
+           f"--destination {WALT_SUBNET} "
+            "--match state --state RELATED,ESTABLISHED "
             "--jump ACCEPT"
         )
-        # jump to WALT chain for other traffic
-        do("iptables --append FORWARD --in-interface walt-net --jump WALT")
         # NAT nodes traffic that is allowed to go outside
-        do(
+        self._fw_rules.append(
             "iptables -m addrtype --table nat --append POSTROUTING "
              f"--source {WALT_SUBNET} "
            f"! --destination {WALT_SUBNET} "
             "! --dst-type LOCAL "
             "--jump MASQUERADE"
         )
-        # Set the configuration of all NAT-ed devices
+        # Apply
+        for rule in self._fw_rules:
+            do(rule)
+        # Allow devices having netsetup=NAT to exit walt network.
+        # (We do not record these device-specific rules into
+        # self._fw_rules because they may change before
+        # cleanup_netsetup() is called.
+        # The WALT chain will just be flushed instead.)
         for device_info in self.db.execute("""\
                 SELECT ip FROM devices
                 WHERE COALESCE((conf->'netsetup')::int, 0) = %d;
                 """ % NetSetup.NAT):
-            do("iptables --insert WALT --source '%s' --jump ACCEPT" % device_info.ip)
+            do(f"iptables --insert WALT --source '{device_info.ip}' --jump ACCEPT")
+
+    def _invert_fw_rule(self, rule):
+        return rule.replace("--insert", "--delete"
+                  ).replace("--append", "--delete"
+                  ).replace("--new-chain", "--delete-chain")
 
     def cleanup_netsetup(self):
-        # drop rules set by prepare_netsetup
-        do(
-            "iptables -m addrtype --table nat --delete POSTROUTING "
-             f"--source {WALT_SUBNET} "
-           f"! --destination {WALT_SUBNET} "
-            "! --dst-type LOCAL "
-            "--jump MASQUERADE"
-        )
-        do("iptables --delete FORWARD --in-interface walt-net --jump WALT")
-        do(
-            "iptables --delete FORWARD "
-            "--out-interface walt-net --match state --state RELATED,ESTABLISHED "
-            "--jump ACCEPT"
-        )
-        do(
-            "iptables --delete FORWARD "
-            "--in-interface walt-net --out-interface walt-net "
-            "--jump ACCEPT"
-        )
-        do("iptables --flush WALT")
-        do("iptables --delete-chain WALT")
+        for rule in reversed(self._fw_rules):
+            do(self._invert_fw_rule(rule))
