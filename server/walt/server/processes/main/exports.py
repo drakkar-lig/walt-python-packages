@@ -20,8 +20,8 @@ def mkdir_multi(paths):
 
 
 class FilesystemsExporter:
-    def __init__(self, evloop, db):
-        self.nfs = NFSExporter(evloop)
+    def __init__(self, db):
+        self.nfs = NFSExporter()
         self.nbfs = nbfs
         self.db = db
 

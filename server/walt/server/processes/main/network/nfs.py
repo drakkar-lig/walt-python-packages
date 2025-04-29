@@ -1,6 +1,7 @@
 import sys
 from pathlib import Path
 
+from walt.common.tools import succeeds
 from walt.server.tools import get_walt_subnet
 
 NODE_SYMLINKS_EXPORT_PATTERN = """\
@@ -47,8 +48,8 @@ def generate_persist_exports_file_content(persist_paths):
 
 
 class NFSExporter(object):
-    def __init__(self, ev_loop):
-        self._ev_loop = ev_loop
+    def __init__(self):
+        self._obsolete_exports = False
 
     def _get_prev_content_or_init(self, path):
         if not path.parent.exists():
@@ -58,26 +59,29 @@ class NFSExporter(object):
         else:
             return ""
 
-    def _wf_run_exportfs(self, wf, **env):
-        self._ev_loop.do("exportfs -r -f", wf.next)
-
-    def _wf_after_exportfs(self, wf, retcode, **env):
-        if retcode != 0:
+    def _run_exportfs(self):
+        if not succeeds("exportfs -r -f"):
             print("Warning: exportfs failed!", file=sys.stderr)
-        wf.next()
 
     def wf_update_image_exports(self, wf, root_paths, subnet, **env):
         prev_content = self._get_prev_content_or_init(WALT_IMAGE_EXPORTS_PATH)
         content = generate_image_exports_file_content(root_paths, subnet)
         if content != prev_content:
             WALT_IMAGE_EXPORTS_PATH.write_text(content)
-            wf.insert_steps([self._wf_run_exportfs, self._wf_after_exportfs])
+            self._obsolete_exports = True
+        if self._obsolete_exports:
+            self._run_exportfs()
+            self._obsolete_exports = False
         wf.next()
 
-    def wf_update_persist_exports(self, wf, persist_paths, nfsd_restart=True, **env):
+    def wf_update_persist_exports(self, wf, persist_paths, run_exportfs=True, **env):
         prev_content = self._get_prev_content_or_init(WALT_PERSIST_EXPORTS_PATH)
         content = generate_persist_exports_file_content(persist_paths)
         if content != prev_content:
             WALT_PERSIST_EXPORTS_PATH.write_text(content)
-            wf.insert_steps([self._wf_run_exportfs, self._wf_after_exportfs])
+            if run_exportfs:
+                self._run_exportfs()
+                self._obsolete_exports = False
+            else:
+                self._obsolete_exports = True
         wf.next()
