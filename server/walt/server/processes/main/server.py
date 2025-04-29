@@ -54,7 +54,7 @@ class Server(object):
         self.devices = DevicesManager(self)
         self.dhcpd = DHCPServer(self.db, self.ev_loop)
         self.named = DNSServer(self.db, self.ev_loop)
-        self.exports = FilesystemsExporter(ev_loop, self.db)
+        self.exports = FilesystemsExporter(self.db)
         self.images = NodeImageManager(self)
         self.interaction = InteractionManager(self.tcp_server, self.ev_loop)
         self.unix_server = UnixSocketServer()
@@ -80,9 +80,9 @@ class Server(object):
         # the topology.
         self.dhcpd.update(force=True)
         self.named.update(force=True)
-        # nfsd will be restarted after image mounts,
-        # no need to restart it twice
-        self.exports.update_persist_exports(nfsd_restart=False)
+        # exportfs will be called after image mounts,
+        # no need to call it twice
+        self.exports.update_persist_exports(run_exportfs=False)
         self.images.prepare()
         self.devices.prepare()
         self.nodes.prepare()
@@ -103,10 +103,10 @@ class Server(object):
         self.expose.cleanup()
         APISession.cleanup_all()
         tftp.update(self.db, self.images.store, cleanup=True)
-        # nfsd will be restarted before image unmounts,
-        # no need to restart it twice
+        # exportfs will be called before image unmounts,
+        # no need to call it twice
         self.exports.update_persist_exports(
-                cleanup=True, nfsd_restart=False)
+                cleanup=True, run_exportfs=False)
         self.images.cleanup()
         self.nodes.cleanup()
         self.devices.cleanup()

@@ -8,7 +8,6 @@ from time import time
 
 from walt.common.tools import format_image_fullname
 from walt.server.mount.tools import get_mount_path
-from walt.server.processes.main.exports import FilesystemsExporter
 from walt.server.processes.main.filesystem import FilesystemsCache
 from walt.server.processes.main.images.image import NodeImage
 from walt.server.processes.main.images.tools import handle_missing_credentials
