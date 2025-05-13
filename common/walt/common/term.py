@@ -10,6 +10,12 @@ from contextlib import contextmanager
 ESC_CLEAR = b"\x1b[2J\x1b[H"
 
 
+def _get_win_size():
+    buf = array.array("h", [0, 0, 0, 0])
+    fcntl.ioctl(sys.stdout.fileno(), termios.TIOCGWINSZ, buf, True)
+    return buf
+
+
 class TTYSettings(object):
     def __init__(self):
         self.tty_fd = sys.stdout.fileno()
@@ -33,9 +39,7 @@ class TTYSettings(object):
         termios.tcsetattr(self.tty_fd, termios.TCSADRAIN, self.saved)
 
     def get_win_size(self):
-        buf = array.array("h", [0, 0, 0, 0])
-        fcntl.ioctl(self.tty_fd, termios.TIOCGWINSZ, buf, True)
-        return buf
+        return _get_win_size()
 
 
 def  _run_get_stdout(cmd):
@@ -140,3 +144,33 @@ def choose(prompt, options):
         return options_desc[selected]
     else:
         return options_values[selected]
+
+
+def on_sigwinch(sig, frame):
+    pass
+
+
+def wait_for_large_enough_terminal(min_width):
+    width = _get_win_size()[1]
+    if width >= min_width:
+        return False    # no resizing needed
+    print()
+    print("The terminal window is too small for displaying next screen.")
+    print("Please resize it now.")
+    import time
+    # ensure we get SIGWINCH signals
+    from signal import signal, SIGWINCH, pause
+    prev_on_sigwinch = signal(SIGWINCH, on_sigwinch)
+    while True:
+        width = _get_win_size()[1]
+        print(f"\rCurrent size: {width}    ", end="")
+        sys.stdout.flush()
+        if width >= min_width:
+            print()
+            print("OK, continuing.")
+            print()
+            time.sleep(1.5)
+            break
+        pause()  # wait for next signal
+    signal(SIGWINCH, prev_on_sigwinch)
+    return True
