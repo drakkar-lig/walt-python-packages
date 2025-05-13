@@ -8,7 +8,12 @@ from copy import deepcopy
 from plumbum.cli.terminal import prompt
 from walt.doc.md import display_doc
 from walt.common.formatting import columnate, framed, highlight
-from walt.common.term import alternate_screen_buffer, choose, clear_screen
+from walt.common.term import (
+        alternate_screen_buffer,
+        choose,
+        clear_screen,
+        wait_for_large_enough_terminal,
+)
 
 EDITOR_TOP_MESSAGE = """\
 Please review and validate or edit the proposed configuration of image registries.
@@ -66,7 +71,14 @@ def pretty_print_regconf(regconf):
                 )
             )
         conf_text = columnate(rows, header)
-    print(framed("WalT image registries", conf_text))
+    screen = framed("WalT image registries", conf_text)
+    min_width = len(screen.split("\n", maxsplit=1)[0])
+    clear_screen()
+    if wait_for_large_enough_terminal(min_width):
+        clear_screen()
+    print()
+    print(EDITOR_TOP_MESSAGE)
+    print(screen)
 
 
 def print_regconf_status(context, regconf):
@@ -397,9 +409,6 @@ def edit_regconf_interactive(regconf):
     )
     with alternate_screen_buffer():
         while True:
-            clear_screen()
-            print()
-            print(EDITOR_TOP_MESSAGE)
             pretty_print_regconf(regconf)
             valid = print_regconf_status(context, regconf)
             print()

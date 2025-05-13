@@ -11,7 +11,12 @@ import netifaces
 from plumbum.cli.terminal import prompt
 from walt.doc.md import display_doc
 from walt.common.formatting import columnate, format_sentence, framed, highlight
-from walt.common.term import alternate_screen_buffer, choose, clear_screen
+from walt.common.term import (
+        alternate_screen_buffer,
+        choose,
+        clear_screen,
+        wait_for_large_enough_terminal,
+)
 
 EDITOR_TOP_MESSAGE = """\
 Please review and validate or edit the proposed network configuration.
@@ -154,12 +159,17 @@ def pretty_print_netconf(netconf):
     rows = []
     for netname in netnames:
         rows.append(netname_row_values(netconf, netname))
-    print(
-        framed(
+    screen = framed(
             "WalT network configuration",
             columnate(rows, header, shrink_empty_cols=True),
-        )
     )
+    min_width = len(screen.split("\n", maxsplit=1)[0])
+    clear_screen()
+    if wait_for_large_enough_terminal(min_width):
+        clear_screen()
+    print()
+    print(EDITOR_TOP_MESSAGE)
+    print(screen)
 
 
 def print_netconf_status(context, netconf):
@@ -431,9 +441,6 @@ def edit_netconf_interactive(netconf):
     )
     with alternate_screen_buffer():
         while True:
-            clear_screen()
-            print()
-            print(EDITOR_TOP_MESSAGE)
             pretty_print_netconf(netconf)
             valid = print_netconf_status(context, netconf)
             print()
