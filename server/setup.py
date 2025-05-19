@@ -54,7 +54,7 @@ setup_info = {
         "requests==2.32.2",
         "sdnotify==0.3.2",
         "setproctitle==1.3.3",
-        "setuptools==70.0.0",
+        "setuptools==78.1.1",
         "six==1.16.0",
         "snimpy==1.0.3",
         "typing-extensions==4.11.0",
