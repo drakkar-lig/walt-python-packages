@@ -372,11 +372,12 @@ class RPCSession:
 
 
 class RPCTask(object):
-    def __init__(self, connector, remote_req_id):
+    def __init__(self, connector, remote_req_id, task_label):
         self.connector = connector
         self.remote_req_id = remote_req_id
         self._async_mode = False
         self._completed = False
+        self._task_label = task_label
 
     def set_async(self):
         self._async_mode = True
@@ -407,11 +408,23 @@ class RPCTask(object):
             self.connector.write(("RESULT", self.remote_req_id, Exception(str(e))))
         self._completed = True
 
+    def is_completed(self):
+        return self._completed
+
+    def __repr__(self):
+        return f"<RPCTask {self._task_label}>"
+
+    def __del__(self):
+        if self.is_async():
+            if not self._completed:
+                print(f"{self}: garbage collected, but return_result() never called.",
+                      file=sys.stderr)
+
 
 class RPCContext(object):
-    def __init__(self, connector, remote_req_id, local_service):
+    def __init__(self, connector, remote_req_id, local_service, task_label):
         self._local_service = local_service
-        self.task = RPCTask(connector, remote_req_id)
+        self.task = RPCTask(connector, remote_req_id, task_label)
 
     @cached_property
     def remote_service(self):
@@ -518,7 +531,11 @@ class RPCProcessConnector(ProcessConnector):
             local_service = self.default_service
         else:
             local_service = self.submitted_tasks[local_req_id].local_service
-        context = RPCContext(self, remote_req_id, local_service)
+        s_args = tuple(f"{repr(v)}" for v in args)
+        s_kwargs = tuple(f"{k}={repr(v)}" for k, v in kwargs.items())
+        proto_args = ", ". join(s_args + s_kwargs)
+        task_label = f"{path}({proto_args})"
+        context = RPCContext(self, remote_req_id, local_service, task_label)
         if self.local_context:
             args = (context,) + args
         try:
