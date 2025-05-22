@@ -141,7 +141,11 @@ class LogsStreamListener(object):
             return True
         try:
             should_continue = True
-            self.chunk += self.sock_file.read().decode("UTF-8")
+            new_chunk = self.sock_file.read()
+            if len(new_chunk) == 0:
+                # unexpected disconnection
+                new_chunk = b"<disconnected!>\nCLOSE\n"
+            self.chunk += new_chunk.decode("UTF-8")
             inputlines = np.array(self.chunk.split("\n"))
             if (inputlines[-2:] == ('CLOSE', '')).all():
                 should_continue = False
