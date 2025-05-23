@@ -14,6 +14,10 @@ from walt.common.tools import do, format_image_fullname, parse_image_fullname
 from walt.common.version import __version__
 from walt.server import conf
 from walt.server.popen import BetterPopen
+from walt.server.const import (
+    NODE_SSH_ECDSA_HOST_KEY_PATH,
+    NODE_DROPBEAR_ECDSA_HOST_KEY_PATH,
+)
 from walt.server.processes.main.apisession import APISession
 from walt.server.processes.main.autocomplete import shell_autocomplete
 from walt.server.processes.main.devices.manager import DevicesManager
@@ -66,7 +70,27 @@ class Server(object):
         self.expose = ExposeManager(server=self)
         self.poe = PoEManager(server=self)
 
+    def prepare_keys(self):
+        # Note: although they are stored in a different format,
+        # dropbear and sshd host keys must be the same, because
+        # a node may be booted first with an OS image equipped
+        # with openssh (e.g., a debian image) and later be rebooted
+        # with an OS image equipped with dropbear (e.g. openwrt).
+        # So we generate the openssh key with ssh-keygen and then
+        # convert it with dropbearconvert.
+        if not NODE_SSH_ECDSA_HOST_KEY_PATH.exists():
+            NODE_SSH_ECDSA_HOST_KEY_PATH.parent.mkdir(
+                    parents=True, exist_ok=True)
+            # note: this also generates the .pub file
+            do(f"ssh-keygen -t ecdsa -N '' -f {NODE_SSH_ECDSA_HOST_KEY_PATH}")
+        if not NODE_DROPBEAR_ECDSA_HOST_KEY_PATH.exists():
+            NODE_DROPBEAR_ECDSA_HOST_KEY_PATH.parent.mkdir(
+                    parents=True, exist_ok=True)
+            do("dropbearconvert openssh dropbear "
+              f"{NODE_SSH_ECDSA_HOST_KEY_PATH} {NODE_DROPBEAR_ECDSA_HOST_KEY_PATH}")
+
     def prepare(self):
+        self.prepare_keys()
         self.logs.prepare()
         self.logs.catch_std_streams()
         self.registry.prepare()
