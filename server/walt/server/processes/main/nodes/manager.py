@@ -3,8 +3,10 @@ import random
 
 from pathlib import Path
 
-from walt.common.constants import UNSECURE_ECDSA_KEYPAIR
-from walt.server.const import SSH_NODE_COMMAND
+from walt.server.const import (
+        SSH_NODE_COMMAND,
+        NODE_SSH_ECDSA_HOST_KEY_PUB_PATH,
+)
 from walt.server.popen import BetterPopen
 from walt.server.processes.main.filesystem import FilesystemsCache
 from walt.server.processes.main.nodes.clock import NodesClockSyncInfo
@@ -74,9 +76,8 @@ class NodesManager(object):
     def prepare(self):
         known_hosts_nodes = Path("/var/lib/walt/ssh/known_hosts.nodes")
         known_hosts_nodes.parent.mkdir(parents=True, exist_ok=True)
-        known_hosts_nodes.write_text("")
-        alg, key = UNSECURE_ECDSA_KEYPAIR["openssh-pub"].split()[:2]
-        alg, key = alg.decode("ascii"), key.decode("ascii")
+        pub_key = NODE_SSH_ECDSA_HOST_KEY_PUB_PATH.read_text()
+        alg, key = pub_key.split()[:2]
         known_hosts_nodes.write_text(f"walt.node {alg} {key}")
 
     def restore(self):

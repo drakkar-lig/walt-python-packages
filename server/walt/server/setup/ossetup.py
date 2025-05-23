@@ -84,7 +84,7 @@ APT_WALT_DEPENDENCIES_PACKAGES = """
         libsmi2-dev isc-dhcp-server bind9 nfs-kernel-server uuid-runtime postgresql
         ntpdate ntp lockfile-progs ptpd tftpd-hpa ebtables qemu-system-x86 bridge-utils
         screen ifupdown gcc python3-dev git make sudo expect netcat-openbsd libjson-perl
-        docker.io podman buildah skopeo bash-completion
+        docker.io podman buildah skopeo bash-completion dropbear-bin
         ksmtuned fdisk e2fsprogs dosfstools containernetworking-plugins
 """.split()
 
