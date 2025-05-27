@@ -71,7 +71,7 @@ WalT supports the following Raspberry Pi models:
 Notes:
 1. Use a PoE splitter providing micro-USB type B connectivity.
 2. See "Booting older models with a SD card" below.
-3. Purchase the official "Raspberry Pi PoE+ HAT". It can fit in the official Rpi 3B+ or 4B cases. However, the integrated fan is a little noisy.
+3. You can purchase the official "Raspberry Pi PoE+ HAT". It can fit in the official Rpi 3B+ or 4B cases. However, the integrated fan is a little noisy (coil whine). We have been aware of defective boards where this coil whine sound was quite loud. If you receive such a defective board, you can probably get a warranty replacement.
 4. See "Booting recent models" below.
 5. Use a PoE splitter providing USB-C connectivity. Model 5B needs more power (PoE+ is required for a reliable behavior), especially if you connect USB peripherals; look for PoE+ compatibility and output power 4A.
 6. At the time of this writing there is no official PoE HAT for model 5B, but we tested the Waveshare PoE HAT model F successfully. Note that it is not compatible with the official case.
