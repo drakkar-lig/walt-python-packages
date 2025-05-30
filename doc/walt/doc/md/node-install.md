@@ -133,7 +133,8 @@ First, follow the standard startup procedure at https://coral.ai/docs/dev-board/
 Then run the following on the board (with a proper internet access):
 ```
 $ cd /tmp
-$ wget https://github.com/drakkar-lig/walt-project/releases/latest/download/coral-devb-boot.tar.gz
+$ release_url=https://github.com/drakkar-lig/walt-project/releases/latest
+$ wget ${release_url}/download/coral-devb-boot.tar.gz
 $ cd /boot
 $ mv boot.scr boot.scr.orig
 $ tar xfz /tmp/coral-devb-boot.tar.gz
@@ -150,7 +151,7 @@ When WALT server detects a node for the first time, a log line is emitted.
 Thus, you should be able to identify the new node by checking the logs as follows:
 ```
 $ walt log show --platform --history -5m:
-10:45:49.188989 walt-server.platform.devices -> new node name=node-f26782 model=rpi-3-b-plus mac=b8:27:eb:f2:67:82 ip=192.168.152.14
+10:45:49.188 walt-server.platform.devices -> new node name=node-f26782 model=rpi-b [...]
 $
 ```
 

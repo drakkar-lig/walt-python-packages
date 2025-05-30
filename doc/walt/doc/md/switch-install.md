@@ -66,13 +66,13 @@ Thus, you should be able to identify the new switch by checking the logs as foll
 
 ```
 $ walt log show --platform --history -5m: "new"
-10:50:15.498660 walt-server.platform.devices -> new switch name=switch-18d55d mac=6c:b0:ce:18:d5:5d ip=192.168.152.11
+10:50:15.498 walt-server.platform.devices -> new switch name=switch-18d55d [...]
 $
 ```
 
 If WALT is unable to detect this device is a switch, the log line will look like this instead:
 ```
-10:50:15.498660 walt-server.platform.devices -> new device name=unknown-18d55d type=unknown mac=6c:b0:ce:18:d5:5d ip=192.168.152.11
+10:50:15.498 walt-server.platform.devices -> new device name=unknown-18d55d type=unknown [...]
 ```
 In this example we see that WALT registered this unknown device with name `unknown-18d55d`.
 The hex chars are taken from the right side of the switch mac address.
@@ -120,10 +120,11 @@ switch port a node is connected in order to hard-reboot it or power it off).
 
 For instance, on the Netgear GS110TP in its default configuration, one may run:
 ```
-$ walt device config <switch-name> snmp.version=2 snmp.community='private' lldp.explore=true poe.reboots=true
+$ walt device config <switch-name> snmp.version=2 snmp.community='private'
+$ walt device config <switch-name> lldp.explore=true poe.reboots=true
 ```
 
-For general information about this command, see [`walt help show device-config`](device-config.md).
+For general information about these commands, see [`walt help show device-config`](device-config.md).
 
 Last note: to make the network view (output by `walt device tree`) of a large building more readable, its is possible to rename the switch ports.
 See [`walt help show device-port-config`](device-port-config.md).
