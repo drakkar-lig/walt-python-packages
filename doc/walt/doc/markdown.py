@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import re
 import socket
 import termios
 import textwrap
@@ -15,14 +16,13 @@ from walt.doc.color import (
     FG_COLOR_DEFAULT,
     FG_COLOR_DARK_RED,
     RE_ESC_COLOR,
+    RE_ESC_MOVE_RIGHT,
     FormatState,
     get_transition_esc_sequence,
     optimize_and_reset_default_colors
 )
 from walt.doc.mdtable import detect_table, render_table
 from walt.common.term import TTYSettings
-
-MAX_TARGET_WIDTH = 120
 
 FG_COLOR_MARKDOWN = FG_COLOR_BLACK
 BG_COLOR_MARKDOWN = BG_COLOR_WHITE
@@ -32,11 +32,15 @@ BG_COLOR_SOURCE_CODE_HIGHLIGHT = "103"
 FG_COLOR_URL = FG_COLOR_BLUE
 FG_COLOR_HEADING = FG_COLOR_DARK_RED
 
+RE_WORD_SPACING = re.compile(r"[ \n]+")
+
 
 class MarkdownRenderer:
-    def __init__(self, *args, **kwargs):
+
+    def render(self, ast, selected_link_num):
         self.list_numbering = []
-        # initialize context with current terminal setup (default for all attrs)
+        # initialize context with current terminal setup
+        # (default for all attrs)
         init_state = FormatState(
             bg_color=BG_COLOR_DEFAULT,
             fg_color=FG_COLOR_DEFAULT,
@@ -47,12 +51,11 @@ class MarkdownRenderer:
         self.contexts = [init_state]
         try:
             tty = TTYSettings()
-            self.target_width = min(tty.cols, MAX_TARGET_WIDTH)
+            self.target_width = tty.cols
         except termios.error:
             # Stdout seems not to be a terminal
             self.target_width = 80  # Minimal requirement
-
-    def render(self, ast, selected_link_num):
+        self.target_width -= 2  # 1-char left and right margins
         self.link_num = 0
         self.selected_link_num = selected_link_num
         walker = ast.walker()
@@ -67,14 +70,21 @@ class MarkdownRenderer:
         optimized_buf = optimize_and_reset_default_colors(
                 self.buf, FG_COLOR_DEFAULT, BG_COLOR_DEFAULT
         )
-        return optimized_buf
+        return optimized_buf, self.max_width
 
     def document(self, node, entering):
         if entering:
             self.stack_context(fg_color=FG_COLOR_MARKDOWN, bg_color=BG_COLOR_MARKDOWN)
+            self.lit(" ")  # left-margin of first line
         else:
-            # markdown background color should span to right edge
-            self.buf = self.buf.replace("\n", "\033[K\n")
+            md_bg = f"\x1b[{BG_COLOR_MARKDOWN}m"
+            # add 1-char left and right margins
+            # and use \033[K to make background color span to right edge
+            buf_lines = self.buf.rstrip("\n").split("\n")
+            self.max_width = max(self.real_text_len(l) for l in buf_lines)
+            self.max_width += 2  # left and right margins
+            buf = f"{md_bg} \033[K\n ".join(buf_lines)
+            self.buf = buf + f"{md_bg}\033[K\n\033[K\n"
             self.pop_context()
 
     def lit(self, s, reset=False):
@@ -163,6 +173,10 @@ class MarkdownRenderer:
         if num_intervals == 0:
             # only one word, cannot justify
             return words[0]
+        # let's try to be reasonnable
+        if num_spaces // num_intervals > 4:
+            # justifying would make things less readable
+            return " ".join(words)
         # Fill intervals evenly with appropriate number of spaces
         added_spaces = [" " * (num_spaces // num_intervals)] * num_intervals
         num_spaces -= (num_spaces // num_intervals) * num_intervals
@@ -187,33 +201,38 @@ class MarkdownRenderer:
         return "".join((word + spacing) for word, spacing in zip(words, added_spaces))
 
     def real_text_len(self, text):
-        return len("".join(RE_ESC_COLOR.split(text)))
+        text = "".join(RE_ESC_COLOR.split(text))
+        text = "".join(text.split("\x1b[K"))
+        length = len(text)
+        right_moves = RE_ESC_MOVE_RIGHT.findall(text)
+        if len(right_moves) > 0:
+            length += sum(int(m[2:-1]) - len(m) for m in right_moves)
+        return length
 
     def wrap_escaped(self, text):
         # textwrap.fill does not work well because of the escape sequences
         wrapped_lines = []
         curr_words = []
         curr_words_no_color = []
-        for line in text.split("\n"):
-            for word in line.split(" "):
-                word_no_color = "".join(RE_ESC_COLOR.split(word))
-                min_line_no_color = " ".join(curr_words_no_color + [word_no_color])
-                min_len = len(min_line_no_color)
-                if 1 + min_len > self.target_width:
-                    # cannot include the new word, format previous ones into a line
-                    len_no_space = len("".join(curr_words_no_color))
-                    num_spaces = self.target_width - 1 - len_no_space
-                    curr_line = self.justify(curr_words, num_spaces)
-                    wrapped_lines.append(" " + curr_line)
-                    # the new word will be included into next line
-                    curr_words = [word]
-                    curr_words_no_color = [word_no_color]
-                else:
-                    # ok, include this new word into the current line
-                    curr_words.append(word)
-                    curr_words_no_color.append(word_no_color)
-            wrapped_lines.append(" " + " ".join(curr_words))
-            curr_words, curr_words_no_color = [], []
+        for word in RE_WORD_SPACING.split(text):
+            word_no_color = "".join(RE_ESC_COLOR.split(word))
+            min_line_no_color = " ".join(curr_words_no_color + [word_no_color])
+            min_len = len(min_line_no_color)
+            if min_len > self.target_width:
+                # cannot include the new word, format previous ones into a line
+                len_no_space = len("".join(curr_words_no_color))
+                num_spaces = self.target_width - len_no_space
+                curr_line = self.justify(curr_words, num_spaces)
+                wrapped_lines.append(curr_line)
+                # the new word will be included into next line
+                curr_words = [word]
+                curr_words_no_color = [word_no_color]
+            else:
+                # ok, include this new word into the current line
+                curr_words.append(word)
+                curr_words_no_color.append(word_no_color)
+        # last line of the paragraph
+        wrapped_lines.append(" ".join(curr_words))
         # after wrapping is validated, we can revert non-breaking spaces
         # to regular space.
         return "\n".join(wrapped_lines).replace("\xa0", " ")

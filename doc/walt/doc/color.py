@@ -42,6 +42,7 @@ BG_COLOR_WHITE = C256_BG(C256_WHITE)
 BG_COLOR_LIGHT_GREY = C256_BG(C256_LIGHT_GREY)
 
 RE_ESC_COLOR = re.compile("\x1b" + r"\[[0-9;]*m")
+RE_ESC_MOVE_RIGHT = re.compile("\x1b" + r"\[[0-9]*C")
 RE_SPACES = re.compile(r"^\s+$", re.ASCII)
 
 

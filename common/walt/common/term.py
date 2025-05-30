@@ -21,8 +21,6 @@ class TTYSettings(object):
         self.tty_fd = sys.stdout.fileno()
         # save
         self.saved = termios.tcgetattr(self.tty_fd)
-        self.win_size = self.get_win_size()
-        self.rows, self.cols = self.win_size[0], self.win_size[1]
         curses.setupterm()
         self.num_colors = curses.tigetnum("colors")
 
@@ -38,8 +36,20 @@ class TTYSettings(object):
         # return saved conf
         termios.tcsetattr(self.tty_fd, termios.TCSADRAIN, self.saved)
 
-    def get_win_size(self):
+    @property
+    def win_size(self):
         return _get_win_size()
+
+    @property
+    def rows(self):
+        return self.win_size[0]
+
+    @property
+    def cols(self):
+        return self.win_size[1]
+
+    def get_win_size(self):
+        return self.win_size
 
 
 def  _run_get_stdout(cmd):
@@ -146,31 +156,57 @@ def choose(prompt, options):
         return options_values[selected]
 
 
-def on_sigwinch(sig, frame):
+@contextmanager
+def on_sigwinch_call(handler):
+    from signal import signal, SIGWINCH
+    prev_on_sigwinch = signal(SIGWINCH, handler)
+    yield
+    signal(SIGWINCH, prev_on_sigwinch)
+
+
+class SIGWINCHException(Exception):
     pass
+
+
+def _on_sigwinch_raise_exception(sig, frame):
+    raise SIGWINCHException()
+
+
+@contextmanager
+def on_sigwinch_raise_exception():
+    with on_sigwinch_call(_on_sigwinch_raise_exception):
+        yield
+
+
+def _on_sigwinch_interrupt_pause(sig, frame):
+    pass  # nothing more to do
+
+
+@contextmanager
+def on_sigwinch_interrupt_pause():
+    with on_sigwinch_call(_on_sigwinch_interrupt_pause):
+        yield
 
 
 def wait_for_large_enough_terminal(min_width):
     width = _get_win_size()[1]
     if width >= min_width:
         return False    # no resizing needed
+    clear_screen()
     print()
-    print("The terminal window is too small for displaying next screen.")
-    print("Please resize it now.")
+    print("The terminal window is too small for displaying next screen.",
+          end="\r\n")
+    print("Please resize it now.", end="\r\n")
+    from signal import pause
     import time
-    # ensure we get SIGWINCH signals
-    from signal import signal, SIGWINCH, pause
-    prev_on_sigwinch = signal(SIGWINCH, on_sigwinch)
-    while True:
-        width = _get_win_size()[1]
-        print(f"\rCurrent size: {width}    ", end="")
-        sys.stdout.flush()
-        if width >= min_width:
-            print()
-            print("OK, continuing.")
-            print()
-            time.sleep(1.5)
-            break
-        pause()  # wait for next signal
-    signal(SIGWINCH, prev_on_sigwinch)
+    with on_sigwinch_interrupt_pause():
+        while True:
+            width = _get_win_size()[1]
+            print(f"\rCurrent size: {width}    ", end="")
+            sys.stdout.flush()
+            if width >= min_width:
+                print("\r\n\nOK, continuing.\r\n\n", end="")
+                time.sleep(1.5)
+                break
+            pause()  # wait for next signal
     return True

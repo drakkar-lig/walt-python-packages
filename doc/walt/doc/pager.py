@@ -7,13 +7,25 @@ import commonmark
 from walt.doc.color import RE_ESC_COLOR
 from walt.doc.color import BOLD_ON, FG_COLOR_DARK_RED, BG_COLOR_WHITE
 from walt.doc.markdown import MarkdownRenderer
-from walt.common.term import TTYSettings, alternate_screen_buffer
+from walt.common.term import (
+        TTYSettings,
+        alternate_screen_buffer,
+        wait_for_large_enough_terminal,
+        on_sigwinch_raise_exception,
+        SIGWINCHException,
+)
 
 SCROLL_HELP = "<up>/<down>, <page-up>/<page-down>: scroll"
 TOPICS_HELP = "<tab>/<shift-tab>, <enter>/<backspace>: browse related topics"
 Q_HELP = "<q>: quit"
 
 RE_LINKTAGS = re.compile(r"<L+>")
+
+# if we have something larger than current window size to display,
+# we may ask the user to resize it.
+# however, if our text width is really large, don't block usage
+# because the user may just have a small screen.
+REASONABLE_MIN_SCREEN_WIDTH = 100
 
 
 class Pager:
@@ -73,7 +85,7 @@ class Pager:
                 target_topics.append(node.destination[:-3])
             event = walker.nxt()
         # 2. render this AST with modified link literals
-        text = self.renderer.render(ast, 0)
+        text, max_width = self.renderer.render(ast, 0)
         # 3. look for the position of our tags in the rendered output
         topic_links = []
         for line_number, line in enumerate(text.splitlines()):
@@ -214,7 +226,12 @@ class Pager:
                 topic_links = self.parse_topic_links(ast)
                 should_load_topic = False
             if should_render_markdown:
-                text = self.renderer.render(ast, selected_link_num)
+                text, max_width = self.renderer.render(ast, selected_link_num)
+                if max_width <= REASONABLE_MIN_SCREEN_WIDTH:
+                    if wait_for_large_enough_terminal(max_width):
+                        # terminal resized, render again
+                        text, max_width = self.renderer.render(
+                                ast, selected_link_num)
                 lines = text.split("\n")
                 # we have to behave the same wether the document ends with an empty line
                 # (color escape codes excluded) or not
@@ -264,8 +281,13 @@ class Pager:
             # get keyboard input
             action = None
             while action is None:
-                req = sys.stdin.read(1)
-                action = self.handle_keypress(req, **env)
+                try:
+                    with on_sigwinch_raise_exception():
+                        req = sys.stdin.read(1)
+                    action = self.handle_keypress(req, **env)
+                except SIGWINCHException:
+                    # window size change, refresh
+                    action = Pager.UPDATE_MD_CONTENT_NO_RETURN
             if action == Pager.QUIT:
                 return False  # should not continue
             elif action == Pager.RETURN_TO_PREV_MD_CONTENT:
@@ -347,7 +369,7 @@ class DocPager(Pager):
         else:
             print(content)
             # For debugging colors with hexdump, prefer:
-            # print(MarkdownRenderer().render(content))
+            # print(MarkdownRenderer().render(content)[0])
 
     def get_header_text(self, **env):
         return ""  # no header
