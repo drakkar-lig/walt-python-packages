@@ -55,7 +55,12 @@ class PostgresDB:
         return np.array(self.c.fetchall(), dt).view(np.recarray)
 
     def execute(self, query, query_args=None):
-        self.c.execute(query, query_args)
+        try:
+            self.c.execute(query, query_args)
+        except Exception:
+            print(f"Exception when running this query: {repr(query)}")
+            print(f"  -- args: {repr(query_args)}")
+            raise
         if self.c.description is None:  # it was not a select query
             return None
         return self._np_recordset()
