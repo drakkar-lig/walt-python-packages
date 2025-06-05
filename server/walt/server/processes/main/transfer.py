@@ -331,7 +331,7 @@ class NodeTarReceiver(ParallelProcessSocketListener):
 
 IMAGE_BUILD_TAR_RECEIVER_COMMAND = """\
 walt-annotate-cmd --mode pickle4 \
-    walt-image-build-helper --from-stdin %(image_fullname)s"""
+    walt-image-build-helper --from-stdin %(username)s %(image_fullname)s"""
 
 
 class ImageBuildTarReceiver(ParallelProcessSocketListener):

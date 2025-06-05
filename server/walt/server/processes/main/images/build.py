@@ -45,14 +45,17 @@ class ImageBuildSession(object):
 
     def run_image_build_from_url(self, requester, task):
         url, subdir = self.info["url"], self.info.get("subdir", "")
+        username = self.info["username"]
         options = f"--from-url {url}"
         if len(subdir) > 0:
             options = f'{options} --sub-dir "{subdir}"'
-        cmd = f"walt-image-build-helper {options} {self.image_fullname}"
+        cmd = (f"walt-image-build-helper {options} "
+               f"{username} {self.image_fullname}")
         self._run_image_build_from_cmd(requester, task, cmd)
 
     def run_image_build_from_node_diff(self, requester, server, task):
         node_name = self.info["node_name"]
+        username = self.info["username"]
         node = server.nodes.get_node_info(requester, node_name)
         if node is None:
             return False
@@ -62,6 +65,7 @@ class ImageBuildSession(object):
                                        "--from-node-diff",
                                        node_diff_dump_cmd,
                                        node.image,
+                                       username,
                                        self.image_fullname ])
 
     def finalize_image_build_session(self, requester, server, task):

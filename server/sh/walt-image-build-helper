@@ -6,6 +6,7 @@ set -e
 export LC_ALL=C
 
 mode=""
+user=""
 image_fullname=""
 debug=0
 subdir=""
@@ -43,20 +44,22 @@ do
             shift
             ;;
         *)
-            image_fullname="$1"
-            shift
+            user="$1"
+            image_fullname="$2"
+            shift 2
             break
     esac
 done
 
-if [ -z "$mode" -o -z "$image_fullname" -o ! -z "$1" ]
+if [ -z "$mode" -o -z "$user" -o -z "$image_fullname" -o ! -z "$1" ]
 then
 	echo "Usage:" >&2
-    echo "  $0 [--debug] --from-url [--sub-dir <path>]" \
-         "<git-remote-build-repo> <image_fullname>" >&2
-    echo "  tar cf - . | $0 [--debug] --from-stdin <image_fullname>" >&2
-    echo "  $0 [--debug] --from-node-diff <node-diff-dump-cmd> <node-image-fullname>" \
-                "<image_fullname>" >&2
+    echo "  $0 [--debug] --from-url <git-remote-build-repo>" \
+         "[--sub-dir <path>] <user> <image_fullname>" >&2
+    echo "  tar cf - . | $0 [--debug] --from-stdin" \
+         "<user> <image_fullname>" >&2
+    echo "  $0 [--debug] --from-node-diff <node-diff-dump-cmd>" \
+         "<node-image-fullname> <user> <image_fullname>" >&2
 	exit
 fi
 
@@ -124,8 +127,113 @@ ADD ar.tar /
 EOF
 }
 
+# We will modify FROM directives of the Dockerfile which do not specify
+# the "<user>/" part.
+#
+# These directive are implicit and may match several images,
+# for instance "rpi-default" may refer to one of two or more different
+# images present on the server, e.g., "waltplatform/rpi-default:latest"
+# and "eduble/rpi-default:latest".
+#
+# In this case podman build would silently use one of them, the first
+# it finds.
+#
+# If "eduble" is the user who started "walt image build" with this
+# Dockerfile, he probably meant "eduble/rpi-default:latest", so
+# let's alter the relevant lines in this way.
+
+_replace_implicit_from_lines() {
+    stages=" "
+    # grep: remove comments
+    # sed: handle "\" line continuation char
+    grep -v "^#" Dockerfile | \
+    sed -e :a -e '/\\$/N; s/\\\n//; ta' | \
+    while read cmd args
+    do
+        cmd="${cmd^^}"    # uppercase
+        if [ "$cmd" = "FROM" ]
+        then
+            echo -n "FROM"
+            state="read_image"
+            for arg in $args
+            do
+                case $state in
+                    "read_image")
+                        case "$arg" in
+                            "--"*)
+                                # this is an option, continue with next arg
+                                echo -n " ${arg}"
+                                continue
+                                ;;
+                            "scratch")
+                                # special "scratch" stage
+                                echo -n " ${arg}"
+                                ;;
+                            *"/"*)
+                                # user part already specified
+                                echo -n " ${arg}"
+                                ;;
+                            *)
+                                case "$stages" in
+                                    *" ${arg} "*)
+                                        # it is the name of a previous stage
+                                        echo -n " ${arg}"
+                                        ;;
+                                    *)
+                                        # user part apparently missing
+                                        echo -n " ${user}/${arg}"
+                                        ;;
+                                esac
+                                ;;
+                        esac
+                        state="read_as"
+                        ;;
+                    "read_as")
+                        if [ "${arg^^}" = "AS" ]
+                        then
+                            echo -n " ${arg}"
+                            state="read_stage"
+                        else
+                            echo "Warning: failed to analyse FROM line." >&2
+                            return 1
+                        fi
+                        ;;
+                    "read_stage")
+                        stages="${stages}${arg} "
+                        echo -n " ${arg}"
+                        ;;
+                esac
+            done
+            echo  # end of line
+        else
+            echo "$cmd $args"
+        fi
+    done > Dockerfile.__fixed__
+    return 0  # OK
+}
+
+replace_implicit_from_lines() {
+    if _replace_implicit_from_lines
+    then
+        mv Dockerfile.__fixed__ Dockerfile
+    else
+        # failed, leave Dockerfile unchanged
+        rm Dockerfile.__fixed__
+    fi
+}
+
 podman_build() {
-    podman build --format docker -t "docker.io/$image_fullname" .
+    # If it was named ContainerFile, rename it to Dockerfile
+    # to avoid further tests in next commands
+    if [ ! -f Dockerfile ]
+    then
+        mv ContainerFile Dockerfile
+    fi
+    # Ensure FROM lines specify a user
+    replace_implicit_from_lines
+    # Build
+    podman build --format docker -f Dockerfile \
+            -t "docker.io/$image_fullname" .
 }
 
 build_image() {

@@ -21,10 +21,24 @@ As a last command argument, one has to specify the name of the resulting image.
 If this name is already in use, the previous image will be overwritten (after a confirmation prompt).
 
 
-## Build tips
+## Build tips: selection of the base image
 
-Most users use the default images as a starting point, in order to inherit provided features
-and image compliance with the walt system.
+The `FROM` line of the Dockerfile defines which existing image should be
+used as a starting point. Building upon a WalT image allows to inherit provided features
+and image compliance with the WalT system.
+
+You should specify the `FROM` line like this:
+```
+FROM [<username>/]<image-name>[:<tag>]
+```
+
+If the `<tag>` part is omitted, tag `latest` is assumed. For instance `eduble/rpi-default` and `eduble/rpi-default:latest` are the same image. (All tools based on docker images work like this.)
+
+If the `<username>` part is omitted, the username of the current user is assumed. For instance, if my username is `eduble`, then `FROM rpi-default` means `FROM eduble/rpi-default:latest`. This rule allows to directly reuse an `<image-name>` displayed by `walt image show`. Note that this is specific to `walt image build`: using a plain `docker build` instead, specifying the username would be mandatory.
+
+Note: in case you want to write `<yourself>/<image-name>[:<tag>]` explicitely but forgot your `walt` username, check-out your client configuration file at `$HOME/.walt/config`.
+
+As an alternative, you may want to specify user `<waltplatform>`, which is a kind of virtual user holding the default images of each node model.
 Default images are named `waltplatform/<node-model>-default:latest`.
 For instance, the default image for `rpi-b-plus` nodes is `waltplatform/rpi-b-plus-default:latest`.
 
@@ -81,5 +95,3 @@ $ walt image search <image-name>                # walt should detect it on the d
 $ walt image clone docker:<user>/<image-name>   # import into walt
 [...]
 ```
-
-
