@@ -278,9 +278,13 @@ def np_columnate(tabular_data, shrink_empty_cols=False, align=None):
     data = data.reshape(len(col_names), len(tabular_data))
     # sanitize
     data[data == 'None'] = ""
+    # print col name "compatibility:tuple" as "compatibility"
+    # print col name "in_use" as "in-use"
+    pretty_col_names = np.char.partition(col_names, ":")[:,0]
+    pretty_col_names = np.char.replace(pretty_col_names, "_", "-")
     # add col name and sep lines (empty for now)
     data = np.insert(data, 0, "", axis=1)
-    data = np.insert(data, 0, col_names, axis=1)
+    data = np.insert(data, 0, pretty_col_names, axis=1)
     # compute lengths
     lengths = np.char.str_len(data)
     # remove empty cols

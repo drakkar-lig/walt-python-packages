@@ -15,6 +15,7 @@ from walt.server.processes.main.images.remove import remove
 from walt.server.processes.main.images.rename import rename
 from walt.server.processes.main.images.search import search
 from walt.server.processes.main.images.shell import ImageShellSession
+from walt.server.processes.main.images.show import show
 from walt.server.processes.main.images.squash import squash
 from walt.server.processes.main.images.store import NodeImageStore
 from walt.server.processes.main.images.tabular import get_user_tabular_data
@@ -49,6 +50,9 @@ class NodeImageManager:
     def update(self, startup=False):
         self.store.resync_from_db()
         self.store.trigger_update_image_mounts()
+
+    def show(self, requester, **kwargs):
+        return show(requester, self, **kwargs)
 
     def search(self, requester, task, keyword, tty_mode):
         return search(self.blocking, requester, task, keyword, tty_mode)

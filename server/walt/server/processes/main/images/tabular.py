@@ -19,8 +19,13 @@ def compute_comp_tuple_field(work_data):
     )
 
 
+def compute_clonable_link(work_data):
+    return "walt:" + work_data.user + "/" + work_data.name
+
+
 COMPUTED_FIELDS = {
-    "compatibility:tuple": compute_comp_tuple_field
+    "compatibility:tuple": compute_comp_tuple_field,
+    "clonable_link": compute_clonable_link,
 }
 
 
@@ -93,4 +98,4 @@ def _get_tabular_data_for_images(images_store, images_db_info, fields):
     computed_fields = [f for f in fields if f not in set(copy_dst_fields)]
     for field in computed_fields:
         tabular_data[field] = compute_field(work_data, field)
-    return tabular_data
+    return tabular_data.view(np.recarray)

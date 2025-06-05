@@ -14,14 +14,6 @@ from walt.client.types import (
     IMAGE_CP_SRC,
 )
 
-MSG_WS_IS_EMPTY = """\
-Your working set is empty.
-Use 'walt image search [<keyword>]' to search for images
-you could build upon.
-Then use 'walt image clone <clonable_link>' to clone them
-into your working set.
-"""
-
 
 class WalTImage(WalTCategoryApplication):
     """management of WalT-nodes operating system images"""
@@ -120,30 +112,23 @@ class WalTImageShow(WalTApplication):
     """display your working set of walt images"""
 
     ORDERING = 1
+    _all = False  # default
     _refresh = False  # default
     _names_only = False  # default
 
     def main(self):
-        if self._names_only:
-            fields = ("name",)
-        else:
-            fields = ("name", "in_use", "created", "compatibility:compact")
+        if self._names_only and self._all:
+            print("Sorry, but options --names-only and --all are mutually exclusive.")
+            return False
         with ClientToServerLink() as server:
-            tabular_data = server.get_images_tabular_data(
-                conf.walt.username, self._refresh, fields
-            )
-        if self._names_only:
-            print("\n".join(row[0] for row in tabular_data))
-        else:
-            if len(tabular_data) == 0:
-                print(MSG_WS_IS_EMPTY)
-            else:
-                header = list(
-                    re.sub(r"([^:]*):.*", r"\1", f).capitalize().replace("_", "-")
-                    for f in fields
-                )
-                from walt.common.formatting import columnate
-                print(columnate(tabular_data, header))
+            print(server.show_images(username=conf.walt.username,
+                                     show_all=self._all,
+                                     names_only=self._names_only,
+                                     refresh=self._refresh))
+
+    @cli.autoswitch(help="show all OS images on the platform")
+    def all(self):
+        self._all = True
 
     @cli.autoswitch(help="resync image list from podman storage")
     def refresh(self):

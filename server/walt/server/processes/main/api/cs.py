@@ -34,6 +34,10 @@ class CSAPI(APISession):
         return context.nodes.show(username, show_all, names_only)
 
     @api_expose_method
+    def show_images(self, context, **kwargs):
+        return context.images.show(context.requester, **kwargs)
+
+    @api_expose_method
     def create_vnode(self, context, node_name):
         return context.server.create_vnode(context.requester, context.task, node_name)
 
@@ -183,7 +187,7 @@ class CSAPI(APISession):
 
     @api_expose_method
     def get_images_tabular_data(self, context, username, refresh, fields=None):
-        # clients running "walt image show" or "api.images.get_images()" call this,
+        # clients running "api.images.get_images()" call this,
         # and they may not have numpy, so use to_list() to convert to a list
         # of tuples.
         return context.images.get_user_tabular_data(
