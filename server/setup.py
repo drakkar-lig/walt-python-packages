@@ -51,7 +51,7 @@ setup_info = {
         "python-dateutil==2.9.0.post0",
         "pyxdg==0.28",
         "pyyaml==6.0.1",
-        "requests==2.32.2",
+        "requests==2.32.4",
         "sdnotify==0.3.2",
         "setproctitle==1.3.3",
         "setuptools==78.1.1",
