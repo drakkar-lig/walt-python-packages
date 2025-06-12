@@ -5,10 +5,17 @@ from collections import defaultdict
 from snimpy.snmp import SNMPException
 from walt.common.formatting import format_sentence, human_readable_delay
 from walt.server import const, snmp
-from walt.server.processes.blocking.devices.grouper import Grouper
+from walt.server.processes.blocking.devices.grouper import (
+        Grouper,
+        AlreadyGroupedException,
+)
 from walt.server.processes.blocking.devices.loops import LoopsSolver
 from walt.server.processes.blocking.devices.tree import Tree
 from walt.server.snmp import NoSNMPVariantFound
+from walt.server.snmp.lldp import (
+        get_port_number_from_lldp_label,
+        save_lldp_label_for_port_number,
+)
 from walt.server.tools import get_server_ip, ip_in_walt_adm_network, ip_in_walt_network
 
 NOTE_EXPLAIN_UNREACHABLE = (
@@ -215,6 +222,18 @@ class LinkLayerTopology(object):
 
     def is_empty(self):
         return len(self.links) == 0
+
+    def locate_mac(self, mac):
+        for link_macs, link_info in self.links.items():
+            if mac == link_macs[0]:
+                return link_macs[1], link_info[1], link_info[2]
+            if mac == link_macs[1]:
+                return link_macs[0], link_info[0], link_info[2]
+        return None, None, None
+
+    def discard_link(self, mac1, mac2):
+        mac1, mac2 = sorted((mac1, mac2))
+        self.links.pop((mac1, mac2), None)
 
     def register_neighbor(self, local_mac, local_port, neighbor_mac):
         now = time.time()
@@ -783,7 +802,7 @@ class TopologyManager(object):
                 topology.register_neighbor(host_mac, port, mac)
         return None  # no error
 
-    def rescan(self, requester, server, db, remote_ip, devices):
+    def rescan(self, requester, server, db, devices):
         # note: the last parameter of this method is called "devices" and
         # not "switches" because the server may also be included in this
         # list of devices to be probed.
@@ -823,6 +842,45 @@ class TopologyManager(object):
 
         # commit to db
         new_topology.save_to_db(db)
+        return new_topology
+
+    def get_sw_port_name(self, db, sw_mac, sw_port):
+        port_info = db.select_unique("switchports", mac=sw_mac, port=sw_port)
+        if port_info is None:
+            return f"{sw_port}"
+        if port_info.name is None:
+            return f"{sw_port}"
+        return port_info.name
+
+    def report_lldp_neighbor(self, server, db,
+             sw_mac, sw_name, sw_ip,
+             sw_port_lldp_label, node_mac, node_name):
+        # check if we know which port number corresponds to the label
+        sw_port = get_port_number_from_lldp_label(sw_ip, sw_port_lldp_label)
+        if sw_port is None:
+            # no, so:
+            # 1. rescan the switch (this will update the topology in db)
+            # 2. look for the neighbor having mac=node_mac
+            # 3. record that sw_port_lldp_label corresponds to this port
+            sw_info = db.select_unique("devices", mac=sw_mac)
+            topology = self.rescan(None, server, db, (sw_info,))
+            sw_mac_again, sw_port, confirmed = topology.locate_mac(node_mac)
+            if (None in (sw_mac_again, sw_port, confirmed) or
+                confirmed is False or
+                sw_mac != sw_mac_again):
+                # for some reason (communication failure?) node_mac was
+                # not detected by the scan, we cannot continue
+                return
+            # all fine, record the lldp label for next time
+            save_lldp_label_for_port_number(sw_ip, sw_port, sw_port_lldp_label)
+            updated = True
+        else:
+            updated = db.update_node_location(node_mac, sw_mac, sw_port)
+        if updated:
+            sw_port_name = self.get_sw_port_name(db, sw_mac, sw_port)
+            logline = (f"Node {node_name} is now connected "
+                       f"on {sw_name} port {sw_port_name}")
+            server.logs.platform_log("devices", line=logline)
 
     def get_tree_root_mac(self, server, db_topology):
         # the root of the tree should be the main switch.

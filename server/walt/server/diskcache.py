@@ -13,7 +13,7 @@ class DiskCache:
     def __init__(self):
         self._cache = None
 
-    def get(self, key, compute_func):
+    def get(self, key, compute_func=None):
         if self._cache is not None:
             value = self._cache.get(key, None)
             if value is not None:
@@ -34,11 +34,17 @@ class DiskCache:
             value = self._cache.get(key, None)
             if value is not None:
                 return value
+            if compute_func is None:
+                return None
             # no, so we really have to compute it
             value = compute_func()
             self._cache[key] = value
             self._save()
             return value
+
+    def save(self, key, value):
+        compute_func = lambda: value
+        self.get(key, compute_func)
 
     @contextmanager
     def _lock(self, lock_key):

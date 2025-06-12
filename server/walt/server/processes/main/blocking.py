@@ -76,6 +76,9 @@ class BlockingTasksManager(RPCProcessConnector):
         return self.session(requester).do_async.update_default_images(
                 *args, **kwargs).then(cb)
 
+    def report_lldp_neighbor(self, *args, **kwargs):
+        self.session(None).do_async.report_lldp_neighbor(*args, **kwargs)
+
     # sync calls will block the 'main' process, so should only be used e.g. during
     # service startup.
     def sync_list_docker_daemon_images(self):

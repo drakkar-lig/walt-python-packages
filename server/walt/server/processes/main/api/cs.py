@@ -15,7 +15,7 @@ class CSAPI(APISession):
     @api_expose_method
     def device_rescan(self, context, device_set):
         context.server.device_rescan(
-            context.requester, context.task, context.remote_ip, device_set
+            context.requester, context.task, device_set
         )
 
     @api_expose_method

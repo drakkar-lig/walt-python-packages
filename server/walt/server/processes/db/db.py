@@ -483,3 +483,54 @@ class ServerDB(PostgresDB):
             """DELETE FROM topology WHERE mac1 = %s OR mac2 = %s;""", (mac, mac)
         )
         self.commit()
+
+    def update_node_location(self, node_mac, sw_mac, sw_port):
+        # check if location of mac already existed in db
+        db_locs = self.execute(
+        """ SELECT mac2 as sw_mac, port2 as sw_port, confirmed
+            FROM topology
+            WHERE mac1 = %s
+        UNION
+            SELECT mac1 as sw_mac, port1 as sw_port, confirmed
+            FROM topology
+            WHERE mac2 = %s """, (node_mac, node_mac))
+        if len(db_locs) == 1:
+            db_loc = db_locs[0]
+            if (db_loc.sw_mac, db_loc.sw_port) == (sw_mac, sw_port):
+                # already known in db
+                if not db_loc.confirmed:
+                    # just have to set confirmed=True
+                    macs = tuple(sorted((node_mac, sw_mac)))
+                    self.execute(
+                        """ UPDATE topology
+                            SET confirmed = true
+                            WHERE mac1 = %s
+                              AND mac2 = %s """, macs)
+                    self.commit()
+                # nothing more to do
+                return False  # location did not change
+            else:
+                # remove existing db entry for node_mac
+                db_macs = tuple(sorted((node_mac, db_loc.sw_mac)))
+                self.execute(
+                        """ DELETE FROM topology
+                            WHERE mac1 = %s
+                              AND mac2 = %s """, db_macs)
+                # continue below
+        # remove any existing db entry at (sw_mac, sw_port)
+        self.execute("""DELETE FROM topology
+                        WHERE mac1 = %s
+                        AND port1 = %s """, (sw_mac, sw_port))
+        self.execute("""DELETE FROM topology
+                        WHERE mac2 = %s
+                        AND port2 = %s """, (sw_mac, sw_port))
+        # insert the new entry
+        if node_mac < sw_mac:
+            args = (node_mac, sw_mac, None, sw_port)
+        else:
+            args = (sw_mac, node_mac, sw_port, None)
+        self.execute("""INSERT INTO topology(mac1, mac2,
+                             port1, port2, confirmed)
+                        VALUES (%s, %s, %s, %s, true); """, args)
+        self.commit()
+        return True

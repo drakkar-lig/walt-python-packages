@@ -1,0 +1,4 @@
+#!/bin/busybox sh
+sw_mac="$1"
+sw_port_lldp_label="$2"
+exec /bin/_walt_internal_/walt-rpc report_lldp_neighbor "'$sw_mac'" "'$sw_port_lldp_label'" >/dev/null

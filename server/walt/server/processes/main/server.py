@@ -225,7 +225,7 @@ class Server(object):
             tftp.update(self.db, self.images.store)
         return result
 
-    def device_rescan(self, requester, task, remote_ip, device_set):
+    def device_rescan(self, requester, task, device_set):
         devices = self.devices.parse_device_set(requester, device_set)
         if devices is None:
             return False  # error already reported
@@ -241,13 +241,12 @@ class Server(object):
                        self._wf_device_rescan_end])
         wf.update_env(requester=requester,
                       devices=devices,
-                      remote_ip=remote_ip,
                       task=task)
         wf.run()
 
-    def _wf_device_rescan_blocking(self, wf, requester, remote_ip, devices, **env):
+    def _wf_device_rescan_blocking(self, wf, requester, devices, **env):
         self.blocking.rescan_topology(
-            requester, wf.next, remote_ip=remote_ip, devices=devices
+            requester, wf.next, devices=devices
         )
 
     def _wf_device_rescan_end(self, wf, res, task, **env):
@@ -256,6 +255,36 @@ class Server(object):
         tftp.update(self.db, self.images.store)
         task.return_result(res)
         wf.next()   # end the workflow
+
+    def report_lldp_neighbor(self, remote_ip, sw_mac, sw_port_lldp_label):
+        # check arguments are valid
+        node_info = self.db.select_unique("devices", type="node", ip=remote_ip)
+        if node_info is None:
+            return
+        sw_info = self.db.select_unique("devices", mac=sw_mac)
+        if sw_info is None:
+            return
+        # if neighbor device type was unknown, auto-convert to "switch"
+        if sw_info.type == "unknown":
+            logline=(f"Node {node_info.name} is connected on {sw_info.name}, "
+                     f"so {sw_info.name} is a switch.")
+            self.logs.platform_log("devices", line=logline)
+            sw_info = np_record_to_dict(sw_info)
+            sw_info.update(type="switch")
+            self.devices.add_or_update(**device_info)
+            # note: we know the switch has its lldp.explore=false by default
+            return
+        # if lldp.explore=false, we cannot do more
+        if sw_info.conf.get("lldp.explore", False) is False:
+            return
+        # for the rest, call self.blocking
+        self.blocking.report_lldp_neighbor(
+                sw_mac=sw_mac,
+                sw_ip=sw_info.ip,
+                sw_name=sw_info.name,
+                sw_port_lldp_label=sw_port_lldp_label,
+                node_mac=node_info.mac,
+                node_name=node_info.name)
 
     def forget_device(self, requester, task, device_name):
         device = self.devices.get_device_info(requester, device_name)

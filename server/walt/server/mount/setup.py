@@ -20,7 +20,7 @@ from walt.server.const import (
 )
 from walt.server.tools import get_server_ip, update_template
 
-# List scripts to be installed on the node and indicate
+# List scripts to be installed on the image and indicate
 # * if they contain template parameters that should be updated
 # * if they should be moved to directory "/bin/_walt_internal_/"
 NODE_SCRIPTS = {
@@ -48,6 +48,7 @@ NODE_SCRIPTS = {
     "walt-init-finalfs": (False, True),
     "walt-init-nbd": (False, True),
     "walt-dump-diff-tar": (False, True),
+    "walt-report-lldp-neighbor": (False, False),
 }
 
 TEMPLATE_ENV = dict(

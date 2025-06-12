@@ -133,6 +133,8 @@ class BlockingTasksContextService:
             )
         return run_shell_cmd(*args, **kwargs)
 
+    def report_lldp_neighbor(self, *args, **kwargs):
+        self.topology.report_lldp_neighbor(self.server, self.db, *args, **kwargs)
 
 class BlockingTasksService(object):
     def __init__(self):
