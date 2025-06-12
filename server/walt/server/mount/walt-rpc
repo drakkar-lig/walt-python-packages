@@ -1,6 +1,20 @@
 #!/bin/busybox sh
 
-func_call=$1
+func_call="$1"; shift
+
+# note: arguments must be quoted/escaped by the caller
+# appropriately to match a python syntax, e.g.:
+# walt-rpc send_integer 23
+# walt-rpc send_string "'hello'"
+
+# make a tuple for arguments
+args=""
+for arg in "$@"
+do
+    args="$args ${arg},"
+done
+args="(${args})"
+
 NC_FIFO_4="/tmp/nc-$$-4.fifo"
 NC_FIFO_5="/tmp/nc-$$-5.fifo"
 NC_FIFO_6="/tmp/nc-$$-6.fifo"
@@ -29,7 +43,7 @@ requester() {
     cat >&4 << EOF
 REQ_API_SESSION
 NSAPI
-('API_CALL', '$func_call', (), {})
+('API_CALL', '$func_call', $args, {})
 EOF
     read feedback <&6
     echo "('CLOSE')" >&4
