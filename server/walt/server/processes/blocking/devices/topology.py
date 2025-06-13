@@ -6,6 +6,7 @@ from snimpy.snmp import SNMPException
 from walt.common.formatting import format_sentence, human_readable_delay
 from walt.server import const, snmp
 from walt.server.processes.blocking.devices.grouper import Grouper
+from walt.server.processes.blocking.devices.loops import LoopsSolver
 from walt.server.processes.blocking.devices.tree import Tree
 from walt.server.snmp import NoSNMPVariantFound
 from walt.server.tools import get_server_ip, ip_in_walt_adm_network, ip_in_walt_network
@@ -97,7 +98,7 @@ class BridgeTopology:
         # will deduce that the two-way link is:
         # (server_mac, server_port) <-> (main_switch_mac, main_switch_port)
         # Otherwise, the main_switch_port information would be lost.
-        for mac1, mac2, port1, port2, confirmed in ll_topology:
+        for mac1, mac2, port1, port2, confirmed, last_seen in ll_topology:
             if confirmed:
                 if port1 is not None:
                     self.register_neighbor(mac1, port1, mac2)
@@ -208,7 +209,7 @@ class BridgeTopology:
 
 class LinkLayerTopology(object):
     def __init__(self, vpnmac_to_mac):
-        # links as a dict (mac1, mac2) -> (port1, port2, confirmed)
+        # links as a dict (mac1, mac2) -> (port1, port2, confirmed, last_seen)
         self.links = {}
         self.secondary_to_main_mac = vpnmac_to_mac
 
@@ -216,6 +217,7 @@ class LinkLayerTopology(object):
         return len(self.links) == 0
 
     def register_neighbor(self, local_mac, local_port, neighbor_mac):
+        now = time.time()
         local_mac = self.secondary_to_main_mac.get(local_mac, local_mac)
         neighbor_mac = self.secondary_to_main_mac.get(neighbor_mac, neighbor_mac)
         mac1, mac2 = sorted((local_mac, neighbor_mac))
@@ -226,41 +228,42 @@ class LinkLayerTopology(object):
                 port1, port2 = local_port, None
             else:
                 port1, port2 = None, local_port
-            self.links[(mac1, mac2)] = port1, port2, True
+            self.links[(mac1, mac2)] = port1, port2, True, now
         else:
             # update port on existing link
             if local_mac < neighbor_mac:
-                self.links[(mac1, mac2)] = local_port, link[1], link[2]
+                self.links[(mac1, mac2)] = local_port, link[1], True, now
             else:
-                self.links[(mac1, mac2)] = link[0], local_port, link[2]
+                self.links[(mac1, mac2)] = link[0], local_port, True, now
 
     def load_from_db(self, db):
-        for db_link in db.select("topology"):
+        sql = ( "SELECT "
+                    "mac1, mac2, port1, port2, confirmed, "
+                    "EXTRACT(EPOCH FROM last_seen)::float8 as last_seen "
+                "FROM topology;")
+        for db_link in db.execute(sql):
             self.links[(db_link.mac1, db_link.mac2)] = (
                 db_link.port1,
                 db_link.port2,
                 db_link.confirmed,
+                db_link.last_seen,
             )
 
     def save_to_db(self, db):
         db.delete("topology")
         for link_macs, link_info in self.links.items():
-            db.insert(
-                "topology",
-                mac1=link_macs[0],
-                mac2=link_macs[1],
-                port1=link_info[0],
-                port2=link_info[1],
-                confirmed=link_info[2],
-            )
+            db.execute(("INSERT INTO topology("
+                            "mac1, mac2, port1, "
+                            "port2, confirmed, last_seen) "
+                        "VALUES (%s, %s, %s, %s, %s, TO_TIMESTAMP(%s));"),
+                       link_macs + link_info)
         db.commit()
 
     def set_confirm_all(self, value):
-        new_links = {}
-        for k, v in self.links.items():
-            port1, port2, confirmed = v
-            new_links[k] = port1, port2, value
-        self.links = new_links
+        for k, v in self.links.copy().items():
+            if v[2] != value:
+                new_v = v[:2] + (value,) + (v[3],)
+                self.links[k] = new_v
 
     def unconfirm(self, devices):
         new_links = {}
@@ -268,72 +271,67 @@ class LinkLayerTopology(object):
         # switches or server should now have its 'confirmed' flag
         # set to false.
         device_macs = set(dev.mac for dev in devices)
-        for k in self.links:
-            mac1, mac2 = k
-            port1, port2, confirmed = self.links[k]
-            if mac1 in device_macs or mac2 in device_macs:
-                confirmed = False
-            new_links[k] = port1, port2, confirmed
-        self.links = new_links
+        for k, v in self.links.copy().items():
+            if v[2] is True and len(set(k) & device_macs) > 0:
+                unconfirmed_v = v[:2] + (False,) + (v[3],)
+                self.links[k] = unconfirmed_v
 
     def __iter__(self):
         # iterate over links info
-        for macs, info in self.links.items():
+        for macs, info in self.links.copy().items():
             yield macs + info  # concatenate the tuples
 
-    def merge_links_info(self, confirmed, unconfirmed):
-        if confirmed[0] is None:
-            port1 = unconfirmed[0]
-        else:
-            port1 = confirmed[0]
-        if confirmed[1] is None:
-            port2 = unconfirmed[1]
-        else:
-            port2 = confirmed[1]
-        return port1, port2, True
+    def merge_links_info(self, trusted, untrusted):
+        port1 = untrusted[0] if trusted[0] is None else trusted[0]
+        port2 = untrusted[1] if trusted[1] is None else trusted[1]
+        return port1, port2, trusted[2], trusted[3]
 
     def merge_other(self, other):
         # build the union of 'self.links' and 'other.links';
-        # in case of conflict, merge information.
+        # in case of conflict, merge information, giving
+        # priority to confirmed links and recent last_seen attribute.
         new_links = {}
         keys_self = set(self.links)
         keys_other = set(other.links)
         common_keys = keys_self & keys_other
         for k in common_keys:
-            if self.links[k][2] < other.links[k][2]:
-                confirmed, unconfirmed = other.links[k], self.links[k]
+            if self.links[k][2:] < other.links[k][2:]:
+                trusted, untrusted = other.links[k], self.links[k]
             else:
-                confirmed, unconfirmed = self.links[k], other.links[k]
-            new_links[k] = self.merge_links_info(confirmed, unconfirmed)
+                trusted, untrusted = self.links[k], other.links[k]
+            new_links[k] = self.merge_links_info(trusted, untrusted)
         for k in keys_self - keys_other:
             new_links[k] = self.links[k]
         for k in keys_other - keys_self:
             new_links[k] = other.links[k]
         # check if we have several links at the same location
-        # (mac, non-null-port), and in this case keep the one confirmed.
+        # (mac, non-null-port), and in this case keep the one
+        # with highest priority.
         locations = {}
+        no_loc = (None, None)
         for macs, info in new_links.copy().items():
-            mac1, mac2, port1, port2, confirmed = macs + info
+            mac1, mac2, port1, port2 = macs + info[:2]
+            prio = info[2:]
             if port1 is not None:
-                conflicting_mac2 = locations.get((mac1, port1))
-                if conflicting_mac2 is not None:
-                    if confirmed:  # this one is confirmed, discard the old one
-                        new_links.pop((mac1, conflicting_mac2), None)
-                        locations[(mac1, port1)] = mac2
-                    else:  # this one is not confirmed, discard it
+                conflict_mac2, conflict_prio = locations.get((mac1, port1), no_loc)
+                if conflict_mac2 is not None:
+                    if prio > conflict_prio:  # higher prio, discard the old one
+                        new_links.pop((mac1, conflict_mac2), None)
+                        locations[(mac1, port1)] = (mac2, prio)
+                    else:  # lower prio, discard this one
                         new_links.pop((mac1, mac2), None)
                 else:
-                    locations[(mac1, port1)] = mac2
+                    locations[(mac1, port1)] = (mac2, prio)
             if port2 is not None:
-                conflicting_mac1 = locations.get((mac2, port2))
-                if conflicting_mac1 is not None:
-                    if confirmed:  # this one is confirmed, discard the old one
-                        new_links.pop((conflicting_mac1, mac2), None)
-                        locations[(mac2, port2)] = mac1
-                    else:  # this one is not confirmed, discard it
+                conflict_mac1, conflict_prio = locations.get((mac2, port2), no_loc)
+                if conflict_mac1 is not None:
+                    if prio > conflict_prio:  # higher prio, discard the old one
+                        new_links.pop((conflict_mac1, mac2), None)
+                        locations[(mac2, port2)] = (mac1, prio)
+                    else:  # lower prio, discard this one
                         new_links.pop((mac1, mac2), None)
                 else:
-                    locations[(mac2, port2)] = mac1
+                    locations[(mac2, port2)] = (mac1, prio)
         self.links = new_links
 
     def cleanup(self, nodes_mac):
@@ -343,7 +341,8 @@ class LinkLayerTopology(object):
         # than 1 neighbor in the topology.
         found_nodes = {}
         for macs, info in self.links.copy().items():
-            mac1, mac2, port1, port2, confirmed = macs + info
+            mac1, mac2, port1, port2 = macs + info[:2]
+            prio = info[2:]
             is_node = (mac1 in nodes_mac), (mac2 in nodes_mac)
             if is_node[0] and is_node[1]:  # 1 and 2 are nodes ??
                 # strange, should not have a link between two nodes
@@ -352,24 +351,26 @@ class LinkLayerTopology(object):
             if is_node[0]:  # dev 1 is a node
                 if mac1 in found_nodes:
                     # node 1 cannot be connected at 2 different places
-                    if confirmed:
-                        prev_mac2 = found_nodes[mac1]
+                    prev_mac2, prev_prio = found_nodes[mac1]
+                    if prio > prev_prio:  # higher prio, discard the old one
                         self.links.pop(tuple(sorted((mac1, prev_mac2))), None)
-                    else:
+                        found_nodes[mac1] = (mac2, prio)
+                    else:  # lower prio, discard this one
                         self.links.pop((mac1, mac2), None)
                 else:
-                    found_nodes[mac1] = mac2
+                    found_nodes[mac1] = (mac2, prio)
                 continue
             if is_node[1]:  # dev 2 is a node
                 if mac2 in found_nodes:
                     # node 2 cannot be connected at 2 different places
-                    if confirmed:
-                        prev_mac1 = found_nodes[mac2]
+                    prev_mac1, prev_prio = found_nodes[mac2]
+                    if prio > prev_prio:  # higher prio, discard the old one
                         self.links.pop(tuple(sorted((prev_mac1, mac2))), None)
-                    else:
+                        found_nodes[mac2] = (mac1, prio)
+                    else:  # lower prio, discard this one
                         self.links.pop((mac1, mac2), None)
                 else:
-                    found_nodes[mac2] = mac1
+                    found_nodes[mac2] = (mac1, prio)
                 continue
         # The following will clear any remaining conflicts and ensure we
         # have no loops.
@@ -382,18 +383,61 @@ class LinkLayerTopology(object):
         #     groups, and merge such a pair of connectivity groups into one.
         # 3)  we accept links between an accepted node (belonging
         #     to an accepted connectivity group) and a node not yet accepted.
-        #     This newly accepted node is inserted into the connectity group.
+        #     This newly accepted node is inserted into the connectivity group.
         # 4)  As soon as the set of connectivity groups evolves (i.e. 2b or 3)
         #     we loop again from step 2.
         # --
         # this is step 1
-        accepted_groups = Grouper()
-        remaining_links = set()
-        for mac1, mac2, port1, port2, confirmed in self:
-            if confirmed:
-                accepted_groups.group_items(mac1, mac2)
-            else:
-                remaining_links.add((mac1, mac2))
+        while True:
+            try:
+                accepted_groups = Grouper()
+                remaining_links = set()
+                for mac1, mac2, port1, port2, confirmed, last_seen in self:
+                    if confirmed:
+                        try:
+                            accepted_groups.group_items(mac1, mac2)
+                        except AlreadyGroupedException:
+                            # We tried to group mac1 & mac2 but they are already
+                            # in the same group, so this means there is a loop
+                            # of confirmed links. This can occur after the network
+                            # was physically changed and the user just did a partial
+                            # rescan of the network, for instance
+                            # `walt device rescan <single-switch>`. In this case
+                            # new data is combined with database data of other parts
+                            # of the network which may be obsolete.
+                            # let's save some data to analyse this loop later.
+                            # (note: using mac2 instead of mac1 on the two following
+                            # lines would be correct too.)
+                            loop_candidate_macs = accepted_groups.get_friends(mac1)
+                            mac_in_loop = mac1
+                            raise  # leave the loop and process the exception below
+                    else:
+                        remaining_links.add((mac1, mac2))
+                break  # done, break the while True loop
+            except AlreadyGroupedException:
+                # there is a loop somewhere between <loop_candidate_macs> and
+                # we know <mac_in_loop> belongs to this loop.
+                # a. gather the confirmed links between the candidate macs
+                # b. analyse those links to find those forming a loop
+                # c. remove the link with oldest last_seen attribute
+                # -- step a
+                candidate_links = []
+                for mac1, mac2, port1, port2, confirmed, last_seen in self:
+                    if confirmed and len(set((mac1, mac2)) & loop_candidate_macs) == 2:
+                        candidate_links.append((mac1, mac2))
+                # -- step b
+                solver = LoopsSolver()
+                loop_macs = solver.solve(mac_in_loop, candidate_links)
+                loop_links = zip(loop_macs[:-1], loop_macs[1:])
+                loop_links = tuple(tuple(sorted(t)) for t in loop_links)
+                # -- step c
+                oldest_last_seen, oldest_link = None, None
+                for link in loop_links:
+                    last_seen = self.links[link][3]
+                    if oldest_last_seen is None or last_seen < oldest_last_seen:
+                        oldest_last_seen, oldest_link = last_seen, link
+                self.links.pop(oldest_link)
+                continue  # retry step 1
         while True:
             # this is step 2
             still_moving = False
@@ -424,14 +468,12 @@ class LinkLayerTopology(object):
                 continue
             break
 
-    def get_neighbors(self, mac):
+    def get_neighbors_mac(self, mac):
         for mac1, mac2 in self.links:
-            if mac in (mac1, mac2):
-                port1, port2, confirmed = self.links[(mac1, mac2)]
             if mac1 == mac:
-                yield port1, mac2, port2, confirmed
+                yield mac2
             if mac2 == mac:
-                yield port2, mac1, port1, confirmed
+                yield mac1
 
     def printed_tree(
         self,
@@ -448,7 +490,7 @@ class LinkLayerTopology(object):
         # compute confirmed / unconfirmed nodes
         confirmed_macs = set()
         all_macs = set()
-        for mac1, mac2, port1, port2, confirmed in self:
+        for mac1, mac2, port1, port2, confirmed, last_seen in self:
             all_macs.add(mac1)
             all_macs.add(mac2)
             if confirmed:
@@ -465,7 +507,7 @@ class LinkLayerTopology(object):
                 label = "(%s)" % label
             t.add_node(mac, label)
         # declare children
-        for mac1, mac2, port1, port2, confirmed in self:
+        for mac1, mac2, port1, port2, confirmed, last_seen in self:
             for node_mac, parent_mac, parent_port in (
                 (mac1, mac2, port2),
                 (mac2, mac1, port1),
@@ -771,7 +813,8 @@ class TopologyManager(object):
         db_topology.load_from_db(db)
         db_topology.unconfirm(devices)
 
-        # merge with db data (with priority to new data)
+        # merge with db data
+        # (last_seen attribute will give priority to new data)
         new_topology.merge_other(db_topology)
 
         # cleanup conflicting data (obsolete vs confirmed)
@@ -791,9 +834,7 @@ class TopologyManager(object):
         #   as a switch
         server_mac = server.devices.get_server_mac()
         unknown_neighbors = []
-        for port, neighbor_mac, neighbor_port, confirmed in db_topology.get_neighbors(
-            server_mac
-        ):
+        for neighbor_mac in db_topology.get_neighbors_mac(server_mac):
             info = server.devices.get_device_info(mac=neighbor_mac)
             if info.ip is None:
                 continue  # ignore this device

@@ -3,6 +3,10 @@ from collections import defaultdict
 from itertools import count
 
 
+class AlreadyGroupedException(Exception):
+    pass
+
+
 class Grouper:
     def __init__(self):
         self.group_ids = count()
@@ -22,9 +26,15 @@ class Grouper:
             group_id = self.add_isolated_item(item)
         return group_id
 
+    def get_friends(self, item):
+        group_id = self.get_group_id(item)
+        return self.items_per_group_id[group_id]
+
     def group_items(self, item1, item2):
         item1_group_id = self.get_group_id(item1)
         item2_group_id = self.get_group_id(item2)
+        if item1_group_id == item2_group_id:
+            raise AlreadyGroupedException()
         item2_friends = self.items_per_group_id.pop(item2_group_id)
         for item in item2_friends:
             self.group_id_per_item[item] = item1_group_id

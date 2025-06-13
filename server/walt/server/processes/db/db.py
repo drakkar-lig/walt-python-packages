@@ -41,7 +41,8 @@ class ServerDB(PostgresDB):
                     port1 INTEGER,
                     mac2 TEXT REFERENCES devices(mac),
                     port2 INTEGER,
-                    confirmed BOOLEAN);""")
+                    confirmed BOOLEAN,
+                    last_seen TIMESTAMP WITH TIME ZONE);""")
         self.execute("""CREATE TABLE IF NOT EXISTS images (
                     fullname TEXT PRIMARY KEY);""")
         self.execute("""CREATE TABLE IF NOT EXISTS nodes (
@@ -156,12 +157,16 @@ class ServerDB(PostgresDB):
         # migration v8.2 -> v8.3
         if self.column_exists("nodes", "booted"):
             self.execute("""ALTER TABLE nodes DROP COLUMN booted;""")
-        # migration v9.0 ->
+        # migration v9.0 -> v10.0
         if self.column_type("logs", "timestamp") == "timestamp without time zone":
             print("Updating logs database for new version... (this can take time)")
             self.execute("""ALTER TABLE logs
                             ALTER COLUMN timestamp TYPE timestamp with time zone;""")
             print("Updating logs database for new version: done")
+        if not self.column_exists("topology", "last_seen"):
+            self.execute("""ALTER TABLE topology
+                            ADD COLUMN last_seen TIMESTAMP WITH TIME ZONE;""")
+            self.execute("""UPDATE topology SET last_seen = now();""")
         # fix server entry
         self.fix_server_device_entry()
         # commit
@@ -261,17 +266,18 @@ class ServerDB(PostgresDB):
             with cte0 as (
                 select * from (values {row_values_placeholder}) as t(device_mac)),
             cte1 as (
-                select device_mac, mac2 as mac, port2 as port, confirmed
+                select device_mac, mac2 as mac, port2 as port, confirmed, last_seen
                 from topology, cte0
                 where mac1 = device_mac
                 union
-                select device_mac, mac1 as mac, port1 as port, confirmed
+                select device_mac, mac1 as mac, port1 as port, confirmed, last_seen
                 from topology, cte0
                 where mac2 = device_mac),
             cte2 as (
                 select *,
                     ROW_NUMBER() OVER(
-                        PARTITION BY device_mac ORDER BY confirmed desc, device_mac)
+                        PARTITION BY device_mac
+                        ORDER BY confirmed DESC, last_seen DESC, device_mac)
                     AS rownum from cte1)
             select dev_d.mac as dev_mac, dev_d.name as dev_name,
                    sw_d.mac as sw_mac, t.port as sw_port,
