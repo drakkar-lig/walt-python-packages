@@ -10,13 +10,13 @@ venv_packages="$(ls -d "${venv_root}/lib/python"*"/site-packages")"
 {
     git ls-files --others --exclude-standard
     git ls-files --modified
-} | grep "\<[a-z][a-z]*/walt/" | \
+} | grep "^[a-z][a-z0-9-]*/walt/" | \
     grep -v "\.swp$" | \
     grep -v ":w$" | \
     grep -v ":$" | \
 while read f
 do
-	mod_path=$(echo "$f" | sed -e 's/^[a-z]*\///')
+	mod_path=$(echo "$f" | sed -e 's/^[a-z0-9-]*\///')
 	venv_f="${venv_packages}/$mod_path"
     if diff -q "$f" "$venv_f" >/dev/null 2>&1
     then
@@ -31,5 +31,5 @@ do
     fi
     mkdir -p "$(dirname "$venv_f")"
     cp "$f" "$venv_f"
-    echo $mode $mod_path in venv.
+    echo $mode $venv_f
 done
