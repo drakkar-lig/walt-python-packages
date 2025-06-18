@@ -27,7 +27,7 @@ def compute_possible_clusters_for_server():
         cluster_attr = execo_g5k.get_host_attributes(first_cluster_host)
         if cluster_attr["exotic"]:
             continue
-        if len(cluster_attr["kavlan"]) < 2:
+        if "kavlan" not in cluster_attr or len(cluster_attr["kavlan"]) < 2:
             continue
         # ok hosts on this cluster have 2 or more network adapters
         # which we can connect to different VLANs
