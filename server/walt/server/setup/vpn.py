@@ -418,7 +418,7 @@ def setup_vpn():
                 orig_file.rename(dest_file)
             chown_tree(VPN_SERVER_PATH, "root", "root")
         else:
-            do(f"useradd -U -d {home_dir} walt-vpn")
+            do(f"useradd -U -m -d {home_dir} walt-vpn")
         modified = True
     # generate VPN CA key pair
     if not VPN_CA_KEY.exists():
@@ -429,9 +429,16 @@ def setup_vpn():
     ca_pub_key = VPN_CA_KEY_PUB.read_text().strip()
     authorized_keys = (WALT_VPN_USER["authorized_keys_pattern"]
                        % dict(ca_pub_key=ca_pub_key))
+    if not (home_dir / ".ssh" ).exists():
+        (home_dir / ".ssh" ).mkdir(mode=0o700)
+        modified = True
     authorized_keys_path = home_dir / ".ssh" / "authorized_keys"
-    if authorized_keys_path.read_text() != authorized_keys:
+    cur_authorized_keys = ""
+    if authorized_keys_path.exists():
+        cur_authorized_keys = authorized_keys_path.read_text()
+    if cur_authorized_keys != authorized_keys:
         authorized_keys_path.write_text(authorized_keys)
+        authorized_keys_path.chmod(0o600)
         modified = True
     # fix owner of /var/lib/walt/vpn-endpoint to 'walt-vpn'
     if modified:
