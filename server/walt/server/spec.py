@@ -1,6 +1,7 @@
 import os
 import shlex
 import shutil
+import sys
 from pathlib import Path
 
 from plumbum.cmd import chroot
@@ -46,24 +47,27 @@ def do_chroot(mount_path, cmd):
 
 
 def enable_matching_features(mount_path, image_spec, img_print=print):
-    try:
-        server_feature_set = get_server_features()
-        image_feature_set = set(image_spec.get("features", []))
-        # intersection of sets
-        available_feature_set = server_feature_set & image_feature_set
-        for feature in available_feature_set:
-            enabling_cmd = image_spec["features"][feature]
-            img_print(
-                """enabling '%s' feature by running '%s'.""" % (feature, enabling_cmd)
-            )
-            img_print(do_chroot(mount_path, enabling_cmd))
-    except Exception as e:
-        print("""WARNING: Caught exception '%s'""" % str(e))
+    server_feature_set = get_server_features()
+    image_feature_set = set(image_spec.get("features", []))
+    # intersection of sets
+    available_feature_set = server_feature_set & image_feature_set
+    for feature in available_feature_set:
+        enabling_cmd = image_spec["features"][feature]
+        img_print(
+            """enabling '%s' feature by running '%s'.""" % (feature, enabling_cmd)
+        )
+        img_print(do_chroot(mount_path, enabling_cmd))
 
 
-def update_templates(image_path, image_spec, template_env):
+def update_templates(image_path, image_spec, template_env, img_print=print):
     for template_file in image_spec.get("templates", []):
-        update_template(image_path + template_file, template_env)
+        template_path = image_path + template_file
+        if not Path(template_path).exists():
+            img_print(f"WARNING: Template file '{template_file}' "
+                       "defined in /etc/walt/image.spec but not found.",
+                      file=sys.stderr)
+            continue
+        update_template(template_path, template_env)
 
 
 def copy_server_spec_file(image_path):

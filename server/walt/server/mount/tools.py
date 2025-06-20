@@ -39,11 +39,11 @@ def get_mount_image_name(image_id):
     return "localhost/walt/mounts:" + image_id[:12]
 
 
-def img_print(image_id, msg):
+def img_print(image_id, msg, **kwargs):
     for line in msg.splitlines():
         line = line.strip()
         if len(line) > 0:
-            print(f"image {image_id[:12]}: {line}")
+            print(f"image {image_id[:12]}: {line}", **kwargs)
 
 
 # There seem to be a race condition rarely occurring

@@ -1,6 +1,7 @@
 import os
 import os.path
 import shutil
+import sys
 from collections import OrderedDict
 from pathlib import Path
 
@@ -197,6 +198,15 @@ def update_timezone(mount_path):
 
 
 def setup(image_id, mount_path, image_size_kib, img_print):
+    try:
+        _setup(image_id, mount_path, image_size_kib, img_print)
+    except Exception as e:
+        img_print(f"WARNING: Caught exception '{str(e)}'", file=sys.stderr)
+        img_print("WARNING: Nodes may have problems booting this image!",
+              file=sys.stderr)
+
+
+def _setup(image_id, mount_path, image_size_kib, img_print):
     # ensure FILES_APPEND var is completely defined
     if FILES_APPEND["/root/.ssh/authorized_keys"] is None:
         # ensure server has a pub key
@@ -269,7 +279,7 @@ def setup(image_id, mount_path, image_size_kib, img_print):
     image_spec = spec.read_image_spec(mount_path)
     if image_spec is not None:
         # update template files specified there
-        spec.update_templates(mount_path, image_spec, env)
+        spec.update_templates(mount_path, image_spec, env, img_print)
         # update features matching those of the server
         spec.enable_matching_features(mount_path, image_spec, img_print)
     # copy server spec file, just in case
