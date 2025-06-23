@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import os.path
+import sys
 
 from walt.common.tcp import MyPickle as pickle
 from walt.common.unix import Requests, UnixServer, send_msg_fds
@@ -8,7 +9,23 @@ from walt.server.const import UNIX_SERVER_SOCK_PATH
 NODE_TFTP_ROOT = "/var/lib/walt/nodes/%(node_ip)s/tftp"
 
 
-class VPNEnrollListener:
+class BaseUnixSocketListener:
+
+    def send_resp_fd(self, s, peer_addr, resp, fd):
+        try:
+            if fd is None:
+                s.sendto(pickle.dumps(resp), peer_addr)
+            else:
+                send_msg_fds(s, pickle.dumps(resp), (fd,), peer_addr)
+        except Exception:
+            print("Failed to send reply to walt-server-httpd (probably down)",
+                  file=sys.stderr)
+
+    def send_resp(self, s, peer_addr, resp):
+        self.send_resp_fd(s, peer_addr, resp, None)
+
+
+class VPNEnrollListener(BaseUnixSocketListener):
     REQ_ID = Requests.REQ_VPN_ENROLL
 
     def __init__(self, server, **params):
@@ -16,10 +33,10 @@ class VPNEnrollListener:
 
     def run(self, s, peer_addr, node_ip, pubkey, **params):
         result = self.server.vpn.enrollment(ip=node_ip, pubkey=pubkey)
-        s.sendto(pickle.dumps(result), peer_addr)
+        self.send_resp(s, peer_addr, result)
 
 
-class FileGeneratorListener:
+class FileGeneratorListener(BaseUnixSocketListener):
     REQ_ID = Requests.REQ_GENERATE_FILE
 
     def __init__(self, server, **params):
@@ -32,10 +49,10 @@ class FileGeneratorListener:
             result = self.server.vpn.dump_ssh_pubkey_cert(node_ip)
         else:
             result = {"status": "KO", "error_msg": "Invalid file-id."}
-        s.sendto(pickle.dumps(result), peer_addr)
+        self.send_resp(s, peer_addr, result)
 
 
-class PropertyListener:
+class PropertyListener(BaseUnixSocketListener):
     REQ_ID = Requests.REQ_PROPERTY
 
     def __init__(self, server, **params):
@@ -64,35 +81,25 @@ class PropertyListener:
             result = self.get_vpn_boot_mode()
         else:
             result = {"status": "KO", "error_msg": "Invalid property-id."}
-        s.sendto(pickle.dumps(result), peer_addr)
+        self.send_resp(s, peer_addr, result)
 
 
-class FakeTFTPGetFDListener:
+class FakeTFTPGetFDListener(BaseUnixSocketListener):
     REQ_ID = Requests.REQ_FAKE_TFTP_GET_FD
 
     def __init__(self, server, **params):
         self.server = server
 
-    def send_ok_plus_fd(self, s, peer_addr, fd):
-        msg = {"status": "OK"}
-        send_msg_fds(s, pickle.dumps(msg), (fd,), peer_addr)
-
-    def send_error(self, s, peer_addr, error_msg):
-        msg = {"status": "KO", "error_msg": error_msg}
-        send_msg_fds(s, pickle.dumps(msg), (), peer_addr)
-
     def run(self, s, peer_addr, node_ip, path):
         full_path = (NODE_TFTP_ROOT % {"node_ip": node_ip}) + path
         if not os.path.exists(full_path):
-            self.send_error(s, peer_addr, "NO SUCH FILE")
+            resp = {"status": "KO", "error_msg": "NO SUCH FILE"}
+            self.send_resp(s, peer_addr, resp)
             return
         # all is fine, open the file and send the file descriptor
         # as ancilliary socket data
         with open(full_path, "rb", buffering=0) as f:
-            try:
-                self.send_ok_plus_fd(s, peer_addr, f.fileno())
-            except Exception:
-                print("Failed to send reply to walt-server-httpd (probably down)")
+            self.send_resp_fd(s, peer_addr, {"status": "OK"}, f.fileno())
 
 
 class UnixSocketServer(UnixServer):
