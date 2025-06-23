@@ -7,6 +7,7 @@ import socket
 
 from functools import lru_cache
 from gevent.fileobject import FileObject
+from gevent.lock import RLock as Lock
 from gevent.pywsgi import WSGIServer
 from gevent import subprocess
 from pathlib import Path
@@ -62,6 +63,9 @@ HTTP_BOOT_SERVER_PUB_KEY = Path("/var/lib/walt/http-boot/public.pem")
 
 # this will hold the socket to walt-server-daemon
 s_conn = None
+# this will allow to serialize communication with the server on
+# the unix socket
+s_lock = Lock()
 
 
 def open_from_server_daemon(path, node_ip):
@@ -77,6 +81,11 @@ def open_from_server_daemon(path, node_ip):
 
 
 def query_main_daemon(req_id, args, kwargs, msglen=256, maxfds=0):
+    with s_lock:
+        return _query_main_daemon(req_id, args, kwargs, msglen, maxfds)
+
+
+def _query_main_daemon(req_id, args, kwargs, msglen, maxfds):
     global s_conn
     req = req_id, args, kwargs
     error = "Unknown error, sorry."
