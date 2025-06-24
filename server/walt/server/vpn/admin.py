@@ -3,7 +3,7 @@ import os
 import socket
 import time
 
-from pkg_resources import resource_string
+from importlib.resources import files
 from plumbum.cli.terminal import prompt
 from walt.common.apilink import ServerAPILink
 from walt.common.term import alternate_screen_buffer, choose, clear_screen
@@ -101,8 +101,9 @@ def validate_hostname(x):
 
 
 def generate_ssh_ep_script(context):
-    script_content = resource_string(__name__, "vpn-ssh-ep-setup.sh").decode()
-    script_content = script_content % dict(
+    import walt.server.vpn
+    script_path = files(walt.server.vpn) / "vpn-ssh-ep-setup.sh"
+    script_content = script_path.read_text() % dict(
         ca_pub_key=VPN_CA_KEY_PUB.read_text().strip(),
         walt_server=socket.getfqdn(),
     )

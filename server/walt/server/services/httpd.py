@@ -4,6 +4,7 @@ import os
 import sdnotify
 import shlex
 import socket
+import walt
 
 from functools import lru_cache
 from gevent.fileobject import FileObject
@@ -21,7 +22,7 @@ from walt.common.unix import bind_to_random_sockname, recv_msg_fds
 from walt.server.const import UNIX_SERVER_SOCK_PATH
 from walt.server.tools import np_recarray_to_tuple_of_dicts, convert_query_param_value
 from walt.server.tools import ttl_cache, get_server_ip
-from pkg_resources import resource_filename
+from importlib.resources import files
 
 WALT_HTTPD_PORT = 80
 
@@ -54,7 +55,7 @@ Checkout <a href="/doc/web-api.html">the web API documentation</a> for more info
 """
 
 MAIN_DAEMON_SOCKET_TIMEOUT = 3
-HTML_DOC_DIR = resource_filename("walt.doc", "html")
+HTML_DOC_DIR = str(files(walt) / "doc" / "html")
 
 WALT_T0 = 1340000000  # Epoch timestamp corresponding to some time in june 2012
 HTTP_BOOT_SERVER_PRIV_KEY = Path("/var/lib/walt/http-boot/private.pem")

@@ -5,7 +5,7 @@ import shutil
 import tarfile
 from pathlib import Path
 
-from pkg_resources import resource_filename
+from importlib.resources import files
 from walt.common.tools import failsafe_makedirs, failsafe_symlink
 from walt.server.tools import get_server_ip, get_walt_subnet
 from walt.server.tools import get_rpi_foundation_mac_vendor_ids
@@ -73,10 +73,12 @@ def revert_to_empty_status():
 
 def prepare():
     global TFTP_STATUS
+    import walt.server.processes.main.network
+    this_dir = files(walt.server.processes.main.network)
     if not Path(PXE_PATH).exists():
         failsafe_makedirs(PXE_PATH)
-        orig_path = resource_filename(__name__, "walt-x86-undionly.kpxe")
-        shutil.copy(orig_path, PXE_PATH)
+        orig_path = this_dir / "walt-x86-undionly.kpxe"
+        shutil.copy(str(orig_path), PXE_PATH)
     if TFTP_STATIC_DIR.exists():
         static_dir_ts = 0
         date_file = TFTP_STATIC_DIR / "walt.date"
@@ -86,8 +88,8 @@ def prepare():
             # obsolete static dir, remove it (will be recreated below)
             shutil.rmtree(TFTP_STATIC_DIR)
     if not TFTP_STATIC_DIR.exists():
-        archive_path = resource_filename(__name__, "tftp-static.tar.gz")
-        with tarfile.open(archive_path) as tar:
+        archive_path = this_dir / "tftp-static.tar.gz"
+        with tarfile.open(str(archive_path)) as tar:
             tar.extractall(str(TFTP_STATIC_DIR.parent))
     if TFTP_STATUS_PATH.exists():
         TFTP_STATUS = pickle.loads(TFTP_STATUS_PATH.read_bytes())

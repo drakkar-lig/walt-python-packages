@@ -198,7 +198,7 @@ Embedding arbitrary files requires two steps:
 
 Those arbitrary files are then installed next to the python source code.
 The source code can load them when needed. Various examples in current source code
-use module `pkg_resources` for that purpose.
+use module `importlib.resources` for that purpose.
 See `server/walt/server/processes/main/network/tftp.py` for instance.
 
 For compiled extensions, refer to the definition of package `walt-server` in

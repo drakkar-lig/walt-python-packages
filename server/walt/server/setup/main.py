@@ -3,6 +3,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from importlib.resources import files
 from plumbum import cli
 from walt.common import systemd
 from walt.common.setup import WaltGenericSetup
@@ -182,7 +183,6 @@ APPARMOR_CONFS = {
 
 
 class WalTServerSetup(WaltGenericSetup):
-    package = __name__
     mode = cli.SwitchAttr(
         "--mode",
         cli.Set("AUTO", "INSTALL", "UPGRADE", "IMAGE-INSTALL", case_sensitive=False),
@@ -193,6 +193,11 @@ class WalTServerSetup(WaltGenericSetup):
     opt_edit_conf = cli.Flag(
         "--edit-conf", default=False, help="""edit server configuration"""
     )
+
+    @property
+    def package(self):
+        import walt.server.setup
+        return files(walt.server.setup)
 
     @property
     def display_name(self):

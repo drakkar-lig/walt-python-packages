@@ -1,10 +1,15 @@
 import sys
 from pathlib import Path
+from importlib.resources import files
 from walt.common.setup import WaltGenericSetup
 
 
 class WaltNodeSetup(WaltGenericSetup):
-    package = __name__
+
+    @property
+    def package(self):
+        import walt.node.setup
+        return files(walt.node.setup)
 
     @property
     def display_name(self):

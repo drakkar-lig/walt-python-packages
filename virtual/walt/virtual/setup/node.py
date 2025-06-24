@@ -1,10 +1,15 @@
+from importlib.resources import files
 from walt.common.setup import WaltGenericSetup
 
 BUSYBOX_SERVICE_FILES = ["S52waltvirtualnode"]
 
 
 class WalTStandaloneVirtualNodeSetup(WaltGenericSetup):
-    package = __name__
+
+    @property
+    def package(self):
+        import walt.virtual.setup
+        return files(walt.virtual.setup)
 
     @property
     def display_name(self):

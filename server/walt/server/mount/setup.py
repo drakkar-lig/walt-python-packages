@@ -5,7 +5,7 @@ import sys
 from collections import OrderedDict
 from pathlib import Path
 
-from pkg_resources import resource_filename
+from importlib.resources import files
 from walt.common.constants import (
     WALT_SERVER_DAEMON_PORT,
     WALT_SERVER_TCP_PORT,
@@ -111,7 +111,8 @@ ff02::2     ip6-allrouters
 
 
 def script_path(script_name):
-    return resource_filename(__name__, script_name)
+    import walt.server.mount
+    return str(files(walt.server.mount) / script_name)
 
 
 def ensure_root_key_exists():

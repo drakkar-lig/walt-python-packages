@@ -2,15 +2,12 @@ import sys
 from pathlib import Path
 from typing import ClassVar
 
-from pkg_resources import resource_stream
 from plumbum import cli
 from walt.common import busybox_init, systemd
 from walt.common.systemd import SYSTEMD_DEFAULT_DIR
 
 
 class WaltGenericSetup(cli.Application):
-    # Abstract class attribute
-    package: ClassVar[str]
     # Instance attributes
     _init_system = None
     _install_prefix = None
@@ -19,6 +16,11 @@ class WaltGenericSetup(cli.Application):
     @property
     def display_name(self) -> str:
         """The name of the device that class is setting up."""
+        raise NotImplementedError
+
+    @property
+    def package(self):
+        """The package Path where setup.py is."""
         raise NotImplementedError
 
     def _assert_init_is(self, expected_init_systems):
@@ -36,7 +38,8 @@ class WaltGenericSetup(cli.Application):
     def setup_systemd_services(self, systemd_services):
         self._assert_init_is({"SYSTEMD", None})
         for service in systemd_services:
-            service_file_content = resource_stream(self.package, service).read()
+            service_file = self.package / service
+            service_file_content = service_file.read_bytes()
             systemd.install_unit(
                 service,
                 service_file_content,

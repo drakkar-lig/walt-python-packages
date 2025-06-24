@@ -7,7 +7,7 @@ import traceback
 from getpass import getuser
 
 import requests
-from pkg_resources import resource_string
+from importlib.resources import files
 from urllib3.exceptions import InsecureRequestWarning
 from walt.client.config import conf, save_config
 from walt.client.g5k.deploy.status import (
@@ -138,12 +138,13 @@ def configure_server(info, walt_netcard_name):
         input=json_conf,
     )
     # get conf script and send it to the server
-    script_content = resource_string(__name__, "remote-server-conf.py")
+    import walt.client.g5k.deploy
+    script_path = files(walt.client.g5k.deploy) / "remote-server-conf.py"
     run_cmd_on_site(
         info,
         server_site,
         f"ssh root@{server_node} tee /tmp/remote-server-conf.py".split(),
-        input=script_content.decode("UTF-8"),
+        input=script_path.read_text(),
     )
     # execute conf script
     cmd = (f"ssh root@{server_node}"

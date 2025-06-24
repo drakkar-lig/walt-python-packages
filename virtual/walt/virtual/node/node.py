@@ -17,7 +17,7 @@ from contextlib import contextmanager
 from os import getenv, getpid, truncate
 from pathlib import Path
 
-from pkg_resources import resource_string
+from importlib.resources import files
 from plumbum import cli
 from walt.common.apilink import ServerAPILink
 from walt.common.fakeipxe import ipxe_boot
@@ -33,12 +33,8 @@ VNODE_DEFAULT_SCREEN_SESSION_PATH = "/var/lib/walt/nodes/%(mac)s/screen_session"
 VNODE_DEFAULT_DISKS_PATH = "/var/lib/walt/nodes/%(mac)s/disks"
 VNODE_DEFAULT_NETWORKS_PATH = "/var/lib/walt/nodes/%(mac)s/networks"
 VNODE_FS_PATH = "/var/lib/walt/nodes/%(mac)s/fs"
-VNODE_IFUP_SCRIPT_TEMPLATE = resource_string(__name__, "walt-vnode-ifup").decode(
-    "utf-8"
-)
-VNODE_IFDOWN_SCRIPT_TEMPLATE = resource_string(__name__, "walt-vnode-ifdown").decode(
-    "utf-8"
-)
+VNODE_IFUP_SCRIPT_TEMPLATE = "walt-vnode-ifup"
+VNODE_IFDOWN_SCRIPT_TEMPLATE = "walt-vnode-ifdown"
 
 # the following values have been selected from output of
 # qemu-system-<host-cpu> -machine help
@@ -219,6 +215,8 @@ def get_qemu_disks_args(disks_path, disks_info):
 
 
 def get_qemu_networks_args(hostmac, hostid, networks_path, networks_info):
+    import walt.virtual.node
+    this_dir = files(walt.virtual.node)
     Path(networks_path).mkdir(parents=True, exist_ok=True)
     qemu_networks_opts = ""
     for network_name, network_restrictions in networks_info.items():
@@ -229,10 +227,11 @@ def get_qemu_networks_args(hostmac, hostid, networks_path, networks_info):
             network_restrictions["lat_us"] = ""
         if "bw_Mbps" not in network_restrictions:
             network_restrictions["bw_Mbps"] = ""
-        for path, template in (
+        for path, template_name in (
             (ifup_script, VNODE_IFUP_SCRIPT_TEMPLATE),
             (ifdown_script, VNODE_IFDOWN_SCRIPT_TEMPLATE),
         ):
+            template = (this_dir / template_name).read_text()
             path.write_text(
                 template
                 % dict(

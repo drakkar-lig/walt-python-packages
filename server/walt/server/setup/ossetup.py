@@ -9,7 +9,6 @@ import sys
 from pathlib import Path
 
 import requests
-from pkg_resources import resource_filename
 from walt.common.version import __version__
 from walt.server.setup.apt import (
     autoremove_packages,

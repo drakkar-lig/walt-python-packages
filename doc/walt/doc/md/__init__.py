@@ -1,13 +1,15 @@
 import re
 import sys
 
-from pkg_resources import resource_listdir, resource_string
+from importlib.resources import files
 from walt.doc.pager import DocPager
 
 
 def get_md_content(topic, err_out=False):
     try:
-        return resource_string(__name__, topic + ".md").decode("utf-8")
+        import walt.doc.md
+        path = files(walt.doc.md) / (topic + ".md")
+        return path.read_text()
     except Exception:
         if err_out:
             print('Sorry, no such help topic. (tip: use "walt help list")',
@@ -26,8 +28,9 @@ def display_doc(topic):
 
 
 def get_topics():
-    file_list = resource_listdir(__name__, ".")
-    return (filename[:-3] for filename in file_list if filename.endswith(".md"))
+    import walt.doc.md
+    file_iter = files(walt.doc.md).iterdir()
+    return (f.name[:-3] for f in file_iter if f.name.endswith(".md"))
 
 
 def iter_topic_header():
