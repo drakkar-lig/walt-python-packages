@@ -38,7 +38,7 @@ Contact us (walt-contact at univ-grenoble-alpes.fr) for more advice.
 
 ```
 $ apt update
-$ apt install -y gcc python3-venv python3-dev libsmi2-dev curl git make
+$ apt install -y gcc python3-venv python3-dev libsmi2-dev
 ```
 
 ## 2- Install and configure walt software
