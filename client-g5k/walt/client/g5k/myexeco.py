@@ -61,7 +61,6 @@ def load_execo_g5k():
     logger.setLevel(logging.WARNING)
     import execo_g5k.api_utils
     import execo_g5k.charter
-    import execo_g5k.oargrid
     import execo_g5k.planning
 
     # redirect to our fixed function(s)
