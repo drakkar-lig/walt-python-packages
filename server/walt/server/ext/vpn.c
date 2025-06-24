@@ -97,6 +97,17 @@ static inline int write_fd(int fd, unsigned char *start, unsigned char *end,
     return 0;
 }
 
+
+static void *malloc_or_abort(size_t size) {
+    void *res = malloc(size);
+    if (res == NULL) {
+        perror("malloc");
+        exit(1);
+    }
+    return res;
+}
+
+
 typedef struct {
     int size;
     int level;
@@ -109,10 +120,7 @@ typedef struct {
 static int cbuf_setup(circular_buffer_t *cbuf, int size) {
     cbuf->size = size;
     cbuf->level = 0;
-    cbuf->buf = malloc(sizeof(unsigned char) * size);
-    if (cbuf->buf == NULL) {
-        return -1;
-    }
+    cbuf->buf = malloc_or_abort(sizeof(unsigned char) * size);
     cbuf->buf_end = cbuf->buf + size;
     cbuf->fill_pos = cbuf->buf;
     cbuf->flush_pos = cbuf->buf;
@@ -245,7 +253,7 @@ static int ssh_tap_transfer_loop(int ssh_read_fd, int ssh_write_fd, int tap_fd) 
     circular_buffer_t buf_ssh_to_tap;
 
     /* when reading on tap, 1 read() means 1 packet */
-    buf_tap_to_ssh = malloc((LENGTH_SIZE + ETHERNET_MAX_SIZE) * sizeof(unsigned char));
+    buf_tap_to_ssh = malloc_or_abort(PACKET_BUFFER_SIZE * sizeof(unsigned char));
     pos_tap_to_ssh = buf_tap_to_ssh + LENGTH_SIZE;
     /* when reading on ssh stdout, we are reading a continuous flow */
     cbuf_setup(&buf_ssh_to_tap, BUFFER_SIZE);
