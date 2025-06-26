@@ -10,12 +10,12 @@ if sys.version_info[0] == 2:
 
 setup_info = {
     "name": "walt-doc",
-    "version": "9.0",
+    "version": "10.0",
     "install_requires": [
         "commonmark>=0.7.5",
         "pygments>=2.2.0",
         "setuptools>=70.0.0",
-        "walt-common==9.0",
+        "walt-common==10.0",
     ],
     "author": "WalT developers",
     "author_email": "walt-contact@univ-grenoble-alpes.fr",
