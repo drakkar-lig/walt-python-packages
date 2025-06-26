@@ -44,15 +44,18 @@ $ apt install -y gcc python3-venv python3-dev libsmi2-dev
 ## 2- Install and configure walt software
 
 ```
-$ python3 -m venv /opt/walt-9.0
-$ /opt/walt-9.0/bin/pip install --upgrade pip
-$ /opt/walt-9.0/bin/pip install walt-server walt-client
-$ /opt/walt-9.0/bin/walt-server-setup
+$ python3 -m venv /opt/walt-10.0
+$ /opt/walt-10.0/bin/pip install --upgrade pip
+$ /opt/walt-10.0/bin/pip install walt-server walt-client
+$ /opt/walt-10.0/bin/walt-server-setup
 ```
 
-Note: `walt-server-setup` will display interactive configuration interfaces for network and image registries.
-For more information about WalT network concepts and configuration, see [`walt help show networking`](networking.md).
-For more information about WalT image registries, see [`walt help show registries`](registries.md).
+Note: `walt-server-setup` will display interactive configuration interfaces for network, image registries, and VPN.
+
+For more information:
+* About WalT network concepts and configuration, see [`walt help show networking`](networking.md).
+* About WalT image registries, see [`walt help show registries`](registries.md).
+* About WalT VPN and distant nodes, see [`walt help show vpn`](vpn.md).
 
 
 ## 3- Start playing!
