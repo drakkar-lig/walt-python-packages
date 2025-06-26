@@ -94,4 +94,11 @@ switch to one of these wall plugs, and connect your nodes on it. In this case, W
 `walt-net` to reach this small switch, and `walt-adm` to reach the switch managing the wall plug.
 
 
+## HTTP/HTTPS proxy configuration
 
+In some corporate environments, internet access requires passing through an HTTP and/or HTTPS proxy, and the WalT server may need an appropriate configuration.
+
+On Linux systems, defining environment variables `http_proxy`, `https_proxy` with the URL of the proxy server is usually enough, because most networking programs understand those variables. A variable `no_proxy` can also be defined for hostnames and IP addresses which should be reached directly. Note that some programs look for those environment variables in uppercase, so both lowercase and uppercase versions should be defined.
+
+To ensure those variables are defined for all (human) users, they can be defined in `/etc/profile` for instance.
+In order to apply this configuration to WalT services too, copy those variable definitions to the file `/etc/walt/server.env` (create it if missing).
