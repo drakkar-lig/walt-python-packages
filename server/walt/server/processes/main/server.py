@@ -41,6 +41,7 @@ from walt.server.processes.main.unix import UnixSocketServer
 from walt.server.processes.main.vpn import VPNManager
 from walt.server.processes.main.poe import PoEManager
 from walt.server.processes.main.workflow import Workflow
+from walt.server.tools import np_record_to_dict
 
 KVM_DEV_FILE = Path("/dev/kvm")
 
@@ -271,7 +272,7 @@ class Server(object):
             self.logs.platform_log("devices", line=logline)
             sw_info = np_record_to_dict(sw_info)
             sw_info.update(type="switch")
-            self.devices.add_or_update(**device_info)
+            self.devices.add_or_update(**sw_info)
             # note: we know the switch has its lldp.explore=false by default
             return
         # if lldp.explore=false, we cannot do more
