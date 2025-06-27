@@ -487,7 +487,7 @@ class NodeImageStore(object):
         username = requester.get_username()
         if not username:
             return False, False, {}  # client already disconnected, give up
-        nodes = self.server.nodes.parse_node_set(requester, node_set)
+        nodes = self.server.nodes.parse_node_set(requester, node_set, allow_empty=True)
         if nodes is None:  # issue already reported
             return False, False, {}
         real_update = False

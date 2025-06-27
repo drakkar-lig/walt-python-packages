@@ -72,30 +72,31 @@ def get_all_tabular_data(db, images_store, refresh, fields):
 
 
 def _get_tabular_data_for_images(images_store, images_db_info, fields):
-    fullnames = images_db_info["fullname"]
-    images = images_store.get_images_per_fullnames(fullnames)
-    image_fields = ["name", "fullname", "user"]
-    metadata = images_store.registry.get_multiple_metadata(fullnames)
-    metadata_fields = list(metadata[0].keys())
-    work_fields = metadata_fields + image_fields + ["in_use"]
-    work_data = np.empty(len(images_db_info), objects_dtype(work_fields))
-    work_data[image_fields] = np.fromiter(
-            ((image.name, image.fullname, image.user) for image in images),
-            objects_dtype(image_fields)
-    )
-    work_data[metadata_fields] = np.fromiter(
-            (tuple(m.values()) for m in metadata),
-            objects_dtype(metadata_fields)
-    )
-    work_data["in_use"] = images_db_info["in_use"]
-    work_data = work_data.view(np.recarray)
     tabular_data = np.empty(len(images_db_info), objects_dtype(fields))
-    # copy fields that are already available
-    copy_dst_fields = [f for f in fields if f in set(COPIED_FIELDS)]
-    copy_src_fields = [COPIED_FIELDS[f] for f in copy_dst_fields]
-    tabular_data[copy_dst_fields] = work_data[copy_src_fields]
-    # compute other fields
-    computed_fields = [f for f in fields if f not in set(copy_dst_fields)]
-    for field in computed_fields:
-        tabular_data[field] = compute_field(work_data, field)
+    if len(images_db_info) > 0:
+        fullnames = images_db_info["fullname"]
+        images = images_store.get_images_per_fullnames(fullnames)
+        image_fields = ["name", "fullname", "user"]
+        metadata = images_store.registry.get_multiple_metadata(fullnames)
+        metadata_fields = list(metadata[0].keys())
+        work_fields = metadata_fields + image_fields + ["in_use"]
+        work_data = np.empty(len(images_db_info), objects_dtype(work_fields))
+        work_data[image_fields] = np.fromiter(
+                ((image.name, image.fullname, image.user) for image in images),
+                objects_dtype(image_fields)
+        )
+        work_data[metadata_fields] = np.fromiter(
+                (tuple(m.values()) for m in metadata),
+                objects_dtype(metadata_fields)
+        )
+        work_data["in_use"] = images_db_info["in_use"]
+        work_data = work_data.view(np.recarray)
+        # copy fields that are already available
+        copy_dst_fields = [f for f in fields if f in set(COPIED_FIELDS)]
+        copy_src_fields = [COPIED_FIELDS[f] for f in copy_dst_fields]
+        tabular_data[copy_dst_fields] = work_data[copy_src_fields]
+        # compute other fields
+        computed_fields = [f for f in fields if f not in set(copy_dst_fields)]
+        for field in computed_fields:
+            tabular_data[field] = compute_field(work_data, field)
     return tabular_data.view(np.recarray)

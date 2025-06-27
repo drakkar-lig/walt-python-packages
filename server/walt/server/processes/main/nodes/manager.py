@@ -323,8 +323,8 @@ class NodesManager(object):
             reboot_cause=reboot_cause,
         )
 
-    def parse_node_set(self, requester, node_set):
-        device_set = self.devices.parse_device_set(requester, node_set)
+    def parse_node_set(self, requester, node_set, **kwargs):
+        device_set = self.devices.parse_device_set(requester, node_set, **kwargs)
         if device_set is None:
             return None
         for device_info in device_set:
