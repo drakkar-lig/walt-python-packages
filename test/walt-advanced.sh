@@ -16,6 +16,10 @@ define_test "walt advanced dump-bash-autocomplete" as {
 }
 
 define_test "walt advanced dump-zsh-autocomplete" as {
+    which zsh >/dev/null || {
+        skip_test 'requires the "zsh" command'
+    }
+
     autocomp_file=$(mktemp)
     walt advanced dump-zsh-autocomplete > $autocomp_file
     zsh $autocomp_file   # check we got regular zsh code
