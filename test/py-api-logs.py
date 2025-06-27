@@ -7,7 +7,7 @@ def test_api_logs_get_logs():
     node = test_create_vnode()
     # note: some other testing is done in walt-log.sh
     for logline in api.logs.get_logs(
-        history="-10s:", realtime=True, issuers="server", timeout=60
+        history="-2s:", realtime=True, issuers="server", timeout=60
     ):
         assert hasattr(logline, "timestamp")
         assert hasattr(logline, "line")
