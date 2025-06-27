@@ -9,6 +9,7 @@ from walt.server import conf
 from walt.server.exttools import docker
 from walt.server.processes.blocking.images.metadata import async_pull_user_metadata
 from walt.server.processes.blocking.registries import (
+    DockerHubClient,
     DockerDaemonClient,
     get_registry_client,
     MissingRegistryCredentials,
@@ -260,7 +261,13 @@ async def async_perform_search(image_store, requester, keyword, tty_mode):
 
 # this implements walt image search
 def search(requester, server: Server, keyword, tty_mode):
+    hub = DockerHubClient()
     try:
+        # login to the docker hub (we can pull anonymously,
+        # but with a low pull rate limit)
+        requester.ensure_registry_conf_has_credentials('hub')
+        hub.login(requester)
+        # perform all the pulls asynchronously
         asyncio.run(
             async_perform_search(server.images.store, requester, keyword, tty_mode)
         )

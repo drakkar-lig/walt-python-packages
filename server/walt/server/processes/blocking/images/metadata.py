@@ -91,6 +91,9 @@ def update_hub_metadata(requester, user):
         requester.ensure_registry_conf_has_credentials('hub')
     except MissingRegistryCredentials as e:
         return ('MISSING_REGISTRY_CREDENTIALS', e.registry_label)
+    # login right away (we could pull anonymously, but with a low
+    # pull rate limit, and anyway at the end we will have to push)
+    hub.login(requester)
     # collect
     metadata = collect_user_metadata(hub, user)
     # push back on docker hub
