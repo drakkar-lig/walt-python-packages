@@ -47,40 +47,36 @@ a G5K feature which fails from time to time.
 
 ## Setup
 
-Connect to one of the G5K front-ends, and install the walt-client package with its
-`g5k` plugin:
+Connect to one of the G5K front-ends, and install the walt-client package with its `g5k` plugin in a virtual environment:
 
 ```
 $ ssh grenoble.g5k
-[...]
-eduble@fgrenoble:~$ pip3 install walt-client[g5k]
-[...]
-eduble@fgrenoble:~$
+eduble@fgrenoble:~$ mkdir experiment
+eduble@fgrenoble:~$ cd experiment
+eduble@fgrenoble:~/experiment$ python3 -m venv .venv
+eduble@fgrenoble:~/experiment$ source .venv/bin/activate
+(.venv) ~/experiment$ pip install --upgrade pip
+(.venv) ~/experiment$ pip install walt-client[g5k]
 ```
 
-This will install the software in `$HOME/.local`.
-If not done yet, you should update your `PATH` variable accordingly:
-
-```
-eduble@fgrenoble:~$ echo 'PATH=$PATH:$HOME/.local/bin' >> .bash_profile
-eduble@fgrenoble:~$ source .bash_profile
-```
+Checkout https://docs.python.org/3/library/venv.html for more information
+about virtual environments.
 
 You are now ready to use WalT with the G5K plugin:
 
 ```
-eduble@fgrenoble:~$ walt
+(.venv) ~/experiment$ walt
 ```
 
 Optionally, you can also set up bash autocompletion for the `walt` tool:
 
 ```
-eduble@fgrenoble:~$ mkdir -p $HOME/.local/share/bash-completion/completions
-eduble@fgrenoble:~$ walt advanced dump-bash-autocomplete > \
+(.venv) ~/experiment$ mkdir -p $HOME/.local/share/bash-completion/completions
+(.venv) ~/experiment$ walt advanced dump-bash-autocomplete > \
                     $HOME/.local/share/bash-completion/completions/walt
 ```
 
-Then you have to log out and log in again to reload these completion settings.
+Then you have to log out and log in again to reload these completion settings, return to `~/experiment` and re-activate the virtual environment.
 
 
 ## Usage
