@@ -12,7 +12,7 @@ Given this fact, walt nodes just need a network bootloader configured appropriat
 WalT can handle various kinds of nodes, and users can even add support for a new kind of
 node easily. Check-out [`walt help show new-node-support`](new-node-support.md) for more info.
 
-Installation files can be found at https://github.com/drakkar-lig/walt-project/releases/latest.
+Installation files can be found at https://walt-project.liglab.fr/downloads.
 
 The following sections will show how to set up a new node, depending on its model.
 Then, last section will explain how walt users can start to use such a new node.
@@ -26,7 +26,7 @@ If the PC supports PXE booting, the procedure is obvious:
 1. Connect the PC to the WALT network.
 2. Select "PXE booting" as the first boot option (by using the BIOS/firmware screen).
 
-If not, download image `pc-usb.dd.gz` at https://github.com/drakkar-lig/walt-project/releases/latest.
+If not, download image `pc-usb.dd.gz` at https://walt-project.liglab.fr/downloads.
 Flash it to a USB flash drive (a small one is enough, the image just needs a few tens of megabytes),
 using unix tool `dd` or similar. Then:
 1. Plug the USB flash drive to the PC.
@@ -107,7 +107,7 @@ When connected to a display at bootup, the boot order is displayed on the
 diagnosis screen. If it prints "0xf41", then network boot is missing (network boot
 is digit "2"). In this case, you need to boot the board just once with a SD card
 containing recovery files for updating the boot order:
-1. Checkout https://github.com/drakkar-lig/walt-project/releases/latest and download archive `rpi-4-sd-recovery.tar.gz` or `rpi-5-sd-recovery.tar.gz`
+1. Checkout https://walt-project.liglab.fr/downloads and download archive `rpi-4-sd-recovery.tar.gz` or `rpi-5-sd-recovery.tar.gz`
 2. Extract and copy files to a SD card formatted the usual way (1 single partition, FAT32 fileystem)
 3. Insert this SD card in its slot
 4. Power on the board and wait until the green LED starts blinking repeatedly (and if a HDMI display is connected, a plain green screen is displayed)
@@ -119,7 +119,7 @@ containing recovery files for updating the boot order:
 
 Older models cannot boot from the network directly, so they need a SD card containing
 network bootloader files:
-1. Download archive `rpi-sd-files.tar.gz` at https://github.com/drakkar-lig/walt-project/releases/latest
+1. Download archive `rpi-sd-files.tar.gz` at https://walt-project.liglab.fr/downloads.
 2. Extract and copy files to a SD card formatted the usual way (1 single partition, FAT32 fileystem).
 3. Insert this SD card in its slot
 4. Connect the board to the WALT network and power it on (preferably with PoE); the board will boot as a walt node.
@@ -134,8 +134,7 @@ First, follow the standard startup procedure at https://coral.ai/docs/dev-board/
 Then run the following on the board (with a proper internet access):
 ```
 $ cd /tmp
-$ release_url=https://github.com/drakkar-lig/walt-project/releases/latest
-$ wget ${release_url}/download/coral-devb-boot.tar.gz
+$ wget https://walt-project.liglab.fr/files/coral-devb-boot.tar.gz
 $ cd /boot
 $ mv boot.scr boot.scr.orig
 $ tar xfz /tmp/coral-devb-boot.tar.gz
