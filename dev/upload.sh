@@ -78,15 +78,24 @@ build_subpackages
 # everything seems fine, let's start the real work
 
 # update files containing version number
-dev/set-version.sh "${new_version}"
+cur_version="$(dev/get-version.sh)"
+version_update_commit=0
+if [ "${cur_version}" != "${new_version}" ]
+then
+    version_update_commit=1
+    dev/set-version.sh "${new_version}"
+    git commit -a -m "$new_tag (automated by 'make upload')"
+fi
 
-git commit -a -m "$new_tag (automated by 'make upload')"
-
+# add tag
 git tag -m "$new_tag (automated by 'make upload')" -a $new_tag
 git push --tag $remote $branch
 
-# rebuild updated packages
-build_subpackages
+if [ "$version_update_commit" -eq 1 ]
+then
+    # rebuild updated packages
+    build_subpackages
+fi
 
 # upload: upload packages
 if [ "$repo_option" = "" ]
@@ -99,11 +108,18 @@ then
     echo "You can test them and then perform the real upload to PyPI using:"
     echo "$ twine upload $repo_option */dist/*"
     echo
-    echo "In case of issue, revert the git commit and tag using:"
-    echo "$ git tag -d $new_tag"
-    echo "$ git push --delete origin $new_tag"
-    echo "$ git reset --hard HEAD~1"
-    echo "$ git push -f $remote $branch"
+    if [ "$version_update_commit" -eq 1 ]
+    then
+        echo "In case of issue, revert the git commit and tag using:"
+        echo "$ git tag -d $new_tag"
+        echo "$ git push --delete origin $new_tag"
+        echo "$ git reset --hard HEAD~1"
+        echo "$ git push -f $remote $branch"
+    else
+        echo "In case of issue, revert the git tag using:"
+        echo "$ git tag -d $new_tag"
+        echo "$ git push --delete origin $new_tag"
+    fi
 else
     # TestPyPI: do the upload
     twine upload $repo_option */dist/*
