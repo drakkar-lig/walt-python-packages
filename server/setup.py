@@ -13,7 +13,7 @@ setup_info = {
     "version": "10.0",
     "install_requires": [
         "aiohappyeyeballs==2.3.7",
-        "aiohttp==3.10.11",
+        "aiohttp==3.12.14",
         "aiosignal==1.3.1",
         "aiostream==0.5.2",
         "attrs==23.2.0",
