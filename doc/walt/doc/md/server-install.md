@@ -34,20 +34,16 @@ In the second case, you could choose a small-form-factor PC.
 Contact us (walt-contact at univ-grenoble-alpes.fr) for more advice.
 
 
-## 1- Install a first set of packages
+## 1- Install and configure walt software
 
-```
-$ apt update
-$ apt install -y gcc python3-venv python3-dev libsmi2-dev
-```
+Run this as `root` user:
 
-## 2- Install and configure walt software
-
-```
-$ python3 -m venv /opt/walt-10.0
-$ /opt/walt-10.0/bin/pip install --upgrade pip
-$ /opt/walt-10.0/bin/pip install walt-server walt-client
-$ /opt/walt-10.0/bin/walt-server-setup
+```text
+~# apt update; apt install -y gcc python3-venv python3-dev libsmi2-dev
+~# python3 -m venv /opt/walt-10.0
+~# /opt/walt-10.0/bin/pip install --upgrade pip
+~# /opt/walt-10.0/bin/pip install walt-server walt-client
+~# /opt/walt-10.0/bin/walt-server-setup
 ```
 
 Note: `walt-server-setup` will display interactive configuration interfaces for network, image registries, and VPN.
@@ -58,6 +54,17 @@ For more information:
 * About WalT VPN and distant nodes, see [`walt help show vpn`](vpn.md).
 
 
+## 2- Log in as a different user
+
+For simplicity, we may stay on the WALT server machine and use the `walt` client software installed there. All OS users can use this client software, including `root`, but using a different user is obviously recommended.
+
+When you installed the Debian OS, the installer prompted for a (non-root) username, so you can use this one. Or you can use `adduser <username>` to create a new user. The server machine may also be configured with an external database of users (e.g., LDAP), but this OS configuration is beyond the scope of WALT.
+
+For logging in with this user, open another ssh session or type `su - <username>` from the root shell.
+
+Note: it is also possible to install and use the client software on another machine. See [`walt help show client-install`](client-install.md) for more info.
+
+
 ## 3- Start playing!
 
 The system is now all set.
@@ -66,6 +73,8 @@ You can first verify that the system is running well by creating a virtual node.
 $ walt node create vnode1
 $ walt node shell vnode1
 ```
+
+Note: WalT will detect that you are a new user and ask you for some configuration settings.
 
 After a few minutes (download of the default image + node bootup) you should be connected on the virtual node.
 
