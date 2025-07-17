@@ -35,13 +35,15 @@ With this setup in place, the developer can connect as root to the development s
 and modify the code, restart the main server daemon, test walt client tool, etc.
 
 For installing the server, you can mostly follow [`walt help show server-install`](server-install.md).
-However, for a more developer-friendly setup, commands at step 2 should be replaced.
+However, for a more developer-friendly setup, commands at step 1 should be replaced.
 
 If you are a core developer (with push access to the repository) just run the
 following instead:
 ```
-root@walt-server$ git clone git@github.com:drakkar-lig/walt-python-packages.git
-root@walt-server$ make -j install
+root@walt-server:~# apt update; apt install -y gcc python3-venv python3-dev libsmi2-dev
+root@walt-server:~# git clone git@github.com:drakkar-lig/walt-python-packages.git
+root@walt-server:~# cd walt-python-packages
+root@walt-server:~/walt-python-packages# make -j install
 ```
 
 If you are not a core developer, you can instead fork our repository by pointing your
@@ -72,17 +74,9 @@ The WalT project relies on various code repositories:
   bootloader because their firmware is already capable of network booting. This
   repository remains useful for turning other kinds of computers or SBCs into WalT
   nodes.
-* https://github.com/drakkar-lig/walt-project: the repository where we announce new
-  WalT versions. With each version we link some build artefacts of the other
-  repositories. There is no source code there. Since WalT relies on several code
-  repositories, it is probably easier for the end user to find all these artefacts
-  at a single place.
 * https://github.com/drakkar-lig/python-apt-binary: the repository for building and
   uploading the pip package https://pypi.org/project/python-apt-binary. It allows to
   interact with debian package manager `apt`, when running `walt-server-setup` to
   install or upgrade a WalT server.  The underlying code is developed by Debian
   developers and available as a Debian package called `python3-apt`, but it was not
   available on PyPI, thus not installable in a python virtual environment.
-* https://github.com/drakkar-lig/walt-vpn-node: the repository allowing to turn a
-  raspberry pi 3B/3B+ board into a WalT VPN node. It generates an SD card image file.
-  See [`walt help show vpn`](vpn.md) for more info.

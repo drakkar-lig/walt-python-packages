@@ -145,7 +145,8 @@ tested, those of the virtual environment you modified.
 ### Functional dependencies
 
 `walt-client` will not work with a server running a different version.
-It will however detect the version mismatch and propose to upgrade or downgrade.
+Since version 10, the client code will auto-upgrade itself to match the
+server version.
 
 As a reminder, the package `walt-node` is optional and may be installed on some
 WalT images (e.g., default ones, but not minimalistic ones). Since we want to be

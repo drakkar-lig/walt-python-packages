@@ -116,7 +116,7 @@ Column `logs.stream_id` is a foreign key refering to `logstreams.id`.
 
 The real admin user of potsgresql is user `postgres`.
 If ever you need it, you can connect as `postgres` using:
-```
+```text
 # su -c psql -l postgres
 ```
 With this user, you can for instance create another database user, give it
