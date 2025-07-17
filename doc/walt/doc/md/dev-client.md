@@ -130,7 +130,7 @@ Stream based communication works like in the following kind of fragment:
 # connect to server
 sock = connect_to_tcp_server()
 # send the request id
-Requests.send_id(sock, Requests.REQ_VPN_NODE_IMAGE)
+Requests.send_id(sock, Requests.REQ_DUMP_LOGS)
 # wait for the READY message from the server
 sock.readline()
 # custom processing on sock
@@ -139,23 +139,22 @@ sock.readline()
 sock.close()
 ```
 
-This code is the one behind `walt vpn setup-node`. It dumps a SD card image file
-for turning a raspberry pi board into an autonomous walt VPN node.
+This code is a linear version of the real code behind `walt log show`,
+which must dump log lines from the past or in realtime.
 
 Variable `sock` in a file object obtained from the plain socket object using
 `socket.makefile()`, so it provides `sock.read(<bufsize>)` and `sock.write(<bin-data>)`
 for easy communication with the server.
 
-In this case, the custom processing is just about sending parameters for the server
-to generate an appropriate image, and then a loop to read the SD card image that the
-server streams over the socket, and write this image to a file.
+In this case, the custom processing is just about sending log filters specified
+on the command line to the server, and then a loop to read and display each log
+line returned.
 
-The list of current request types (such as `REQ_VPN_NODE_IMAGE` here) can be seen
+The list of current request types (such as `REQ_DUMP_LOGS` here) can be seen
 in `common/walt/common/tcp.py`. Note: some of them are used by the nodes, not by the
 clients (e.g., `REQ_NEW_INCOMING_LOGS`, `REQ_FAKE_TFTP_GET`).
 
-This kind of communication is also used for implementing remote shells, file transfers,
-log retrieval.
+This kind of communication is also used for implementing remote shells or file transfers.
 
 
 ## Information about complex code parts

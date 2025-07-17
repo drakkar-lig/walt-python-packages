@@ -12,12 +12,13 @@ regarding the whole repository.
 ## Systemd services
 
 On a WALT server, systemd manages various services:
-```
+```text
 # systemctl list-units | grep walt | grep service | sed -e "s/.service//"
 walt-server-dhcpd     loaded active running   WalT network DHCP daemon
 walt-server-httpd     loaded active running   WalT server HTTP service
 walt-server-lldpd     loaded active running   WalT LLDP server (based on lldpd)
 walt-server-named     loaded active running   WalT network DNS service
+walt-server-nbd       loaded active running   WalT NBD server (Network Block Device)
 walt-server-netconfig loaded active exited    WalT platform network management
 walt-server-ptpd      loaded active running   WalT PTP server (based on ptpd2)
 walt-server-snmpd     loaded active running   WalT SNMP server (based on snmpd)
@@ -37,8 +38,8 @@ Under the hood, it calls `walt-net-config up` or `walt-net-config down`.
 The code is at `server/walt/server/netconfig.py`.
 
 The other listed systemd units are network services. Except `walt-server-httpd`
-which is a pure-python service, all those services internally rely on external
-software:
+and `walt-server-nbd` which are pure-python services, all other services internally
+rely on external software:
 
 | Unit name          | Underlying binary  | Related apt package |
 |--------------------|--------------------|---------------------|
@@ -73,6 +74,7 @@ In this case, the systemd unit WALT installs does not refer to the binary direct
 Instead, it calls an executable `walt-server-<service>` (e.g., `walt-server-lldpd`),
 which computes the full options and then starts the binary using `os.execvp()`.
 The python code of those executables is at `server/walt/server/services/`.
+The code of pure-python services `httpd` and `nbd` is there too.
 
 
 ## Other python or shell commands
