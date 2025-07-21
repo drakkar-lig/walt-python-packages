@@ -53,6 +53,14 @@ detect_partition_devices() {
 }
 
 detect_boot_mode() {
+    # for now the SD card storage is not secured so allowing hybrid boot
+    # would be a major security flaw.
+    if [ "$(possibly_vpn_node)" = "1" ]
+    then
+        echo "Using boot-mode: network (VPN security measure)" >&6
+        echo "network"
+        return
+    fi
     missing=""
     for applet in $HYBRID_MODE_COMMANDS
     do
