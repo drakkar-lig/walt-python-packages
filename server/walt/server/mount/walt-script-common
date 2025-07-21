@@ -38,30 +38,12 @@ _detect_input() {
     wait_for_input_line_shortly 5 >/dev/null 2>&1
 }
 
-_possibly_vpn_node() {
-    if [ -d /sys/class/net/ ]
-    then
-        if [ -d /sys/class/net/walt-vpn ]
-        then
-            echo 1  # yes, it is a VPN node
-        else
-            echo 0  # no, not a VPN node
-        fi
-    else
-        # At this step of the boot procedure
-        # /sys/class/net/ does not exist so
-        # we cannot tell.
-        # So we return 1 ("possibly" a VPN node).
-        echo 1
-    fi
-}
-
 _reboot_or_sh()
 {
     run_shell="no"
     # for security reason, we disable the emergency
     # shell on VPN nodes.
-    if [ "$(_possibly_vpn_node)" = "0" ]
+    if [ "$(possibly_vpn_node)" = "0" ]
     then
         if [ -e "/sys/class/tty/console/active" ]
         then
@@ -247,4 +229,22 @@ run_busybox_or_not() {
     fi
     shift
     $cmd "$@"
+}
+
+possibly_vpn_node() {
+    if [ -d /sys/class/net/ ]
+    then
+        if [ -d /sys/class/net/walt-vpn ]
+        then
+            echo 1  # yes, it is a VPN node
+        else
+            echo 0  # no, not a VPN node
+        fi
+    else
+        # At this step of the boot procedure
+        # /sys/class/net/ does not exist so
+        # we cannot tell.
+        # So we return 1 ("possibly" a VPN node).
+        echo 1
+    fi
 }
