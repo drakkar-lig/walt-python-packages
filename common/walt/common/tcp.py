@@ -221,7 +221,9 @@ def client_sock_file(host, port):
     except Exception:
         s.close()
         raise
-    return RWSocketFile(s)
+    sock_file = RWSocketFile(s)
+    sock_file.set_keepalive()
+    return sock_file
 
 
 class ServerSocketWrapper:
@@ -268,6 +270,7 @@ class TCPServer(GenericServer):
         if listener is None:
             sock_file.close()  # failed
         else:
+            sock_file.set_keepalive()
             self.ev_loop.register_listener(listener)
         # even if there was an issue when starting this listener,
         # the server itself should continue running
