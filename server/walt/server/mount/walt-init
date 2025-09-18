@@ -13,7 +13,7 @@ UMOUNT='busybox umount'
 ROOTFS='/run/walt/rootfs'
 ROOTFS_BUSYBOX_APPLETS="
     basename cat chroot cp date grep ln ls mkdir mkfifo mktemp modprobe
-    mount nc pivot_root reboot rm sed sh sleep timeout umount uname
+    mount mv nc pivot_root reboot rm sed sh sleep timeout umount uname
 "
 ROOTFS_IMAGE_SCRIPTS="
     /bin/walt-env
