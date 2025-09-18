@@ -183,6 +183,7 @@ class ServerAPIConnection(object):
                 self.sock = self.create_connection(self.server_ip)
             set_tcp_nodelay(self.sock)
             sock_file = RWSocketFile(self.sock)
+            sock_file.set_keepalive()
             sock_file.write(
                 b"%d\n%s\n"
                 % (Requests.REQ_API_SESSION, self.target_api.encode("UTF-8"))
