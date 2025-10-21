@@ -246,6 +246,9 @@ class NodesManager(object):
         popen = self.vnodes[node_mac][0]
         popen.stdin.write(f"CONF {setting_name} {setting_value}\n".encode("ascii"))
 
+    def vnode_rename(self, node_mac, new_name):
+        self.vnode_update_vm_setting(node_mac, "hostname", new_name)
+
     def get_node_info(self, requester, node_name):
         device_info = self.devices.get_device_info(requester, node_name)
         if device_info is None:
