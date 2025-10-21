@@ -47,9 +47,14 @@ class NodeImageManager:
     def prepare(self):
         pass
 
-    def update(self, startup=False):
+    def wf_update(self, wf, **env):
         self.store.resync_from_db()
-        self.store.trigger_update_image_mounts()
+        wf.insert_steps([self.store.wf_update_image_mounts])
+        wf.next()
+
+    def update(self):
+        wf = Workflow([self.wf_update])
+        wf.run()
 
     def show(self, requester, **kwargs):
         return show(requester, self, **kwargs)
