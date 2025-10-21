@@ -113,15 +113,20 @@ class Server(object):
         self.nodes.prepare()
         self.vpn.prepare()
 
-    def update(self):
-        # mount images needed
-        self.images.update(startup=True)
+    def _wf_after_images_update(self, wf, **env):
         # enable PoE if some ports remained off
         self.poe.restore_poe_on_all_ports()
         # restores nodes setup
         self.nodes.restore()
         # restore permanent expose sockets
         self.expose.restore()
+        # continue workflow
+        wf.next()
+
+    def update(self):
+        wf = Workflow([self.images.wf_update,
+                       self._wf_after_images_update])
+        wf.run()
 
     def cleanup(self):
         self.vpn.cleanup()
