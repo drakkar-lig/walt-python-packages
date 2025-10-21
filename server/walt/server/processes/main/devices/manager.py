@@ -131,13 +131,13 @@ class DevicesManager(object):
     def rename(self, requester, old_name, new_name):
         device_info = self.get_device_info(requester, old_name)
         if device_info is None:
-            return False
+            return None
         if not self.validate_device_name(requester, new_name):
-            return False
+            return None
         # all is fine, let's update it
         self.db.update("devices", "mac", mac=device_info.mac, name=new_name)
         self.db.commit()
-        return True
+        return device_info
 
     def get_type(self, mac):
         device_info = self.db.select_unique("devices", mac=mac)

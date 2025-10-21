@@ -224,12 +224,16 @@ class Server(object):
             self.named.update()
 
     def rename_device(self, requester, old_name, new_name):
-        result = self.devices.rename(requester, old_name, new_name)
-        if result is True:
+        device = self.devices.rename(requester, old_name, new_name)
+        if device is not None:
             self.dhcpd.update()
             self.named.update()
             tftp.update(self.db, self.images.store)
-        return result
+            if device.type == "node" and device.virtual:
+                self.nodes.vnode_rename(device.mac, new_name)
+            return True
+        else:
+            return False
 
     def device_rescan(self, requester, task, device_set):
         devices = self.devices.parse_device_set(requester, device_set)
