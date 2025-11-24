@@ -76,7 +76,7 @@ Whatever the boot mode, the procedure is always network-based at first (i.e.
 targetting the proper WalT OS image, and then downloading and running the kernel
 this image contains).
 But then, walt-init scripts look for local disks (or SD cards) and ext4-formatted
-partitions. If a directory named `walt-hybrid` is found in the root directory of
+partitions. If a directory named `walt_hybrid` is found in the root directory of
 one of these partitions, the hybrid boot mode is enabled. Otherwise, the network
 boot mode continues.
 
@@ -94,9 +94,9 @@ preserved accross reboots. Thus reproducibility at each reboot is **not** ensure
 in this case.
 
 One can activate the **volatile** hybrid boot on a physical node by creating a
-directory named `walt-hybrid` at the root of an ext4 partition, on a local disk
+directory named `walt_hybrid` at the root of an ext4 partition, on a local disk
 (or SD card) of the node. If an empty file named `.persistent` is created in this
-directory `walt-hybrid`, the boot method switches to the **persistent** variant.
+directory `walt_hybrid`, the boot method switches to the **persistent** variant.
 
 Using virtual nodes, one just has to select the appropriate template when adding
 the disk. (See [`walt help show vnode-disks`](vnode-disks.md) for more info.)
@@ -108,6 +108,6 @@ Important notes:
 * The default partitionning of SD cards usually involves a single FAT32 partition.
   Activating the hybrid mode in this case involves reducing the size of this FAT32
   partition, creating a second partition in the new space, formatting this second
-  partition using an ext4 filesystem, and creating the `walt-hybrid` directory.
+  partition using an ext4 filesystem, and creating the `walt_hybrid` directory.
 * Frequent writes of large OS images can reduce the lifetime of the local storage
   (this is especially true for non-industrial-grade SD cards!).
