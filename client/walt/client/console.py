@@ -62,12 +62,13 @@ def console_loop(server, conn, node_info):
 
 
 def run_node_console(server, node_info):
+    node_name = node_info["name"]
     # establish logs connection to server
     conn = LogsFlowFromServer()
     conn.request_log_dump(
         history=None,
         realtime=True,
-        issuers=(node_info["name"],),
+        issuers=(node_name,),
         streams_regexp="^virtualconsole$",
         logline_regexp=None,
     )
@@ -84,6 +85,7 @@ def run_node_console(server, node_info):
             clear_screen()
             sys.stdout.flush()
             tty_settings.set_raw_no_echo()
+            tty_settings.set_title(f"{node_name} console")
             console_loop(server, conn, node_info)
         finally:
             tty_settings.restore()
