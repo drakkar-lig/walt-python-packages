@@ -4,8 +4,8 @@
 Completion scripts for bash and zsh are automatically setup and updated on
 the server, when installing or upgrading it.
 
-However, if you use the walt client tool on another machine, the following
-tips are useful.
+However, if you use the walt client tool on another machine, you will need
+the following steps to enable shell completion.
 
 
 ## Bash completion setup on a client machine
