@@ -51,6 +51,9 @@ class TTYSettings(object):
     def get_win_size(self):
         return self.win_size
 
+    def set_title(self, title):
+        import os
+        os.write(self.tty_fd, f"\x1b]0;{title}\007".encode())
 
 def  _run_get_stdout(cmd):
     from subprocess import run, PIPE
