@@ -1,5 +1,6 @@
 import os
 import random
+import shlex
 
 from walt.common.tcp import Requests
 from walt.server.const import SSH_NODE_COMMAND
@@ -125,6 +126,26 @@ def get_manager(server, image_or_node_label):
         return server.images
 
 
+def add_operand_type(operand_types, operand_type):
+    if len(operand_types) == 0:
+        # if processing 1st operand, we accept almost
+        # everything.
+        if operand_type == TYPE_BOOTED_IMAGE:
+            # keyword "booted-image" can only be used as dst
+            return False
+    else:
+        # if processing 2nd operand, we check the pair of
+        # operand types is valid.
+        if (operand_types[0], operand_type) not in (
+            (TYPE_CLIENT, TYPE_IMAGE_OR_NODE),
+            (TYPE_IMAGE_OR_NODE, TYPE_CLIENT),
+            (TYPE_IMAGE_OR_NODE, TYPE_BOOTED_IMAGE),
+        ):
+            return False
+    operand_types += [operand_type]
+    return True  # valid
+
+
 def validate_cp(task, image_or_node_label, server, requester, src, dst):
     invalid = False
     operand_types = []
@@ -133,30 +154,26 @@ def validate_cp(task, image_or_node_label, server, requester, src, dst):
     needs_confirm = False
     info = {}
     node_fs = None
+    managers = []
     for index, operand in enumerate([src, dst]):
         parts = operand.rsplit(":", 1)  # caution, we may have <image>:<tag>:<path>
         if operand == "booted-image" or len(parts) > 1:
             if operand == "booted-image":
-                operand_type = TYPE_BOOTED_IMAGE
                 if image_or_node_label == "image":
                     requester.stderr.write(
                         "Keyword 'booted-image' is only available with command"
                         " 'walt node cp'.\n"
                     )
                     return RESPONSE_BAD
-                elif index == 0:
-                    requester.stderr.write(
-                        "Keyword 'booted-image' can only be used as destination,"
-                        " not source.\n"
-                    )
-                    return RESPONSE_BAD
-                elif operand_types[0] != TYPE_IMAGE_OR_NODE:
+                if not add_operand_type(operand_types, TYPE_BOOTED_IMAGE):
                     invalid = True
                     break
                 image_tag_or_node, path = "booted-image", paths[0]
                 manager = server.images
             else:
-                operand_type = TYPE_IMAGE_OR_NODE
+                if not add_operand_type(operand_types, TYPE_IMAGE_OR_NODE):
+                    invalid = True
+                    break
                 image_tag_or_node, path = parts
                 manager = get_manager(server, image_or_node_label)
             status = manager.validate_cp_entity(
@@ -177,18 +194,12 @@ def validate_cp(task, image_or_node_label, server, requester, src, dst):
             filesystems.append(filesystem)
             paths.append(path.rstrip("/"))
         else:
-            operand_type = TYPE_CLIENT
+            if not add_operand_type(operand_types, TYPE_CLIENT):
+                invalid = True
+                break
             filesystems.append(ClientFilesystemWorkflow(requester.filesystem))
             paths.append(operand.rstrip("/"))
             info.update(client_operand_index=index)
-        operand_types.append(operand_type)
-    if not invalid:
-        if tuple(operand_types) not in (
-            (TYPE_CLIENT, TYPE_IMAGE_OR_NODE),
-            (TYPE_IMAGE_OR_NODE, TYPE_CLIENT),
-            (TYPE_IMAGE_OR_NODE, TYPE_BOOTED_IMAGE),
-        ):
-            invalid = True
     if invalid:
         requester.stderr.write(HELP_INVALID[image_or_node_label])
         return RESPONSE_BAD
@@ -263,23 +274,30 @@ def _wf_save_dst_parent_type(wf, ftype, **env):
     wf.next()
 
 
-def docker_wrap_cmd(cmd, input_needed=False):
-    input_opt = "-i" if input_needed else ""
+def docker_wrap_cmd(cmd, container_name, image_fullname,
+                    input_needed=False, **env):
     walt_tar_send = script_path("walt-tar-send")
-    return f"""\
-        podman run --log-driver=none -q {input_opt} \
-        --name %(container_name)s -w /root \
-        -v {walt_tar_send}:/bin/_walt_internal_/walt-tar-send \
-        --entrypoint /bin/sh %(image_fullname)s -c "{cmd}; sync; sync" """
+    cmd_sync_sync = f"{cmd}; sync; sync"
+    args = ["podman", "run", "--log-driver=none", "-q"]
+    if input_needed:
+        args += ["-i"]
+    args += ["--name", container_name, "-w", "/root",
+             "-v", f"{walt_tar_send}:/bin/_walt_internal_/walt-tar-send",
+             "--entrypoint", "/bin/sh", image_fullname, "-c", cmd_sync_sync]
+    return shlex.join(args)
 
 
-def ssh_wrap_cmd(cmd):
-    return SSH_NODE_COMMAND + ' root@%(node_ip)s "' + cmd + '"'
+def ssh_wrap_cmd(cmd, node_ip, **env):
+    return shlex.join(
+            shlex.split(SSH_NODE_COMMAND)
+            + [f"root@{node_ip}", cmd]
+           )
 
 
-TarSendCommand = """\
-        /bin/_walt_internal_/walt-tar-send %(src_path)s %(dst_name)s \
-        """
+def TarSendCommand(src_path, dst_name, **env):
+    return shlex.join([
+        "/bin/_walt_internal_/walt-tar-send", src_path, dst_name
+    ])
 
 
 def get_absolute_path(path):
@@ -291,8 +309,9 @@ def get_absolute_path(path):
     return path
 
 
-TarReceiveCommand = """\
-        cd %(dst_dir)s && tar x"""
+def TarReceiveCommand(dst_dir, **env):
+    q_dst_dir = shlex.quote(dst_dir)
+    return f"cd {q_dst_dir} && tar x"
 
 
 class ImageTarSender(ParallelProcessSocketListener):
@@ -300,16 +319,19 @@ class ImageTarSender(ParallelProcessSocketListener):
 
     def get_command(self, src_path, **params):
         src_path = get_absolute_path(src_path)
-        return docker_wrap_cmd(TarSendCommand) % dict(
+        env = dict(
             tmp_name="." + get_random_suffix(), src_path=src_path, **params
         )
+        return docker_wrap_cmd(TarSendCommand(**env), **env)
 
 
 class ImageTarReceiver(ParallelProcessSocketListener):
     REQ_ID = Requests.REQ_TAR_TO_IMAGE
 
     def get_command(self, **params):
-        return docker_wrap_cmd(TarReceiveCommand, input_needed=True) % params
+        return docker_wrap_cmd(TarReceiveCommand(**params),
+                               input_needed=True,
+                               **params)
 
 
 class NodeTarSender(ParallelProcessSocketListener):
@@ -317,16 +339,17 @@ class NodeTarSender(ParallelProcessSocketListener):
 
     def get_command(self, src_path, **params):
         src_path = get_absolute_path(src_path)
-        return ssh_wrap_cmd(TarSendCommand) % dict(
-            tmp_name="." + get_random_suffix(), src_path=src_path, **params
+        env = dict(
+                tmp_name="." + get_random_suffix(), src_path=src_path, **params
         )
+        return ssh_wrap_cmd(TarSendCommand(**env), **env)
 
 
 class NodeTarReceiver(ParallelProcessSocketListener):
     REQ_ID = Requests.REQ_TAR_TO_NODE
 
     def get_command(self, **params):
-        return ssh_wrap_cmd(TarReceiveCommand) % params
+        return ssh_wrap_cmd(TarReceiveCommand(**params), **params)
 
 
 IMAGE_BUILD_TAR_RECEIVER_COMMAND = """\
@@ -367,8 +390,8 @@ class NodeFakeTFTPGet(ParallelProcessSocketListener):
             self.send_client("NO SUCH FILE\n")
             return False
 
-    def get_command(self, **params):
-        return 'cat "%(full_path)s"' % params
+    def get_command(self, full_path, **params):
+        return shlex.join(["cat", full_path])
 
 
 class TransferManager(object):
@@ -388,13 +411,17 @@ class TransferManager(object):
 
 def format_node_to_booted_image_transfer_cmd(src_path, **params):
     src_path = get_absolute_path(src_path)
-    node_send_cmd = ssh_wrap_cmd(TarSendCommand) % dict(
+    env = dict(
         tmp_name="." + get_random_suffix(), src_path=src_path, **params
     )
-    image_recv_cmd = docker_wrap_cmd(TarReceiveCommand, input_needed=True) % params
+    node_send_cmd = ssh_wrap_cmd(TarSendCommand(**env), **env)
+    image_recv_cmd = docker_wrap_cmd(
+                        TarReceiveCommand(**env),
+                        input_needed=True,
+                        **env)
     return node_send_cmd + " | " + image_recv_cmd
 
 
 def format_node_diff_dump_command(node_ip):
-    return ssh_wrap_cmd("""/bin/_walt_internal_/walt-dump-diff-tar""") % dict(
-            node_ip=node_ip)
+    return ssh_wrap_cmd("""/bin/_walt_internal_/walt-dump-diff-tar""",
+                        node_ip=node_ip)
