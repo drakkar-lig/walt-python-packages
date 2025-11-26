@@ -38,16 +38,6 @@ _walt_comp_pad_reply_lines() {
     done
 }
 
-_walt_comp_print_array() {
-    echo "size ${#} -- "
-    i=1
-    for item in "$@"
-    do
-        echo "    $i: $(echo $item)"
-        i=$((i+1))
-    done
-}
-
 # filter lines starting with a prefix
 # and save result in COMPREPLY
 # (for some reason compgen -W sometimes does not work with lines
@@ -75,17 +65,41 @@ _walt_date() {
     printf '%(%s)T'  # bash builtin, faster than "date +%s"
 }
 
+_walt_comp_from_list() {
+    possible=( $(compgen -W "$*" -- "$partial_token") )
+}
+
+_walt_comp_run_helper() {
+    local oldifs="$IFS"
+    IFS=$'\\n' possible=($(walt-autocomplete-helper "$1" \\
+                           "${words[@]}"))
+    IFS="$oldifs"
+}
+
 __common_functions__
 
 _walt_complete()
 {
     local cur prev words cword split
+    # Colon is considered a word separator by default,
+    # _init_completion with "-n :" will allow to
+    # recompute two new variables "words" and "cword" by fixing
+    # this from given variables COMP_WORDS and COMP_CWORD.
+    # Just before returning, we will call __ltrim_colon_completions
+    # to recompute COMPREPLY if the completed token contained
+    # this separator.
     _init_completion -s -n : || return
     local partial_token="${cur}"
+    # if we are not editing the last word, discard
+    # the following ones.
+    # Also discard the chars after the cursor when
+    # editing a word.
+    words=("${words[@]:0:$((cword+1))}")
+    words[$cword]="$cur"
 
     if [ "$_walt_comp_debug" -eq 1 ]
     then
-        echo "INPUT ** ${words[@]}" >> log.txt
+        echo "INPUT ** $(declare -p words)" >> log.txt
     fi
     # if last request was the same and recent, return the same
     if [ "${words[*]}" = "$_walt_comp_cache_last_request" ]
@@ -106,7 +120,7 @@ _walt_complete()
 --help -- Prints this help message and quits"
     local num_positional_args=0
     declare -A valued_option_types=() positional_arg_types=()
-    local validated="${words[*]:0:$COMP_CWORD}"
+    local validated="${words[*]:0:$cword}"
     case "${validated}" in
 """,
 
@@ -126,21 +140,40 @@ function _walt_comp_reply {
         # 2- log
         if [ "$_walt_comp_debug" -eq 1 ]
         then
-            echo "OUTPUT ** $(typeset possible) $(typeset possible_described)" \
-                    >> log.txt
+            echo "OUTPUT ** $(typeset -p possible)" >> log.txt
+            echo "OUTPUT ** $(typeset -p possible_described)" >> log.txt
         fi
         # 3- add completions
-        compadd -Q -d possible_described -l -- $possible
+        compadd -d possible_described -l -- "${possible[@]}"
     else
         # simple completions without description
         # 1- log
         if [ "$_walt_comp_debug" -eq 1 ]
         then
-            echo "OUTPUT ** $(typeset possible)" >> log.txt
+            echo "OUTPUT ** $(typeset -p possible)" >> log.txt
         fi
         # 2- add completions
-        compadd -Q -- $possible
+        compadd -- "${possible[@]}"
     fi
+}
+
+_walt_comp_from_list() {
+    possible=($(echo $*))
+}
+
+_walt_comp_run_helper() {
+    local oldifs="$IFS"
+    local w
+    IFS=$'\\n' escaped_possible=($(walt-autocomplete-helper "$1" \\
+                           "${words[@]}"))
+    IFS="$oldifs"
+    # unlike bash, zfs expects raw strings for completion,
+    # so let's un-escape the results obtained from the server.
+    possible=()
+    for w in "${escaped_possible[@]}"
+    do
+        possible+=("${(Q@)${(z)w}}")
+    done
 }
 
 __common_functions__
@@ -160,7 +193,7 @@ function _walt
 --help:Prints this help message and quits"
     local num_positional_args=0
     declare -A valued_option_types=() positional_arg_types=()
-    local validated="${words[*]}"
+    local validated="${words[@]:0:$((CURRENT-1))}"
     case "${validated}" in
 """
 }
@@ -233,10 +266,9 @@ _walt_comp_get_possible() {
         'value-of-option')
             if [ "$valued_option_type" = "DIRECTORY" ]
             then
-                possible="$(compgen -d -- "$partial_token")"
+                possible=($(compgen -d -- "$partial_token"))
             else
-                possible="$(walt-autocomplete-helper \
-                    "$valued_option_type" "${words[@]}")"
+                _walt_comp_run_helper "$valued_option_type"
                 if [ "$?" -ne 0 ]
                 then    # issue (it is important not to store this result in cache)
                     return 1
@@ -255,13 +287,12 @@ _walt_comp_get_possible() {
             if [ "$positional_arg_type" = "HELP_TOPIC" ]
             then
                 # auto-generated data
-                possible="__help_topics__"
+                _walt_comp_from_list "__help_topics__"
                 possible_described="\\
 __described_help_topics__"
             elif [ "$positional_arg_type" != "" ]
             then
-                possible="$(walt-autocomplete-helper \
-                    "$positional_arg_type" "${words[@]}")"
+                _walt_comp_run_helper "$positional_arg_type"
                 if [ "$?" -ne 0 ]
                 then    # issue (it is important not to store this result in cache)
                     return 1
@@ -271,11 +302,11 @@ __described_help_topics__"
         'start-of-positional'|'option-with-value'|'option-without-value')
             # since last token typed is incomplete, here we just know that
             # this token being typed is of the form --<something>: this is an option
-            possible="$options"
+            _walt_comp_from_list "$options"
             possible_described="$described_options"
             ;;
         'category'|'command')
-            possible="$subapps"
+            _walt_comp_from_list "$subapps"
             possible_described="$described_subapps"
             ;;
         'invalid')
@@ -287,10 +318,10 @@ __described_help_topics__"
 FOOTER = {
 "bash": """\
     esac
-    local possible=""
+    local possible=()
     local possible_described=""
     _walt_comp_get_possible
-    COMPREPLY=( $(compgen -W "$possible" -- "$partial_token") )
+    COMPREPLY=( "${possible[@]}" )
     if [ ${#COMPREPLY[@]} -gt 1 -a "$possible_described" != "" ]
     then
         # we have more than one possible completion values, we will try to
@@ -309,14 +340,22 @@ FOOTER = {
     fi
     if [ "$_walt_comp_debug" -eq 1 ]
     then
-        echo "OUTPUT ** $(_walt_comp_print_array "${COMPREPLY[@]}")" >> log.txt
+        echo "OUTPUT ** $(declare -p COMPREPLY)" >> log.txt
     fi
     # save in cache for possible reuse
     _walt_comp_cache_timestamp="$(_walt_date)"
     _walt_comp_cache_last_request="${words[*]}"
     _walt_comp_cache_last_reply=("${COMPREPLY[@]}")
-    # fix possible issues with ":" in arguments
-    __ltrim_colon_completions "$cur"
+    # handle ":" in arguments, cf. call to _init_completion
+    if [ "${COMP_CWORD}" != "${cword}" ]
+    then
+        __ltrim_colon_completions "$cur"
+        if [ "$_walt_comp_debug" -eq 1 ]
+        then
+            echo "OUTPUT (ltrim_colon) ** $(declare -p COMPREPLY)" \\
+                    >> log.txt
+        fi
+    fi
     return 0
 } &&
 complete -F _walt_complete walt
@@ -324,10 +363,9 @@ complete -F _walt_complete walt
 
 "zsh": """\
     esac
-    local possible=""
+    local possible=()
     local -a possible_described=()
     _walt_comp_get_possible
-    possible=($(echo $possible))
     _walt_comp_reply
 }
 """
