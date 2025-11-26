@@ -1,7 +1,94 @@
 import numpy as np
+import re
+import shlex
 from time import time
 
 from walt.server.processes.main.workflow import Workflow
+
+S_QUOTE = "'"
+D_QUOTE = '"'
+NO_QUOTE = ""
+BACKSLASH = "\\"
+SPACE = " "
+
+
+def shell_unescape(s):
+    """Convert shell-escaped input string s to a regular raw string.
+
+    Returns a tuple made of the unescaped string and the current mode
+    at the end of the string (one of S_QUOTE, D_QUOTE, or NO_QUOTE).
+
+    Example:
+    hello\ world.txt  -> ("hello world.txt", NO_QUOTE)
+    "hello world.txt  -> ("hello world.txt", D_QUOTE)
+    """
+    mode = NO_QUOTE
+    escaped_s = ""
+    unescaped_s = s
+    while len(unescaped_s) > 0:
+        m = re.search(r"[\\'\"]", unescaped_s)
+        if m is None:
+            return escaped_s + unescaped_s, mode
+        escaped_s += unescaped_s[0:m.start()]
+        unescaped_s = unescaped_s[m.start()+1:]
+        c = m.group(0)
+        # check for mode changes first
+        if (mode, c) in ((NO_QUOTE, S_QUOTE), (NO_QUOTE, D_QUOTE)):
+            # start of S_QUOTE or D_QUOTE mode
+            mode = c
+        elif (mode, c) in ((S_QUOTE, S_QUOTE), (D_QUOTE, D_QUOTE)):
+            # end of S_QUOTE or D_QUOTE mode
+            mode = NO_QUOTE
+        elif (mode, c) in ((NO_QUOTE, BACKSLASH), (D_QUOTE, BACKSLASH)):
+            # backslash escape (in NO_QUOTE or D_QUOTE mode):
+            # push the next char to escaped string
+            escaped_s += unescaped_s[0:1]
+            unescaped_s = unescaped_s[1:]
+        elif (mode, c) in ((D_QUOTE, S_QUOTE), (S_QUOTE, BACKSLASH),
+                           (S_QUOTE, D_QUOTE)):
+            # in other cases, just copy the char
+            escaped_s += c
+    return escaped_s, mode
+
+
+def shell_escape(s, mode):
+    """Converts a regular raw string to a shell-escaped string.
+
+    Arguments:
+    - s -- the input string
+    - mode -- the mode for the conversion (one of S_QUOTE, D_QUOTE,
+      or NO_QUOTE); for instance if the mode is S_QUOTE, then the
+      resulting string should be a valid shell string when found
+      between two single-quotes.
+
+    Examples:
+    ("hello world.txt", NO_QUOTE)  -> "hello\ world.txt"
+    ("hello world.txt", S_QUOTE)  -> "hello world.txt"
+
+    This function does not use shlex.quote() because the behaviour
+    of this function is not suitable in a completion context.
+    If we have to complete "walt node cp vnode:hello<TAB>" and we
+    get a file named "hello world.txt" for instance, then we would get:
+    >>> shlex.quote("vnode:hello world.txt")
+    "'vnode:hello world.txt'"
+    >>> shell_escape("vnode:hello world.txt", NO_QUOTE)
+    'vnode:hello\\ world.txt'
+    >>>
+    We see that shlex.quote() enclosed the whole string in single-quotes,
+    which is obviously a valid way to escape, but because of the starting
+    quote character, the result does not preserve the completion prefix
+    "vnode:hello", so it is not usable as a completion token.
+    shell_escape() just escaped the space character instead, and preserved
+    the completion prefix.
+    """
+    escaped_chars = {
+        NO_QUOTE: (S_QUOTE, D_QUOTE, SPACE, BACKSLASH),
+        S_QUOTE: (),
+        D_QUOTE: (D_QUOTE, BACKSLASH),
+    }[mode]
+    for c in escaped_chars:
+        s = s.replace(c, f"{BACKSLASH}{c}")
+    return s
 
 
 def complete_node(server, username):
@@ -322,7 +409,31 @@ def mark_incomplete(token):
     return (f"{token}a", f"{token}b")
 
 
-def wf_shell_autocomplete(wf, task, debug, **env):
+def wf_shell_autocomplete(wf, task, argv, debug, **env):
+    # the shell completion scripts sends us shell-escaped strings,
+    # we have to unescape them.
+    # Notes about the escaping modes:
+    # - If we are completing this:
+    #   walt node cp vnode:"hello<TAB>
+    #   then we will get
+    #   shell_escaping_modes=[NO_QUOTE, NO_QUOTE, NO_QUOTE, D_QUOTE]
+    # - Unless the completion scripts are broken, only the mode of
+    #   the last argument may have a value different from NO_QUOTE.
+    #   So in the code below, we record only the last one, with
+    #   variable "partial_token_esc_mode".
+    unescaped_argv = []
+    last_arg_shell_escaping_mode = None
+    for arg in argv:
+        unescaped_arg, mode = shell_unescape(arg)
+        unescaped_argv += [unescaped_arg]
+        partial_token_esc_mode = mode
+        if arg != unescaped_arg:
+            print("shell_unescape", repr(arg), "->", repr(unescaped_arg))
+    wf.update_env(
+            orig_partial_token = argv[-1],
+            argv = unescaped_argv,
+            partial_token_esc_mode = partial_token_esc_mode,
+    )
     # autocompletion should not print failure messages
     wf.insert_steps([wf_shell_autocomplete_switch])
     try:
@@ -370,8 +481,37 @@ def wf_filter_possible(wf, argv, possible, **env):
     wf.next()
 
 
-def wf_return_result(wf, task, possible, debug, t0=None, **env):
-    result = " ".join(possible)
+def wf_return_result(wf, orig_partial_token, argv, partial_token_esc_mode,
+                     task, possible, debug, t0=None, **env):
+    # For example, we are completing this:
+    # walt node cp vnode:"hello<TAB>
+    # and we found a matching file 'hello world.txt'.
+    # Then we have:
+    # - orig_partial_token: 'vnode:"hello'
+    # - partial_token: 'vnode:hello'
+    # - partial_token_esc_mode: D_QUOTE
+    # - token: 'vnode:hello world.txt'            (returned by our code)
+    # - completion_suffix: ' world.txt'
+    # - escaped_completion_suffix: ' world.txt'   (space not escaped)
+    # - escaped_token: 'vnode:"hello world.txt"'  (our final result)
+    # The space was not escaped because of the D_QUOTE esc mode.
+    partial_token = argv[-1]
+    escaped_possible = []
+    for token in possible:
+        if not token.startswith(partial_token):
+            continue
+        completion_suffix = token[len(partial_token):]
+        escaped_completion_suffix = shell_escape(
+                    completion_suffix, partial_token_esc_mode)
+        escaped_token = orig_partial_token + escaped_completion_suffix
+        if token != escaped_token:
+            print("shell_escape", repr(token), "->", repr(escaped_token))
+        if partial_token_esc_mode == S_QUOTE:
+            escaped_token += S_QUOTE
+        elif partial_token_esc_mode == D_QUOTE:
+            escaped_token += D_QUOTE
+        escaped_possible.append(escaped_token)
+    result = "\n".join(escaped_possible)
     if debug:
         print(f"{time()-t0:.2}s -- returning: {result}")
     task.return_result(result)
