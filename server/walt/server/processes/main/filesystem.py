@@ -1,3 +1,4 @@
+import shlex
 from time import time
 
 from walt.server.popen import BetterPopen
@@ -31,7 +32,7 @@ class Filesystem:
                 self.kill_function,
             )
             self.ev_loop.register_listener(self)
-        self.popen.stdin.write(self.wrap_cmd(cmd).encode("ascii"))
+        self.popen.stdin.write(self.wrap_cmd(cmd).encode("utf-8"))
 
     def handle_event(self, ts):
         if self.wf_response_handler is None:
@@ -41,7 +42,7 @@ class Filesystem:
             line = "KO"
         else:
             line = self.popen.stdout.readline()
-            line = line.decode("ascii").strip()
+            line = line.decode("utf-8").strip()
         self.wf_response_handler.update_env(line=line)
         self.wf_response_handler.next()
 
@@ -79,12 +80,13 @@ class Filesystem:
         wf.next()
 
     def wf_get_file_type(self, wf, path, **env):
+        path = shlex.quote(path)
         self.send_cmd(
-            f'if [ -f "{path}" ]; '
+            f'if [ -f {path} ]; '
             + 'then echo "f"; '
-            + f'else if [ -d "{path}" ]; '
+            + f'else if [ -d {path} ]; '
             + 'then echo "d"; '
-            + f'else if [ -e "{path}" ]; '
+            + f'else if [ -e {path} ]; '
             + 'then echo "o"; '
             + 'else echo "m"; '
             + "fi; fi; fi"
@@ -103,6 +105,7 @@ class Filesystem:
             wf.insert_steps([self._wf_handle_completion_reply_line])
 
     def wf_get_completions(self, wf, partial_path, **env):
+        partial_path = shlex.quote(partial_path)
         self.send_cmd(
             f'find -L {partial_path}* -maxdepth 0 "!" -type d -exec echo "{{}}" \\;'
         )
