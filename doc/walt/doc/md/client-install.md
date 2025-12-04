@@ -22,5 +22,8 @@ The installation is straightforward and must be done in a virtual environment:
 Checkout https://docs.python.org/3/library/venv.html for more information
 about virtual environments.
 
+You can then run command `walt`, answer a few configuration items on this
+first run, and you are all set.
+
 You may also want to setup bash or zsh completion for the `walt` command on
 this machine. See [`walt help show shell-completion`](shell-completion.md).
