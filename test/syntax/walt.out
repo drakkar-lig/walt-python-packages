@@ -1,6 +1,13 @@
 
 WalT platform control tool.
-Version: 0.25
+
+  Status ------------------- 
+|                           |
+|    Version: 10.0+49536ba6 |
+|     Server: localhost     |
+| Completion: outdated (*)  |
+ --------------------------- 
+(*) see: walt help show shell-completion
 
 Usage:
     walt CATEGORY SUBCOMMAND [args...]
@@ -19,3 +26,4 @@ Categories:
     device    management of WalT platform devices
     advanced  advanced sub-commands
     help      help sub-commands
+
