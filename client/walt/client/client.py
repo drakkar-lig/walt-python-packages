@@ -19,10 +19,11 @@ from walt.client.plugins import add_all_categories, add_category  # noqa: E402
 from walt.client.wrap import wrap_client_command  # noqa: E402
 from walt.common.version import __version__  # noqa: E402
 
-WALT_COMMAND_HELP_PREFIX = f"""\
+WALT_COMMAND_HELP_PREFIX = """\
 
-WalT platform control tool.
-Version: {__version__}
+TOOL
+
+STATUS_BOX
 
 Usage:
     walt CATEGORY SUBCOMMAND [args...]
@@ -37,15 +38,43 @@ Help about WalT in general:
 Categories:
 """
 
+STATUS_BOX = f"""\
+   Version: {__version__}
+    Server: SERVER
+Completion: COMP_STATUS
+"""
+
 
 class WalT(WalTToolboxApplication):
     """WalT platform control tool."""
 
     def get_help_prefix(self):
         # for performance, only import this when needed
+        import os
         from walt.client.logo import try_add_logo
+        from walt.common.formatting import framed, highlight
+        from walt.client.config import conf
 
-        return try_add_logo(WALT_COMMAND_HELP_PREFIX)
+        comp_help = False
+        completion_version = os.environ.get("_WALT_COMP_VERSION")
+        if completion_version is None:
+            comp_status = highlight("missing or outdated (*)")
+            comp_help = True
+        elif completion_version != __version__:
+            comp_status = highlight("outdated (*)")
+            comp_help = True
+        else:
+            comp_status = "up-to-date"
+        box = STATUS_BOX.replace("SERVER", conf.walt.server)
+        box = box.replace("COMP_STATUS", comp_status)
+        box = framed("Status", box)
+        if comp_help:
+            box += "\n(*) see: walt help show shell-completion"
+        text = WALT_COMMAND_HELP_PREFIX
+        text = text.replace("TOOL",
+                            highlight("WalT platform control tool."))
+        text = text.replace("STATUS_BOX", box)
+        return try_add_logo(text)
 
 
 @wrap_client_command
