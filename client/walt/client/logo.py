@@ -1,6 +1,7 @@
 import base64
 import bz2
 import os
+import re
 import sys
 from itertools import zip_longest
 
@@ -22,6 +23,7 @@ qCZIGxA/2VC7GGFVu/rVRz66ODN3m5rRZFkDazLvoPW5sNY8GhB20cza9SS7OTN+jbbF6AunQmCq
 MP41IIgo+0tFAVFn/F3JFOFCQyRZRnw=""")).decode()
 LOGO_WIDTH = 32
 
+RE_SGR_ESC = re.compile(r"\x1b\[[^m]*m")
 
 def try_add_logo(left_text):
     if not os.isatty(1):
@@ -37,14 +39,23 @@ def try_add_logo(left_text):
         return left_text  # failed, cannot add logo
     # verify terminal is large enough
     text_lines = left_text.splitlines()
-    max_text_len = max(len(line) for line in text_lines)
+    text_lengths = [len(RE_SGR_ESC.sub("", line)) for line in text_lines]
+    max_text_len = max(text_lengths)
     if tty.cols < max_text_len + 3 + LOGO_WIDTH:
         return left_text  # failed, cannot add logo
     # ok, everything seems fine
+    logo_lines = [l.decode(sys.stdout.encoding) for l in logo_lines]
     if len(logo_lines) > len(text_lines):
         text_lines = [""] * (len(logo_lines) - len(text_lines)) + text_lines
-    format_string = "%-" + str(max_text_len) + "s   %s\x1b[0m\n"
     out_text = ""
-    for text_line, logo_line in zip_longest(text_lines, logo_lines, fillvalue=""):
-        out_text += format_string % (text_line, logo_line.decode(sys.stdout.encoding))
+    for text_line, text_len, logo_line in zip_longest(
+            text_lines, text_lengths, logo_lines):
+        if text_line is None:
+            text_line, text_len = "", 0
+        if logo_line is None:
+            logo_line = ""
+        out_text += (text_line +
+                     (max_text_len+3-text_len)*" " +
+                     logo_line +
+                     "\x1b[0m\n")
     return out_text

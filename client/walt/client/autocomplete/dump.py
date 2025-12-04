@@ -2,6 +2,7 @@ from inspect import getfullargspec
 
 from plumbum.lib import getdoc
 from walt.doc.md import get_described_topics, get_topics
+from walt.common.version import __version__
 
 
 # Notes:
@@ -18,6 +19,9 @@ HEADER = {
 "bash": """\
 _WALT_COMP_CACHE_VALIDITY_SECS=3
 _walt_comp_debug=0
+export _WALT_COMP_TYPE="bash"
+export _WALT_COMP_VERSION="__walt_comp_version__"
+export _WALT_COMP_BASH_SOURCE="${BASH_SOURCE[0]}"
 
 _walt_comp_get_cols() {
     if [ "$COLUMNS" = "" ]
@@ -128,6 +132,9 @@ _walt_complete()
 #compdef _walt walt
 
 _walt_comp_debug=0
+export _WALT_COMP_TYPE="zsh"
+export _WALT_COMP_VERSION="__walt_comp_version__"
+export _WALT_COMP_ZSH_SOURCE="$(realpath "${(%):-%x}")"
 
 function _walt_comp_reply {
     if [ "$possible_described" != "" ]
@@ -508,6 +515,7 @@ def dump_shell_autocomplete(app, shell):
     described_h_topics = "\n".join(get_described_topics()).replace("`", "")
     header = HEADER[shell]
     header = header.replace("__common_functions__", COMMON_FUNCTIONS.strip())
+    header = header.replace("__walt_comp_version__", __version__)
     header = header.replace("__help_topics__", h_topics)
     header = header.replace("__described_help_topics__", described_h_topics)
     print(header, end="")

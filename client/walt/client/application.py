@@ -30,6 +30,7 @@ class WalTToolboxApplication(WalTApplication):
         format_str = "    %-" + str(max_name_len) + "s  %s"
         for name, doc in subitems:
             print((format_str % (name, doc)))
+        print()
 
 
 WALT_CATEGORY_COMMAND_HELP_PREFIX = """
