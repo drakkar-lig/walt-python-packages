@@ -21,7 +21,7 @@ mount_nbd_swap() {
     fi
     for cmd in $SWAP_SETUP_COMMANDS
     do
-        if ! which $cmd >/dev/null && ! busybox_has_applet $cmd
+        if ! busybox which $cmd >/dev/null && ! busybox_has_applet $cmd
         then
             echo "skipped, this feature needs '$cmd' on the image."
             return
@@ -32,7 +32,7 @@ mount_nbd_swap() {
     options="-N $expname ${walt_server_ip} /dev/nbd0 -swap"
     # prefer the OS command over the busybox applet because
     # it usually provides option "-swap"
-    if which nbd-client >/dev/null
+    if busybox which nbd-client >/dev/null
     then
         nbdc="nbd-client"
     else
@@ -44,9 +44,9 @@ mount_nbd_swap() {
         return
     fi
     # 2- activate the swap on it
-    run_busybox_or_not mkswap /dev/nbd0 >/dev/null
-    run_busybox_or_not swapon /dev/nbd0
+    busybox mkswap /dev/nbd0 >/dev/null
+    busybox swapon /dev/nbd0
     # 3- extend the size of rootfs (= root tmpfs mount)
     #    (this with allow /mnt/fs_rw to grow much more)
-    busybox mount -o remount,size=${TMPFS_SIZE_IF_SWAP} /run/walt/rootfs
+    busybox mount -o remount,size=${TMPFS_SIZE_IF_SWAP} /
 }
