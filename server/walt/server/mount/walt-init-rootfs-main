@@ -4,6 +4,15 @@
 . walt-script-common
 . walt-boot-modes
 . walt-clock-sync
+. walt-init-nbd
+
+# helper functions
+enable_zswap() {
+    # enable zswap if the kernel supports it, for more optimized RAM usage
+    # (or limited NBD swap usage if NBD mounting succeeds)
+    [ -e /sys/module/zswap/parameters/enabled ] && \
+        echo 1 > /sys/module/zswap/parameters/enabled || true
+}
 
 # setting clock
 if [ $vnode_mode -eq 1 ]
@@ -18,6 +27,9 @@ boot_step_label_cr          "Detecting boot-mode..."
 exec 6>&1  # provide an alias to stdout for detect_boot_mode()
 boot_mode="$(detect_boot_mode)"
 exec 6>&-
+# enable zswap and mount remote NBD swap
+enable_zswap
+mount_nbd_swap
 # mount the final root (at /mnt/finalfs for now)
 mount_finalfs $boot_mode
 # record boot_mode in walt-env for handling reboots properly

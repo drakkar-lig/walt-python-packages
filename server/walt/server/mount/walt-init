@@ -106,21 +106,23 @@ preinit() {
     fi
 }
 
-copy_busybox_to_rootfs()
+copy_exec_to_rootfs()
 {
-    busybox_path="$(busybox which busybox)"
+    exec_path="$(busybox which "$1")"
     # copy binary
-    cp "$busybox_path" $ROOTFS/bin/
-    # check if ldd is available
+    mkdir -p bin
+    cp "$exec_path" bin/
+    # check that ldd is available
     if ! busybox which ldd >/dev/null
     then
-        echo "Warning: no ldd -- If busybox is a dynamic executable, this script will not work."
+        echo "Warning: no ldd -- If $1 is a dynamic executable," \
+             "this script will not work."
         return
     fi
     # check needed shared libraries
-    if ! bin_deps="$(ldd "$busybox_path" 2>/dev/null)"
+    if ! bin_deps="$(ldd "$exec_path" 2>/dev/null)"
     then
-        # busybox is probably static, nothing more to do
+        # this executable is probably static, nothing more to do
         return
     fi
     # copy shared libraries
@@ -128,7 +130,7 @@ copy_busybox_to_rootfs()
     do
         if [ -f "$lib" ]
         then
-            destdir="$ROOTFS/$(dirname $lib)"
+            destdir="./$(dirname $lib)"
             mkdir -p "$destdir"
             cp "$lib" "$destdir"
         fi
@@ -141,7 +143,11 @@ prepare_rootfs()
     $MOUNT -t tmpfs tmpfs $ROOTFS  # pivot_root will need a mountpoint as <new_root>
     cd $ROOTFS
     busybox mkdir -p tmp bin dev proc sys run mnt/nfsroot
-    copy_busybox_to_rootfs
+    copy_exec_to_rootfs busybox
+    if busybox which nbd-client >/dev/null
+    then
+        copy_exec_to_rootfs nbd-client
+    fi
     for image_script in $ROOTFS_IMAGE_SCRIPTS
     do
         cp $image_script bin/
