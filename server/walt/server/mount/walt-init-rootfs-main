@@ -2,6 +2,7 @@
 
 # preparation work
 . walt-script-common
+. walt-init-disks
 . walt-boot-modes
 . walt-clock-sync
 . walt-init-nbd
@@ -22,6 +23,9 @@ else
     boot_step_label_cr "Setting clock..."
     sync_clock
 fi
+# mounting local swap partitions
+boot_step_label_cr          "Activating local swap..."
+activate_local_swap
 # boot mode detection
 boot_step_label_cr          "Detecting boot-mode..."
 exec 6>&1  # provide an alias to stdout for detect_boot_mode()
