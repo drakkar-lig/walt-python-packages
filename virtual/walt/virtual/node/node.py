@@ -141,6 +141,10 @@ Usage: %(prog)s [--attach-usb] [--managed] --mac <node_mac> --ip <node_ip>\
 def apply_disk_template(disk_path, disk_template):
     if disk_template == "none":
         return  # nothing to do
+    elif disk_template == "swap":
+        part_type = "82"    # "Linux swap"
+        mkfs = "mkswap"
+        init_content = None
     elif disk_template == "fat32":
         part_type = "0c"    # "W95 FAT32 (LBA)"
         mkfs = "mkfs.vfat -S 512"
@@ -196,9 +200,16 @@ def get_qemu_disks_args(disks_path, disks_info):
         else:   # backward compatibility
             old_disk_template = 'none'
         if disk_path.exists():
-            # if not expected size or template, remove it
+            # If not expected size or template, remove it.
+            # We remove it too if the template is "swap", because
+            # this kind of virtual disk does not need to be persistent.
+            # Removing and re-creating this virtual swap disk at each
+            # vnode reboot allows to minimize the server disk usage
+            # since the virtual swap disk is mostly made of a large
+            # hole at first.
             if disk_path.stat().st_size != disk_cap_bytes or \
-                    old_disk_template != disk_template:
+                    old_disk_template != disk_template or \
+                    old_disk_template == 'swap':
                 disk_path.unlink()
                 if disk_params_file.exists():
                     disk_params_file.unlink()

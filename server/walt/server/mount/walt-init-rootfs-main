@@ -2,6 +2,7 @@
 
 # preparation work
 . walt-script-common
+. walt-init-disks
 . walt-boot-modes
 . walt-clock-sync
 . walt-init-nbd
@@ -22,14 +23,38 @@ else
     boot_step_label_cr "Setting clock..."
     sync_clock
 fi
+# mounting local swap partitions
+if [ "$(possibly_vpn_node)" = "1" ]
+then
+    boot_step_label_cr \
+        "Activating local swap... disabled (VPN security measure)"
+    has_local_swap=0
+else
+    boot_step_label_cr \
+        "Activating local swap..."
+    if activate_local_swap
+    then
+        has_local_swap=1
+    else
+        has_local_swap=0
+    fi
+fi
 # boot mode detection
-boot_step_label_cr          "Detecting boot-mode..."
+boot_step_label_cr "Detecting boot-mode..."
 exec 6>&1  # provide an alias to stdout for detect_boot_mode()
 boot_mode="$(detect_boot_mode)"
 exec 6>&-
-# enable zswap and mount remote NBD swap
+# enable zswap
 enable_zswap
-mount_nbd_swap
+# mount remote NBD swap
+if [ "$has_local_swap" -eq 0 ]
+then
+    boot_step_label_cr "Mounting remote swap space on server..."
+    mount_nbd_swap
+else
+    boot_step_label_cr "Mounting remote swap space on server... skipped"
+    echo "Note: Preferring local swap."
+fi
 # mount the final root (at /mnt/finalfs for now)
 mount_finalfs $boot_mode
 # record boot_mode in walt-env for handling reboots properly

@@ -1,11 +1,12 @@
 import re
 
-DISK_TEMPLATES = set(("none", "ext4", "fat32", "hybrid-boot-v", "hybrid-boot-p"))
+DISK_TEMPLATES = set(("none", "swap", "ext4", "fat32",
+                      "hybrid-boot-v", "hybrid-boot-p"))
 
 
 def parse_vnode_disks_value(setting_value):
     if setting_value == 'none':
-        return (True, [])
+        return (True, [], [])
     # check global format <disk>[,<disk>[...]]
     # with each <disk> of the form '<capacity>' or
     # '<capacity>[<options>]'

@@ -30,7 +30,7 @@ from walt.server.tools import get_server_ip, get_walt_subnet, ip
 
 VNODE_DEFAULT_RAM = "512M"
 VNODE_DEFAULT_CPU_CORES = 4
-VNODE_DEFAULT_DISKS = "none"
+VNODE_DEFAULT_DISKS = "16G[template=swap]"
 VNODE_DEFAULT_NETWORKS = "walt-net"
 VNODE_DEFAULT_BOOT_DELAY = "random"
 
