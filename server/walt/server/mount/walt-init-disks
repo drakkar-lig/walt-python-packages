@@ -1,0 +1,165 @@
+#!/bin/busybox sh
+# vim: ft=sh
+
+detect_partition_devices() {
+    # detect block devices of disk partitions.
+    # For each disk we have:
+    # - an entry /sys/class/block/<disk>/device/
+    # - one entry /sys/class/block/<disk>/<partition>/ for each partition
+    cd /sys/class/block/
+    ls -1 */*/dev 2>/dev/null | {
+        IFS="/"
+        while read disk part dev;
+        do
+            if [ "$part" != "device" ]
+            then
+                echo "$part"
+            fi
+        done
+    }
+    cd - >/dev/null
+}
+
+create_partition_dev_entry() {
+    dev_entry="$1"
+    if ! busybox_has_applet mknod
+    then
+        echo "Cannot create /dev/$dev_entry," \
+             "missing busybox mknod applet." >&2
+        return 1
+    fi
+    if [ ! -e "/sys/class/block/$dev_entry/dev" ]
+    then
+        echo "Cannot create /dev/$dev_entry," \
+             "missing entry in /sys/class/block." >&2
+        return 1
+    fi
+    IFS=":" read major minor < /sys/class/block/$dev_entry/dev
+    if ! busybox mknod /dev/$dev_entry b $major $minor
+    then
+        echo "Failed to create /dev/$dev_entry." >&2
+        return 1
+    fi
+    return 0
+}
+
+partition_dev_check_blkid() {
+    part_dev="$1"
+    part_type="$2"
+    if busybox_has_applet blkid
+    then
+        if busybox blkid $part_dev | \
+           busybox grep -o 'TYPE="'$part_type'"' >/dev/null
+        then
+            echo yes
+        else
+            echo no
+        fi
+    else
+        echo maybe
+    fi
+}
+
+partition_dev_check_xxd() {
+    part_dev="$1"
+    part_id_offset="$2"
+    part_id_length="$3"
+    part_id_expected="$4"
+    if busybox_has_applet xxd && busybox_has_applet tr
+    then
+        # xxd allows us to check a magic number or string
+        # at a given offset.
+        # note: some versions of busybox xxd return:
+        # "<part-id><lots-of-spaces>", we remove those spaces
+        # with busybox tr.
+        part_id="$(busybox xxd -s $part_id_offset -l $part_id_length \
+                    -p "$part_dev" 2>/dev/null | \
+                   busybox tr -d ' ')"
+        if [ ! -z "$part_id" ]
+        then
+            if [ "$part_id" = "$part_id_expected" ]
+            then
+                echo yes
+            else
+                echo no
+            fi
+            return
+        fi
+    fi
+    echo maybe
+}
+
+partition_dev_is_ext4() {
+    part_dev="$1"
+
+    result=$(partition_dev_check_blkid $part_dev ext4)
+    if [ $result = maybe ]
+    then
+        result=$(partition_dev_check_xxd $part_dev 1080 2 "53ef")
+    fi
+    echo $result
+}
+
+partition_dev_is_swap() {
+    part_dev="$1"
+
+    result=$(partition_dev_check_blkid $part_dev swap)
+    if [ $result = maybe ]
+    then
+        result=$(partition_dev_check_xxd $part_dev 4086 4 "53574150")
+    fi
+    echo $result
+}
+
+activate_local_swap() {
+    num_swaps=0
+    for dev in $(detect_partition_devices)
+    do
+        created_dev=0
+        if [ ! -e "/dev/$dev" ]
+        then
+            if create_partition_dev_entry $dev
+            then
+                created_dev=1
+            else
+                continue
+            fi
+        fi
+        is_swap=$(partition_dev_is_swap "/dev/$dev")
+        if [ "$is_swap" = "no" ]
+        then
+            [ "$created_dev" = "0" ] || rm /dev/$dev
+            continue
+        fi
+        # Now, $is_swap may be "yes" or "maybe".
+        # in any case, try to activate it.
+        num_swaps=$((num_swaps+1))
+        if ! busybox_has_applet swapon
+        then
+            if [ "$is_swap" = "yes" ]
+            then
+                verb="activate"
+            else  # is_swap=maybe
+                verb="properly detect"
+            fi
+            echo "Cannot $verb swap partitions:" \
+                 "missing busybox swapon applet." >&2
+            # knowing this, we can abort the whole procedure
+            [ "$created_dev" = "0" ] || rm /dev/$dev
+            return
+        fi
+        if busybox swapon "/dev/$dev" >/dev/null 2>&1
+        then
+            echo "Activated swap on /dev/$dev."
+        elif [ "$is_swap" = "yes" ]
+        then
+            echo "Failed to activate swap on /dev/$dev!" >&2
+        fi
+        # if we created it, the dev file is no longer needed
+        [ "$created_dev" = "0" ] || rm /dev/$dev
+    done
+    if [ "$num_swaps" -eq 0 ]
+    then
+         echo "No local swap partition found."
+    fi
+}
