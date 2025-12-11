@@ -46,6 +46,7 @@ NODE_SCRIPTS = {
     "walt-log-script": (False, True),
     "walt-init-rootfs": (False, True),
     "walt-init-rootfs-main": (False, True),
+    "walt-init-disks": (False, True),
     "walt-init-finalfs": (False, True),
     "walt-init-nbd": (False, True),
     "walt-dump-diff-tar": (False, True),

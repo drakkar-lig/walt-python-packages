@@ -6,7 +6,6 @@ SWAP_SIZE="16G"
 TMPFS_SIZE_IF_SWAP="8G"
 
 mount_nbd_swap() {
-    boot_step_label_cr          "Mounting remote swap space on server..."
     # network boot implies storing file modifications in RAM, which can be
     # quickly exhausted if the user does large modifications on the node
     # instead of doing them on the OS image.

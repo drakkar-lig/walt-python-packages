@@ -39,11 +39,8 @@ This setup has the following pros:
   are usually the most fragile components of a platform, so avoiding their use is
   preferable.
 
-In order to avoid exhausting the RAM space with created and modified files, WalT
-nodes also mount a **special memory swap device** at bootup if the WalT OS image
-supports it (recent debian-based images do). It is based on `/dev/nbd0`, a "Network
-Block Device", so if the node starts swapping, data will actually be stored in a
-temporary file on the WalT server.
+In order to avoid exhausting this thin layer of RAM space with created and modified
+files, WalT nodes can make use of a swap device. See [`walt help show node-swap`](node-swap.md).
 
 However, please note that swapping can reduce the reproducibility of an experiment
 and might cause OS issues in extreme situations. So you should avoid getting to
