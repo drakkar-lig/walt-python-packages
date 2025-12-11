@@ -27,6 +27,7 @@ ROOTFS_IMAGE_SCRIPTS="
     /bin/_walt_internal_/walt-script-common
     /bin/_walt_internal_/walt-init-rootfs
     /bin/_walt_internal_/walt-init-rootfs-main
+    /bin/_walt_internal_/walt-init-disks
     /bin/_walt_internal_/walt-init-finalfs
     /bin/_walt_internal_/walt-init-nbd
     /bin/_walt_internal_/walt-log-script
