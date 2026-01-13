@@ -4,11 +4,12 @@
 # Data are stored on the server through an NFS share.
 mount_persistent()
 {
-    # Compute persistent storage path:
-    # <server-ip>:/var/lib/walt/nodes/<hostname>/persist
-    # walt_server_ip variable is given by walt-env.
-    hostname="$(uname -n)"
-    persist_path="${walt_server_ip}:/var/lib/walt/nodes/${hostname}/persist"
+    if [ -z "${walt_persist_path}" ]
+    then
+        echo "/persist was not mounted (cf. walt node config)"
+        return
+    fi
+
     options="rw,relatime,vers=3,nolock"
     if [ "$1" = "sync" ]
     then
@@ -17,11 +18,7 @@ mount_persistent()
 
     # Mount the share
     mkdir -p /mnt/persist
-    mount -t nfs -o "$options" \
-           "${persist_path}" /mnt/persist  2>/dev/null || {
-        echo "/persist was not mounted (cf. walt node config)"
-        rm -rf /mnt/persist
-    }
+    mount -t nfs -o "$options" "${walt_persist_path}" /mnt/persist
 }
 
 update_mounts_nfs_to_rootfs()
@@ -50,18 +47,9 @@ switch_to_finalfs() {
 }
 
 # preparation work
+/bin/walt-fetch-node-config >> /bin/walt-env
 . walt-script-common
 update_mounts_nfs_to_rootfs
-# we need to know if we are running in a virtual node,
-# for clock sync and walt-net-service.
-# check this now (we need /sys to be available) and save
-# the result as an env var.
-if is_vnode
-then
-    export vnode_mode=1
-else
-    export vnode_mode=0
-fi
 # mount /persist (at /mnt/persist for now)
 boot_step_label_cr          "Mounting /persist..."
 mount_persistent

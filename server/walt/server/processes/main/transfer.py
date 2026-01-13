@@ -422,6 +422,11 @@ def format_node_to_booted_image_transfer_cmd(src_path, **params):
     return node_send_cmd + " | " + image_recv_cmd
 
 
-def format_node_diff_dump_command(node_ip):
-    return ssh_wrap_cmd("""/bin/_walt_internal_/walt-dump-diff-tar""",
+def format_node_diff_dump_command(node_ip, boot_mode):
+    if boot_mode == 'network-persistent':
+        # the diff is already on server side
+        return f"walt-dump-local-diff-tar /var/lib/walt/nodes/{node_ip}/fs"
+    else:
+        # we'll have to request the node to send the diff
+        return ssh_wrap_cmd("""/bin/_walt_internal_/walt-dump-diff-tar""",
                         node_ip=node_ip)

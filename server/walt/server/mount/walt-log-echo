@@ -58,8 +58,27 @@ do_with_logs_daemon() {
     fi
 }
 
+logs_fifo_ready() {
+    if [ -e "$WALT_LOGS_FIFO" ]
+    then
+        if [ "$walt_init_done" = "0" ]
+        then
+            # There's a fifo file, but we're in walt-init,
+            # so we're sure there's no daemon listening.
+            # The Fifo file is probably an artefact from
+            # the previous run of the node with one of the
+            # persistent boot-modes.
+            return 1  # in walt-init, no daemon listening
+        else
+            return 0  # ok
+        fi
+    else
+        return 1  # no fifo available
+    fi
+}
+
 # let's do it
-if [ -e "$WALT_LOGS_FIFO" ]
+if logs_fifo_ready
 then
     # walt-logs-daemon is running on this node
     # => we will let it send our log lines.

@@ -25,7 +25,7 @@ _free_size_kib() {
 
 _make_room_for_new_image() {
     estimated_image_size_kib=$((walt_image_size_kib * 2))
-    cd "/mnt/hm_part/walt_hybrid"
+    cd "/mnt/hm_part/"
     while [ "$(_free_size_kib .)" -lt "$estimated_image_size_kib" ]
     do
         # remove oldest images until we get sufficient room
@@ -39,15 +39,12 @@ _make_room_for_new_image() {
     return 0  # ok
 }
 
-detect_boot_mode() {
-    # for now the SD card storage is not secured so allowing hybrid boot
-    # would be a major security flaw.
-    if [ "$(possibly_vpn_node)" = "1" ]
-    then
-        echo "Using boot-mode: network (VPN security measure)" >&6
-        echo "network"
-        return
-    fi
+_log_and_echo() {
+    echo "$*"
+    walt-log-echo "walt-init" "$*"
+}
+
+detect_hybrid_boot_partition() {
     missing=""
     for applet in $HYBRID_MODE_COMMANDS
     do
@@ -60,14 +57,15 @@ detect_boot_mode() {
     done
     if [ ! -z "$missing" ]
     then
-        echo "failed" "[image]/bin/busybox misses" $missing
-        return
+        _log_and_echo "cannot and hybrid boot mode:"
+        _log_and_echo "[image]/bin/busybox misses" $missing
+        return 1    # failed
     fi
     devs="$(detect_partition_devices)"
     mkdir -p /mnt/hm_part   # hm stands for hybrid mode
     image_dir="/mnt/hm_part/walt_hybrid/${walt_image_id}/image"
     num_devs=$(echo $devs | wc -w)
-    echo "Note: detected ${num_devs} local partition(s)" >&6
+    echo "Note: detected ${num_devs} local partition(s)"
     for dev in $devs
     do
         created_dev=0
@@ -90,57 +88,80 @@ detect_boot_mode() {
         # in any case, try to mount.
         if mount -t ext4 "/dev/$dev" /mnt/hm_part >/dev/null 2>&1
         then
-            if [ -d "/mnt/hm_part/walt_hybrid" ]
+            # 1st ext4 partition, hybrid mode should use it
+            if [ ! -d "$image_dir" ]
             then
-                # hybrid mode is enabled
-                if [ ! -d "$image_dir" ]
-                then
-                    # ... but image is new, not copied locally yet
-                   if ! _make_room_for_new_image
-                   then
-                       # not enough room for this image
-                       umount /mnt/hm_part
-                       echo "$dev: not enough room for copying new image!" >&6
-                       continue
-                   fi
-                fi
-                break  # in any case, stop the loop
-            else
-                echo "$dev: not configured for hybrid mode (no walt_hybrid directory)" >&6
-                umount /mnt/hm_part  # and try next partition
+                # ... but image is new, not copied locally yet
+               if ! _make_room_for_new_image
+               then
+                   # not enough room for this image
+                   umount /mnt/hm_part
+                   rm -r /mnt/hm_part
+                   [ "$created_dev" = "0" ] || rm /dev/$dev
+                   _log_and_echo \
+                       "$dev: not enough room for copying new image!"
+                   return 1  # failed
+               fi
             fi
+	    mkdir /mnt/hm_part/walt_hybrid
+            [ "$created_dev" = "0" ] || rm /dev/$dev  # no longer needed
+            break  # we found the partition
         else
-            echo "$dev: not ext4-mountable" >&6
+            echo "$dev: not ext4-mountable"
         fi
-        if [ "$created_dev" = "1" ]
-        then
-            # remove dev file, we no longer need it
-            rm /dev/$dev
-        fi
+        [ "$created_dev" = "0" ] || rm /dev/$dev
     done
-    if [ -f "/mnt/hm_part/walt_hybrid/.persistent" ]
+    if [ -d "/mnt/hm_part/walt_hybrid/" ]
     then
-        echo "Detected boot-mode: hybrid (persistent) on $dev" >&6
-        echo "hybrid-persistent"
-    elif [ -d "/mnt/hm_part/walt_hybrid/" ]
-    then
-        echo "Detected boot-mode: hybrid (volatile) on $dev" >&6
-        echo "hybrid-volatile"
+        return 0  # succeeded
     else
-        # no hybrid mode
+        _log_and_echo \
+            "No local ext4 partition: cannot handle an hybrid boot."
         rm -r /mnt/hm_part
-        echo "Using boot-mode: network" >&6
-        echo "network"
+        return 1  # failed
+    fi
+}
+
+nfsroot_is_ro() {
+    grep nfsroot /proc/$$/mountinfo | grep -w ro >/dev/null
+}
+
+hybrid_boot_is_allowed() {
+    # for now the SD card storage is not secured so allowing hybrid boot
+    # would be a major security flaw for VPN nodes.
+    if [ "$(possibly_vpn_node)" = "1" ]
+    then
+        _log_and_echo "Hybrid boot-mode not allowed (VPN security measure)."
+        return 1  # false
+    else
+        return 0  # true
+    fi
+}
+
+revert_to_network_volatile() {
+    sed -i -e "s/\(walt_boot_mode\).*/\1=network-volatile/" /bin/walt-env
+}
+
+verify_boot_mode() {
+    if [ "$walt_boot_mode" = "hybrid-volatile" -o \
+         "$walt_boot_mode" = "hybrid-persistent" ]
+    then
+        if ! hybrid_boot_is_allowed || ! detect_hybrid_boot_partition
+        then
+            _log_and_echo \
+                "Falling back to default boot mode: network-volatile."
+            revert_to_network_volatile
+        fi
     fi
 }
 
 mount_hybrid_mode() {
-    boot_mode="$1"
     echo "image_id: ${walt_image_id}"
     image_dir="/mnt/hm_part/walt_hybrid/${walt_image_id}/image"
     if [ ! -d "$image_dir" ]
     then
-        walt-log-echo "walt-init" "Hybrid-mode: copying image files locally (this may be long)."
+        walt-log-echo "walt-init" "Hybrid-mode: copying image files" \
+                      "locally (this may be long)."
         boot_step_label_cr "Copying image to local disk..."
         mkdir -p "$image_dir.part"
         { cd /mnt/nfsroot; tar cf - . ; } | \
@@ -152,7 +173,7 @@ mount_hybrid_mode() {
     work_dir="/mnt/hm_part/walt_hybrid/${walt_image_id}/work"
     local_dir="/mnt/hm_part/walt_hybrid/${walt_image_id}/local"
     rm -rf "$work_dir" "$image_dir.part/bin/_walt_internal_"
-    if [ "$boot_mode" = "hybrid-volatile" ]
+    if [ "$walt_boot_mode" = "hybrid-volatile" ]
     then
         boot_step_label_cr "Discarding artefacts of previous run..."
         rm -rf "$diff_dir" "$local_dir"
@@ -172,25 +193,39 @@ mount_hybrid_mode() {
 mount_network_mode()
 {
     cd /mnt
-    boot_step_label_cr "Mounting a RAM overlay on top of remote image..."
-    mkdir -p fs_rw fs_work finalfs
-    # creating the union
-    # lowerdir=/mnt/nfsroot: the nfs mount (that should remain read-only)
-    # upperdir=fs_rw: the place to hold the filesystem changes
-    # workdir=fs_work: a workdir for the overlay filesystem
-    # uniondir=finalfs: the mount point of the union
-    mount_union /mnt/nfsroot fs_rw fs_work finalfs
+    if [ "$walt_boot_mode" = "network-volatile" ]
+    then
+        boot_step_label_cr "Mounting a RAM overlay on top of remote image..."
+        mkdir -p fs_rw fs_work finalfs
+        # creating the union
+        # lowerdir=/mnt/nfsroot: the nfs mount (that should remain read-only)
+        # upperdir=fs_rw: the place to hold the filesystem changes
+        # workdir=fs_work: a workdir for the overlay filesystem
+        # uniondir=finalfs: the mount point of the union
+        mount_union /mnt/nfsroot fs_rw fs_work finalfs
+    else
+        # walt_boot_mode: network-persistent
+        # in this case the NFS share should just be mounted read-write,
+        # the server has prepared an rw overlay layer on its side.
+        if nfsroot_is_ro
+        then
+            boot_step_label_cr "Re-mounting remote filesystem" \
+                               "as read-write..."
+            mount -o remount,rw /mnt/nfsroot
+        fi
+        mkdir -p finalfs
+        mount -o bind /mnt/nfsroot finalfs
+    fi
     cd /
 }
 
 mount_finalfs() {
-    boot_mode="$1"
-    case "$boot_mode" in
-    "network")
+    case "$walt_boot_mode" in
+    "network-volatile"|"network-persistent")
         mount_network_mode
         ;;
     "hybrid-volatile"|"hybrid-persistent")
-        mount_hybrid_mode $boot_mode
+        mount_hybrid_mode
         ;;
     esac
     # logs.fifo is created by the optional walt-logs-daemon
@@ -198,13 +233,9 @@ mount_finalfs() {
     # transmits log messages by writing to this fifo (instead
     # of using the slower method of opening nc connections to
     # the server by itself).
-    # however, we now have a persistent boot mode, thus this
-    # file may actually be an artefact of a previous boot,
-    # and walt-logs-daemon may not be there yet.
-    # that's the case when calling walt-log-echo during walt-init:
-    # writing to the fifo just blocks because no process is reading
-    # on the other side.
-    # So if this file exists, remove it.
+    # however, we now have persistent boot modes, so this file
+    # may persist as an artefact of a previous boot.
+    # If this file exists, let's remove it.
     if [ -e "/mnt/finalfs/var/lib/walt/logs.fifo" ]
     then
         rm -f /mnt/finalfs/var/lib/walt/logs.fifo
@@ -213,7 +244,7 @@ mount_finalfs() {
 
 mount_hybrid_mode_localfs() {
     boot_step_label_cr          "Mounting /local..."
-    # have a directory /run/localfs bound directly to the local storage,
+    # have a directory /local bound directly to the local storage,
     # bypassing the union filesystem, for use by applications that
     # cannot run properly on overlay fs (e.g. containerd with its
     # default snapshotter).
@@ -229,9 +260,8 @@ mount_hybrid_mode_localfs() {
 }
 
 mount_secondaryfs() {
-    boot_mode="$1"
-    case "$boot_mode" in
-    "network")  # nothing to do
+    case "$walt_boot_mode" in
+    "network-volatile"|"network-persistent")  # nothing to do
         ;;
     "hybrid-volatile"|"hybrid-persistent")
         mount_hybrid_mode_localfs

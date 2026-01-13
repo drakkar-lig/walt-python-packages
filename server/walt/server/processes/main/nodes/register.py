@@ -44,8 +44,7 @@ def handle_registration_request(
             ))
         wf_steps += [wf_pull_image, wf_after_pull_image]
     wf_steps += [wf_update_device_in_db, wf_update_status_manager,
-                 exports.wf_update_persist_exports,
-                 images.wf_update_image_mounts, wf_dhcpd_named_update,
+                 exports.wf_update, wf_dhcpd_named_update,
                  wf_done_registering_mac]
     wf = Workflow(wf_steps, **full_kwargs)
     wf.run()

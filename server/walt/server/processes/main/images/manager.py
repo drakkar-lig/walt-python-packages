@@ -44,18 +44,6 @@ class NodeImageManager:
         self.registry = server.registry
         self.store = NodeImageStore(server)
 
-    def prepare(self):
-        pass
-
-    def wf_update(self, wf, **env):
-        self.store.resync_from_db()
-        wf.insert_steps([self.store.wf_update_image_mounts])
-        wf.next()
-
-    def update(self):
-        wf = Workflow([self.wf_update])
-        wf.run()
-
     def show(self, requester, **kwargs):
         return show(requester, self, **kwargs)
 
@@ -134,10 +122,6 @@ class NodeImageManager:
     def fix_owner(self, requester, other_user):
         fix_owner(self.store, self.registry, requester, other_user)
 
-    def cleanup(self):
-        # un-mount images
-        self.store.cleanup()
-
     def has_image(self, requester, image_name, default_allowed, expected=True):
         if default_allowed and image_name == "default":
             return True
@@ -196,12 +180,7 @@ class NodeImageManager:
                     "set_image", node_mac, is_default
                 )
             self.db.commit()
-            # note: even if the set of docker image IDs in use did not change,
-            # the owner of the image may have changed, so the target of /persist
-            # will have to be updated on relevant nodes; so let's call
-            # wf_update_persist_exports() in all cases.
-            wf = Workflow([self.store.wf_update_image_mounts,
-                           self.server.exports.wf_update_persist_exports,
+            wf = Workflow([self.server.exports.wf_update,
                            self.dhcpd.wf_update, self.named.wf_update])
             wf.run()
             # inform requester
@@ -242,7 +221,7 @@ class NodeImageManager:
                 % (image_name, image.task_label)
             )
             return None
-        session = ImageShellSession(self.store, image, task_label)
+        session = ImageShellSession(self.server, image, task_label)
         return session
 
     def update_hub_metadata(self, context, waltplatform_user):
@@ -263,7 +242,7 @@ class NodeImageManager:
             msg = self.store.get_image_overwrite_warning(image_fullname)
             requester.stderr.write(msg)
         session = ImageBuildSession(
-            self.blocking, self.store, image_fullname, image_overwrite,
+                self.server, image_fullname, image_overwrite,
                 username=username,
                 **info
         )

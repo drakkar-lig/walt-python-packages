@@ -1,5 +1,8 @@
 #!/bin/busybox sh
 
+# get walt-related env variables
+. walt-env
+
 func_call="$1"; shift
 
 # note: arguments must be quoted/escaped by the caller
@@ -68,7 +71,7 @@ receiver() {
 }
 
 connector() {
-    exec busybox nc %(server_ip)s %(walt_server_rpc_port)s <$NC_FIFO_4 >$NC_FIFO_5
+    exec busybox nc "$walt_server_ip" "$walt_server_rpc_port" <$NC_FIFO_4 >$NC_FIFO_5
 }
 
 connector &

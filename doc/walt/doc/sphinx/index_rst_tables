@@ -42,6 +42,7 @@ Full table of Contents
    node-swap
    vnode-networks
    vnode-disks
+   slash-persist
 
 
 .. toctree::

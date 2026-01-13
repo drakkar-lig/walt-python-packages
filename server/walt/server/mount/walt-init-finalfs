@@ -47,6 +47,7 @@ run_real_init()
 }
 
 # complete transition to finalfs
+mount -o bind /run/walt/rootfs/bin/walt-env /bin/walt-env
 . walt-script-common
 update_mounts_rootfs_to_finalfs
 export walt_init_done=1
