@@ -58,6 +58,7 @@ class Requests(ServiceRequests):
     REQ_NOTIFY_BOOTUP_STATUS = 14
     REQ_DEVICE_SHELL = 15
     REQ_TAR_FOR_IMAGE_BUILD = 16
+    REQ_FETCH_NODE_CONFIG = 17
 
     @staticmethod
     def read_id(stream):

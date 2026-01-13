@@ -73,12 +73,13 @@ shell_with_timeout() {
 
 get_custom_walt_reboot_script() {
     # custom rebooting is disabled for virtual nodes
-    # "vnode_mode" was passed as an env variable
-    if [ "$vnode_mode" -eq 1 ]
+    # "walt_vnode_mode" was passed as an env variable
+    if [ "$walt_vnode_mode" -eq 1 ]
     then
         return
     fi
-    if [ "${walt_boot_mode}" = "network" ]
+    if [ "${walt_boot_mode}" = "network-volatile" -o \
+         "${walt_boot_mode}" = "network-persistent" ]
     then
         # /bin/walt-network-reboot (new image)
         if [ -e "/bin/walt-network-reboot" ]; then
