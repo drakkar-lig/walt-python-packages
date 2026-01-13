@@ -51,10 +51,8 @@ the second one will be left unconfigured.
 
 `walt node config` understands the following disk templates:
 * `ext4`: one single partition with `ext4` filesystem
+  (suitable for hybrid boot, see [`walt help show boot-modes`](boot-modes.md))
 * `fat32`: one single partition with `FAT32` filesystem
+* `swap`: one single partition formatted for swapping
+  (see [`walt help show node-swap`](node-swap.md))
 * `none`: the disk is left unconfigured (same effect as not defining the template)
-* `hybrid-boot-v`: the disk is configured to activate the hybrid boot method (volatile variant) on this node.
-* `hybrid-boot-p`: the disk is configured to activate the hybrid boot method (persistent variant) on this node.
-
-See [`walt help show boot-modes`](boot-modes.md) for more info about hybrid boot modes.
-

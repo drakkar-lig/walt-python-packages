@@ -10,11 +10,10 @@ Consequently, most WalT users just use a WalT image modified to trigger an exper
 soundness. Thus the reboot operation is very important in WalT.
 
 Notes:
-(1) Recently, WalT introduced another mode of operation called hybrid-boot, which does not provide the same
-guarantee, but may be used when the default network boot procedure is not suitable.
+(1) WalT provides alternate boot modes which may be used when this default boot mode is not suitable.
 Check-out [`walt help show boot-modes`](boot-modes.md) for more info.
 (2) One notable exception to this fact is directory `/persist`, where one can store data files which must be
-preserved across reboots.
+preserved across reboots. See [`walt help show slash-persist`](slash-persist.md).
 
 
 ## walt node reboot
@@ -40,24 +39,25 @@ board might be needed to recover proper operation of a buggy USB device).
 Bootup procedures are implemented differently based on the current boot mode of the node.
 Check-out [`walt help show boot-modes`](boot-modes.md) for more info about boot modes.
 
-
-### Network boot mode
-
-In this default mode of operation, the node stacks two filesystem layers:
+In the default boot mode called `network-volatile`, the node stacks two filesystem layers:
 - at the bottom, the WalT image is mounted as a read-only network filesystem;
 - at the top, a read-write layer is mounted in the RAM of the node.
-All created files and file modifications will be handled by the read-write layer, which means in the RAM
+All created files and file modifications will be handled by the read-write layer, which mean in the RAM
 of the node, and cleared up when the node reboots (which ensures reproducibility at each reboot).
 As a side effect of these RAM-only modifications, `walt node reboot` does not bother shutting down the
 OS services properly in this case, even if we call it a "soft-reboot": it calls the bare
 `busybox reboot -f` command directly, allowing for faster reboots.
 
-WalT provides a way for users to alter this reboot procedure: they may provide an executable file
-`/bin/walt-network-reboot` (`/bin/walt-reboot` is accepted too for backward compatibility) in the
-WALT image. In this case, this executable will be executed instead of the bare `busybox reboot -f`
-command for soft-rebooting. This can be used for implementing an optimized reboot procedure, such
-as using `kexec` and avoiding long hardware reboot delays on server-class nodes. The default images
-we provide for pc-x86-64 and pc-x86-32 machines are equipped with such a hook for kexec rebooting.
+With the other boot modes, soft-reboots involve a proper shutdown of the OS services,
+so the procedure is a little longer.
+
+WalT provides a way for users to alter the soft-reboot procedure: they may provide an executable file
+named `/bin/walt-network-reboot` (`/bin/walt-reboot` is accepted too for backward compatibility),
+or `/bin/walt-hybrid-reboot` depending on the boot mode, in the WALT image. In this case, this
+executable will be executed instead of the bare `busybox reboot -f` command for soft-rebooting.
+This can be used for implementing an optimized reboot procedure, such as using `kexec` and avoiding
+long hardware reboot delays on server-class nodes. The default images we provide for pc-x86-64
+and pc-x86-32 machines are equipped with such a hook for kexec rebooting.
 
 One notable exception is virtual nodes, which will never use this custom executable for rebooting,
 even if present. In fact, rebooting virtual nodes is already fast: obviously, it does not involve
@@ -67,15 +67,3 @@ machine process, whereas such restarts are needed when changing virtual node con
 
 On physical nodes, `/bin/walt-network-reboot` may also fallback to the bare `busybox reboot -f`
 command if you configured a node with `kexec.allow=false`.
-
-
-### Hybrid boot mode
-
-In this alternative mode of operation, i.e., **hybrid boot mode**, the node has a copy of WalT image
-contents on a local disk. See [`walt help show boot-modes`](boot-modes.md) for more info.
-In this mode, "soft-reboots" may take a little more time, because OS services will be properly shut
-down.
-
-Similarly to the network boot mode, users may provide an executable file `/bin/walt-hybrid-reboot`
-to implement optimized reboot procedures in the hybrid boot mode. The restrictions regarding
-virtual nodes and the configuration option `kexec.allow=false` also apply here.
