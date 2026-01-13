@@ -21,6 +21,11 @@ from walt.server.processes.main.nodes.manager import (
 from walt.server.tools import ip_in_walt_network, np_record_to_dict, get_server_ip
 
 PPRINT_NONE = "<unspecified>"
+NODE_DEFAULT_BOOT_MODE = "network-volatile"
+BOOT_MODES = ("network-volatile",
+              "network-persistent",
+              "hybrid-volatile",
+              "hybrid-persistent")
 
 
 def uncapitalize(s):
@@ -104,6 +109,11 @@ class SettingsManager:
                 "value-check": self.correct_boot_timeout,
                 "default": NODE_DEFAULT_BOOT_TIMEOUT,
                 "pretty_print": lambda s: ("none" if s is None else str(s)),
+            },
+            "boot.mode": {
+                "category": "nodes",
+                "value-check": self.correct_boot_mode,
+                "default": NODE_DEFAULT_BOOT_MODE,
             },
             "networks": {
                 "category": "virtual-nodes",
@@ -318,6 +328,9 @@ class SettingsManager:
                 + "        Check 'walt help show device-config' for more info.\n"
             )
             return False
+        warnings = parsing[2]
+        for warn in warnings:
+            requester.stderr.write(f"{warn}\n")
         return True
 
     def correct_boot_delay(
@@ -370,6 +383,11 @@ class SettingsManager:
             )
             return False
         return True
+
+    def correct_boot_mode(
+        self, requester, device_infos, setting_name, setting_value, all_settings
+    ):
+        return setting_value in BOOT_MODES
 
     def correct_networks_value(
         self, requester, device_infos, setting_name, setting_value, all_settings

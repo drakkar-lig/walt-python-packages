@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import functools
+import numpy as np
 import os
 import sys
 import typing
@@ -13,6 +14,8 @@ from walt.server.processes.main.images.image import NodeImage
 from walt.server.processes.main.images.tools import handle_missing_credentials
 from walt.server.processes.main.network import tftp
 from walt.server.workflow import Workflow
+from walt.server.tools import get_walt_subnet, get_server_ip
+from walt.server.tools import get_rpi_foundation_mac_vendor_ids
 
 if typing.TYPE_CHECKING:
     from walt.server.processes.main.server import Server
@@ -52,6 +55,33 @@ MSG_WOULD_REBOOT_NODES = """\
 This operation would reboot %d node(s) currently using the image.
 """
 
+RPI_MAC_CONDITION = " or ".join(
+        f"""d.mac like '{vendor_id}:%'""" \
+        for vendor_id in get_rpi_foundation_mac_vendor_ids())
+
+WALT_SUBNET = get_walt_subnet()
+WALT_SERVER_IP = get_server_ip()
+
+QUERY_EXPORTS_INFO = f"""
+SELECT d.mac, d.ip, d.name, d.type,
+  n.model, n.image,
+  split_part(n.image, '/', 1)
+    as owner,
+  REPLACE(d.mac, ':', '-')
+    as mac_dash,
+  COALESCE((d.conf->'mount.persist')::bool, true)
+    as mount_persist,
+  COALESCE((d.conf->'boot.mode')::text, 'network-volatile')
+    as boot_mode,
+  ({RPI_MAC_CONDITION})
+    as is_rpi,
+  NULL
+    as image_id
+FROM devices d
+LEFT JOIN nodes n ON d.mac = n.mac
+WHERE d.ip IS NOT NULL
+  AND d.ip::inet << '{str(WALT_SUBNET)}'::cidr
+"""
 
 class NodeImageStore(object):
     def __init__(self, server: Server):
@@ -298,6 +328,25 @@ class NodeImageStore(object):
         else:
             # wait for the update workflow to be completed
             wf.continue_after_other_workflow(self._update_wf)
+
+    def get_exports_info(self):
+        db_devices = self.db.execute(QUERY_EXPORTS_INFO)
+        # extract nodes and retrieve their image_id
+        nodes_mask = (db_devices.type == 'node')
+        db_nodes = db_devices[nodes_mask]
+        metadata = self.registry.get_multiple_metadata(db_nodes.image)
+        image_ids = np.fromiter((m["image_id"] for m in metadata), object)
+        db_nodes.image_id[:] = image_ids
+        # compute rpi devices of type "unknown"
+        unknown_rpis_mask = (db_devices.type == 'unknown')
+        unknown_rpis_mask &= db_devices.is_rpi.astype(bool)
+        unknown_rpis = db_devices[unknown_rpis_mask]
+        # compute free IPs
+        free_ips = set(str(ip) for ip in WALT_SUBNET.hosts())
+        free_ips.discard(WALT_SERVER_IP)
+        free_ips -= set(db_devices.ip)
+        free_ips = np.array(list(free_ips), dtype=object)
+        return db_nodes, unknown_rpis, free_ips
 
     def _wf_update_image_mounts(self, update_wf, **env):
         new_mounts = set()

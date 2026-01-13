@@ -16,7 +16,7 @@ enable_zswap() {
 }
 
 # setting clock
-if [ $vnode_mode -eq 1 ]
+if [ $walt_vnode_mode -eq 1 ]
 then
     boot_step_label_cr "Setting clock... skipped (virtual node)"
 else

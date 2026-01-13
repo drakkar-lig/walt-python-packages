@@ -35,8 +35,12 @@ def is_real_dir(path):
 # - later, in order to handle the new node setting "mount.persist=<bool>",
 #   <mac>/persist became a symlink to a directory <mac>/persist_dir
 #   or a broken target when mount.persist=false;
-# - now, <mac>/persist is a symlink to <mac>/persist_dirs/<owner>,
+# - then, <mac>/persist became a symlink to <mac>/persist_dirs/<owner>,
 #   or a broken target when mount.persist=false.
+# - now, <mac>/persist is always a symlink to <mac>/persist_dirs/<owner>,
+#   (the variable walt_persist_path the node gets by running
+#    walt-fetch-node-config is empty when mount.persist=false,
+#    so the mount is bypassed.)
 # This new setting allows sharing the use of the persistent directory
 # of a node between several users.
 
@@ -109,21 +113,7 @@ def prepare():
         shutil.rmtree(str(tftp_standby))
 
 
-# Note: NFSv4 needs to be able to read symlinks, thus
-# the whole /var/lib/walt/nodes directory is a read-only share.
-#
-# If a node has its config option "mount.persist" set to false,
-# removing /var/lib/walt/nodes/<mac>/persist from the exports file
-# is not enough: the client mount will still be accepted, as read-only,
-# because of the previous statement.
-#
-# That's why we actually manage a symlink at
-# /var/lib/walt/nodes/<mac>/persist. The symlink targets directory
-# /var/lib/walt/nodes/<mac>/persist_dirs/<owner> in the usual situation
-# (mount.persist=true) and a missing path otherwise (mount.persist=false),
-# in order to make the mount fail on client side.
-#
-# each node has a directory entry with:
+# Each node has a directory entry with:
 # - a link called "fs" to the image filesystem root
 # - a link called "tftp" to a directory of boot files stored per-model in the image
 # - a directory called "persist" which is mounted at /persist on the node
@@ -193,15 +183,12 @@ def update(db, images, cleanup=False):
         tftp_symlinks = ("SYMLINK ../../tftp-static " + db_nodes.mac + "/tftp")
     else:
         tftp_symlinks = (
-            "SYMLINK ../../images/" + image_ids + "/fs/boot/" + db_nodes.model +
+            "SYMLINK fs/boot/" + db_nodes.model +
             " " + db_nodes.mac + "/tftp")
     # -- declare persist symlinks
-    mask_persist = db_nodes.persist.astype(bool)
-    persist_ok_symlinks = (
-        "SYMLINK persist_dirs/" + db_nodes.owner[mask_persist] + " " +
-        db_nodes.mac[mask_persist] + "/persist")
-    persist_ko_symlinks = (
-        "SYMLINK forbidden_dir " + db_nodes.mac[~mask_persist] + "/persist")
+    persist_symlinks = (
+        "SYMLINK persist_dirs/" + db_nodes.owner + " " +
+        db_nodes.mac + "/persist")
     # -- declare symlinks to node-probing dir for unallocated ips
     #    and Raspberry Pi devices of type "unknown"
     # Raspberry pi 3b+ boards do not implement the whole DHCP handshake and
@@ -238,7 +225,7 @@ def update(db, images, cleanup=False):
     # -- compile the new status
     status = set(np.concatenate((
         mac_dirs, mac_dash_symlinks, ip_symlinks, name_symlinks,
-        fs_symlinks, tftp_symlinks, persist_ok_symlinks, persist_ko_symlinks,
+        fs_symlinks, tftp_symlinks, persist_symlinks,
         free_ip_symlinks, unknown_rpis_symlinks), dtype=object))
     if status == TFTP_STATUS:
         # nothing changed

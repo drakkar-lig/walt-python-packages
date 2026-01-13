@@ -39,15 +39,7 @@ _make_room_for_new_image() {
     return 0  # ok
 }
 
-detect_boot_mode() {
-    # for now the SD card storage is not secured so allowing hybrid boot
-    # would be a major security flaw.
-    if [ "$(possibly_vpn_node)" = "1" ]
-    then
-        echo "Using boot-mode: network (VPN security measure)" >&6
-        echo "network"
-        return
-    fi
+detect_hybrid_boot_mode() {
     missing=""
     for applet in $HYBRID_MODE_COMMANDS
     do
@@ -60,7 +52,8 @@ detect_boot_mode() {
     done
     if [ ! -z "$missing" ]
     then
-        echo "failed" "[image]/bin/busybox misses" $missing
+        echo "cannot probe hybrid boot-mode:" >&6
+        echo "[image]/bin/busybox misses" $missing >&6
         return
     fi
     devs="$(detect_partition_devices)"
@@ -120,18 +113,45 @@ detect_boot_mode() {
     done
     if [ -f "/mnt/hm_part/walt_hybrid/.persistent" ]
     then
-        echo "Detected boot-mode: hybrid (persistent) on $dev" >&6
+        echo "Detected boot-mode: hybrid-persistent on $dev" >&6
         echo "hybrid-persistent"
     elif [ -d "/mnt/hm_part/walt_hybrid/" ]
     then
-        echo "Detected boot-mode: hybrid (volatile) on $dev" >&6
+        echo "Detected boot-mode: hybrid-volatile on $dev" >&6
         echo "hybrid-volatile"
     else
-        # no hybrid mode
+        # hybrid mode not configured
         rm -r /mnt/hm_part
-        echo "Using boot-mode: network" >&6
-        echo "network"
     fi
+}
+
+detect_network_boot_mode() {
+    if [ -f "/mnt/nfsroot/.fs_rw" ]
+    then
+        echo "Detected boot-mode: network-persistent" >&6
+        echo "network-persistent"
+    else
+        echo "Using default boot-mode: network-volatile" >&6
+        echo "network-volatile"
+    fi
+}
+
+detect_boot_mode() {
+    # for now the SD card storage is not secured so allowing hybrid boot
+    # would be a major security flaw.
+    local boot_mode=""
+    if [ "$(possibly_vpn_node)" = "1" ]
+    then
+        echo "not probing storage for hybrid boot-mode" \
+             "(VPN security measure)" >&6
+    else
+        boot_mode="$(detect_hybrid_boot_mode)"
+    fi
+    if [ -z "$boot_mode" ]
+    then
+        boot_mode="$(detect_network_boot_mode)"
+    fi
+    echo "$boot_mode"
 }
 
 mount_hybrid_mode() {
@@ -171,23 +191,31 @@ mount_hybrid_mode() {
 
 mount_network_mode()
 {
+    boot_mode="$1"
     cd /mnt
-    boot_step_label_cr "Mounting a RAM overlay on top of remote image..."
-    mkdir -p fs_rw fs_work finalfs
-    # creating the union
-    # lowerdir=/mnt/nfsroot: the nfs mount (that should remain read-only)
-    # upperdir=fs_rw: the place to hold the filesystem changes
-    # workdir=fs_work: a workdir for the overlay filesystem
-    # uniondir=finalfs: the mount point of the union
-    mount_union /mnt/nfsroot fs_rw fs_work finalfs
+    if [ "$boot_mode" = "network-volatile" ]
+    then
+        boot_step_label_cr "Mounting a RAM overlay on top of remote image..."
+        mkdir -p fs_rw fs_work finalfs
+        # creating the union
+        # lowerdir=/mnt/nfsroot: the nfs mount (that should remain read-only)
+        # upperdir=fs_rw: the place to hold the filesystem changes
+        # workdir=fs_work: a workdir for the overlay filesystem
+        # uniondir=finalfs: the mount point of the union
+        mount_union /mnt/nfsroot fs_rw fs_work finalfs
+    else    # boot_mode: network-persistent
+        boot_step_label_cr "Re-mounting NFS share as read-write..."
+        mkdir -p finalfs
+        mount -o bind,rw /mnt/nfsroot finalfs
+    fi
     cd /
 }
 
 mount_finalfs() {
     boot_mode="$1"
     case "$boot_mode" in
-    "network")
-        mount_network_mode
+    "network-volatile"|"network-persistent")
+        mount_network_mode $boot_mode
         ;;
     "hybrid-volatile"|"hybrid-persistent")
         mount_hybrid_mode $boot_mode
@@ -231,7 +259,7 @@ mount_hybrid_mode_localfs() {
 mount_secondaryfs() {
     boot_mode="$1"
     case "$boot_mode" in
-    "network")  # nothing to do
+    "network-volatile"|"network-persistent")  # nothing to do
         ;;
     "hybrid-volatile"|"hybrid-persistent")
         mount_hybrid_mode_localfs

@@ -96,6 +96,7 @@ setup_info = {
             "walt-server-vpn = walt.server.services.vpn:run",
             "walt-server-vpn-endpoint = walt.server.vpn.endpoint:run",
             "walt-vpn-admin = walt.server.vpn.admin:run",
+            "walt-update-exports = walt.server.exports.update:run",
         ]
     },
     "include_package_data": True,

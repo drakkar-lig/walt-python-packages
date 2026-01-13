@@ -1,10 +1,11 @@
 import logging
-import fcntl
+import numpy as np
 from contextlib import contextmanager
 from pathlib import Path
 from subprocess import CalledProcessError
 
 from walt.server.exttools import findmnt
+from walt.server.tools import serialized
 
 IMAGE_MOUNT_PATH = "/var/lib/walt/images/%s/fs"
 SERIALIZED_MOUNTS_LOCK = Path("/var/lib/walt/mount.lock")
@@ -71,16 +72,30 @@ def img_print(image_id, msg, **kwargs):
 
 
 @contextmanager
-def serialized(lock_path):
-    lock_path.touch()
-    with lock_path.open() as fd:
-        fcntl.flock(fd, fcntl.LOCK_EX)
-        yield
-        fcntl.flock(fd, fcntl.LOCK_UN)
-
-
-@contextmanager
 def serialized_mounts():
     with serialized(SERIALIZED_MOUNTS_LOCK):
         yield
 
+
+NODE_RW_MOUNT_DTYPE = np.dtype([('node_mac', object),
+                                ('image_id', object),
+                                ('image_fullname', object)])
+
+def detect_mounts():
+    lines = findmnt("-t", "overlay", "-n", "-o", "target").splitlines()
+    arr = np.array(lines, str)
+    image_mps = arr[np.char.startswith(arr, "/var/lib/walt/images")]
+    image_ids = np.char.replace(image_mps, "/var/lib/walt/images/", "")
+    image_ids = np.char.replace(image_ids, "/fs", "")
+    node_rw_mps = arr[np.char.startswith(arr, "/var/lib/walt/nodes")]
+    node_rw_mounts = np.empty(len(node_rw_mps), NODE_RW_MOUNT_DTYPE)
+    node_rw_mounts = node_rw_mounts.view(np.recarray)
+    if len(node_rw_mounts) > 0:
+        words = "\n".join(node_rw_mps).replace("/", "\n").splitlines()
+        words_arr = np.array(words, str).reshape((len(node_rw_mps), 11))
+        node_rw_mounts.node_mac = words_arr[:, 5]
+        node_rw_mounts.image_id = words_arr[:, 7]
+        node_rw_mounts.image_fullname = words_arr[:, 8]
+        node_rw_mounts.image_fullname += '/'
+        node_rw_mounts.image_fullname += words_arr[:, 9]
+    return image_ids, node_rw_mounts

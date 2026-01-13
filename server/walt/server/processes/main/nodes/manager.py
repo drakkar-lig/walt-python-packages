@@ -3,9 +3,17 @@ import random
 
 from pathlib import Path
 
+from walt.common.constants import (
+        WALT_SERVER_DAEMON_PORT,
+        WALT_SERVER_TCP_PORT
+)
+from walt.common.tools import get_mac_address
+from walt.common.tcp import Requests
 from walt.server.const import (
         SSH_NODE_COMMAND,
         NODE_SSH_ECDSA_HOST_KEY_PUB_PATH,
+        WALT_INTF,
+        WALT_NODE_NET_SERVICE_PORT
 )
 from walt.server.popen import BetterPopen
 from walt.server.processes.main.filesystem import FilesystemsCache
@@ -23,7 +31,6 @@ from walt.server.processes.main.nodes.status import (
         NODE_DEFAULT_BOOT_TIMEOUT,
         NODE_MIN_BOOT_TIMEOUT
 )
-from walt.server.processes.main.nodes.status import NodeBootupStatusManager
 from walt.server.processes.main.nodes.wait import WaitInfo
 from walt.server.workflow import Workflow
 from walt.server.tools import get_server_ip, get_walt_subnet, ip
@@ -46,6 +53,29 @@ CMD_START_VNODE = (
     "                  --boot-delay %(boot_delay)s --managed"
 )
 
+FETCH_NODE_CONFIG_PATTERN = f"""\
+export walt_boot_mode=%(boot_mode)s
+export walt_persist_path=%(persist_path)s
+export walt_vnode_mode=%(is_vnode)d
+"""
+
+class FetchNodeConfigHandler:
+    def __init__(self, manager, sock_file, **kwargs):
+        self._sock_file = sock_file
+        node_ip, _ = sock_file.getpeername()
+        env = manager.get_node_config_vars(node_ip)
+        if env is not None:
+            content = FETCH_NODE_CONFIG_PATTERN % env
+            sock_file.write(content.encode())
+    # We responded immediately in __init__(), so after that
+    # let's get removed from the event loop.
+    def fileno(self):
+        return self._sock_file.fileno()
+    def handle_event(self, ts):
+        return False
+    def close(self):
+        self._sock_file.close()
+
 
 class NodesManager(object):
     def __init__(self, server):
@@ -64,6 +94,11 @@ class NodesManager(object):
         self.filesystems = FilesystemsCache(server.ev_loop, FS_CMD_PATTERN)
         self.vnodes = {}
         self.powersave = PowersaveManager(server)
+        server.tcp_server.register_listener_class(
+            manager=self,
+            req_id=Requests.REQ_FETCH_NODE_CONFIG,
+            cls=FetchNodeConfigHandler,
+        )
         self.node_register_kwargs = dict(
             images=server.images.store, dhcpd=server.dhcpd,
             named=server.named, registry=server.registry
@@ -414,3 +449,31 @@ class NodesManager(object):
             nodes=nodes,
         )
         wf.run()
+
+    def get_node_config_vars(self, node_ip):
+        node_info = self.db.execute(f"""
+            SELECT
+                COALESCE((conf->'boot.mode')::text, 'network-volatile')
+                    as boot_mode,
+                COALESCE((conf->'mount.persist')::boolean::int, 1)
+                    as mount_persist,
+                virtual::int
+                    as is_vnode,
+                name
+            FROM devices
+            WHERE ip = '{node_ip}'
+              AND type = 'node';
+        """)
+        if len(node_info) != 1:
+            return None
+        if node_info[0].mount_persist:
+            server_ip = get_server_ip()
+            name = node_info[0].name
+            persist_path = f"{server_ip}:/var/lib/walt/nodes/{name}/persist"
+        else:
+            persist_path = ""
+        return dict(
+            boot_mode = node_info[0].boot_mode,
+            is_vnode = node_info[0].is_vnode,
+            persist_path = persist_path,
+        )

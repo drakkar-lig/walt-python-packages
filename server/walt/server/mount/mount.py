@@ -15,6 +15,12 @@ from walt.server.mount.tools import get_mount_container_name, get_mount_image_na
 from walt.server.mount.setup import setup
 
 IMAGE_LAYERS_DIR = "/var/lib/containers/storage/overlay"
+USAGE = f"""\
+USAGE:
+{sys.argv[0]} --image <img-id> <img-size-kib>
+or
+{sys.argv[0]} --node-rw <node-mac> <img-id> <img-size-kib> <img-fullname>
+"""
 
 
 # 'buildah mount' does not mount the overlay filesystem with appropriate options to
@@ -80,18 +86,32 @@ def image_mount(image_id, mount_path):
 
 
 def run():
-    if len(sys.argv) != 3:
-        sys.exit(f"USAGE: {sys.argv[0]} <image-id> <image-size-kib>")
-    image_id = long_image_id(sys.argv[1])
-    image_size_kib = int(sys.argv[2])
-    img_print = functools.partial(img_print_generic, image_id)
-    img_print("mounting...")
-    mount_path = get_mount_path(image_id)
-    with serialized_mounts():
-        failsafe_makedirs(mount_path)
-        image_mount(image_id, mount_path)
-    setup(image_id, mount_path, image_size_kib, img_print)
-    img_print("mounting done")
+    if len(sys.argv) == 4 and sys.argv[1] == "--image":
+        image_id = long_image_id(sys.argv[2])
+        image_size_kib = int(sys.argv[3])
+        img_print = functools.partial(img_print_generic, image_id)
+        img_print("mounting...")
+        mount_path = get_mount_path(image_id)
+        with serialized_mounts():
+            failsafe_makedirs(mount_path)
+            image_mount(image_id, mount_path)
+        setup(image_id, mount_path, image_size_kib, img_print)
+        img_print("mounting done")
+    elif len(sys.argv) == 6 and sys.argv[1] == "--node-rw":
+        node_mac = sys.argv[2]
+        image_id = long_image_id(sys.argv[3])
+        image_size_kib = int(sys.argv[4])
+        image_fullname = sys.argv[5]
+        img_print = functools.partial(img_print_generic, image_id)
+        img_print("mounting...")
+        mount_path = get_mount_path(image_id)
+        with serialized_mounts():
+            failsafe_makedirs(mount_path)
+            image_mount(image_id, mount_path)
+        setup(image_id, mount_path, image_size_kib, img_print)
+        img_print("mounting done")
+    else:
+        sys.exit(USAGE)
 
 
 if __name__ == "__main__":

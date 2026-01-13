@@ -32,3 +32,7 @@ class SSAPI(APISession):
     @api_expose_method
     def revoke_vpn_auth_key(self, context, cert_id):
         return context.server.vpn.revoke_vpn_auth_key(cert_id)
+
+    @api_expose_method
+    def get_exports_info(self, context):
+        return context.server.images.store.get_exports_info()

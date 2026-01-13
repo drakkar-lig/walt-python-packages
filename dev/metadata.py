@@ -123,6 +123,7 @@ PACKAGE_SPECIFIC_INFO = {
                     "walt-server-vpn = walt.server.services.vpn:run",
                     "walt-server-vpn-endpoint = walt.server.vpn.endpoint:run",
                     "walt-vpn-admin = walt.server.vpn.admin:run",
+                    "walt-update-exports = walt.server.exports.update:run",
                 ]
             },
             scripts=["sh/walt-image-shell-helper",

@@ -26,6 +26,7 @@ from walt.server.tools import get_server_ip, update_template
 # * if they should be moved to directory "/bin/_walt_internal_/"
 NODE_SCRIPTS = {
     "walt-env": (True, False),
+    "walt-fetch-node-config": (True, True),
     "walt-log-echo": (False, False),
     "walt-log-cat": (False, False),
     "walt-log-tee": (False, False),
@@ -33,7 +34,7 @@ NODE_SCRIPTS = {
     "walt-cat": (False, False),
     "walt-tee": (False, False),
     "walt-timeout": (False, True),
-    "walt-rpc": (True, True),
+    "walt-rpc": (False, True),
     "walt-clock-sync": (False, True),
     "walt-notify-bootup": (False, True),
     "walt-init": (False, False),
@@ -56,6 +57,7 @@ NODE_SCRIPTS = {
 TEMPLATE_ENV = dict(
     server_mac=get_mac_address(WALT_INTF),
     server_ip=str(get_server_ip()),
+    walt_server_tcp_port=WALT_SERVER_TCP_PORT,
     walt_server_rpc_port=WALT_SERVER_DAEMON_PORT,
     walt_server_logs_port=WALT_SERVER_TCP_PORT,
     walt_server_notify_bootup_port=WALT_SERVER_TCP_PORT,

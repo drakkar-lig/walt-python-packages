@@ -1,9 +1,11 @@
 import errno
+import fcntl
 import itertools
 import json
 import numpy as np
 import socket
 import sys
+from contextlib import contextmanager
 from ipaddress import IPv4Address, ip_address, ip_network
 from time import time, sleep
 from typing import Union
@@ -603,3 +605,14 @@ def wait_message_read():
         sleep(0.28)
     print("\r" + " " * 72 + "\r", end="")
     sys.stdout.flush()
+
+
+@contextmanager
+def serialized(lock_path):
+    lock_path.touch()
+    with lock_path.open() as fd:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        yield
+        fcntl.flock(fd, fcntl.LOCK_UN)
+
+
