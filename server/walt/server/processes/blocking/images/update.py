@@ -37,7 +37,7 @@ async def async_update_default_images(requester, server, update_info):
                 f'Updating {fullname} using a newer version from {location}...\n')
             registry.pull(requester, server, fullname)
         server.images.store.resync_from_registry()
-        server.images.store.trigger_update_image_mounts()
+        server.exports.trigger_update()
     else:
         requester.stdout.write('No updates available.\n')
     # return the list of updated image fullnames

@@ -15,10 +15,6 @@ from walt.common.tcp import Requests, write_pickle, MyPickle as pickle
 SQL_SHELL_MESSAGE = """\
 Type \\dt for a list of tables.
 """
-NODE_SHELL_MESSAGE = """\
-Caution: changes outside /persist will be lost on next node reboot.
-Run 'walt help show shells' for more info.
-"""
 
 
 def isatty():
