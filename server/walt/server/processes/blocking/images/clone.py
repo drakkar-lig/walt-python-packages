@@ -245,6 +245,7 @@ class WorkflowCleaner:
         self,
         ok,
         walt_local_repo,
+        server,
         image_store,
         saved_images,
         ws_image_fullname,
@@ -265,7 +266,7 @@ class WorkflowCleaner:
         # (otherwise we just restored things from backup, so there was no change)
         if ok:
             image_store.resync_from_registry()
-            image_store.trigger_update_image_mounts()
+            server.exports.trigger_update()
 
 
 # workflow management functions

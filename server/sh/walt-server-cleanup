@@ -26,10 +26,11 @@ then
     umount $(mount | awk '{print $3}' | grep "/var/lib/walt")
 fi
 
-# remove buildah containers
-buildah ps --quiet | while read cid
+# remove buildah containers, except node-rw ones
+buildah containers --format "{{.ContainerName}}" | \
+    grep -v "^mount:node-rw" | while read cname
 do
-    buildah rm $cid
+    buildah rm $cname
 done
 
 # stop running podman containers
@@ -53,13 +54,35 @@ done
 # to import images built elsewhere) and possibly forget to rename
 # them. Those images sometimes conflict with images having the proper
 # "docker.io/" prefix.
-tmp_images=$(podman images | \
-             grep localhost/ | \
-             awk '{print $1 ":" $2}')
+# note: node-rw images must be preserved too.
+tmp_images=$(podman images --format "{{.Repository}}:{{.Tag}}" | \
+             grep "^localhost/" | \
+             grep -v "mount:node-rw-")
 if [ ! -z "$tmp_images" ]
 then
     podman rmi $tmp_images
 fi
+
+# analyse buildah node-rw images, find the obsolete ones,
+# and remove them with their corresponding container.
+# we should keep only the last one for a given mac address.
+# note: this relies on the fact "buildah images" lists most
+# recent images first.
+buildah images --format '{{.Name}}:{{.Tag}}' | grep ":node-rw-" | {
+    old_mac=""
+    while read fullname
+    do
+        cname="$(echo $fullname | sed -e "s/^.*\/walt\///")"
+        mac=$(echo "$cname" | sed -e "s/^.*node-rw-//" -e "s/-.*$//")
+        if [ "$mac" = "$old_mac" ]
+        then
+            # this one is obsolete, remove it
+            buildah rm "$cname"
+            buildah rmi "$fullname"
+        fi
+        old_mac="$mac"
+    done
+}
 
 # remove content of any non-empty image mounpoints
 # (Having content there may happen with badly broken

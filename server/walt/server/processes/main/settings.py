@@ -7,7 +7,6 @@ from walt.common.formatting import format_sentence
 from walt.common.netsetup import NetSetup
 from walt.common.settings import parse_vnode_disks_value, parse_vnode_networks_value
 from walt.common.tools import do
-from walt.server.processes.main.network import tftp
 from walt.server.processes.main.nodes.manager import (
     VNODE_DEFAULT_CPU_CORES,
     VNODE_DEFAULT_DISKS,
@@ -21,6 +20,11 @@ from walt.server.processes.main.nodes.manager import (
 from walt.server.tools import ip_in_walt_network, np_record_to_dict, get_server_ip
 
 PPRINT_NONE = "<unspecified>"
+NODE_DEFAULT_BOOT_MODE = "network-volatile"
+BOOT_MODES = ("network-volatile",
+              "network-persistent",
+              "hybrid-volatile",
+              "hybrid-persistent")
 
 
 def uncapitalize(s):
@@ -104,6 +108,11 @@ class SettingsManager:
                 "value-check": self.correct_boot_timeout,
                 "default": NODE_DEFAULT_BOOT_TIMEOUT,
                 "pretty_print": lambda s: ("none" if s is None else str(s)),
+            },
+            "boot.mode": {
+                "category": "nodes",
+                "value-check": self.correct_boot_mode,
+                "default": NODE_DEFAULT_BOOT_MODE,
             },
             "networks": {
                 "category": "virtual-nodes",
@@ -318,6 +327,9 @@ class SettingsManager:
                 + "        Check 'walt help show device-config' for more info.\n"
             )
             return False
+        warnings = parsing[2]
+        for warn in warnings:
+            requester.stderr.write(f"{warn}\n")
         return True
 
     def correct_boot_delay(
@@ -367,6 +379,17 @@ class SettingsManager:
                 "for some OS images.\n"
                 f"        Only \"none\" and values higher than {NODE_MIN_BOOT_TIMEOUT}"
                 " are allowed for this setting.\n"
+            )
+            return False
+        return True
+
+    def correct_boot_mode(
+        self, requester, device_infos, setting_name, setting_value, all_settings
+    ):
+        if setting_value not in BOOT_MODES:
+            requester.stderr.write(
+                "Failed: value of setting 'boot.mode' should be one of:\n"
+                + "".join(f"- {mode}\n" for mode in BOOT_MODES)
             )
             return False
         return True
@@ -578,7 +601,7 @@ class SettingsManager:
 
         # effectively configure the devices
         should_reboot_devices = False
-        should_update_tftp = False
+        should_update_exports = False
         db_settings = all_settings.copy()
         for setting_name, setting_value in all_settings.items():
             if setting_name == "netsetup":
@@ -645,7 +668,7 @@ class SettingsManager:
                 setting_value = setting_value.lower() == "true"
                 db_settings[setting_name] = setting_value
                 should_reboot_devices = True
-                should_update_tftp = True
+                should_update_exports = True
             elif setting_name == "snmp.version":
                 db_settings[setting_name] = int(setting_value)
             elif setting_name == "snmp.community":
@@ -664,6 +687,10 @@ class SettingsManager:
                 for device_info in device_infos:
                     self.server.expose.apply(
                             requester, device_info.ip, setting_value)
+            elif setting_name == "boot.mode":
+                db_settings[setting_name] = setting_value
+                should_reboot_devices = True
+                should_update_exports = True
 
         # save in db
         new_vals = json.dumps(db_settings)
@@ -674,9 +701,9 @@ class SettingsManager:
             )
         self.server.db.commit()
 
-        # update tftp links if needed
-        if should_update_tftp:
-            tftp.update(self.server.db, self.server.images.store)
+        # update OS exports if needed
+        if should_update_exports:
+            self.server.exports.trigger_update()
 
         # notify user
         if should_reboot_devices:

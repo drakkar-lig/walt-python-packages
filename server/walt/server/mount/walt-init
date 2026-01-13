@@ -20,6 +20,7 @@ ROOTFS_IMAGE_SCRIPTS="
     /bin/walt-log-tee
     /bin/walt-log-cat
     /bin/walt-log-echo
+    /bin/_walt_internal_/walt-fetch-node-config
     /bin/_walt_internal_/walt-rpc
     /bin/_walt_internal_/walt-clock-sync
     /bin/_walt_internal_/walt-timeout
