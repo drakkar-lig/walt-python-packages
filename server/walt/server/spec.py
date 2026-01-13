@@ -1,6 +1,5 @@
 import os
 import shlex
-import shutil
 import sys
 from pathlib import Path
 
@@ -71,6 +70,8 @@ def update_templates(image_path, image_spec, template_env, img_print=print):
 
 
 def copy_server_spec_file(image_path):
-    target_path = image_path + str(SERVER_SPEC_PATH)
-    failsafe_makedirs(os.path.dirname(target_path))
-    shutil.copy(SERVER_SPEC_PATH, target_path)
+    target_path = Path(image_path + str(SERVER_SPEC_PATH))
+    failsafe_makedirs(str(target_path.parent))
+    content = SERVER_SPEC_PATH.read_text()
+    if not target_path.exists() or target_path.read_text() != content:
+        target_path.write_text(content)

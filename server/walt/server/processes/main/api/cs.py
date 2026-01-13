@@ -306,6 +306,10 @@ class CSAPI(APISession):
         ))
 
     @api_expose_method
+    def get_node_cmd_startup_msg(self, context, node_name):
+        return context.server.nodes.get_node_cmd_startup_msg(node_name)
+
+    @api_expose_method
     def shell_autocomplete(self, context, username, argv, debug=False):
         return context.server.shell_autocomplete(
             context.task, context.requester, username, argv, debug=debug

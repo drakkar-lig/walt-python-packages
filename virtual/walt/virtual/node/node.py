@@ -144,23 +144,12 @@ def apply_disk_template(disk_path, disk_template):
     elif disk_template == "swap":
         part_type = "82"    # "Linux swap"
         mkfs = "mkswap"
-        init_content = None
     elif disk_template == "fat32":
         part_type = "0c"    # "W95 FAT32 (LBA)"
         mkfs = "mkfs.vfat -S 512"
-        init_content = None
     elif disk_template == "ext4":
         part_type = "83"    # "Linux"
         mkfs = "mkfs.ext4"
-        init_content = None
-    elif disk_template in ("hybrid-boot-v", "hybrid-boot-p"):
-        part_type = "83"    # "Linux"
-        init_content = tempfile.TemporaryDirectory()
-        walt_hybrid_dir = Path(f"{init_content.name}/walt_hybrid")
-        walt_hybrid_dir.mkdir()
-        if disk_template == "hybrid-boot-p":
-            (walt_hybrid_dir / ".persistent").touch()
-        mkfs = f"mkfs.ext4 -d {init_content.name}"
     # format the disk
     sfdisk_cmd = f"sfdisk --no-reread --no-tell-kernel {disk_path}"
     subprocess.run(shlex.split(sfdisk_cmd),
@@ -179,9 +168,6 @@ def apply_disk_template(disk_path, disk_template):
     # release the loop device
     subprocess.run(shlex.split(
         f"losetup -d {loop_device}"))
-    # cleanup
-    if init_content is not None:
-        init_content.cleanup()
 
 
 def get_qemu_disks_args(disks_path, disks_info):
@@ -324,6 +310,8 @@ class VMParameters:
         parsing = parse_vnode_disks_value(disks_value)
         if parsing[0] is False:
             raise ValueError(f"Invalid value for disks: {parsing[1]}")
+        for warn in parsing[2]:
+            print(f"{warn}\n")
         self._disks_info = parsing[1]
         self._disks = disks_value
 
