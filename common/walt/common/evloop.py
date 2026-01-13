@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import contextlib
+import functools
 import os
 import signal
 from heapq import heappop, heappush
@@ -50,6 +51,8 @@ class PIDListener:
 
 # This object allows to implement ev_loop.do(<cmd>, <callback>)
 class ProcessListener:
+    _num_processes = 0
+
     def __init__(self, cmd, callback, silent, catch_stdout, catch_stderr):
         self._cmd = cmd
         self._callback = callback
@@ -60,6 +63,7 @@ class ProcessListener:
         self._pidfd = None
 
     def start(self):
+        ProcessListener._num_processes += 1
         if self._catch_stdout:
             stdout = PIPE
         elif self._silent:
@@ -83,6 +87,7 @@ class ProcessListener:
     def close(self):
         os.close(self._pidfd)
         retcode = self._popen.wait()
+        ProcessListener._num_processes -= 1
         if self._callback is not None:
             kwargs = {}
             if self._catch_stdout:
@@ -159,6 +164,9 @@ class EventLoop(object):
         # the caller can set this attribute with a context
         # manager object if needed.
         self.idle_section_hook = contextlib.nullcontext
+
+    def has_bg_processes(self):
+        return ProcessListener._num_processes > 0
 
     def get_polling_fds(self, single_listener=None):
         if single_listener is None:
@@ -355,9 +363,25 @@ class EventLoop(object):
 
     def do(self, cmd, callback=None, silent=True,
            catch_stdout=False, catch_stderr=False):
+        if callback is None:
+            callback = functools.partial(self._check_retcode, cmd)
         p = ProcessListener(cmd, callback, silent, catch_stdout, catch_stderr)
         p.start()
         self.register_listener(p)
+
+    def _check_retcode(self, cmd, retcode):
+        if retcode != 0:
+            raise Exception(f"Failed call to: {cmd}!")
+
+    # This function works with server's Worflow objects
+    def wf_do(self, wf, cmd, **kwargs):
+        self.do(cmd,
+                functools.partial(self._wf_check_retcode, wf, cmd),
+                **kwargs)
+
+    def _wf_check_retcode(self, wf, cmd, retcode):
+        self._check_retcode(cmd, retcode)
+        wf.next()
 
     def auto_waitpid(self, pid, wait_cb=None):
         p = PIDListener(pid, wait_cb)

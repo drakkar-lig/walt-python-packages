@@ -1,0 +1,6 @@
+#!/bin/sh
+
+walt_server_ip="%(server_ip)s"
+walt_server_tcp_port="%(walt_server_tcp_port)s"
+echo REQ_FETCH_NODE_CONFIG | \
+    busybox nc "$walt_server_ip" "$walt_server_tcp_port"
