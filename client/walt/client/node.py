@@ -51,11 +51,11 @@ class WalTNode(WalTCategoryApplication):
         node_set,
         several_nodes_allowed,
         cmdargs,
-        startup_msg=None,
+        show_startup_msg=False,
         tty=False,
         capture_output=False,
     ):
-        nodes_ip = None
+        nodes_ip, startup_msg = None, None
         if several_nodes_allowed and capture_output:
             sys.stderr.write("Error: Only one node allowed when capturing output.\n")
             return
@@ -70,10 +70,13 @@ class WalTNode(WalTCategoryApplication):
                 return
             if not WalTNode.wait_for_nodes(server, node_set):
                 return False
+            if show_startup_msg:
+                assert several_nodes_allowed is False
+                startup_msg = server.get_node_cmd_startup_msg(node_set)
         if nodes_ip:
             for ip in nodes_ip:
                 if startup_msg:
-                    print(startup_msg)
+                    print("\x1b[1m" + startup_msg + "\x1b[0m")
                 from walt.client.interactive import run_node_cmd
                 res = run_node_cmd(ip, cmdargs, tty, capture_output)
                 if capture_output:
@@ -445,8 +448,8 @@ class WalTNodeShell(WalTApplication):
     ORDERING = 5
 
     def main(self, node_name: NODE):
-        from walt.client.interactive import NODE_SHELL_MESSAGE
-        WalTNode.run_cmd(node_name, False, [], startup_msg=NODE_SHELL_MESSAGE, tty=True)
+        WalTNode.run_cmd(node_name, False, [],
+                         show_startup_msg=True, tty=True)
 
 
 @WalTNode.subcommand("run")

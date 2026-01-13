@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# This scripts dumps the upperdir corresponding to the given
+# mount path (argument 1), as a tar archive stream on stdout,
+# excluding a few well-known paths.
+
+set -e
+mount_point="$1"
+
+# get the upperdir
+upperdir=$(findmnt --json "$mount_point" | \
+             grep -o "upperdir=[^,]*" | \
+             sed -e "s/.*=//")
+
+# dump as a tar stream
+tar -cf - --exclude "log" \
+          --exclude "*.lock" \
+          --exclude "machine-id" \
+          --exclude "walt-env" \
+          --exclude "_walt_internal_" \
+          --exclude "README.nonlocal" \
+          -C "$upperdir" .

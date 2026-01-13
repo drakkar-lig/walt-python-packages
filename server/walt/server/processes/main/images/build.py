@@ -5,23 +5,20 @@ import typing
 from walt.server.workflow import Workflow
 from walt.server.processes.main.transfer import format_node_diff_dump_command
 
-if typing.TYPE_CHECKING:
-    from walt.server.processes.main.images.store import NodeImageStore
-
 
 # About terminology: See comment about it in image.py.
 class ImageBuildSession(object):
     def __init__(
         self,
-        blocking,
-        store: NodeImageStore,
+        server,
         image_fullname: str,
         image_overwrite: bool,
         **info,
     ):
-        self.blocking = blocking
-        self.store = store
-        self.registry = store.registry
+        self.blocking = server.blocking
+        self.store = server.images.store
+        self.registry = self.store.registry
+        self.exports = server.exports
         self.image_fullname = image_fullname
         self.image_overwrite = image_overwrite
         self.info = info
@@ -59,7 +56,9 @@ class ImageBuildSession(object):
         node = server.nodes.get_node_info(requester, node_name)
         if node is None:
             return False
-        node_diff_dump_cmd = format_node_diff_dump_command(node.ip)
+        boot_mode = node.conf.get("boot.mode", "network-volatile")
+        node_diff_dump_cmd = format_node_diff_dump_command(
+                                    node.ip, boot_mode)
         self._run_image_build_from_cmd(requester, task, [
                                        "walt-image-build-helper",
                                        "--from-node-diff",
@@ -74,7 +73,7 @@ class ImageBuildSession(object):
         self.store.resync_from_registry()
         wf = Workflow(
             [
-                self.store.wf_update_image_mounts,
+                self.exports.wf_update,
                 self.wf_reboot_nodes,
                 self.wf_return_result,
             ],

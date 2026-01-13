@@ -15,23 +15,20 @@ Their purpose is very different.
 
 `walt node shell` just wraps a ssh session to the node.
 
-Warning: in the default boot mode, a WalT node is a very **volatile**
-environment. Each time a node reboots, it loses all modifications made
-on files (created, suppressed, modified), and restarts from the original
-files of the OS image it boots.
+Warning: in the default boot mode, `network-volatile`, a WalT node
+is a very **volatile** environment. Each time the node reboots, it loses
+all modifications made on files (created, suppressed, modified), and
+restarts from the original files of the OS image it boots.
 This ensures that a node booting a given image will always act the same.
-(See [`walt help show node-bootup`](node-bootup.md) for a more technical
-explanation on this aspect.)
 
 However, for convenience, a directory `/persist` is available on each node.
 Data stored there do remain available accross reboots. You can use it to
 store large experiment results files for instance.
-`/persist` is a read-write NFS-mount: data is actually stored on the server.
+See [`walt help show slash-persist`](slash-persist.md) for more info.
 
-For more specific needs, you may also consider the hybrid-persistent boot
-mode (see [`walt help show boot-modes`](boot-modes.md)) to make the whole OS
+For more specific needs, you may also consider alternate boot modes
+(see [`walt help show boot-modes`](boot-modes.md)), and make the whole OS
 persistent.
-
 
 
 ## `walt image shell`: modification of operating system
@@ -100,7 +97,7 @@ In this case, one may resort to:
 - do the changes directly on the node and then save the modified OS using
   `walt node save`; see [`walt help show node-save`](node-save.md).
 - or automate a part of this setup procedure at node bootup
-- or use the hybrid-persistent boot mode (cf. [`walt help show boot-modes`](boot-modes.md)).
+- or use one of the `persistent` boot modes (cf. [`walt help show boot-modes`](boot-modes.md)).
 
 Actually, even if the image supports starting the OS, `walt image shell`
 still runs in a container, which may be a problem in some cases.
@@ -144,8 +141,8 @@ in this shell will involve **CPU emulation**, leading to a slower behavior.
 The other options to modify an OS image are:
 * `walt image cp`: add a file or directory to a given image. See [`walt help show image-cp`](image-cp.md).
 * `walt image build`: build an image by using a Dockerfile. See [`walt help show image-build`](image-build.md).
-* `walt node save`: save OS modifications you have done directly on a node to a new WalT image.
-  See [`walt help show node-save`](node-save.md).
+* `walt node save`: save OS modifications you have done directly on a node
+  to a new WalT image. See [`walt help show node-save`](node-save.md).
 
 
 ## Summary table
@@ -158,4 +155,4 @@ The following table summarizes usage of these 2 commands and their limits.
 | backend         | the real node              | virtual environment, possible CPU emulation |
 | target workflow | testing/debugging          | apply changes                               |
 
-(1): unless using the hybrid-persistent mode (cf. [`walt help show boot-modes`](boot-modes.md)).
+(1): unless the boot-mode was modified (cf. [`walt help show boot-modes`](boot-modes.md)).
