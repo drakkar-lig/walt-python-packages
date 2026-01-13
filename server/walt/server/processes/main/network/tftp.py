@@ -193,7 +193,7 @@ def update(db, images, cleanup=False):
         tftp_symlinks = ("SYMLINK ../../tftp-static " + db_nodes.mac + "/tftp")
     else:
         tftp_symlinks = (
-            "SYMLINK ../../images/" + image_ids + "/fs/boot/" + db_nodes.model +
+            "SYMLINK fs/boot/" + db_nodes.model +
             " " + db_nodes.mac + "/tftp")
     # -- declare persist symlinks
     mask_persist = db_nodes.persist.astype(bool)
