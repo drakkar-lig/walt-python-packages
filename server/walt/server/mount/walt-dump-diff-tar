@@ -95,10 +95,19 @@ list_files() {
     busybox find "$1" '(' -type f -o -type l ')' | filter_out_files
 }
 
-dump_archive_network_boot() {
+dump_archive_network_v_boot() {
     tmp_dir="/run/walt/rootfs/tmp/d$$"
     cd /run/walt/rootfs/mnt/fs_rw
     list_files_modified_after_os_bootup | hard_link_files
+    cd "${tmp_dir}"
+    busybox tar cf - .
+    rm -rf "${tmp_dir}"
+}
+
+dump_archive_network_p_boot() {
+    tmp_dir="/persist/network-persistent/tmp/d$$"
+    cd "/persist/network-persistent/${walt_image_id}/diff"
+    list_files "." | hard_link_files
     cd "${tmp_dir}"
     busybox tar cf - .
     rm -rf "${tmp_dir}"
@@ -133,9 +142,12 @@ dump_archive_hybrid_p_boot() {
 }
 
 dump_archive() {
-    if [ "$walt_boot_mode" = 'network' ]
+    if [ "$walt_boot_mode" = 'network-volatile' ]
     then
-        dump_archive_network_boot
+        dump_archive_network_v_boot
+    elif [ "$walt_boot_mode" = 'network-persistent' ]
+    then
+        dump_archive_network_p_boot
     elif [ "$walt_boot_mode" = 'hybrid-volatile' ]
     then
         dump_archive_hybrid_v_boot

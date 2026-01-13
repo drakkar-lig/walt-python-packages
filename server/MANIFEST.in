@@ -1,6 +1,6 @@
 include walt/server/mount/walt-*
-include walt/server/processes/main/network/walt-*.kpxe
-include walt/server/processes/main/network/tftp-static.tar.gz
+include walt/server/exports/walt-*.kpxe
+include walt/server/exports/tftp-static.tar.gz
 include walt/server/vpn/vpn-ssh-ep-setup.sh
 include walt/server/setup/*.service
 include walt/server/setup/*.socket
