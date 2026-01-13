@@ -25,7 +25,6 @@ from walt.server.processes.main.exports import FilesystemsExporter
 from walt.server.processes.main.images.manager import NodeImageManager
 from walt.server.processes.main.interactive import InteractionManager
 from walt.server.processes.main.logs import LogsManager
-from walt.server.processes.main.network import tftp
 from walt.server.processes.main.network.dhcpd import DHCPServer
 from walt.server.processes.main.network.named import DNSServer
 from walt.server.processes.main.nodes.manager import NodesManager
@@ -59,7 +58,7 @@ class Server(object):
         self.devices = DevicesManager(self)
         self.dhcpd = DHCPServer(self.db, self.ev_loop)
         self.named = DNSServer(self.db, self.ev_loop)
-        self.exports = FilesystemsExporter(self.db)
+        self.exports = FilesystemsExporter(self)
         self.images = NodeImageManager(self)
         self.interaction = InteractionManager(self.tcp_server, self.ev_loop)
         self.unix_server = UnixSocketServer(self)
@@ -95,7 +94,6 @@ class Server(object):
         self.logs.prepare()
         self.logs.catch_std_streams()
         self.registry.prepare()
-        tftp.prepare()
         self.tcp_server.prepare(self.ev_loop)
         self.unix_server.prepare(self.ev_loop)
         # ensure the dhcp server is running,
@@ -105,15 +103,11 @@ class Server(object):
         # the topology.
         self.dhcpd.update(force=True)
         self.named.update(force=True)
-        # exportfs will be called after image mounts,
-        # no need to call it twice
-        self.exports.update_persist_exports(run_exportfs=False)
-        self.images.prepare()
         self.devices.prepare()
         self.nodes.prepare()
         self.vpn.prepare()
 
-    def _wf_after_images_update(self, wf, **env):
+    def _wf_after_exports_update(self, wf, **env):
         # enable PoE if some ports remained off
         self.poe.restore_poe_on_all_ports()
         # restores nodes setup
@@ -124,8 +118,10 @@ class Server(object):
         wf.next()
 
     def update(self):
-        wf = Workflow([self.images.wf_update,
-                       self._wf_after_images_update])
+        self.images.store.resync_from_db()
+        wf = Workflow([self.exports.wf_prepare,
+                       self.exports.wf_update,
+                       self._wf_after_exports_update])
         wf.run()
 
     def cleanup(self):
@@ -134,12 +130,8 @@ class Server(object):
         self.tcp_server.shutdown()
         self.expose.cleanup()
         APISession.cleanup_all()
-        tftp.update(self.db, self.images.store, cleanup=True)
-        # exportfs will be called before image unmounts,
-        # no need to call it twice
-        self.exports.update_persist_exports(
-                cleanup=True, run_exportfs=False)
-        self.images.cleanup()
+        self.images.store.filesystems.cleanup()
+        self.exports.cleanup()
         self.nodes.cleanup()
         self.devices.cleanup()
         # continue event loop until all popens and workflows
@@ -151,7 +143,9 @@ class Server(object):
         self.logs.logs_to_db.flush()
 
     def continue_evloop(self, t0):
-        if BetterPopen.can_end_evloop() and Workflow.can_end_evloop():
+        if (BetterPopen.can_end_evloop() and
+            Workflow.can_end_evloop() and
+            not self.ev_loop.has_bg_processes()):
             return False  # loop can be stopped
         elif time() - t0 > 10.0:
             Workflow.cleanup_remaining_workflows()
@@ -228,7 +222,7 @@ class Server(object):
         if device is not None:
             self.dhcpd.update()
             self.named.update()
-            tftp.update(self.db, self.images.store)
+            self.exports.trigger_update()
             if device.type == "node" and device.virtual:
                 self.nodes.vnode_rename(device.mac, new_name)
             return True
@@ -242,13 +236,14 @@ class Server(object):
         # the result of the task the hub process submitted to us
         # will not be available right now
         task.set_async()
-
         # 1. restore poe on switch ports
         # 2. let the blocking process do its job
         # 3. update network daemons and unblock the client
         wf = Workflow([self.poe.wf_rescan_restore_poe_on_switch_ports,
                        self._wf_device_rescan_blocking,
-                       self._wf_device_rescan_end])
+                       self._wf_device_rescan_save_result,
+                       self._wf_device_rescan_update_services,
+                       self._wf_device_rescan_return_result])
         wf.update_env(requester=requester,
                       devices=devices,
                       task=task)
@@ -259,11 +254,18 @@ class Server(object):
             requester, wf.next, devices=devices
         )
 
-    def _wf_device_rescan_end(self, wf, res, task, **env):
+    def _wf_device_rescan_save_result(self, wf, res, **env):
+        wf.update_env(rescan_res=res)
+        wf.next()
+
+    def _wf_device_rescan_update_services(self, wf, **env):
         self.dhcpd.update()
         self.named.update()
-        tftp.update(self.db, self.images.store)
-        task.return_result(res)
+        wf.insert_steps([self.exports.wf_update])
+        wf.next()
+
+    def _wf_device_rescan_return_result(self, wf, rescan_res, task, **env):
+        task.return_result(rescan_res)
         wf.next()   # end the workflow
 
     def report_lldp_neighbor(self, remote_ip, sw_mac, sw_port_lldp_label):
@@ -307,8 +309,7 @@ class Server(object):
             [
                 self.nodes.powersave.wf_forget_device,
                 self.wf_forget_device_other_steps,
-                self.exports.wf_update_persist_exports,
-                self.images.store.wf_update_image_mounts,
+                self.exports.wf_update,
                 self.wf_unblock_client,
             ],
             requester=requester,

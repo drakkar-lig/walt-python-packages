@@ -1,7 +1,7 @@
 import re
 
-DISK_TEMPLATES = set(("none", "swap", "ext4", "fat32",
-                      "hybrid-boot-v", "hybrid-boot-p"))
+DISK_TEMPLATES = set(("none", "swap", "ext4", "fat32"))
+OBSOLETE_HY_DISK_TEMPLATES = set(("hybrid-boot-v", "hybrid-boot-p"))
 
 
 def parse_vnode_disks_value(setting_value):
@@ -19,6 +19,7 @@ def parse_vnode_disks_value(setting_value):
         return False, f"Could not parse disks value '{setting_value}'."
     # analyse each disk spec
     _disks = []
+    _warnings = []
     for disk in setting_value.split(","):
         template_name = "none"  # default template
         if '[' in disk:
@@ -26,7 +27,11 @@ def parse_vnode_disks_value(setting_value):
             for option in options.split(','):
                 if len(option) > 9 and option[:9] == "template=":
                     template_name = option[9:]
-                    if template_name not in DISK_TEMPLATES:
+                    if template_name in OBSOLETE_HY_DISK_TEMPLATES:
+                        _warnings.append(
+                            f"Warning: '{template_name}' is obsolete, " +
+                             "use 'ext4' instead.")
+                    elif template_name not in DISK_TEMPLATES:
                         return (
                             False,
                             f"Disk template must be one of: {' '.join(DISK_TEMPLATES)}"
@@ -42,7 +47,7 @@ def parse_vnode_disks_value(setting_value):
         if capacity[-1] == "T":
             cap_gigabytes *= 1000
         _disks.append((cap_gigabytes, template_name))
-    return (True, _disks)
+    return (True, _disks, _warnings)
 
 
 def parse_vnode_networks_value(setting_value):

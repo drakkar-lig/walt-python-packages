@@ -1,19 +1,66 @@
 import errno
+import fcntl
 import itertools
 import json
 import numpy as np
+import shelve
 import socket
+
 import sys
+from contextlib import contextmanager
 from ipaddress import IPv4Address, ip_address, ip_network
+from pathlib import Path
 from time import time, sleep
 from typing import Union
 
+from walt.common.apilink import ServerAPILink
 from walt.common.evloop import POLL_OPS_READ, POLL_OPS_WRITE
 from walt.common.formatting import COLUMNATE_SPACING
-from walt.common.tools import set_close_on_exec
+from walt.common.tools import (
+        set_close_on_exec,
+        SilentBusyIndicator,
+)
 
 DEFAULT_JSON_HTTP_TIMEOUT = 10
 JSON_HTTP_RETRIES = 3
+
+
+def update_conf_file(path, content):
+    old_content = ""
+    if path.exists():
+        old_content = path.read_text()
+    if content != old_content:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content)
+        return True
+    return False
+
+
+def np_substr(arr, start, end):
+    """extract [start:end] substrings from the strings in arr"""
+    arr = arr.astype(str)
+    dt, height = arr.dtype, arr.size
+    width = dt.itemsize // np.dtype((dt.char, 1)).itemsize
+    return arr.view(
+            dtype=(dt.char, 1)
+           ).reshape(
+            (height, width)
+           )[:,start:end].view(
+            dtype=(dt.char, end-start)
+           )[:,0]
+
+
+def np_split_words(arr):
+    """split lines in arr and return a two-dimensional array"""
+    # we consider all lines in arr have the same number of spaces
+    numcols = len(arr[0].split(" "))
+    result = np.empty((len(arr), numcols), dtype=object)
+    for i in range(numcols-1):
+        partition = np.char.partition(arr, " ")
+        result[:,i] = partition[:,0]
+        arr = partition[:,2]
+    result[:,-1] = arr
+    return result
 
 
 def np_record_to_dict(record):
@@ -614,3 +661,64 @@ def wait_message_read():
         sleep(0.28)
     print("\r" + " " * 72 + "\r", end="")
     sys.stdout.flush()
+
+
+@contextmanager
+def serialized(lock_path):
+    lock_path.touch()
+    with lock_path.open() as fd:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        yield
+        fcntl.flock(fd, fcntl.LOCK_UN)
+
+
+class ConcurrentShelve:
+    def __init__(self, path):
+        self._path = Path(path)
+        self._lock_path = Path(str(path) + ".lock")
+    @contextmanager
+    def _get_shelve(self):
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        with serialized(self._lock_path):
+            with shelve.open(self._path) as obj:
+                yield obj
+    def __getitem__(self, item):
+        with self._get_shelve() as obj:
+            return obj[item]
+    def __setitem__(self, item, value):
+        with self._get_shelve() as obj:
+            obj[item] = value
+    def __delitem__(self, item):
+        with self._get_shelve() as obj:
+            del obj[item]
+    def asdict(self):
+        with self._get_shelve() as obj:
+            return dict(obj)
+    def __getattr__(self, method_name):
+        def method(*args, **kwargs):
+            with self._get_shelve() as obj:
+                # for methods which return an iterator, we make a copy as
+                # a dict because returning will end the with construct and
+                # close the shelve.
+                if method_name in ["keys", "items", "values"]:
+                    obj = dict(obj)
+                obj_method = getattr(obj, method_name)
+                return obj_method(*args, **kwargs)
+        return method
+    def __iter__(self):
+        return self.keys()
+
+
+@contextmanager
+def SSAPILink():
+    indicator = SilentBusyIndicator()
+    apilink = ServerAPILink("localhost",
+                            "SSAPI",
+                            busy_indicator=indicator)
+    try:
+        with apilink as server:
+            yield server
+    except ConnectionRefusedError:
+        sys.stderr.write("Could not connect to the SSAPI.\n")
+        sys.stderr.write("WalT main service is probably down.\n")
+        sys.exit(1)
