@@ -8,14 +8,14 @@ from walt.server.workflow import Workflow
 
 if typing.TYPE_CHECKING:
     from walt.server.processes.main.images.image import NodeImage
-    from walt.server.processes.main.images.store import NodeImageStore
 
 
 # About terminology: See comment about it in image.py.
 class ImageShellSession(object):
-    def __init__(self, images: NodeImageStore, image: NodeImage, task_label):
-        self.images = images
-        self.registry = images.registry
+    def __init__(self, server, image: NodeImage, task_label):
+        self.images = server.images.store
+        self.registry = server.registry
+        self.exports = server.exports
         self.image = image
         self.container_name = str(uuid.uuid4())
         self.events = self.registry.events()
@@ -72,7 +72,7 @@ class ImageShellSession(object):
             [
                 self.wf_commit_image,
                 self.wf_on_commit,
-                self.images.wf_update_image_mounts,
+                self.exports.wf_update,
                 self.wf_end_image_save,
             ],
             requester=requester,

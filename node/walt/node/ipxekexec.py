@@ -100,11 +100,12 @@ def kexec_reboot(env):
     cmd = cmd_args % env
     print(" ".join(cmd.split()))  # print with multiple spaces shrinked
     subprocess.call(cmd, shell=True)
-    # note: old walt servers did not define this env var walt_boot_mode,
-    # but they only had network boot mode.
-    boot_mode = os.environ.get("walt_boot_mode", "network")
+    # Note: old walt servers did not define this env var walt_boot_mode,
+    # but they only had the "network-volatile" boot mode.
+    # And "network-volatile" was previously called just "network".
+    boot_mode = os.environ.get("walt_boot_mode", "network-volatile")
     print(f"boot-mode: {boot_mode}")
-    if boot_mode == "network":
+    if boot_mode in ("network", "network-volatile"):
         # in this case, we are on a temporary RAM overlay,
         # so no need to wait for a clean shutdown, we can call
         # "kexec -e" right away.
