@@ -4,7 +4,7 @@ import typing
 import uuid
 
 from walt.common.tools import parse_image_fullname
-from walt.server.processes.main.workflow import Workflow
+from walt.server.workflow import Workflow
 
 if typing.TYPE_CHECKING:
     from walt.server.processes.main.images.image import NodeImage
