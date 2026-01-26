@@ -40,7 +40,7 @@ from walt.server.processes.main.transfer import (
 from walt.server.processes.main.unix import UnixSocketServer
 from walt.server.processes.main.vpn import VPNManager
 from walt.server.processes.main.poe import PoEManager
-from walt.server.processes.main.workflow import Workflow
+from walt.server.workflow import Workflow
 from walt.server.tools import np_record_to_dict
 
 KVM_DEV_FILE = Path("/dev/kvm")

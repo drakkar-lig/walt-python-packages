@@ -1,6 +1,6 @@
 import sys
 
-from walt.server.processes.main.workflow import Workflow
+from walt.server.workflow import Workflow
 
 currently_registering_macs = set()
 

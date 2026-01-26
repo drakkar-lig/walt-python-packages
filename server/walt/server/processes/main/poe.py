@@ -2,7 +2,7 @@ import functools
 import numpy as np
 import sys
 
-from walt.server.processes.main.workflow import Workflow
+from walt.server.workflow import Workflow
 
 WARNING_DEVICE_RESCAN_POE_OFF = """\
 NOTE: WALT previously turned off PoE on some switch ports for automatic powersaving.
