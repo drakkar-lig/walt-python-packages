@@ -12,7 +12,7 @@ from walt.common.tcp import MyPickle as pickle, Requests, read_pickle, write_pic
 from walt.common.udp import udp_server_socket
 from walt.server.regex import PosixExtendedRegex
 from walt.server.tools import get_server_ip, np_recarray_to_tuple_of_dicts
-from walt.server.processes.main.workflow import Workflow
+from walt.server.workflow import Workflow
 
 TEN_YEARS = 3600 * 24 * 365 * 10
 LOG_DT = [("timestamp", np.float64),
