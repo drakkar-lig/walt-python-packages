@@ -5,7 +5,7 @@ from time import time
 
 from walt.common.formatting import format_sentence_about_nodes
 from walt.server.processes.main.nodes.netservice import node_request
-from walt.server.processes.main.workflow import Workflow
+from walt.server.workflow import Workflow
 
 POE_REBOOT_DELAY = 2  # seconds
 

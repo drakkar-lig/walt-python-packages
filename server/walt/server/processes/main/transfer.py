@@ -6,7 +6,7 @@ from walt.common.tcp import Requests
 from walt.server.const import SSH_NODE_COMMAND
 from walt.server.mount.setup import script_path
 from walt.server.processes.main.parallel import ParallelProcessSocketListener
-from walt.server.processes.main.workflow import Workflow
+from walt.server.workflow import Workflow
 
 TYPE_CLIENT = 0
 TYPE_IMAGE_OR_NODE = 1
