@@ -25,7 +25,7 @@ from walt.server.processes.main.nodes.status import (
 )
 from walt.server.processes.main.nodes.status import NodeBootupStatusManager
 from walt.server.processes.main.nodes.wait import WaitInfo
-from walt.server.processes.main.workflow import Workflow
+from walt.server.workflow import Workflow
 from walt.server.tools import get_server_ip, get_walt_subnet, ip
 
 VNODE_DEFAULT_RAM = "512M"
