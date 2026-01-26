@@ -2,7 +2,7 @@ from collections import defaultdict
 from time import time
 
 from walt.common.formatting import format_sentence_about_nodes
-from walt.server.processes.main.workflow import Workflow
+from walt.server.workflow import Workflow
 
 POWERSAVE_TIMEOUT = 2 * 60 * 60  # 2 hours
 

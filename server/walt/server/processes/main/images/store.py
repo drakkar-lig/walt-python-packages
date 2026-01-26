@@ -12,7 +12,7 @@ from walt.server.processes.main.filesystem import FilesystemsCache
 from walt.server.processes.main.images.image import NodeImage
 from walt.server.processes.main.images.tools import handle_missing_credentials
 from walt.server.processes.main.network import tftp
-from walt.server.processes.main.workflow import Workflow
+from walt.server.workflow import Workflow
 
 if typing.TYPE_CHECKING:
     from walt.server.processes.main.server import Server

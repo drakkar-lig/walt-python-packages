@@ -20,7 +20,7 @@ from walt.server.processes.main.images.squash import squash
 from walt.server.processes.main.images.store import NodeImageStore
 from walt.server.processes.main.images.tabular import get_user_tabular_data
 from walt.server.processes.main.images.webapi import web_api_list_images
-from walt.server.processes.main.workflow import Workflow
+from walt.server.workflow import Workflow
 
 if typing.TYPE_CHECKING:
     from walt.server.processes.main.server import Server

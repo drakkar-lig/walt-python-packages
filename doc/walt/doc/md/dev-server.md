@@ -297,7 +297,7 @@ For more information about the database itself, see [`walt help show dev-server-
 ### Workflow objects
 
 Subprocess `server-main` makes frequent use of a class called `Workflow`.
-It is implemented in `server/walt/server/processes/main/workflow.py`.
+It is implemented in `server/walt/server/workflow.py`.
 
 For understanding the purpose of this class, let us consider the case of rebooting
 nodes. It is actually a complex process involving several kinds of callbacks called

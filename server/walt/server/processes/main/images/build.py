@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import typing
 
-from walt.server.processes.main.workflow import Workflow
+from walt.server.workflow import Workflow
 from walt.server.processes.main.transfer import format_node_diff_dump_command
 
 if typing.TYPE_CHECKING:

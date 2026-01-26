@@ -3,7 +3,7 @@ import re
 import shlex
 from time import time
 
-from walt.server.processes.main.workflow import Workflow
+from walt.server.workflow import Workflow
 
 S_QUOTE = "'"
 D_QUOTE = '"'
