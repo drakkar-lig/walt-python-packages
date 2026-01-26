@@ -3,7 +3,7 @@ from pathlib import Path
 
 from walt.server.processes.main.network import nbfs
 from walt.server.processes.main.network.nfs import NFSExporter
-from walt.server.processes.main.workflow import Workflow
+from walt.server.workflow import Workflow
 from walt.server.tools import get_walt_subnet
 
 SQL_NODES_PERSIST_PATHS = f"""
