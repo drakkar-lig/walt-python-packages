@@ -8,7 +8,7 @@ import typing
 from time import time
 
 from walt.common.tools import format_image_fullname
-from walt.server.mount.tools import get_mount_path
+from walt.server.mount.tools import get_image_mount_path
 from walt.server.processes.main.filesystem import FilesystemsCache
 from walt.server.processes.main.images.image import NodeImage
 from walt.server.processes.main.images.tools import handle_missing_credentials
@@ -76,7 +76,9 @@ SELECT d.mac, d.ip, d.name, d.type,
   ({RPI_MAC_CONDITION})
     as is_rpi,
   NULL
-    as image_id
+    as image_id,
+  NULL
+    as image_size_kib
 FROM devices d
 LEFT JOIN nodes n ON d.mac = n.mac
 WHERE d.ip IS NOT NULL
@@ -331,12 +333,14 @@ class NodeImageStore(object):
 
     def get_exports_info(self):
         db_devices = self.db.execute(QUERY_EXPORTS_INFO)
-        # extract nodes and retrieve their image_id
+        # extract nodes, retrieve their image_id and image size
         nodes_mask = (db_devices.type == 'node')
         db_nodes = db_devices[nodes_mask]
         metadata = self.registry.get_multiple_metadata(db_nodes.image)
         image_ids = np.fromiter((m["image_id"] for m in metadata), object)
         db_nodes.image_id[:] = image_ids
+        image_sizes = np.fromiter((m["size_kib"] for m in metadata), object)
+        db_nodes.image_size_kib[:] = image_sizes
         # compute rpi devices of type "unknown"
         unknown_rpis_mask = (db_devices.type == 'unknown')
         unknown_rpis_mask &= db_devices.is_rpi.astype(bool)
@@ -392,7 +396,7 @@ class NodeImageStore(object):
         if changes:
             # retrieve info for next steps
             images_info = set(
-                (image_id, get_mount_path(image_id)) for image_id in all_mounts
+                (image_id, get_image_mount_path(image_id)) for image_id in all_mounts
             )
             # next steps:
             # 1. mount images

@@ -128,7 +128,7 @@ def remove_if_link(path):
         os.remove(path)
 
 
-def fix_ptp(mount_path, img_print):
+def fix_ptp(mount_path, log_print):
     changed = False
     if not os.path.exists(mount_path + "/etc/ptpd.conf"):
         return
@@ -141,14 +141,14 @@ def fix_ptp(mount_path, img_print):
         confname, confval = confline.split("=")
         conf[confname.strip()] = confval.strip()
     if "ptpengine:ip_mode" not in conf or conf["ptpengine:ip_mode"] != "hybrid":
-        img_print("forcing hybrid ip_mode in ptp configuration.")
+        log_print("forcing hybrid ip_mode in ptp configuration.")
         conf["ptpengine:ip_mode"] = "hybrid"
         changed = True
     if (
         "ptpengine:log_delayreq_interval" not in conf
         or int(conf["ptpengine:log_delayreq_interval"]) < 3
     ):
-        img_print("setting delayreq_interval to 8s in ptp configuration.")
+        log_print("setting delayreq_interval to 8s in ptp configuration.")
         conf["ptpengine:log_delayreq_interval"] = "3"
         changed = True
     if changed:
@@ -163,22 +163,22 @@ def fix_ptp(mount_path, img_print):
 # Function fix_absolute_symlinks() replaces them with relative
 # symlinks targeting the expected file taking the image root
 # as reference.
-def fix_if_absolute_symlink(image_root, path, img_print):
+def fix_if_absolute_symlink(image_root, path, log_print):
     if os.path.islink(path):
         target = os.readlink(path)
         if target.startswith("/"):
-            img_print(("fixing " + path + " target (" + target + ")"))
+            log_print(("fixing " + path + " target (" + target + ")"))
             target = image_root + target
             failsafe_symlink(target, path, force_relative=True)
         # recursively fix the target if it is a symlink itself
-        fix_if_absolute_symlink(image_root, target, img_print)
+        fix_if_absolute_symlink(image_root, target, log_print)
 
 
-def fix_absolute_symlinks(image_root, dirpath, img_print):
+def fix_absolute_symlinks(image_root, dirpath, log_print):
     for root, dirs, files in os.walk(dirpath):
         for name in files:
             path = os.path.join(root, name)
-            fix_if_absolute_symlink(image_root, path, img_print)
+            fix_if_absolute_symlink(image_root, path, log_print)
 
 
 def update_timezone(mount_path):
@@ -201,16 +201,16 @@ def update_timezone(mount_path):
     image_etc_localtime.symlink_to(tz_file)
 
 
-def setup(image_id, mount_path, image_size_kib, img_print):
+def setup(image_id, mount_path, image_size_kib, log_print):
     try:
-        _setup(image_id, mount_path, image_size_kib, img_print)
+        _setup(image_id, mount_path, image_size_kib, log_print)
     except Exception as e:
-        img_print(f"WARNING: Caught exception '{str(e)}'", file=sys.stderr)
-        img_print("WARNING: Nodes may have problems booting this image!",
+        log_print(f"WARNING: Caught exception '{str(e)}'", file=sys.stderr)
+        log_print("WARNING: Nodes may have problems booting this image!",
               file=sys.stderr)
 
 
-def _setup(image_id, mount_path, image_size_kib, img_print):
+def _setup(image_id, mount_path, image_size_kib, log_print):
     # ensure FILES_APPEND var is completely defined
     if FILES_APPEND["/root/.ssh/authorized_keys"] is None:
         # ensure server has a pub key
@@ -258,7 +258,7 @@ def _setup(image_id, mount_path, image_size_kib, img_print):
     ):
         os.remove(mount_path + "/etc/hostname")  # probably a residual of image build
     # fix absolute symlinks in /boot
-    fix_absolute_symlinks(mount_path, mount_path + "/boot", img_print)
+    fix_absolute_symlinks(mount_path, mount_path + "/boot", log_print)
     # fix compatbility with old walt-node packages
     if os.path.exists(mount_path + "/usr/local/bin/walt-echo"):
         os.remove(mount_path + "/usr/local/bin/walt-echo")
@@ -283,12 +283,12 @@ def _setup(image_id, mount_path, image_size_kib, img_print):
     image_spec = spec.read_image_spec(mount_path)
     if image_spec is not None:
         # update template files specified there
-        spec.update_templates(mount_path, image_spec, env, img_print)
+        spec.update_templates(mount_path, image_spec, env, log_print)
         # update features matching those of the server
-        spec.enable_matching_features(mount_path, image_spec, img_print)
+        spec.enable_matching_features(mount_path, image_spec, log_print)
     # copy server spec file, just in case
     spec.copy_server_spec_file(mount_path)
     # fix PTP conf regarding unicast default mode too verbose on LAN
-    fix_ptp(mount_path, img_print)
+    fix_ptp(mount_path, log_print)
     # update timezone if the OS is using the standard Linux setup
     update_timezone(mount_path)

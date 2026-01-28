@@ -7,17 +7,32 @@ from importlib.resources import files
 from pathlib import Path
 from walt.common.apilink import ServerAPILink
 from walt.common.tools import failsafe_makedirs, failsafe_symlink
-from walt.server.exports.const import TFTP_ROOT
+from walt.server.exports.const import(
+        PXE_PATH,
+        NODES_PATH,
+        TFTP_STATIC_DIR,
+        TFTP_STATIC_DIR_TS,
+        NODE_PROBING_PATH,
+        NODE_PROBING_TFTP_PATH,
+        EXPORTS_STATUS_PATH,
+        TFTP_STANDBY_PATH,
+)
 from walt.server.exports import nfs, nbfs
+from walt.server.exports.ops.dirs import wf_add_dirs, wf_remove_dirs
+from walt.server.exports.ops.symlinks import (
+        wf_add_symlinks,
+        wf_remove_symlinks,
+)
+from walt.server.exports.ops.mounts import (
+        wf_mount_images,
+        wf_mount_nodes_rw,
+        wf_umount_nodes_rw,
+        wf_umount_images,
+)
+from walt.server.exports.ops.nfs import wf_update_nfs
+from walt.server.exports.ops.nbfs import wf_update_nbfs
 from walt.server.mount.tools import detect_mounts
-
-PXE_PATH = TFTP_ROOT / "pxe"
-NODES_PATH = TFTP_ROOT / "nodes"
-TFTP_STATIC_DIR = TFTP_ROOT / "tftp-static"
-TFTP_STATIC_DIR_TS = 1741598952
-NODE_PROBING_PATH = NODES_PATH / 'probing'
-NODE_PROBING_TFTP_PATH = NODE_PROBING_PATH / 'tftp'
-EXPORTS_STATUS_PATH = TFTP_ROOT / "status.pickle"
+from walt.server.workflow import Workflow
 
 
 def save_exports_status(status):
@@ -25,32 +40,13 @@ def save_exports_status(status):
     EXPORTS_STATUS_PATH.write_bytes(pickle.dumps(status))
 
 
+def wf_save_exports_status(wf, new_status, **env):
+    save_exports_status(new_status)
+    wf.next()
+
+
 def is_real_dir(path):
     return not path.is_symlink() and path.is_dir()
-
-
-def _wf_check_retcode(wf, verb, retcode, **env):
-    if retcode != 0:
-        raise Exception(f"Failed to {verb} an image")
-    wf.next()
-
-
-def _wf_unmount(self, wf, image_id, deadlines, ev_loop, **env):
-    deadlines.pop(image_id, None)
-    ev_loop.do(
-            f"walt-image-umount {image_id}",
-            functools.partial(_wf_check_retcode, wf, "umount"),
-            silent=False)
-
-
-def _wf_unmount_images(self, wf, image_ids_pending_unmount, **env):
-    if len(image_ids_pending_unmount) > 0:
-        steps = []
-        for image_id in image_ids_pending_unmount:
-            step = functools.partial(_wf_unmount, image_id=image_id)
-            steps.append(step)
-        wf.insert_parallel_steps(steps)
-    wf.next()
 
 
 # Note about <node>:/persist NFS target
@@ -66,6 +62,42 @@ def _wf_unmount_images(self, wf, image_ids_pending_unmount, **env):
 #    so the mount is bypassed.)
 # This new setting allows sharing the use of the persistent directory
 # of a node between several users.
+
+# When the last node using an image is associated to another image,
+# this previous image should be unmounted since it is not used anymore.
+# however, if this image defines /bin/walt-reboot, rebooting the node
+# involves code from this previous image. In order to allow this pattern,
+# we implement a grace period before an unused image is really unmounted.
+# 1st call to wf_update_image_mounts() defines a deadline; next calls verify
+# if this deadline is reached and if true unmount the image.
+# If ever an image is reused before the grace time is expired, then the
+# deadline is removed.
+
+MOUNT_GRACE_TIME = 60
+MOUNT_GRACE_TIME_MARGIN = 10
+deadlines = {}
+
+def apply_grace_time_period(directive):
+    global deadlines
+    deadline = deadlines.get(directive)
+    if deadline is None:
+        # first time check: set the deadline value
+        deadlines[directive] = curr_time + MOUNT_GRACE_TIME
+        return True
+    else:
+        # next checks: check if the deadline is reached
+        if time() < deadline:
+            # deadline not reached, still in the grace time period
+            return True
+        else:
+            # deadline was reached
+            del deadlines[directive]
+            return False
+
+
+def get_grace_time_recall():
+    TODO: min of directive values or none
+    recall the main process
 
 
 def revert_to_empty_status():
@@ -96,14 +128,17 @@ def revert_to_empty_status():
                             node_dir_entry.unlink()
             else:
                 node_entry.unlink()
-    # detect OS image mounts and initialize the status with that
+    # detect OS image mounts and initialize the status with just that
     status = set()
     image_ids, node_rw_mounts = detect_mounts()
     if len(image_ids) > 0:
-        status |= ("MOUNT-IMAGE " + image_ids)
+        status |= ("MOUNT-IMAGE " + images.image_id + " " +
+                   images.size_kib)
     if len(node_rw_mounts) > 0:
-        status |= ("MOUNT-NODE-RW " + nodes_rw.mac + " " +
-                   nodes_rw.image_id + " " + nodes_rw.image)
+        status |= ("MOUNT-NODE-RW " +
+                    nodes_rw.mac + " " +
+                    nodes_rw.image_id + " " +
+                    nodes_rw.image)
     save_exports_status(status)
     return status
 
@@ -136,9 +171,8 @@ def prepare():
             force_relative=True
         )
     # tftp-standby is an obsolete (<8.3) directory
-    tftp_standby = TFTP_ROOT / "tftp-standby"
-    if tftp_standby.exists():
-        shutil.rmtree(str(tftp_standby))
+    if TFTP_STANDBY_PATH.exists():
+        shutil.rmtree(str(TFTP_STANDBY_PATH))
 
 
 # Each node has a directory entry with:
@@ -230,12 +264,15 @@ def update(cleanup=False):
             "SYMLINK probing " + unknown_rpis.mac_dash,
             "SYMLINK probing " + unknown_rpis.name), dtype=object)
     # image mounts
-    image_mounts = ("MOUNT-IMAGE " + np.unique(db_nodes.image_id))
+    image_ids, uniq_idx = np.unique(db_nodes.image_id, return_index=True)
+    image_sizes = db_nodes.image_size_kib[uniq_idx]
+    image_mounts = ("MOUNT-IMAGE " + image_ids + " " + image_sizes)
     # node rw-mounts
     nodes_rw_mask = (db_nodes.boot_mode == 'network-persistent')
     nodes_rw = db_nodes[nodes_rw_mask]
     node_rw_mounts = ("MOUNT-NODE-RW " + nodes_rw.mac + " " +
-                      nodes_rw.image_id + " " + nodes_rw.image)
+                                         nodes_rw.image_id + " " +
+                                         nodes_rw.image)
     # -- compile the new status
     status = set(np.concatenate((
         mac_dirs, mac_dash_symlinks, ip_symlinks, name_symlinks,
@@ -245,78 +282,117 @@ def update(cleanup=False):
     if status == old_status:
         # nothing changed
         return
-    TODO :
-    gerer les directives MOUNT et NODE-RW-MOUNT, en demontage
-    * et en remontage. Attention dans l ordre il faut :
-      1-monter 2-update nfs/nbfs 3-demonter
-      le probleme c est pour les montages au meme endroit mais
-      differents dans l ancien status et le nouveau.
-      Pour simplifier on met le point de montage sur un repertoire
-      <node>/fs-rw/<image-id>/<img-fullname>/merged, comme ça
-      c est toujours le meme a cet endroit.
-    * executable "walt-image-mount" a adapter avec 2 options
-      "--image" ou "--node-rw".
     while True:
+        removed_symlinks, removed_dirs = [], []
+        added_symlinks, added_dirs = [], []
+        image_mounts, image_umounts = [], []
+        node_rw_mounts, node_rw_umounts = [], []
+        grace_time_mounts = []
         valid_status = True
-        # -- remove entries of old status no longer present
-        # note: we sort to ensure SYMLINK directives are first
-        for directive in sorted(old_status - status, reverse=True):
-            args = directive.split()
-            if args[0] == "SYMLINK":
-                if not (NODES_PATH / args[2]).is_symlink():
-                    # the status file contains invalid information
-                    valid_status = False
-                    break
-                #print(f"tftp: remove {args[2]}")
-                (NODES_PATH / args[2]).unlink()
-            elif args[0] == "DIR":
-                if not is_real_dir(NODES_PATH / args[1]):
-                    # the status file contains invalid information
-                    valid_status = False
-                    break
-                #print(f"tftp: remove {args[1]}")
-                shutil.rmtree(NODES_PATH / args[1])
-        if not valid_status:
-            old_status = revert_to_empty_status()
-            continue
-        # -- add new entries
-        # notes:
-        # * we sort to ensure DIR directives are first
-        # * some dir entries might already be present because we kept
-        #   persist_dirs, persist_dir, networks, disks subdirs in prepare() above.
-        for directive in sorted(status - old_status):
-            args = directive.split()
-            if args[0] == "DIR":
-                #print(f"tftp: create {args[1]}")
-                mac_dir_path = NODES_PATH / args[1]
-                mac_dir_path.mkdir(exist_ok=True)
-            elif args[0] == "SYMLINK":
-                if (NODES_PATH / args[2]).exists():
-                    # the status file contains invalid information
-                    valid_status = False
-                    break
-                #print(f"tftp: create {args[2]}")
-                symlink_path = NODES_PATH / args[2]
-                mac_dir_path = symlink_path.parent
-                target_path = mac_dir_path / args[1]
-                # automatically move <mac>/persist_dir (older walt version)
-                # to <mac>/persist_dirs/<owner>, or just create
-                # <mac>/persist_dirs/<owner> if missing.
-                if not target_path.exists():
-                    if target_path.parent.name == "persist_dirs":
-                        persist_dir_path = mac_dir_path / "persist_dir"
-                        if persist_dir_path.exists():
-                            target_path.parent.mkdir(exist_ok=True)
-                            persist_dir_path.rename(target_path)
-                        else:
-                            target_path.mkdir(parents=True)
-                symlink_path.symlink_to(args[1])
-        if not valid_status:
-            old_status = revert_to_empty_status()
-            continue
-        # -- save the new status
-        save_exports_status(status)
-        return  # ok
+        while True:
+            # -- check entries of old status no longer present
+            for directive in old_status - status:
+                args = directive.split()
+                if args[0] == "SYMLINK":
+                    if not (NODES_PATH / args[2]).is_symlink():
+                        # the status file contains invalid information
+                        valid_status = False
+                        break
+                    removed_symlinks.append(args[2])
+                elif args[0] == "DIR":
+                    if not is_real_dir(NODES_PATH / args[1]):
+                        # the status file contains invalid information
+                        valid_status = False
+                        break
+                    removed_dirs.append(NODES_PATH / args[1])
+                elif args[0] == "MOUNT-IMAGE":
+                    if not mount_exists(get_image_mount_path(args[1])):
+                        # the status file contains invalid information
+                        valid_status = False
+                        break
+                    if apply_grace_time_period(directive):
+                        grace_time_mounts.append(directive)
+                        status.add(directive)
+                    else:
+                        image_umounts.append(args[1])
+                elif args[0] == "MOUNT-NODE-RW":
+                    args = tuple(args[1:])
+                    ovl_path = get_node_rw_overlay_path(*args)
+                    if not mount_exists(ovl_path / "merged"):
+                        # the status file contains invalid information
+                        valid_status = False
+                        break
+                    if apply_grace_time_period(directive):
+                        grace_time_mounts.append(directive)
+                        status.add(directive)
+                    else:
+                        node_rw_umounts.append(args)
+            if not valid_status:
+                break
+            # -- check new entries
+            for directive in sorted(status - old_status):
+                args = directive.split()
+                if args[0] == "DIR":
+                    added_dirs.append(args[1])
+                elif args[0] == "SYMLINK":
+                    if (NODES_PATH / args[2]).exists():
+                        # the status file contains invalid information
+                        valid_status = False
+                        break
+                    added_symlinks.append((args[1], args[2]))
+                elif args[0] == "MOUNT-IMAGE":
+                    if mount_exists(get_image_mount_path(args[1])):
+                        # the status file contains invalid information
+                        valid_status = False
+                        break
+                    image_mounts.append(args[1])
+                elif args[0] == "MOUNT-NODE-RW":
+                    args = tuple(args[1:])
+                    ovl_path = get_node_rw_overlay_path(*args)
+                    if mount_exists(ovl_path / "merged"):
+                        # the status file contains invalid information
+                        valid_status = False
+                        break
+                    node_rw_mounts.append(args)
+            if not valid_status:
+                break
+            # prepare information for nfs / nbfs updates
+            persist_exports = (
+                db_nodes.mac + "/persist_dirs/" + db_nodes.owner)
+            # -- ok, everything seems fine, proceed with the updates
+            # note: we have to do that in the correct order!
+            # for instance mount -> update nfs -> umount
+            wf = Workflow([
+                wf_add_dirs,
+                wf_mount_images,
+                wf_mount_nodes_rw,
+                wf_update_nfs,
+                wf_update_nbfs,
+                wf_umount_nodes_rw,
+                wf_umount_images,
+                wf_remove_symlinks,
+                wf_remove_dirs,
+                wf_add_symlinks,
+                wf_save_exports_status,
+            ],
+                new_status = status,
+                removed_symlinks = removed_symlinks,
+                removed_dirs = removed_dirs,
+                added_symlinks = added_symlinks,
+                added_dirs = added_dirs,
+                image_mounts = image_mounts,
+                image_umounts = image_umounts,
+                node_rw_mounts = node_rw_mounts,
+                node_rw_umounts = node_rw_umounts,
+                grace_time_mounts = grace_time_mounts,
+                persist_exports = persist_exports,
+            )
+            wf.run()
+            return get_grace_time_recall()
+        # we are here if the status file contains invalid information
+        old_status = revert_to_empty_status()
+        # loop and retry with this cleaned up status
+        continue
 
 
 def cleanup():
