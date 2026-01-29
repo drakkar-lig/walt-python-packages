@@ -140,8 +140,8 @@ class BridgeTopology:
             if len(edge_macs) > 0:
                 edge_candidate_macs_per_port[sw_mac][sw_port] = edge_macs
         # We first analyse the backbone topology.
-        changed = False
-        while not changed:
+        while True:
+            changed = False
             # We invert backbone_candidate_macs_per_port to know on which switch ports
             # a given device is possibly connected.
             # (cf. backbone_candidate_ports_per_mac)
@@ -154,7 +154,6 @@ class BridgeTopology:
             # let's consider a device D reported both on port a of switch A and on port
             # b of switch B. if switch B is reported on a port a' (different from a) on
             # switch A, then we know that switch A is closer to device D than switch B.
-            candidate_macs_per_port = defaultdict(lambda: defaultdict(set))
             for mac_D, candidate_sw_ports in backbone_candidate_ports_per_mac.items():
                 for switch_A_port, switch_B_port in itertools.permutations(
                     candidate_sw_ports, 2
@@ -177,17 +176,19 @@ class BridgeTopology:
             # then if switch A is reported on any port b of switch B,
             # replace the list of candidates there by switch A only.
             match = False
-            for mac_A, a, candidate_macs in two_levels_dict_browse(
+            for mac_A, a, backbone_candidate_macs in two_levels_dict_browse(
                 backbone_candidate_macs_per_port
             ):
-                if len(candidate_macs) == 1:
-                    mac_B = get_unique_value(candidate_macs)
+                edge_candidate_macs = edge_candidate_macs_per_port[mac_A][a]
+                if (len(backbone_candidate_macs) == 1 and
+                    len(edge_candidate_macs) == 0):
+                    mac_B = get_unique_value(backbone_candidate_macs)
                     ports_B = backbone_candidate_macs_per_port.get(mac_B, {})
-                    for b, candidate_macs in ports_B.items():
-                        if mac_A in candidate_macs:
+                    for b, backbone_candidate_macs in ports_B.items():
+                        if mac_A in backbone_candidate_macs:
                             # if switch A is already the unique candidate,
                             # there is nothing to change
-                            if len(candidate_macs) != 1:
+                            if len(backbone_candidate_macs) != 1:
                                 match = True
                             break
                 if match:
@@ -195,7 +196,9 @@ class BridgeTopology:
             if match:
                 backbone_candidate_macs_per_port[mac_B][b] = set((mac_A,))
                 changed = True
-            if not changed:
+            if changed:
+                continue
+            else:
                 break  # nothing changed during last iteration, exit loop
         # We now build ll_topology considering switch ports with only one candidate mac.
         # Edge devices reported on the ports of the backbone are ignored.
@@ -608,9 +611,11 @@ class TopologyManager(object):
         bridge_topology = BridgeTopology(vpnmac_to_mac)
         server_mac = server.devices.get_server_mac()
         server_ip = get_server_ip()
+        devices_ok = []
         for device in devices:
+            probed_ok = False
             if device.type == "server":
-                self.collect_connected_devices(
+                probed_ok = self.collect_connected_devices(
                     requester,
                     server,
                     server_mac,
@@ -634,7 +639,7 @@ class TopologyManager(object):
                     "version": device.conf.get("snmp.version"),
                     "community": device.conf.get("snmp.community"),
                 }
-                self.collect_connected_devices(
+                probed_ok = self.collect_connected_devices(
                     requester,
                     server,
                     server_mac,
@@ -652,7 +657,9 @@ class TopologyManager(object):
                     "Querying %-25s INVALID (can only scan switches or the server)"
                     % device.name,
                 )
-        return lldp_topology, bridge_topology
+            if probed_ok:
+                devices_ok.append(device)
+        return devices_ok, lldp_topology, bridge_topology
 
     def collect_connected_devices(
         self,
@@ -672,7 +679,7 @@ class TopologyManager(object):
             self.print_message(
                 requester, "Querying %-25s FAILED (unknown management IP!)" % host_name
             )
-            return
+            return False   # it did not work
         lldp_error = self.get_and_process_lldp_neighbors(
             server,
             server_mac,
@@ -689,6 +696,7 @@ class TopologyManager(object):
                 "snmp-variant": "FAILED (LLDP SNMP issue)",
                 "snmp-issue": "FAILED (LLDP SNMP issue)",
             }[lldp_error]
+            probed_ok = (lldp_error is None)
         else:
             bridge_error = self.get_and_process_bridge_neighbors(
                 server,
@@ -714,7 +722,9 @@ class TopologyManager(object):
                 ("snmp-issue", "snmp-variant"): "FAILED (LLDP and BRIDGE SNMP issues)",
                 ("snmp-issue", "snmp-issue"): "FAILED (LLDP and BRIDGE SNMP issues)",
             }[(lldp_error, bridge_error)]
+            probed_ok = (lldp_error is None or bridge_error is None)
         self.print_message(requester, ("Querying %-25s " % host_name) + message)
+        return probed_ok
 
     def get_and_process_lldp_neighbors(
         self,
@@ -811,7 +821,7 @@ class TopologyManager(object):
         self.last_scan = time.time()
 
         # explore the network equipments
-        lldp_topology, bridge_topology = self.collect_devices(
+        devices_ok, lldp_topology, bridge_topology = self.collect_devices(
             requester, server, devices
         )
 
@@ -827,10 +837,12 @@ class TopologyManager(object):
         new_topology.merge_other(ll_br_topology)
         new_topology.set_confirm_all(True)
 
-        # retrieve past topology data from db
+        # retrieve past topology data from db, setting confirm=False
+        # for this past data that will be updated with the results
+        # of the probing
         db_topology = LinkLayerTopology({})
         db_topology.load_from_db(db)
-        db_topology.unconfirm(devices)
+        db_topology.unconfirm(devices_ok)
 
         # merge with db data
         # (last_seen attribute will give priority to new data)
