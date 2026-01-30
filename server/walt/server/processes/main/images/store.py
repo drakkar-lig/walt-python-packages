@@ -10,7 +10,7 @@ from walt.common.tools import format_image_fullname
 from walt.server.mount.tools import get_mount_path
 from walt.server.processes.main.filesystem import FilesystemsCache
 from walt.server.processes.main.images.image import NodeImage
-from walt.server.processes.main.images.tools import handle_missing_credentials
+from walt.server.processes.main.images.tools import handle_client_registry_conf_issues
 from walt.server.processes.main.network import tftp
 from walt.server.workflow import Workflow
 
@@ -163,7 +163,7 @@ class NodeImageStore(object):
             blocking_func = functools.partial(
                     self.blocking.update_default_images,
                     requester, update_info=update_info)
-            handle_missing_credentials(requester, blocking_func, after_update_cb)
+            handle_client_registry_conf_issues(requester, blocking_func, after_update_cb)
         else:
             final_task_cb()
 
