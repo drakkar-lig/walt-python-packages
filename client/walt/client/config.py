@@ -1,6 +1,6 @@
 import socket
-
-from walt.common.config import load_conf
+import sys
+from contextlib import contextmanager
 
 CONFIG_FILE_TOP_COMMENT = """\
 WalT configuration file
@@ -80,6 +80,7 @@ def cleanup_empty_groups(conf_dict):
 
 
 def get_config_from_file():
+    from walt.common.config import load_conf
     config_file = get_config_file()
     try:
         conf_dict = load_conf(config_file, optional=True, fast_load_mode=True)
@@ -252,13 +253,22 @@ def resolve_new_user():
             )
         if username_update:
             from walt.client.tools import yes_or_no
-            use_hub = yes_or_no(
-                "Do you intend to push or pull images to/from the docker hub?",
-                okmsg=None,
-                komsg=None,
-            )
-            if use_hub:
+            with test_server_link() as server:
+                if server is None:
+                    # failed to connect
+                    continue
+                registries = dict(server.get_registries())
+            if 'hub' in registries:
+                use_hub = yes_or_no(
+                    "Do you intend to push or pull images to/from the docker hub?",
+                    okmsg=None,
+                    komsg=None,
+                )
                 ensure_group_path(conf_dict, "registries", "hub")
+                conf_dict["registries"]["hub"]["enabled"] = use_hub
+            else:
+                use_hub = False
+            if use_hub:
                 print(
                     "Please get an account at hub.docker.com if not done yet, "
                     + "then specify credentials here."
@@ -270,19 +280,16 @@ def resolve_new_user():
                 conf_dict["walt"]["username"] = conf_dict["registries"]["hub"][
                     "username"
                 ]
+                if not test_registry_login("hub"):
+                    # walt username was copied from hub username,
+                    # but hub credentials are wrong, so forget it
+                    del conf_dict["walt"]["username"]
+                    continue  # prompt again to user
             else:
                 conf_dict["walt"]["username"] = ask_config_item(
                     "Please choose a username for this walt platform"
                 )
-        test_registry_name = "hub" if use_hub else None
-        server_error, registry_error = test_config(test_registry_name)
-        if not any((server_error, registry_error)):
-            break  # OK done
-        if registry_error:
-            # walt username was copied from hub username, but hub credentials are wrong
-            # so forget it
-            del conf_dict["walt"]["username"]
-        continue  # prompt again to user
+            break
     if use_hub:
         username = conf_dict["walt"]["username"]
         print(f"Note: {username} will also be your username on the WalT platform.")
@@ -293,18 +300,54 @@ def resolve_registry_creds(reg_name):
         creds_name = "Docker hub credentials"
         password_prompt = "password"
     else:
-        creds_name = f'Credentials for access to "{reg_name}" registry'
+        creds_name = f'credentials for access to "{reg_name}" registry'
         password_prompt = "password (or token)"
-    print(f"{creds_name} are missing or invalid. Please enter them below.")
-    ensure_group_path(conf_dict, "registries", reg_name)
     while True:
+        print(f"Please input {creds_name} below.")
         conf_dict["registries"][reg_name].update(
             username=ask_config_item("username"),
             password=ask_config_item(password_prompt, coded=True),
         )
-        errors = test_config(reg_name)
-        if not any(errors):
+        if test_registry_login(reg_name):
             break
+
+
+def _do_enable_disable_registry(reg_name, enabled):
+    ensure_group_path(conf_dict, "registries", reg_name)
+    conf_dict["registries"][reg_name]["enabled"] = enabled
+    if enabled:
+        reg_conf = conf_dict["registries"][reg_name]
+        if "username" not in reg_conf or "password" not in reg_conf:
+            resolve_registry_creds(reg_name)
+
+
+def resolve_registry_enabled(reg_name):
+    from walt.client.tools import yes_or_no
+    if reg_name == "hub":
+        reg_label = "docker hub"
+    else:
+        reg_label = f'"{reg_name}" registry'
+    enabled = yes_or_no(
+        f"Do you intend to push or pull images to/from the {reg_label}?",
+        okmsg=None,
+        komsg=None,
+    )
+    _do_enable_disable_registry(reg_name, enabled)
+
+
+def ask_enable_registry(reg_name):
+    from walt.client.tools import yes_or_no
+    print(f"This operation targets registry '{reg_name}'"
+          " which is currently disabled.")
+    enabled = yes_or_no(
+        f"Do you want to enable it?",
+        okmsg=None,
+        komsg=None,
+    )
+    if enabled:
+        _do_enable_disable_registry(reg_name, enabled)
+        save_config()
+    return enabled
 
 
 class ConfSpecNode:
@@ -317,6 +360,8 @@ class ConfSpecRegistryNode:
         self.username.resolve = lambda: resolve_registry_creds(reg_name)
         self.password = ConfSpecNode()
         self.password.resolve = lambda: resolve_registry_creds(reg_name)
+        self.enabled = ConfSpecNode()
+        self.enabled.resolve = lambda: resolve_registry_enabled(reg_name)
 
 
 class ConfSpecRegistriesNode:
@@ -341,36 +386,52 @@ def init_config(link_cls):
     server_link_cls = link_cls
 
 
-def test_config(registry_name=None):
+_test_server_link_calls = 0
+
+@contextmanager
+def test_server_link():
+    global _test_server_link_calls
+    if server_link_cls is None:
+        raise Exception("test_server_link() called but server_link_cls"
+                        " not known yet.")
+    show_msg = (_test_server_link_calls == 0)
+    _test_server_link_calls += 1
+    if show_msg:
+        print()
+        print("Connecting to the server... ", end=""); sys.stdout.flush()
+    try:
+        with server_link_cls() as server:
+            if show_msg:
+                print("OK")
+            yield server
+    except socket.error:
+        print(
+            "FAILED\nThe value of 'walt.server' you entered seems invalid "
+            + "(or the server is down?)."
+        )
+        print()
+        del conf_dict["walt"]["server"]
+        yield None
+
+
+def test_registry_login(registry_name):
     # we try to establish a connection to the server,
     # and optionaly to connect to the docker hub.
     # the return value is a tuple of 2 elements telling
     # whether a server connection or a hub credentials error
     # occured.
-    print()
-    print("Testing provided configuration...")
-    if server_link_cls is None:
-        raise Exception("test_config() called but server_link_cls not known yet.")
-    try:
-        with server_link_cls() as server:
-            if registry_name is not None:
-                with server.set_busy_label("Authenticating to the registry"):
-                    if not server.registry_login(registry_name):
-                        print()
-                        del conf_dict["registries"][registry_name]["username"]
-                        del conf_dict["registries"][registry_name]["password"]
-                        return False, True
-    except socket.error:
-        print(
-            "FAILED. The value of 'walt.server' you entered seems invalid "
-            + "(or the server is down?)."
-        )
-        print()
-        del conf_dict["walt"]["server"]
-        return True, False
-    print("OK.")
-    print()
-    return False, False
+    with test_server_link() as server:
+        if server is None:
+            return False
+        with server.set_busy_label(
+                f"Authenticating to the registry '{registry_name}'"):
+            if not server.registry_login(registry_name):
+                print("FAILED")
+                del conf_dict["registries"][registry_name]["username"]
+                del conf_dict["registries"][registry_name]["password"]
+                return False
+        print(f"Authenticating to the registry '{registry_name}'... OK")
+        return True
 
 
 server_link_cls = None
