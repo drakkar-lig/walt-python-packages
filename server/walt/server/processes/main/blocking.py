@@ -1,6 +1,6 @@
 import functools
 from walt.server.process import RPCProcessConnector, RPCService
-from walt.server.processes.main.images.tools import handle_missing_credentials
+from walt.server.processes.main.images.tools import handle_client_registry_conf_issues
 
 
 class BlockingTasksManager(RPCProcessConnector):
@@ -52,11 +52,11 @@ class BlockingTasksManager(RPCProcessConnector):
             else:
                 result_cb((False, result[1]))  # result[1]: failure message
         if requester is None:
-            blocking_func = functools.partial(self._anon_pull_image, image_fullname)
+            self._anon_pull_image(image_fullname, callback)
         else:
             blocking_func = functools.partial(
                     self._auth_pull_image, requester, image_fullname)
-        handle_missing_credentials(requester, blocking_func, callback)
+            handle_client_registry_conf_issues(requester, blocking_func, callback)
 
     def registry_login(self, requester, result_cb, *args, **kwargs):
         self.session(requester).do_async.registry_login(*args, **kwargs).then(result_cb)

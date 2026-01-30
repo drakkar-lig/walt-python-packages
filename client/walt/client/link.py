@@ -110,10 +110,36 @@ class WaltClientService(BaseAPIService):
             return None
 
     @api_expose_method
+    def prompt_missing_registry_conf(self, registry_label):
+        # this will force the client to prompt the user
+        reg_conf = getattr(conf.registries, registry_label)
+        reg_conf.enabled
+        return True  # ok client conf fixed
+
+    @api_expose_method
     def prompt_missing_registry_credentials(self, registry_label):
         # this will force the client to prompt the user
         reg_conf = getattr(conf.registries, registry_label)
         reg_conf.username
+        reg_conf.password
+        return True  # ok client conf fixed
+
+    @api_expose_method
+    def check_registry_enabled(self, registry_label):
+        reg_conf = getattr(conf.registries, registry_label)
+        if reg_conf.hasattr("enabled"):
+            return reg_conf.enabled
+        else:
+            # client configuration is not complete
+            return None
+
+    @api_expose_method
+    def propose_enable_registry(self, registry_label):
+        from walt.client.config import ask_enable_registry
+        if ask_enable_registry(registry_label):
+            return True   # ok client conf fixed
+        else:
+            return False  # unchanged
 
 
 class InternalClientToServerLink(ServerAPILink):
