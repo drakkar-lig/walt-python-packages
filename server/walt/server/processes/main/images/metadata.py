@@ -1,5 +1,5 @@
 import functools
-from walt.server.processes.main.images.tools import handle_missing_credentials
+from walt.server.processes.main.images.tools import handle_client_registry_conf_issues
 
 
 def update_hub_metadata(blocking, requester, task, waltplatform_user, **kwargs):
@@ -16,4 +16,4 @@ def update_hub_metadata(blocking, requester, task, waltplatform_user, **kwargs):
     blocking_func = functools.partial(
             blocking.update_hub_metadata,
             requester, user=user, **kwargs)
-    handle_missing_credentials(requester, blocking_func, callback)
+    handle_client_registry_conf_issues(requester, blocking_func, callback)

@@ -9,10 +9,8 @@ from walt.server import conf
 from walt.server.exttools import docker
 from walt.server.processes.blocking.images.metadata import async_pull_user_metadata
 from walt.server.processes.blocking.registries import (
-    DockerHubClient,
     DockerDaemonClient,
     get_registry_client,
-    MissingRegistryCredentials,
 )
 from walt.server.tools import async_merge_generators, format_node_models_list
 
@@ -63,14 +61,20 @@ class Search(object):
     # output_registries was set to True.
     async def async_search(self):
         generators = []
+        registry_labels = tuple(
+            reg_info["label"] for reg_info in conf["registries"]
+        )
         if self.image_store is not None:
             generators += [self.async_search_walt()]
         if docker is not None:
             generators += [self.async_search_daemon()]
         for reg_info in conf["registries"]:
-            registry = get_registry_client(self.requester, reg_info["label"])
-            if registry is None:  # problem with the configuration (already reported)
-                continue
+            registry_label = reg_info["label"]
+            registry = get_registry_client(self.requester, registry_label)
+            if registry is None:
+                continue   # problem with the configuration
+            if not self.requester.check_registry_enabled(registry_label):
+                continue  # registry disabled on client side
             api = reg_info["api"]
             if api == "docker-hub":
                 generators += [self.async_search_hub(registry)]
@@ -81,6 +85,7 @@ class Search(object):
             if registry.op_needs_authentication("search"):
                 self.requester.ensure_registry_conf_has_credentials(
                                     registry.label)
+                registry.login(self.requester)
         async for record in async_merge_generators(*generators):
             yield record
 
@@ -261,16 +266,8 @@ async def async_perform_search(image_store, requester, keyword, tty_mode):
 
 # this implements walt image search
 def search(requester, server: Server, keyword, tty_mode):
-    hub = DockerHubClient()
-    try:
-        # login to the docker hub (we can pull anonymously,
-        # but with a low pull rate limit)
-        requester.ensure_registry_conf_has_credentials('hub')
-        hub.login(requester)
-        # perform all the pulls asynchronously
-        asyncio.run(
-            async_perform_search(server.images.store, requester, keyword, tty_mode)
-        )
-    except MissingRegistryCredentials as e:
-        return ('MISSING_REGISTRY_CREDENTIALS', e.registry_label)
+    # perform all the pulls asynchronously
+    asyncio.run(
+        async_perform_search(server.images.store, requester, keyword, tty_mode)
+    )
     return ('OK',)
