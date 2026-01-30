@@ -17,12 +17,6 @@ class RegistryAuthRequired(Exception):
     pass
 
 
-class MissingRegistryCredentials(Exception):
-    def __init__(self, label):
-        self.registry_label = label
-        Exception.__init__(self, "MissingRegistryCredentials")
-
-
 class RegistryClientBase:
     def __init__(
         self, label, podman_url_prefix, login_host, protocol, auth, anonymous_operations
@@ -234,6 +228,9 @@ class DockerHubClient(SkopeoRegistryClient):
             "docker.io",
             "https",
             "basic",
+            # note: rate-limits are lower when anonymous,
+            # but the server has to download the default images
+            # for new nodes, so these must remain anonymous.
             ("pull", "inspect", "search"),
         )
 
