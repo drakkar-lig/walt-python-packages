@@ -1,5 +1,5 @@
 import functools
-from walt.server.processes.main.images.tools import handle_missing_credentials
+from walt.server.processes.main.images.tools import handle_client_registry_conf_issues
 
 
 def publish(store, blocking, requester, task, image_name, **kwargs):
@@ -17,4 +17,4 @@ def publish(store, blocking, requester, task, image_name, **kwargs):
         blocking_func = functools.partial(
                 blocking.publish_image,
                 requester, image_fullname=image.fullname, **kwargs)
-        handle_missing_credentials(requester, blocking_func, cb)
+        handle_client_registry_conf_issues(requester, blocking_func, cb)
