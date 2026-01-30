@@ -11,7 +11,6 @@ from walt.server.processes.blocking.images.metadata import pull_user_metadata
 from walt.server.processes.blocking.registries import (
     DockerHubClient,
     get_registry_client,
-    MissingRegistryCredentials,
 )
 from walt.server.tools import get_clone_url_locations
 
@@ -453,8 +452,6 @@ def clone(requester, server: Server, **kwargs):
             nodes_manager=server.nodes,
             **kwargs,
         )
-    except MissingRegistryCredentials as e:
-        return ("MISSING_REGISTRY_CREDENTIALS", e.registry_label)
     except Exception as e:
         requester.stderr.write(str(e) + "\n")
         return ("FAILED",)
