@@ -1,5 +1,5 @@
 import functools
-from walt.server.processes.main.images.tools import handle_missing_credentials
+from walt.server.processes.main.images.tools import handle_client_registry_conf_issues
 
 
 def search(blocking, requester, task, keyword, tty_mode):
@@ -13,4 +13,4 @@ def search(blocking, requester, task, keyword, tty_mode):
     blocking_func = functools.partial(
             blocking.search_image,
             requester, keyword=keyword, tty_mode=tty_mode)
-    handle_missing_credentials(requester, blocking_func, callback)
+    handle_client_registry_conf_issues(requester, blocking_func, callback)

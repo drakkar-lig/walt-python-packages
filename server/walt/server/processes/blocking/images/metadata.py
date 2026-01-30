@@ -7,7 +7,6 @@ import json
 from walt.server.exttools import buildah
 from walt.server.processes.blocking.registries import (
     DockerHubClient,
-    MissingRegistryCredentials,
 )
 from walt.server.tools import async_gather_tasks
 
@@ -87,10 +86,7 @@ def update_user_metadata_for_image(requester, hub, image_fullname, labels):
 
 def update_hub_metadata(requester, user):
     hub = DockerHubClient()
-    try:
-        requester.ensure_registry_conf_has_credentials('hub')
-    except MissingRegistryCredentials as e:
-        return ('MISSING_REGISTRY_CREDENTIALS', e.registry_label)
+    requester.ensure_registry_conf_has_credentials('hub')
     # login right away (we could pull anonymously, but with a low
     # pull rate limit, and anyway at the end we will have to push)
     hub.login(requester)

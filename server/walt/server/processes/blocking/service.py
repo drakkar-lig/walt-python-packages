@@ -16,8 +16,14 @@ from walt.server.processes.blocking.images.update import update_default_images
 from walt.server.processes.blocking.registries import (
     DockerDaemonClient,
     get_registry_client,
-    MissingRegistryCredentials,
 )
+
+
+# derive from BaseException to ignore "except Exception:" clauses
+class ClientRegistryConfigException(BaseException):
+    def __init__(self, registry_label, err_id):
+        self.registry_label = registry_label
+        self.err_id = err_id
 
 
 class CachingRequester:
@@ -30,12 +36,15 @@ class CachingRequester:
 
     @cache
     def get_registry_credentials(self, registry_label):
+        self.ensure_registry_enabled(registry_label)
         dh_peer = DHPeer()
         credentials = self._remote_requester.get_registry_encrypted_credentials(
             registry_label, dh_peer.pub_key
         )
         if credentials is None:
-            raise MissingRegistryCredentials(registry_label)
+            raise ClientRegistryConfigException(
+                    registry_label,
+                    "MISSING_REGISTRY_CREDENTIALS")
         dh_peer.establish_session(credentials["client_pub_key"])
         symmetric_key = dh_peer.symmetric_key
         cypher = BlowFish(symmetric_key)
@@ -43,17 +52,37 @@ class CachingRequester:
         return credentials["username"], password
 
     def ensure_registry_conf_has_credentials(self, registry_label):
-        # this is an alias to get_registry_credentials() but we do
-        # not need the result
+        # we call get_registry_credentials() but ignore the result
         self.get_registry_credentials(registry_label)
 
     @cache
     def get_registry_username(self, registry_label):
+        self.ensure_registry_enabled(registry_label)
         username = self._remote_requester.get_registry_username(registry_label)
         if username is None:
-            raise MissingRegistryCredentials(registry_label)
+            raise ClientRegistryConfigException(
+                    registry_label,
+                    "MISSING_REGISTRY_CREDENTIALS")
         else:
             return username
+
+    def check_registry_enabled(self, registry_label):
+        res = self._remote_requester.check_registry_enabled(registry_label)
+        if res is None:
+            raise ClientRegistryConfigException(
+                    registry_label,
+                    "MISSING_REGISTRY_CONF")
+        else:
+            return res
+
+    def ensure_registry_enabled(self, registry_label):
+        res = self.check_registry_enabled(registry_label)
+        if res is False:
+            raise ClientRegistryConfigException(
+                    registry_label,
+                    "OP_ON_DISABLED_REGISTRY")
+        else:
+            pass    # ok, registry is enabled
 
     # other attributes & methods are not cached because they have
     # side effects remotely or remote values may change during the time
@@ -150,7 +179,10 @@ class BlockingTasksService(object):
 
         def m(context, *args, **kwargs):
             context_service = BlockingTasksContextService(service, context)
-            result = getattr(context_service, method_name)(*args, **kwargs)
-            return result
+            method = getattr(context_service, method_name)
+            try:
+                return method(*args, **kwargs)
+            except ClientRegistryConfigException as e:
+                return (e.err_id, e.registry_label)
 
         return m
