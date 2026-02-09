@@ -21,11 +21,15 @@ Run 'walt help show shells' for more info.
 """
 
 
+def isatty():
+    return stdout.isatty() and stdin.isatty()
+
+
 class PromptClient(object):
     def __init__(self, req_id, capture_output=False, **params):
         self.capture_output = capture_output
         self.resize_handler_called = False
-        if sys.stdout.isatty() and sys.stdin.isatty():
+        if isatty():
             self.tty_mode = True
             # importing a module in the resize_handler() is dangerous
             # because two signals could be raised in a short interval,
