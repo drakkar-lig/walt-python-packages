@@ -1,6 +1,6 @@
 from walt.client.apiobject.base import APIObjectBase, api_namedtuple_cls
 from walt.client.apitools import get_devices_names, silent_server_link
-from walt.client.log import WalTLogShowOrWait
+from walt.client.log import WalTLogShowOrWait, analyse_history_range
 
 
 class APILogsSubModule(APIObjectBase):
@@ -15,7 +15,7 @@ class APILogsSubModule(APIObjectBase):
             )
         with silent_server_link() as server:
             if history is not None:
-                range_analysis = WalTLogShowOrWait.analyse_history_range(
+                range_analysis = analyse_history_range(
                     server, history
                 )
                 if not range_analysis[0]:
