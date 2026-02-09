@@ -27,6 +27,14 @@ LOWERCASE_USERNAME_MSG = """\
 The username must consist only of lowercase letters or hyphens,
 and begin with a lowercase letter."""
 
+MSG_AUTODETECT_SERVER = """\
+This appears to be a WalT server machine:
+Automatically recording server='localhost' in your client configuration.
+"""
+
+MSG_DOWN = """\
+Sorry, this WalT server machine seems down.
+Cannot proceed with client configuration tests. Aborting."""
 
 def xor(password):
     key = (len(password) // len(KEY) + 1) * KEY  # repeat if KEY is too short
@@ -243,6 +251,14 @@ def reload_conf():
         save_config()
 
 
+def detect_if_on_walt_server():
+    try:
+        import walt.server
+    except Exception:
+        return False
+    return True
+
+
 def resolve_new_user():
     server_check = "server" not in conf_dict["walt"]
     if server_check:
@@ -259,14 +275,23 @@ def resolve_new_user():
         server_update = "server" not in conf_dict["walt"]
         username_update = "username" not in conf_dict["walt"]
         if server_update:
-            conf_dict["walt"]["server"] = ask_config_item(
-                "IP or hostname of WalT server"
-            )
+            if detect_if_on_walt_server():
+                print(MSG_AUTODETECT_SERVER)
+                conf_dict["walt"]["server"] = "localhost"
+            else:
+                conf_dict["walt"]["server"] = ask_config_item(
+                    "IP or hostname of WalT server"
+                )
         if username_update:
             from walt.client.tools import yes_or_no
             with test_server_link() as server:
                 if server is None:
                     # failed to connect
+                    if detect_if_on_walt_server():
+                        sys.exit(MSG_DOWN)
+                    # unless we are on the server, the most probable
+                    # cause is a wrong IP or hostname input. Ask again.
+                    del conf_dict["walt"]["server"]
                     continue
                 registries = dict(server.get_registries())
             if 'hub' in registries:
