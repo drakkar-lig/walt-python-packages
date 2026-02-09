@@ -1,0 +1,12 @@
+connect to the console of a WalT node
+
+Usage:
+    walt node console [SWITCHES] node_name
+
+Meta-switches:
+    -h, --help                     Prints this help message and quits
+
+Switches:
+    --realtime                     realtime mode (see walt help show node-console)
+    --replay REPLAY_RANGE:str      replay mode (see walt help show node-console); the default is none
+

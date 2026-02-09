@@ -114,7 +114,7 @@ send "\r"
 expect "$node login: "
 # send ctrl-a d
 send "\x01"; sleep 1; send "d"
-expect "Disconnected from console."
+expect "Disconnected."
 EOF
 }
 
