@@ -31,10 +31,6 @@ Invalid checkpoint name:
 """
 
 
-def isatty():
-    return sys.stdout.isatty() and sys.stdin.isatty()
-
-
 def validate_checkpoint_name(name):
     return re.match(r"^[a-zA-Z0-9]+[a-zA-Z0-9\-]+$", name)
 
@@ -49,6 +45,43 @@ def compute_relative_date(server_time, rel_date):
         )
         sys.exit(1)
     return server_time - delay
+
+
+def analyse_history_range(server, history_range):
+    server_time = server.get_time()
+    MALFORMED = (False,)
+    try:
+        if history_range.lower() == "none":
+            return True, None
+        elif history_range.lower() == "full":
+            return True, (None, None)
+        parts = history_range.split(":")
+        if len(parts) != 2:
+            return MALFORMED
+        history = []
+        for part in parts:
+            if part == "":
+                history.append(None)
+            elif part.startswith("-"):
+                rel_date = compute_relative_date(server_time, part)
+                history.append(rel_date)
+            elif validate_checkpoint_name(part):
+                cptime = server.get_checkpoint_time(part)
+                if cptime is None:
+                    return MALFORMED
+                history.append(cptime)
+            else:
+                return MALFORMED
+        if history[0] and history[1]:
+            if history[0] > history[1]:
+                print(
+                    "Issue with the HISTORY_RANGE specified: "
+                    + "the starting point is newer than the ending point."
+                )
+                return MALFORMED
+        return True, tuple(history)
+    except Exception:
+        return MALFORMED
 
 
 class LogsFlowFromServer(object):
@@ -127,43 +160,6 @@ class WalTLogShowOrWait(WalTApplication):
         return server.parse_set_of_devices(
             self.set_of_issuers, allowed_device_set="server,all-nodes"
         )
-
-    @staticmethod
-    def analyse_history_range(server, history_range):
-        server_time = server.get_time()
-        MALFORMED = (False,)
-        try:
-            if history_range.lower() == "none":
-                return True, None
-            elif history_range.lower() == "full":
-                return True, (None, None)
-            parts = history_range.split(":")
-            if len(parts) != 2:
-                return MALFORMED
-            history = []
-            for part in parts:
-                if part == "":
-                    history.append(None)
-                elif part.startswith("-"):
-                    rel_date = compute_relative_date(server_time, part)
-                    history.append(rel_date)
-                elif validate_checkpoint_name(part):
-                    cptime = server.get_checkpoint_time(part)
-                    if cptime is None:
-                        return MALFORMED
-                    history.append(cptime)
-                else:
-                    return MALFORMED
-            if history[0] and history[1]:
-                if history[0] > history[1]:
-                    print(
-                        "Issue with the HISTORY_RANGE specified: "
-                        + "the starting point is newer than the ending point."
-                    )
-                    return MALFORMED
-            return True, tuple(history)
-        except Exception:
-            return MALFORMED
 
     @staticmethod
     def verify_regexps(*regexps):
@@ -273,7 +269,7 @@ class WalTLogShow(WalTLogShowOrWait):
             issuers = self.get_issuers(server)
             if issuers is None:
                 return
-            range_analysis = WalTLogShowOrWait.analyse_history_range(
+            range_analysis = analyse_history_range(
                 server, self.history_range
             )
             if not range_analysis[0]:
@@ -286,6 +282,7 @@ class WalTLogShow(WalTLogShowOrWait):
             # Note : if a regular expression is specified, we do not bother computing
             # the number of log records, because this computation may be quite expensive
             # and the number of matching lines is probably low.
+            from walt.client.interactive import isatty
             if history_range and logline_regexp is None and isatty():
                 num_logs = server.count_logs(
                     history=history_range, issuers=issuers, streams_regexp=self.streams
@@ -395,7 +392,7 @@ class WalTLogWait(WalTLogShowOrWait):
                 return
             if self.time_margin != 0:
                 history_range = "-%ds:" % self.time_margin
-                range_analysis = WalTLogShowOrWait.analyse_history_range(
+                range_analysis = analyse_history_range(
                     server, history_range
                 )
                 history_range = range_analysis[1]
