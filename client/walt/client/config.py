@@ -8,9 +8,9 @@ WalT configuration file
 This file was automatically generated.
 You are allowed to edit the configuration values if needed.
 However, instead of changing a value, you should consider removing the
-related line instead. This would cause the walt client to prompt for this value
-again, your new entry would pass an appropriate validity check, and this file
-would be generated again accordingly.
+related line instead. This would cause the walt client to prompt for
+this value again, your new entry would pass an appropriate validity check,
+and this file would be generated again accordingly.
 """
 
 CONFIG_CODED_ITEMS = ("password",)
@@ -22,13 +22,18 @@ CONFIG_CODED_ITEMS = ("password",)
 # .docker/conf.json or .dockercfg.
 KEY = b"RAND0M STRING T0 HIDE A PASSW0RD"
 
+LOWERCASE_USERNAME_RE = "^[a-z][a-z0-9-]*$"
+LOWERCASE_USERNAME_MSG = """\
+The username must consist only of lowercase letters or hyphens,
+and begin with a lowercase letter."""
+
 
 def xor(password):
     key = (len(password) // len(KEY) + 1) * KEY  # repeat if KEY is too short
     return bytes(a ^ b for a, b in zip(key, password))
 
 
-def ask_config_item(key, coded=False):
+def ask_config_item(key, coded=False, charset=None):
     msg = "%s: " % key
     while True:
         if coded:
@@ -38,6 +43,12 @@ def ask_config_item(key, coded=False):
             value = input(msg)
         if value.strip() == "":
             continue
+        if charset is not None:
+            charset_re, charset_msg = charset
+            import re
+            if not re.match(charset_re, value):
+                print(charset_msg)
+                continue
         break
     return value
 
@@ -259,40 +270,46 @@ def resolve_new_user():
                     continue
                 registries = dict(server.get_registries())
             if 'hub' in registries:
-                use_hub = yes_or_no(
-                    "Do you intend to push or pull images to/from the docker hub?",
-                    okmsg=None,
-                    komsg=None,
-                )
                 ensure_group_path(conf_dict, "registries", "hub")
-                conf_dict["registries"]["hub"]["enabled"] = use_hub
+                use_hub = conf_dict["registries"]["hub"].get("enabled")
+                if use_hub is None:
+                    use_hub = yes_or_no(
+                        ("Do you intend to push or pull images "
+                         "to/from the docker hub?"),
+                        okmsg=None,
+                        komsg=None,
+                    )
+                    conf_dict["registries"]["hub"]["enabled"] = use_hub
             else:
                 use_hub = False
-            if use_hub:
+            if (use_hub and
+                "username" not in conf_dict["registries"]["hub"]):
                 print(
-                    "Please get an account at hub.docker.com if not done yet, "
-                    + "then specify credentials here."
+                    "Please get an account at hub.docker.com if not done "
+                    "yet, then specify credentials here."
                 )
+                hub_username = ask_config_item("username")
+                hub_password = ask_config_item("password", coded=True)
                 conf_dict["registries"]["hub"].update(
-                    username=ask_config_item("username"),
-                    password=ask_config_item("password", coded=True),
+                    username=hub_username,
+                    password=hub_password,
                 )
-                conf_dict["walt"]["username"] = conf_dict["registries"]["hub"][
-                    "username"
-                ]
                 if not test_registry_login("hub"):
-                    # walt username was copied from hub username,
-                    # but hub credentials are wrong, so forget it
-                    del conf_dict["walt"]["username"]
+                    del conf_dict["registries"]["hub"]["username"]
+                    del conf_dict["registries"]["hub"]["password"]
                     continue  # prompt again to user
-            else:
+                import re
+                if re.match(LOWERCASE_USERNAME_RE, hub_username):
+                    print(f"Note: {hub_username} will also be your username "
+                          "on the WalT platform.")
+                    conf_dict["walt"]["username"] = hub_username
+            if "username" not in conf_dict["walt"]:
                 conf_dict["walt"]["username"] = ask_config_item(
-                    "Please choose a username for this walt platform"
+                    "Please choose a username for this walt platform",
+                    charset=(LOWERCASE_USERNAME_RE,
+                             LOWERCASE_USERNAME_MSG),
                 )
-            break
-    if use_hub:
-        username = conf_dict["walt"]["username"]
-        print(f"Note: {username} will also be your username on the WalT platform.")
+        break
 
 
 def resolve_registry_creds(reg_name):
