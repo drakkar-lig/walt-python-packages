@@ -61,6 +61,21 @@ def  _run_get_stdout(cmd):
 
 
 @contextmanager
+def hidden_cursor():
+    hide_cursor = _run_get_stdout("tput civis")
+    show_cursor = _run_get_stdout("tput cnorm")
+    if b'' in (hide_cursor, show_cursor):
+        # unsupported terminal, do nothing
+        yield
+    else:
+        sys.stdout.buffer.write(hide_cursor)
+        sys.stdout.flush()
+        yield
+        sys.stdout.buffer.write(show_cursor)
+        sys.stdout.flush()
+
+
+@contextmanager
 def alternate_screen_buffer(mouse_wheel_as_arrow_keys=False):
     escape_enter = _run_get_stdout("tput smcup")
     escape_exit = _run_get_stdout("tput rmcup")

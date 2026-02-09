@@ -389,7 +389,7 @@ def wf_shell_autocomplete_switch(wf, task, server, requester, username, argv, **
             possible = complete_image_clone_url(server, username, partial_token)
         elif arg_type == "LOG_CHECKPOINT":
             possible = complete_log_checkpoint(server, username)
-        elif arg_type == "HISTORY_RANGE":
+        elif arg_type in ("HISTORY_RANGE", "REPLAY_RANGE"):
             possible = complete_history_range(server, username, partial_token)
         elif arg_type == "SET_OF_ISSUERS":
             possible = complete_set_of_emitters(server, partial_token)
