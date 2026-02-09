@@ -5,6 +5,7 @@ from plumbum import cli
 from walt.client.application import WalTApplication, WalTCategoryApplication
 from walt.client.config import conf
 from walt.client.link import ClientToServerLink
+from walt.client.log import analyse_history_range
 from walt.client.timeout import TimeoutException, cli_timeout_switch, timeout_context
 from walt.client.tools import confirm
 from walt.client.types import (
@@ -79,9 +80,27 @@ class WalTNode(WalTCategoryApplication):
                     return res
 
     @staticmethod
-    def run_console(node_name):
+    def run_console(node_name, realtime, replay_range):
+        # if neither '--realtime' nor '--replay' was specified,
+        # default to realtime mode.
+        if realtime is False and replay_range == "none":
+            realtime = True
+        from walt.client.interactive import isatty
+        if not isatty():
+            sys.exit("'walt node console' must be used on a terminal. "
+                     "Aborting.")
         indicator = SilentBusyIndicator()
         with ClientToServerLink(busy_indicator=indicator) as server:
+            range_analysis = analyse_history_range(
+                server, replay_range
+            )
+            if not range_analysis[0]:
+                print(
+                    "Invalid REPLAY_RANGE."
+                    " See 'walt help show node-console' for more info."
+                )
+                return
+            replay_range = range_analysis[1]
             if not WalTNode.check_nodes_ownership(server, node_name):
                 return
             nodes_info = server.get_nodes_info(node_name)
@@ -95,7 +114,7 @@ class WalTNode(WalTCategoryApplication):
                 sys.stderr.write("Error: console is only available on virtual nodes.\n")
                 return
             from walt.client.console import run_node_console
-            run_node_console(server, node_info)
+            run_node_console(server, node_info, realtime, replay_range)
 
     @staticmethod
     def boot_nodes(node_set, image_name_or_default, cause,
@@ -402,8 +421,21 @@ class WalTNodeConsole(WalTApplication):
 
     ORDERING = 15
 
+    realtime = cli.Flag(
+        "--realtime",
+        default=False,
+        help="""realtime mode (see walt help show node-console)""",
+    )
+    replay_range = cli.SwitchAttr(
+        "--replay",
+        str,
+        argname="REPLAY_RANGE",
+        default="none",
+        help="""replay mode (see walt help show node-console)""",
+    )
+
     def main(self, node_name: NODE):
-        WalTNode.run_console(node_name)
+        WalTNode.run_console(node_name, self.realtime, self.replay_range)
 
 
 @WalTNode.subcommand("shell")
