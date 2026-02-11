@@ -22,7 +22,7 @@ setup_info = {
         "cffi==1.16.0",
         "charset-normalizer==3.3.2",
         "commonmark==0.9.1",
-        "cryptography==44.0.2",
+        "cryptography==46.0.5",
         "dnspython==2.7.0",
         "frozenlist==1.4.1",
         "gevent==24.2.1",
