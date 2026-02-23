@@ -159,11 +159,11 @@ class Server(object):
             for reg_info in conf["registries"]
         )
 
-    def set_image(self, requester, node_set, image_tag):
+    def set_image(self, requester, task, node_set, image_tag):
         nodes = self.nodes.parse_node_set(requester, node_set)
         if nodes is None:
             return False  # error already reported
-        return self.images.set_image(requester, nodes, image_tag)
+        return self.images.set_image(requester, task, nodes, image_tag)
 
     def cleanup_device_name(self, name):
         return re.sub("[^a-zA-Z0-9-]+", "-", name.split(".")[0])

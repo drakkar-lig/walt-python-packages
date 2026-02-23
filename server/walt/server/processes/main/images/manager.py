@@ -131,7 +131,7 @@ class NodeImageManager:
             )
             return image is not None
 
-    def set_image(self, requester, nodes, image_name):
+    def set_image(self, requester, task, nodes, image_name):
         is_default = image_name == "default"
         # if image tag is specified, let's get its fullname
         if not is_default:
@@ -171,6 +171,14 @@ class NodeImageManager:
                     ignored_names.add(node.name)
                 else:
                     image_fullnames[node.mac] = image_fullname
+        if len(ignored_names) > 0:
+            requester.stdout.write(
+                format_sentence_about_nodes(
+                    "%s: ignored, it(they) is(are) already using this image.",
+                    ignored_names,
+                )
+                + "\n"
+            )
         ok_names = set(n.name for n in nodes if n.name not in ignored_names)
         if len(ok_names) > 0:
             # let's update the database about which node is mounting what
@@ -180,26 +188,31 @@ class NodeImageManager:
                     "set_image", node_mac, is_default
                 )
             self.db.commit()
-            wf = Workflow([self.server.exports.wf_update,
-                           self.dhcpd.wf_update, self.named.wf_update])
-            wf.run()
-            # inform requester
+            # prepare message
             if is_default:
                 sentence = MSG_BOOT_DEFAULT_IMAGE
             else:
                 sentence = "%s will now boot " + image_name + "."
-            requester.stdout.write(
-                format_sentence_about_nodes(sentence, ok_names) + "\n"
-            )
-        if len(ignored_names) > 0:
-            requester.stdout.write(
-                format_sentence_about_nodes(
-                    "%s: ignored, it(they) is(are) already using this image.",
-                    ignored_names,
-                )
-                + "\n"
-            )
+            message = format_sentence_about_nodes(sentence, ok_names)
+            # turn the client task to async mode and run a workflow
+            task.set_async()
+            wf = Workflow([self.server.exports.wf_update,
+                           self.dhcpd.wf_update,
+                           self.named.wf_update,
+                           self._wf_end_of_set_image],
+                          requester = requester,
+                          task = task,
+                          message = message)
+            wf.run()
+            return
         return True
+
+    def _wf_end_of_set_image(self, wf, requester, task, message, **env):
+        # inform requester
+        requester.stdout.write(message + "\n")
+        # unblock the client
+        task.return_result(True)
+        wf.next()
 
     def create_shell_session(self, requester, image_name, task_label):
         image = self.store.get_user_image_from_name(requester, image_name)
