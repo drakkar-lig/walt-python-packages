@@ -607,12 +607,25 @@ def save_screen_session(info):
     path.write_text("%s\n" % getenv("STY"))
 
 
+def wait_for_image_fs(env):
+    fs_path = Path(env.fs_path)
+    while True:
+        if STATE["STOPPING"]:
+            break  # stopping
+        if fs_path.exists() and len(list(fs_path.iterdir())) > 0:
+            break  # ok, image fs is ready
+        else:
+            print("Waiting for OS image mount...")
+            time.sleep(1)
+
+
 def node_loop(info):
     random.seed()
     save_pid(info)
     save_screen_session(info)
     env = get_env_start(info)
     while not STATE["STOPPING"]:
+        wait_for_image_fs(env)
         try:
             if env.boot_delay == "random":
                 # default is to wait randomly to mitigate
