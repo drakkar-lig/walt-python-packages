@@ -9,6 +9,15 @@
 # ensure the NFS server is not locking image mounts
 echo > /etc/exports.d/walt.exports
 systemctl restart nfs-kernel-server
+# same for NBFSD if the service exists
+if systemctl cat nbfsd >/dev/null 2>&1
+then
+    if [ -e "/etc/nbfsd/exports.d/walt.exports" ]
+    then
+        echo > /etc/nbfsd/exports.d/walt.exports
+        systemctl restart nbfsd
+    fi
+fi
 
 # umount any remaining walt image
 remaining_mountpoints="$(mount | awk '{print $3}' | grep "/var/lib/walt")"
