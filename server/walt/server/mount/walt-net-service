@@ -18,8 +18,8 @@ fi
 # Unfortunately most versions of busybox do not provide nc server "-e" option
 # to start a handler command for each connexion, so we have to emulate this.
 
-NC_FIFO="/tmp/nc-$$-net.fifo"
-NC_FIFO_PID="/tmp/nc-$$-net.pid"
+NC_FIFO="/run/walt/nc-$$-net.fifo"
+NC_FIFO_PID="/run/walt/nc-$$-net.pid"
 mkfifo $NC_FIFO
 mkfifo $NC_FIFO_PID
 
