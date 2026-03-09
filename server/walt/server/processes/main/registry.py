@@ -124,7 +124,7 @@ class WalTLocalRegistry:
             if "/" not in fullname:
                 continue
             self.names_cache[fullname] = im.id
-            print(f"found {fullname} -- {im.id}")
+            #print(f"found {fullname} -- {im.id}")
 
     def scan(self):
         print("scanning images...")
