@@ -88,19 +88,28 @@ class StreamExtTool:
         stream = popen.stdout
         current_process().ev_loop.auto_waitpid(popen.pid, popen.wait)
 
+        # Note: if we do not call next() at least once on a generator,
+        # then it is not started, so calling close() on it will not
+        # raise GeneratorExit. Here, we start by a first yield command
+        # and we will call next(generator) once (see below). This ensures
+        # the generator is started and that it will properly raise the
+        # exception when closed.
         def read_stream():
-            while True:
-                try:
+            try:
+                yield
+                while True:
                     line = stream.readline()
                     if line == "":
                         return
                     yield converter(line.strip())
-                except GeneratorExit:
-                    stream.close()
-                    popen.terminate()
-                    raise
+            except GeneratorExit:
+                stream.close()
+                popen.terminate()
+                raise
 
-        return read_stream()
+        generator = read_stream()
+        next(generator)  # ensure generator is started, see comment above
+        return generator
 
 
 buildah = ExtTool.get_executable("buildah")
