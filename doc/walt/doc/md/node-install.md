@@ -183,5 +183,23 @@ Troubleshooting notes:
   it will be listed when you use `walt device show`.
   The first time the node boots correctly, its type will be automatically updated and it will appear
   in the output of `walt node show --all`.
-* In case of trouble, you can monitor walt service logs on the server, while connecting the new node,
-  by typing `journalctl -b -afu walt-server`. Or use a network sniffer (such as wireshark).
+* You can monitor walt service logs on the server, while connecting the
+  new node, by typing `journalctl -b -afu walt-server`.
+* You can also connect a screen or a serial line on the node failing to
+  boot to check what's happening.
+* Keep in mind that WalT nodes are booting over the network: the delay
+  between the physical activation of the network interface and the first
+  network packets sent by the node is short (a few seconds at most).
+  If the switch applies a long delay after the link is up and before it
+  starts transmitting packets to the node, the node bootloader may timeout
+  and restart the node, which would result in a boot loop.
+  The Spanning Tree Protocol (STP) may induce this kind of delay.
+  Check the STP parameters of the switch if this happens.
+* As a last resort you can use a network sniffer (such as `tcpdump`)
+  on the WalT server, and then analyse the network capture file using
+  a graphical tool such as `wireshark` on your laptop. Use for instance
+  the following command to capture the traffic on the platform network
+  and save it to a PCAP file:
+  `tcpdump -i walt-net -B 20M -w /tmp/capture.pcap`
+* You can also contact us for help at:
+  `walt-contact at univ-grenoble-alpes.fr`
