@@ -1,0 +1,53 @@
+#!/bin/bash
+# Helper script to apply the modifications present in the upperdir
+# (sometimes called 'diff') of an overlay mount in another directory.
+
+diff_dir="$1"
+target_dir="$2"
+
+if [ ! -d "$diff_dir" -o ! -d "$target_dir" ]
+then
+    echo "Usage: $0 <diff-dir> <target-dir>"
+    exit 1
+fi
+
+diff_dir="$(realpath "$diff_dir")"
+target_dir="$(realpath "$target_dir")"
+
+# Without files are implemented as character special files
+# with major & minor values set to zero.
+
+process_whiteouts() {
+    cd "$target_dir"
+    # without files and directories must be removed
+    # from target_dir
+    grep -z "^2...00\." | \
+        sed -z -e "s/^2...00//" | \
+        xargs -0 rm -rf
+}
+
+process_others() {
+    # other kinds of files should be copied to target_dir
+    # we use cpio's passthrough mode for this.
+    grep -vz "^2...00\." | \
+        sed -z -e "s/^[^\.]*//" | \
+        cpio -0 --quiet -p "$target_dir"
+}
+
+# * About selected stat fields:
+#   %f: file type and mode, 4 hex chars
+#       if the 1st hex char is 2, it's a character device
+#       (see man 7 inode; but note that values are given in
+#       octal in this man page, so 3 bits per digit).
+#   %Hr,%Lr: major and minor numbers, decimal
+#   %n: file path
+# * About the find | xargs stat | tee | func compound command:
+#   We prefer to run a single find + stat exploration of diff_dir,
+#   that's why we use tee and bash process substitution to pipe
+#   the result of this exploration to the input of 2 different
+#   functions.
+
+cd "$diff_dir"
+find . -print0 | xargs -0 stat --printf "%f%Hr%Lr%n\0" | \
+    tee >(process_whiteouts) | process_others
+cd - >/dev/null
