@@ -343,6 +343,15 @@ def non_blocking_connect(sock, ip, port):
 
 class NonBlockingSocket:
 
+    # We use a class attribute for timeout ids, to ease debugging and
+    # as a safety net in case of complex bugs.
+    # We previously had a bug in the interaction with the event loop,
+    # where we could receive a timeout event for another NonBlockingSocket
+    # object already garbage collected. With a class attribute, we no
+    # longer share the same timeout IDs, so we can avoid this kind of
+    # things.
+    timeout_ids = itertools.count()
+
     class STATUS:
         INIT = 0
         CONNECTING = 1
@@ -361,7 +370,6 @@ class NonBlockingSocket:
         set_close_on_exec(self.sock, True)
         self.status = NonBlockingSocket.STATUS.INIT
         self.timeout_secs = timeout_secs
-        self.timeout_ids = itertools.count()
         self.timeout_id = -1
         self.timeout_on_connect = timeout_on_connect
         self.timeout_on_read = timeout_on_read
@@ -398,6 +406,9 @@ class NonBlockingSocket:
     def on_timeout(self, timeout_id):
         # ignore obsolete timeouts
         if self.timeout_id != timeout_id:
+            return
+        # ignore timeout if we're already closed
+        if self.status == NonBlockingSocket.STATUS.CLOSED:
             return
         saved_status = self.status
         # ev_loop will call close(), setting status to CLOSED
