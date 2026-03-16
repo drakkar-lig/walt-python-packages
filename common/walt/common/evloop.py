@@ -151,7 +151,6 @@ class EventLoop(object):
     def __init__(self):
         self._pollers = PollersCache()
         self.listeners_per_fd = {}
-        self.fd_per_listener_id = {}
         self.planned_events = []
         self.recursion_depth = 0
         self.pending_events = {}
@@ -165,7 +164,7 @@ class EventLoop(object):
         if single_listener is None:
             return tuple(sorted(set(self.listeners_per_fd.keys()) - self._disabled_fds))
         else:
-            return (self.fd_per_listener_id[id(single_listener)],)
+            return (single_listener._ev_loop_fd,)
 
     def pop_pending_event(self, single_listener=None):
         if len(self.pending_events) == 0:
@@ -173,7 +172,7 @@ class EventLoop(object):
         if single_listener is None:
             fd = next(iter(self.pending_events.keys()))
         else:
-            fd = self.fd_per_listener_id[id(single_listener)]
+            fd = single_listener._ev_loop_fd
             if fd not in self.pending_events:
                 return None, None, None
         ev, ts = self.pending_events.pop(fd)
@@ -203,7 +202,7 @@ class EventLoop(object):
             return max(0, min(EventLoop.MAX_TIMEOUT_MS, delay_ms))
 
     def update_listener(self, listener, events=POLL_OPS_READ):
-        fd = self.fd_per_listener_id[id(listener)]
+        fd = listener._ev_loop_fd
         self._pollers.update_fd(fd, events)
         # discard previous pending events for this fd
         # since we are no longer waiting for the same kind of event
@@ -212,18 +211,21 @@ class EventLoop(object):
 
     def register_listener(self, listener, events=POLL_OPS_READ):
         fd = listener.fileno()
+        assert isinstance(fd, int) and fd >= 0
+        # save fd for future reference, we may need this later,
+        # even after the listener is closed and listener.fileno()
+        # would no longer work.
+        listener._ev_loop_fd = fd
         self._pollers.register_fd(fd, events)
-        self.fd_per_listener_id[id(listener)] = fd
         self.listeners_per_fd[fd] = listener
         # print 'new listener:', listener
 
     def remove_listener(self, listener, should_close=True):
-        listener_id = id(listener)
-        fd = self.fd_per_listener_id.get(listener_id, None)
-        if fd is None:
+        if not hasattr(listener, "_ev_loop_fd"):
             return False  # listener was already removed previously
+        fd = listener._ev_loop_fd
+        delattr(listener, "_ev_loop_fd")
         self._pollers.remove_fd(fd)
-        del self.fd_per_listener_id[listener_id]
         del self.listeners_per_fd[fd]
         if fd in self.pending_events:
             del self.pending_events[fd]
