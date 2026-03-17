@@ -1,10 +1,13 @@
+#!/usr/bin/env python3
 import bottle
 import json
 import os
+import requests
 import sdnotify
 import shlex
 import socket
 import walt
+import warnings
 
 from functools import lru_cache
 from gevent.fileobject import FileObject
@@ -34,6 +37,7 @@ Available sub-directories:
 <ul>
   <li> <b><a href="/doc">/doc</a></b> -- WalT documentation </li>
   <li> <b><a href="/api">/api</a></b> -- WalT web API</li>
+  <li> <b><a href="/links">/links</a></b> -- Quick links to web apps of devices</li>
   <li> <b>/boot</b> -- boot files to be retrieved by HTTP-capable node bootloaders </li>
 </ul>
 </html>
@@ -54,6 +58,30 @@ Checkout <a href="/doc/web-api.html">the web API documentation</a> for more info
 </html>
 """
 
+LINKS_PAGE_TEMPLATE = """
+<html>
+<h2>Quick links to webapps of WalT devices</h2>
+
+<p>WalT allows you to expose a service running on a node (or another device,
+such as a switch) by mirroring the TCP port to a port of the WalT server.</p>
+
+<p>See <a href="/doc/device-expose.html">this</a> documentation topic for \
+more info.</p>
+
+{LINKS_LIST}
+</html>
+"""
+
+LINKS_LIST_HEADER = """\
+This page provides quick links to these exposed ports:
+"""
+
+LINKS_LIST_MSG_NONE = """\
+No port is currently exposed.
+Refresh this page once you have exposed a port.
+"""
+
+
 MAIN_DAEMON_SOCKET_TIMEOUT = 3
 HTML_DOC_DIR = str(files(walt) / "doc" / "html")
 
@@ -67,6 +95,79 @@ s_conn = None
 # this will allow to serialize communication with the server on
 # the unix socket
 s_lock = Lock()
+
+
+def _html_enum(l):
+    s = "\n".join(["<ul>"] + [f"  <li>{e}</li>" for e in l] + ["</ul>"])
+    return s + "\n"
+
+
+def _links_page():
+    with ServerAPILink("localhost", "SSAPI") as server:
+        links = server.get_web_links_info()
+    if len(links) == 0:
+        return LINKS_PAGE_TEMPLATE.replace(
+            "{LINKS_LIST}", LINKS_LIST_MSG_NONE)
+    devices_html = []
+    for dev_name, dev_info in links.items():
+        dev_type, dev_links = dev_info
+        if dev_type == "unknown":
+            dev_type = "device"
+        device_html = f"{dev_type} <b>{dev_name}</b>:\n"
+        dev_links_html = []
+        for dev_port, link_info in dev_links.items():
+            serv_port, label = link_info
+            target = f"/links/{dev_name}/tcp/{dev_port}"
+            dev_link_html = f'port <a href="{target}">{dev_port}</a>'
+            if label is not None:
+                dev_link_html += f" ({label})"
+            dev_links_html.append(dev_link_html)
+        device_html = (
+            f"{dev_type} <b>{dev_name}</b>:\n" +
+            _html_enum(dev_links_html)
+        )
+        devices_html.append(device_html)
+    return LINKS_PAGE_TEMPLATE.replace(
+        "{LINKS_LIST}",
+        LINKS_LIST_HEADER + _html_enum(devices_html))
+
+
+def _detect_https(host, port, dev_name, dev_port):
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore',
+              requests.urllib3.exceptions.InsecureRequestWarning)
+        try:
+            if requests.get(f'https://{host}:{port}', verify=False):
+                return True  # https selected
+        except Exception:
+            pass
+        try:
+            if requests.get(f'http://{host}:{port}'):
+                return False  # http selected
+        except requests.exceptions.ConnectionError:
+            raise bottle.HTTPError(500,
+                f"{dev_name} seems down or not responding "
+                f"on port {dev_port}.")
+    return False
+
+
+def _serve_link(dev_name, dev_port):
+    with ServerAPILink("localhost", "SSAPI") as server:
+        links = server.get_web_links_info()
+    dev_info = links.get(dev_name)
+    if dev_info is None:
+        return bottle.HTTPError(404, "No such device.")
+    dev_type, dev_links = dev_info
+    link_info = dev_links.get(dev_port)
+    if link_info is None:
+        return bottle.HTTPError(404, "This port is not exposed.")
+    server_port, _ = link_info
+    if _detect_https('127.0.0.1', server_port, dev_name, dev_port):
+        proto = 'https'
+    else:
+        proto = 'http'
+    this_server = bottle.request.get_header("Host").split(":")[0]
+    bottle.redirect(f'{proto}://{this_server}:{server_port}')
 
 
 def open_from_server_daemon(path, node_ip):
@@ -394,7 +495,6 @@ def run():
         return socket.getfqdn() + "\n"
 
     @app.route("/doc")
-    @app.route("/doc")
     def redirect_doc():
         bottle.redirect('/doc/')
 
@@ -402,6 +502,17 @@ def run():
     @app.route("/doc/<path:path>")
     def serve_doc(path="index.html"):
         return bottle.static_file(path, root=HTML_DOC_DIR)
+
+    @app.route("/links")
+    @app.route("/links/index.html")
+    def serve_links_page():
+        return _links_page()
+
+    @app.route("/links/<dev_name>/tcp/<dev_port:int>")
+    @app.route("/links/<dev_name>/tcp/<dev_port:int>/")
+    @app.route("/links/<dev_name>/tcp/<dev_port:int>/index.html")
+    def serve_link(dev_name, dev_port):
+        return _serve_link(dev_name, dev_port)
 
     @app.route("/api")
     @app.route("/api/index.html")
