@@ -28,7 +28,7 @@ ply==3.11
 podman==5.0.0
 propcache==0.2.0
 psycopg2-binary==2.9.9
-pyasn1==0.6.0
+pyasn1==0.6.3
 pycparser==2.22
 pygments==2.17.2
 pysmi-lextudio==1.4.3
