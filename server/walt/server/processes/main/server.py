@@ -106,14 +106,14 @@ class Server(object):
         self.devices.prepare()
         self.nodes.prepare()
         self.vpn.prepare()
+        # restore permanent expose sockets
+        self.expose.restore()
 
     def _wf_after_exports_update(self, wf, **env):
         # enable PoE if some ports remained off
         self.poe.restore_poe_on_all_ports()
         # restores nodes setup
         self.nodes.restore()
-        # restore permanent expose sockets
-        self.expose.restore()
         # continue workflow
         wf.next()
 
