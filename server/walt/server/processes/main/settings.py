@@ -420,12 +420,8 @@ class SettingsManager:
     def correct_expose_value(
         self, requester, device_infos, setting_name, setting_value, all_settings
     ):
-        if len(device_infos) > 1:
-            requester.stderr.write(
-                  "Failed: cannot expose the same server port for several devices.\n")
-            return False
         return self.server.expose.check_expose_setting_value(
-                    requester, device_infos[0].ip, setting_value)
+                    requester, device_infos.ip, setting_value)
 
     def mask_all(self, requester, device_infos, setting_name):
         return np.ones(len(device_infos), dtype=bool)
@@ -558,6 +554,15 @@ class SettingsManager:
             self.server.nodes.vnode_update_vm_setting(
                    device_info.mac, setting_name, setting_value)
 
+    def overwrite_device_conf(self, mac, settings):
+        json_conf_update = json.dumps(settings)
+        self.server.db.execute(
+            ("update devices "
+             "set conf = conf || %s::jsonb "
+             "where mac = %s"),
+            (json_conf_update, mac)
+        )
+
     def set_device_config(self, requester, device_set, settings_args):
         # parse settings
         all_settings = parse_settings_args(requester, settings_args)
@@ -684,21 +689,31 @@ class SettingsManager:
                 # be recorded in 'devices.conf' column
                 del db_settings["type"]
             elif setting_name == "expose":
+                # note: with the new notation omitting the server-port
+                # (e.g. expose=80,443), the server-port is assigned
+                # automatically, and apply() will return the complete
+                # setting applied (e.g. expose=80:12080,443:12443).
+                # If configuring several devices at once, obviously
+                # several different server ports will be assigned,
+                # and the conf update in database will be different
+                # for each device. So we handle it here and remove
+                # the "expose" entry from db_settings to avoid the
+                # generic database update to overwrite it.
+                setting_values_per_ip = self.server.expose.apply(
+                            requester, device_infos.ip, setting_value)
                 for device_info in device_infos:
-                    self.server.expose.apply(
-                            requester, device_info.ip, setting_value)
+                    setting_value = setting_values_per_ip[device_info.ip]
+                    self.overwrite_device_conf(device_info.mac,
+                                               {"expose": setting_value})
+                del db_settings["expose"]
             elif setting_name == "boot.mode":
                 db_settings[setting_name] = setting_value
                 should_reboot_devices = True
                 should_update_exports = True
 
         # save in db
-        new_vals = json.dumps(db_settings)
         for di in device_infos:
-            self.server.db.execute(
-                "update devices set conf = conf || %s::jsonb where mac = %s",
-                (new_vals, di.mac),
-            )
+            self.overwrite_device_conf(di.mac, db_settings)
         self.server.db.commit()
 
         # update OS exports if needed
