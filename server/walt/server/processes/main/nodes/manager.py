@@ -124,12 +124,11 @@ class NodesManager(object):
         pub_key = NODE_SSH_ECDSA_HOST_KEY_PUB_PATH.read_text()
         alg, key = pub_key.split()[:2]
         known_hosts_nodes.write_text(f"walt.node {alg} {key}")
+        self.status_manager.prepare()
 
     def restore(self):
-        # init powersave
+        # restore powersave status
         self.powersave.restore()
-        # init nodes bootup status
-        self.status_manager.restore()
         # start virtual nodes
         where_sql, where_values = "d.type = 'node' and d.virtual", ()
         for vnode in self.devices.get_multiple_device_info(where_sql, where_values):

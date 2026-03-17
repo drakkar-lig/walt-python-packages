@@ -124,7 +124,7 @@ class NodeBootupStatusManager(object):
         self._boot_info = dict(zip(boot_info["mac"], boot_info[dt_names]))
         self._plan_bg_process()
 
-    def restore(self):
+    def prepare(self):
         # initialize _boot_info
         # note: 3 cases must be considered for conf->'boot.timeout':
         # * it may be an integer
