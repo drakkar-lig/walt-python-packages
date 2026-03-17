@@ -245,3 +245,16 @@ class ExposeManager:
             redirects = parsed[1]
             for device_port, server_port in redirects:
                 self.add_redirect(None, server_port, row.ip, device_port)
+
+    def get_web_links_info(self):
+        result = {}
+        for row in self.server.db.execute("""\
+                SELECT name, type, conf->>'expose' as setting_value
+                FROM devices
+                WHERE conf->>'expose' != 'none';"""):
+
+            parsed = self.parse_expose_setting_value(row.setting_value)
+            assert parsed[0] is True
+            dev_links = dict(parsed[1])
+            result[row.name] = (row.type, dev_links)
+        return result

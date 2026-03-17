@@ -26,6 +26,10 @@ class SSAPI(APISession):
         return context.images.web_api_list_images("v1", *args)
 
     @api_expose_method
+    def get_web_links_info(self, context):
+        return context.server.expose.get_web_links_info()
+
+    @api_expose_method
     def get_vpn_auth_keys(self, context):
         return context.server.db.get_vpn_auth_keys()
 
