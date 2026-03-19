@@ -20,7 +20,7 @@ DT_PORT_LABELS = np.dtype([("id", int), ("label", object)])
 class StandardLLDP(Variant):
     @staticmethod
     def test_or_exception(snmp_proxy):
-        dict(snmp_proxy.lldpRemChassisIdSubtype)
+        dict(snmp_proxy.lldpRemChassisIdSubtype.items())
 
     @staticmethod
     def load():
@@ -37,9 +37,9 @@ class StandardLLDP(Variant):
         sysname_per_port = {}
 
         # perform SNMP requests
-        chassis_types = dict(snmp_proxy.lldpRemChassisIdSubtype)
-        chassis_values = dict(snmp_proxy.lldpRemChassisId)
-        sys_names = dict(snmp_proxy.lldpRemSysName)
+        chassis_types = dict(snmp_proxy.lldpRemChassisIdSubtype.items())
+        chassis_values = dict(snmp_proxy.lldpRemChassisId.items())
+        sys_names = dict(snmp_proxy.lldpRemSysName.items())
         ip_info = list(snmp_proxy.lldpRemManAddrIfSubtype)
 
         # retrieve mac address and sysname of neighbors
@@ -81,7 +81,7 @@ class StandardLLDP(Variant):
 class TPLinkLLDP(Variant):
     @staticmethod
     def test_or_exception(snmp_proxy):
-        dict(snmp_proxy.lldpNeighborChassisIdType)
+        dict(snmp_proxy.lldpNeighborChassisIdType.items())
 
     @staticmethod
     def load():
@@ -100,10 +100,10 @@ class TPLinkLLDP(Variant):
         neighbors = {}
 
         # perform SNMP requests
-        chassis_types = dict(snmp_proxy.lldpNeighborChassisIdType)
-        chassis_values = dict(snmp_proxy.lldpNeighborChassisId)
-        sys_names = dict(snmp_proxy.lldpNeighborDeviceName)
-        port_info = dict(snmp_proxy.lldpLocalPortId)
+        chassis_types = dict(snmp_proxy.lldpNeighborChassisIdType.items())
+        chassis_values = dict(snmp_proxy.lldpNeighborChassisId.items())
+        sys_names = dict(snmp_proxy.lldpNeighborDeviceName.items())
+        port_info = dict(snmp_proxy.lldpLocalPortId.items())
 
         # retrieve mac address and sysname of neighbors
         for neighbor_key in chassis_types:
