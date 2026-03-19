@@ -186,7 +186,7 @@ class NetgearPoE(StandardPoE):
 class TPLinkPoE(Variant):
     @classmethod
     def test_or_exception(cls, snmp_proxy):
-        dict(snmp_proxy.tpPoePortStatus)
+        dict(snmp_proxy.tpPoePortStatus.items())
 
     @classmethod
     def load(cls):
@@ -216,7 +216,8 @@ class TPLinkPoE(Variant):
 
     @classmethod
     def get_poe_port_mapping(cls, snmp_proxy, host):
-        return {int(k): int(k) for k in dict(snmp_proxy.tpPoePortStatus).keys()}
+        port_statuses = dict(snmp_proxy.tpPoePortStatus.items())
+        return {int(k): int(k) for k in port_statuses.keys()}
 
 
 # TP-link should be first, otherwise sending invalid requests when probing other
