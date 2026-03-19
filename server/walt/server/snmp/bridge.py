@@ -14,9 +14,9 @@ from walt.server.snmp.mibs import load_mib, unload_mib
 class VLANCapableBridge(Variant):
     @staticmethod
     def test_or_exception(snmp_proxy):
-        dict(snmp_proxy.dot1qTpFdbPort)
-        dict(snmp_proxy.dot1qTpFdbStatus)
-        dict(snmp_proxy.ifPhysAddress)
+        dict(snmp_proxy.dot1qTpFdbPort.items())
+        dict(snmp_proxy.dot1qTpFdbStatus.items())
+        dict(snmp_proxy.ifPhysAddress.items())
         str(snmp_proxy.dot1dBaseBridgeAddress)
 
     @staticmethod
@@ -36,8 +36,8 @@ class VLANCapableBridge(Variant):
         macs_per_port = defaultdict(set)
 
         # perform SNMP requests
-        forwarding_db_ports = dict(snmp_proxy.dot1qTpFdbPort)
-        forwarding_db_status = dict(snmp_proxy.dot1qTpFdbStatus)
+        forwarding_db_ports = dict(snmp_proxy.dot1qTpFdbPort.items())
+        forwarding_db_status = dict(snmp_proxy.dot1qTpFdbStatus.items())
 
         # parse
         for k, v in forwarding_db_ports.items():
@@ -55,7 +55,7 @@ class VLANCapableBridge(Variant):
 
     @staticmethod
     def get_secondary_macs(snmp_proxy):
-        macs = set(dict(snmp_proxy.ifPhysAddress).values())
+        macs = set(dict(snmp_proxy.ifPhysAddress.items()).values())
         macs |= set((snmp_proxy.dot1dBaseBridgeAddress,))
         macs = set(decode_mac_address(mac) for mac in macs)
         macs -= set(("00:00:00:00:00:00",))
