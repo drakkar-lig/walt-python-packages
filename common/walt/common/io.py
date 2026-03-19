@@ -24,6 +24,8 @@ def unbuffered(f, mode):
 # Copy what's available from a file
 # to an output stream
 def read_and_copy(in_reader, out):
+    if in_reader is False or out is False:
+        return False  # close
     try:
         buf = in_reader.read(4096)
         if buf == b"":
