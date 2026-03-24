@@ -598,11 +598,12 @@ class TopologyManager(object):
     def __init__(self):
         self.last_scan = None
 
-    def print_message(self, requester, message):
+    def print_query_result(self, requester, host, msg):
+        msg = f"Querying {host:<25} {msg}"
         if requester is not None:
-            requester.stdout.write(message + "\n")
+            requester.stdout.write(msg + "\n")
             requester.stdout.flush()
-        print(message)
+        print(msg)
 
     def collect_devices(self, requester, server, devices):
         vpnnodes = server.db.select("vpnnodes")
@@ -629,10 +630,9 @@ class TopologyManager(object):
                 )
             elif device.type == "switch":
                 if not device.conf.get("lldp.explore", False):
-                    self.print_message(
-                        requester,
-                        "Querying %-25s FORBIDDEN (see: walt help show device-config)"
-                        % device.name,
+                    self.print_query_result(
+                        requester, device.name,
+                        "FORBIDDEN (see: walt help show device-config)"
                     )
                     continue
                 snmp_conf = {
@@ -652,10 +652,9 @@ class TopologyManager(object):
                     snmp_conf,
                 )
             else:
-                self.print_message(
-                    requester,
-                    "Querying %-25s INVALID (can only scan switches or the server)"
-                    % device.name,
+                self.print_query_result(
+                    requester, device.name,
+                    "INVALID (can only scan switches or the server)"
                 )
             if probed_ok:
                 devices_ok.append(device)
@@ -676,8 +675,16 @@ class TopologyManager(object):
     ):
         print("Querying %s..." % host_name)
         if host_ip is None:
-            self.print_message(
-                requester, "Querying %-25s FAILED (unknown management IP!)" % host_name
+            self.print_query_result(
+                requester, host_name,
+                "FAILED (unknown management IP!)"
+            )
+            return False   # it did not work
+        snmp_proxy = snmp.Proxy(host_ip, host_snmp_conf)
+        if not snmp_proxy.ping():
+            self.print_query_result(
+                requester, host_name,
+                "FAILED (no SNMP response!)"
             )
             return False   # it did not work
         lldp_error = self.get_and_process_lldp_neighbors(
@@ -723,7 +730,7 @@ class TopologyManager(object):
                 ("snmp-issue", "snmp-issue"): "FAILED (LLDP and BRIDGE SNMP issues)",
             }[(lldp_error, bridge_error)]
             probed_ok = (lldp_error is None or bridge_error is None)
-        self.print_message(requester, ("Querying %-25s " % host_name) + message)
+        self.print_query_result(requester, host_name, message)
         return probed_ok
 
     def get_and_process_lldp_neighbors(
