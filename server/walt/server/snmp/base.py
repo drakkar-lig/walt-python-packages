@@ -110,6 +110,10 @@ class VariantsSet:
         cache_key = ("snmp-variant", self.topic_msg, host)
         partial = functools.partial(self._probe_variant_name, snmp_proxy, host)
         variant_name = DISK_CACHE.get(cache_key, partial)
+        if variant_name is None:
+            raise NoSNMPVariantFound(
+                f"Device {host} does not seem to handle {self.topic_msg}."
+            )
         for variant in self.variants:
             if variant.__name__ == variant_name:
                 variant.load()
@@ -120,9 +124,7 @@ class VariantsSet:
         for variant in self.variants:
             if variant.try_load(snmp_proxy):
                 return variant.__name__
-        raise NoSNMPVariantFound(
-            "Device %s does not seem to handle %s." % (host, self.topic_msg)
-        )
+        return None
 
     def ensure_variant(self, variant):
         if self.loaded is not variant:

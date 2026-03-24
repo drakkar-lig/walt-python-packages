@@ -11,6 +11,9 @@ def sw_port_set_poe(sw_ip, sw_port, poe_status,
         "version": sw_snmp_version,
         "community": sw_snmp_community
     }
+    proxy = snmp.Proxy(sw_ip, snmp_conf)
+    if not proxy.ping():
+        return False, "no SNMP response"
     try:
         proxy = snmp.Proxy(sw_ip, snmp_conf, poe=True)
         # before trying to turn PoE power off, check if this switch port
