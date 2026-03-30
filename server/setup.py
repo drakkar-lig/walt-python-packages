@@ -43,7 +43,7 @@ setup_info = {
         "psycopg2-binary==2.9.9",
         "pyasn1==0.6.3",
         "pycparser==2.22",
-        "pygments==2.17.2",
+        "pygments==2.20.0",
         "pysnmp==7.1.22",
         "pysnmpcrypto==0.0.4",
         "python-apt-binary",
