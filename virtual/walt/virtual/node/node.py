@@ -468,7 +468,11 @@ def boot_kvm_managed(env):
         events = env.waiter.poll(500)  # unit: milliseconds
         for fd, event in events:
             if fd == 0:
-                env.stdin_buffer += os.read(0, 256)
+                chunk = os.read(0, 256)
+                if len(chunk) == 0:
+                    print("empty read on stdin, aborting.")
+                    sys.exit()
+                env.stdin_buffer += chunk
             elif qemu_stdout_r is not None and fd == qemu_stdout_r:
                 # we bufferize a little to avoid logging many small
                 # vnode console chunks
@@ -491,6 +495,9 @@ def boot_kvm_managed(env):
                 STATE["QEMU_PID"] = None
                 if env.reboot_command is not None:
                     subprocess.call(env.reboot_command, shell=True)
+            else:
+                print("unexpected code path, aborting.")
+                sys.exit()
         while b'\n' in env.stdin_buffer:
             line, env.stdin_buffer = env.stdin_buffer.split(b'\n', maxsplit=1)
             line = line.decode(sys.stdin.encoding)
