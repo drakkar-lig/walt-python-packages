@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 import bottle
+import gevent
 import json
 import os
 import requests
-import sdnotify
 import shlex
 import socket
 import walt
@@ -20,14 +20,20 @@ from walt.common.apilink import ServerAPILink
 from walt.common.constants import WALT_SERVER_TCP_PORT
 from walt.common.tcp import Requests as TcpRequests
 from walt.common.tcp import MyPickle as pickle, client_sock_file
+from walt.common.tools import do
 from walt.common.unix import Requests as UnixRequests
 from walt.common.unix import bind_to_random_sockname, recv_msg_fds
 from walt.server.const import UNIX_SERVER_SOCK_PATH
-from walt.server.tools import np_recarray_to_tuple_of_dicts, convert_query_param_value
-from walt.server.tools import ttl_cache, get_server_ip
+from walt.server.tools import np_recarray_to_tuple_of_dicts
+from walt.server.tools import convert_query_param_value, get_walt_subnet
+from walt.server.tools import ttl_cache, get_server_ip, notify_systemd
+from walt.server.vpn.const import VPN_HTTP_EP_HISTORY_FILE
 from importlib.resources import files
 
 WALT_HTTPD_PORT = 80
+ROUTE_LOCALNET_SETTING = Path("/proc/sys/net/ipv4/conf/walt-net/route_localnet")
+VPN_REDIRECT_CHECK_PERIOD = 3
+WALT_SUBNET = str(get_walt_subnet())
 
 WELCOME_PAGE = """
 <html>
@@ -171,15 +177,19 @@ def _serve_link(dev_name, dev_port):
 
 
 def open_from_server_daemon(path, node_ip):
-    req_id = UnixRequests.REQ_FAKE_TFTP_GET_FD
-    args = ()
-    kwargs = dict(node_ip=node_ip, path=path)
-    fds = query_main_daemon(req_id, args, kwargs, maxfds=1)
-    if isinstance(fds, Exception):
-        raise fds
-    assert len(fds) == 1
-    fd = fds[0]
-    return fd
+    try:
+        req_id = UnixRequests.REQ_FAKE_TFTP_GET_FD
+        args = ()
+        kwargs = dict(node_ip=node_ip, path=path)
+        fds = query_main_daemon(req_id, args, kwargs, maxfds=1)
+        if isinstance(fds, Exception):
+            raise fds
+        assert len(fds) == 1
+        fd = fds[0]
+        return fd
+    except ConnectionError:
+        raise bottle.HTTPError(500,
+                f"WalT main daemon is not responding.")
 
 
 def query_main_daemon(req_id, args, kwargs, msglen=256, maxfds=0):
@@ -271,11 +281,6 @@ def dump_ssh_entrypoint_host_keys():
 def dump_ssh_pubkey_cert():
     return dump_generated_file("ssh-pubkey-cert",
                                node_ip=requester_ip())
-
-
-def notify_systemd():
-    if "NOTIFY_SOCKET" in os.environ:
-        sdnotify.SystemdNotifier().notify("READY=1")
 
 
 def get_socket():
@@ -396,7 +401,7 @@ class MyBottle(bottle.Bottle):
         return super().default_error_handler(error)
 
 
-def run():
+def run_web_server():
     # generate rsa boot server keys if not done yet
     generate_boot_server_keys()
 
@@ -575,3 +580,62 @@ def run():
     server = WSGIServer(('', WALT_HTTPD_PORT), app)
     notify_systemd()
     server.serve_forever()
+
+
+# We need to redirect HTTP connections issued by rpi5 VPN nodes
+# connected into the WALT network.
+# For more info, see server/walt/server/processes/main/vpn.py.
+
+def load_http_ep_history():
+    if VPN_HTTP_EP_HISTORY_FILE.exists():
+        return pickle.loads(VPN_HTTP_EP_HISTORY_FILE.read_bytes())
+    else:
+        return set()
+
+
+def update_redirect_vpn_eps(prev_num_eps):
+    eps = load_http_ep_history()
+    if len(eps) != prev_num_eps:  # otherwise nothing changed
+        if len(eps) > 0:
+            # at least one redirection
+            if prev_num_eps == 0:
+                # initial setup: create and activate WALT-DNAT
+                ROUTE_LOCALNET_SETTING.write_text("1\n")
+                do("iptables -t nat --new-chain WALT-DNAT")
+                do("iptables -t nat --append PREROUTING "
+                   f"--source {WALT_SUBNET} "
+                 f"! --destination {WALT_SUBNET} "
+                    "--jump WALT-DNAT")
+            # update WALT-DNAT with new eps
+            do("iptables -t nat --flush WALT-DNAT")
+            for ep_host, ep_port in eps:
+                do("iptables -t nat --append WALT-DNAT "
+                  f"-p tcp -d {ep_host} --dport {ep_port} "
+                   "-j DNAT --to-destination 127.0.0.1")
+            do("iptables -t nat --append WALT-DNAT --jump RETURN")
+
+
+def cleanup_redirect_vpn_eps():
+    ROUTE_LOCALNET_SETTING.write_text("0\n")
+    do("iptables -t nat --delete PREROUTING "
+       f"--source {WALT_SUBNET} "
+     f"! --destination {WALT_SUBNET} "
+        "--jump WALT-DNAT")
+    do("iptables -t nat --flush WALT-DNAT")
+    do("iptables -t nat --delete-chain WALT-DNAT")
+
+
+def redirect_vpn_eps():
+    curr_num_eps = 0
+    try:
+        while True:
+            curr_num_eps = update_redirect_vpn_eps(curr_num_eps)
+            gevent.sleep(VPN_REDIRECT_CHECK_PERIOD)
+    finally:
+        cleanup_redirect_vpn_eps()
+
+
+def run():
+    jobs = [gevent.spawn(routine)
+            for routine in (redirect_vpn_eps, run_web_server)]
+    gevent.joinall(jobs)

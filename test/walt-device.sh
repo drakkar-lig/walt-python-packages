@@ -20,7 +20,9 @@ define_test "walt device config" as {
 Preparation work: create a fake unknown device.
 EOF
     dev_name="unknown-device-$$"
-    create_fake_device "$dev_name" ""
+    info=$(create_fake_device "$dev_name")
+    dev_mac=$(echo "$info" | grep "^mac:" | awk '{print $2}')
+    mac_suffix=$(end_of_mac "$dev_mac")
 
     # real tests...
 
