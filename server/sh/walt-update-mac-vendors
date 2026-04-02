@@ -1,0 +1,24 @@
+#!/bin/sh
+
+OUI_TXT="/var/lib/ieee-data/oui.txt"
+RPI_MAC_PREFIXES="/var/lib/walt/rpi-mac-prefixes.txt"
+NETGEAR_MAC_PREFIXES="/var/lib/walt/netgear-mac-prefixes.txt"
+
+dump_vendor_macs()
+{
+    vendor_word="$1"
+    grep -i "^..-.*${vendor_word}" "$OUI_TXT" | \
+        awk '{print $1}' | \
+        tr '[:upper:]-' '[:lower:]:'
+}
+
+update-ieee-data
+
+mkdir -p /var/lib/walt
+
+if [ ! -f "$RPI_MAC_PREFIXES" ] || \
+   [ "$OUI_TXT" -nt "$RPI_MAC_PREFIXES" ]
+then
+    dump_vendor_macs raspberry > "$RPI_MAC_PREFIXES"
+    dump_vendor_macs netgear > "$NETGEAR_MAC_PREFIXES"
+fi
