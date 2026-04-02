@@ -62,8 +62,8 @@ with ServerAPILink("localhost", "SSAPI") as server:
     for name, mac in job_conf["nodes"]:
         # simulate a DHCP request from the node (=> create it in db)
         ip = str(free_ips.pop(0))
-        log_event(f"server.register_device() {ip} {mac} {name}")
-        server.register_device("walt.node.pc-x86-64", "", ip, mac, name)
+        log_event(f"server.register_device() {mac} {ip} {name}")
+        server.register_device(mac, ip, "node", "pc-x86-64", name)
 
 # restore a .walt/config file with just the server hostname (as localhost)
 # note: up to now it contained fake credentials to allow

@@ -85,7 +85,7 @@ APT_WALT_DEPENDENCIES_PACKAGES = """
         screen ifupdown gcc python3-dev git make sudo expect libjson-perl
         docker.io podman buildah skopeo bash-completion dropbear-bin
         ksmtuned fdisk e2fsprogs dosfstools containernetworking-plugins
-        uuid-runtime qemu-system-x86 netcat-openbsd lsof
+        uuid-runtime qemu-system-x86 netcat-openbsd lsof ieee-data
 """.split()
 
 # note: containernetworking-plugins is needed for "walt image build".

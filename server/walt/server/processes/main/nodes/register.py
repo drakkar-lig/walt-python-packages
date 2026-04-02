@@ -9,31 +9,28 @@ def decapitalize(msg):
     return msg[0].lower() + msg[1:]
 
 
-def handle_registration_request(
-    db, logs, exports, mac, images, model, image_fullname=None, **kwargs
+def is_currently_registering_mac(mac):
+    return mac in currently_registering_macs
+
+
+def wf_handle_registration_request(wf,
+    db, logs, exports, mac, images, model, dhcpd, named,
+    image_fullname=None, **env
 ):
     if mac in currently_registering_macs:
         # we already started a registration procedure for this mac,
         # ignore this one
+        wf.interrupt()
         return
     currently_registering_macs.add(mac)
     if image_fullname is None:
         image_fullname = images.get_default_image_fullname(model)
-    # register the node
-    full_kwargs = dict(
-        db=db,
-        images=images,
-        mac=mac,
-        image_fullname=image_fullname,
-        model=model,
-        logs=logs,
-        **kwargs,
-    )
+        wf.update_env(image_fullname = image_fullname)
     wf_steps = []
     # if image is new
     if image_fullname not in images:
         # we have to pull an image, that will be long,
-        # let's inform the user (by logs) and do this asynchronously
+        # let's inform the user (by logs)
         db_info = db.select_unique("devices", mac=mac)
         logs.platform_log("devices",
             line=f"Device {db_info.name} is a walt node of type '{model}'.")
@@ -44,10 +41,10 @@ def handle_registration_request(
             ))
         wf_steps += [wf_pull_image, wf_after_pull_image]
     wf_steps += [wf_update_device_in_db, wf_update_status_manager,
-                 exports.wf_update, wf_dhcpd_named_update,
+                 exports.wf_update, dhcpd.wf_update, named.wf_update,
                  wf_done_registering_mac]
-    wf = Workflow(wf_steps, **full_kwargs)
-    wf.run()
+    wf.insert_steps(wf_steps)
+    wf.next()
 
 
 def wf_pull_image(wf, blocking, image_fullname, **env):
@@ -74,19 +71,15 @@ def wf_after_pull_image(wf, pull_result, image_fullname, mac, model, logs, **env
         wf.interrupt()
 
 
-def wf_update_device_in_db(wf, devices, mac, model, image_fullname, **env):
+def wf_update_device_in_db(wf, devices, mac, model,
+                           image_fullname, **env):
     # turn the device into a node
-    devices.add_or_update(mac=mac, type="node", model=model, image=image_fullname)
+    devices.add_or_update(mac=mac, type="node",
+                          model=model, image=image_fullname)
     wf.next()
 
 def wf_update_status_manager(wf, status_manager, mac, **env):
     status_manager.register_node(mac)
-    wf.next()
-
-def wf_dhcpd_named_update(wf, dhcpd, named, **env):
-    # refresh the dhcpd and named (DNS) conf
-    dhcpd.update()
-    named.update()
     wf.next()
 
 def wf_done_registering_mac(wf, mac, **env):
