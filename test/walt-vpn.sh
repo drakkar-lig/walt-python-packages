@@ -23,7 +23,7 @@ do_curl() {
 define_test "walt vpn enrollment" as {
     echo "Preparation work: create a fake rpi-5-b node."
     dev_name="fake-rpi5b-$$"
-    info=$(create_fake_device "$dev_name" "walt.node.rpi-5-b")
+    info=$(create_fake_device "$dev_name" "node" "rpi-5-b")
     dev_ip=$(echo "$info" | grep "^ip:" | awk '{print $2}')
 
     # walk through the enrollment steps

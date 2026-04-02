@@ -23,3 +23,7 @@ KEYS_DIR = Path("/var/lib/walt/keys")
 NODE_SSH_ECDSA_HOST_KEY_PATH = KEYS_DIR / "ssh_host_ecdsa_key"
 NODE_SSH_ECDSA_HOST_KEY_PUB_PATH = KEYS_DIR / "ssh_host_ecdsa_key.pub"
 NODE_DROPBEAR_ECDSA_HOST_KEY_PATH = KEYS_DIR / "dropbear_ecdsa_host_key"
+DHCPD_VAR_LIB_PATH = Path("/var/lib/walt/services/dhcpd")
+DHCPD_DEVICES_FILE = DHCPD_VAR_LIB_PATH / "devices.pickle"
+DHCPD_CTRL_SOCK_PATH = Path("/run/walt/dhcpd/dhcpd.sock")
+DHCPD_HEARTBEAT_PERIOD = 4

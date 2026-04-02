@@ -14,13 +14,10 @@ from walt.server.vpn.const import (
         VPN_SERVER_KRL,
         VPN_HTTP_EP_HISTORY_FILE,
 )
-from walt.server.tools import get_walt_subnet
 
 ERR_VPN_EP_NOT_CONFIGURED = (
 "The VPN entrypoint is not fully configured "
 "(use 'walt-server-setup --edit-conf' on server-side).")
-ROUTE_LOCALNET_SETTING = Path("/proc/sys/net/ipv4/conf/walt-net/route_localnet")
-WALT_SUBNET = str(get_walt_subnet())
 
 # Notes:
 # * The raspberry pi 5 works as a WALT VPN node by using HTTP
@@ -44,9 +41,9 @@ WALT_SUBNET = str(get_walt_subnet())
 # * But VPN nodes can still be booted from the walt network too.
 #   VPN Nodes detect that they are on the walt network when the
 #   domain name is "walt". In this case, an SSH connection is still
-#   attempted to "walt-vpn@server.walt" for verifying that the server
-#   is legitimate. This prevents any attempt to boot the node on
-#   a specially crafted network named "walt".
+#   attempted to "walt-vpn@server.walt", for verifying that the server
+#   is legitimate, through SSH host keys. This prevents any attempt
+#   to boot the node on a specially crafted network named "walt".
 # * The early rpi5 boot up phase is using the HTTP boot feature of
 #   the board firmware, once the VPN mode is enabled. It downloads
 #   a FAT image and a signature file from the VPN HTTP entrypoint,
@@ -58,11 +55,11 @@ WALT_SUBNET = str(get_walt_subnet())
 #   eeprom of the rpi5 trying to boot may no longer be available on
 #   the network. For this reason, the walt server defines DNAT rules
 #   to catch this HTTP traffic and handle it locally (see the
-#   definition of firewall rules in the code below). These DNAT rules
-#   match all VPN HTTP entrypoints ever configured on the platform.
-#   Note that for this to work, the previous HTTP entrypoint must
-#   still exist in the DNS. As a last resort, users can still
-#   use the SD recovery image to reset the eeprom of the rpi5 node.
+#   definition of firewall rules in walt-server-httpd). These DNAT
+#   rules  match all VPN HTTP entrypoints IP addresses ever configured
+#   on the platform. Note that for this to work, the previous HTTP
+#   entrypoint must still exist in the DNS. As a last resort, users can
+#   still use the SD recovery image to reset the eeprom of the rpi5 node.
 
 
 class VPNManager:
@@ -80,7 +77,6 @@ class VPNManager:
             if ep not in self.http_ep_history:
                 self.http_ep_history.add(ep)
                 self.save_http_ep_history()
-                self.update_vpn_dnat()
         return entrypoint
 
     def get_vpn_boot_mode(self):
@@ -88,32 +84,6 @@ class VPNManager:
         if vpn_conf is None:
             return None
         return vpn_conf.get("boot-mode")
-
-    def prepare(self):
-        ROUTE_LOCALNET_SETTING.write_text("1\n")
-        do("iptables -t nat --new-chain WALT-DNAT")
-        do("iptables -t nat --append PREROUTING "
-           f"--source {WALT_SUBNET} "
-         f"! --destination {WALT_SUBNET} "
-            "--jump WALT-DNAT")
-        self.update_vpn_dnat()
-
-    def update_vpn_dnat(self):
-        do("iptables -t nat --flush WALT-DNAT")
-        for ep_host, ep_port in self.http_ep_history:
-            do("iptables -t nat --append WALT-DNAT "
-              f"-p tcp -d {ep_host} --dport {ep_port} "
-               "-j DNAT --to-destination 127.0.0.1")
-        do("iptables -t nat --append WALT-DNAT --jump RETURN")
-
-    def cleanup(self):
-        ROUTE_LOCALNET_SETTING.write_text("0\n")
-        do("iptables -t nat --delete PREROUTING "
-           f"--source {WALT_SUBNET} "
-         f"! --destination {WALT_SUBNET} "
-            "--jump WALT-DNAT")
-        do("iptables -t nat --flush WALT-DNAT")
-        do("iptables -t nat --delete-chain WALT-DNAT")
 
     def load_http_ep_history(self):
         if VPN_HTTP_EP_HISTORY_FILE.exists():

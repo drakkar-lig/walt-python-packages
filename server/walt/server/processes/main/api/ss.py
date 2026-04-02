@@ -14,8 +14,8 @@ from walt.server.processes.main.apisession import APISession
 @api
 class SSAPI(APISession):
     @api_expose_method
-    def register_device(self, context, *args):
-        context.server.add_or_update_device(*args)
+    def register_device(self, context, *args, **kwargs):
+        return context.server.add_or_update_device(context.task, *args, **kwargs)
 
     @api_expose_method
     def web_api_v1_nodes(self, context, *args):

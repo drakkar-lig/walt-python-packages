@@ -9,8 +9,8 @@ from walt.server.tools import np_record_to_dict
 @api
 class VSAPI(APISession):
     @api_expose_method
-    def register_device(self, context, *args):
-        context.server.add_or_update_device(*args)
+    def register_device(self, context, *args, **kwargs):
+        return context.server.add_or_update_device(context.task, *args, **kwargs)
 
     @api_expose_method
     def get_device_info(self, context, device_mac):
