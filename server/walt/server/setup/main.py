@@ -165,13 +165,6 @@ WALT_BASH_COMPLETION_PATH = Path("/etc/bash_completion.d/walt")
 WALT_ZSH_COMPLETION_PATH = Path("/usr/local/share/zsh/site-functions/_walt")
 
 APPARMOR_CONFS = {
-        "usr.sbin.dhcpd": """
-/var/lib/walt/services/dhcpd/*.conf r,
-/var/lib/walt/services/dhcpd/*.leases* lrw,
-/run/walt/dhcpd/dhcpd.pid rw,
-/root/walt-*/.venv/bin/walt-dhcp-event ux,  # developer setups
-/opt/walt-*/bin/walt-dhcp-event ux,         # prod setups
-""",
         "usr.sbin.named": """
 /var/lib/walt/services/named/*.conf r,
 /var/lib/walt/services/named/*.zone r,
