@@ -607,6 +607,7 @@ class SettingsManager:
         # effectively configure the devices
         should_reboot_devices = False
         should_update_exports = False
+        should_update_dhcpd = False
         db_settings = all_settings.copy()
         for setting_name, setting_value in all_settings.items():
             if setting_name == "netsetup":
@@ -618,6 +619,7 @@ class SettingsManager:
                 self.update_vnodes_vm_setting(device_infos, "gateway", gateway)
                 db_settings["netsetup"] = int(new_netsetup_state)
                 should_reboot_devices = True
+                should_update_dhcpd = True
             elif setting_name == "cpu.cores":
                 db_settings["cpu.cores"] = int(setting_value)
                 self.update_vnodes_vm_setting(device_infos, "cpu_cores", setting_value)
@@ -703,6 +705,10 @@ class SettingsManager:
         # update OS exports if needed
         if should_update_exports:
             self.server.exports.trigger_update()
+
+        # update dhcpd if needed
+        if should_update_dhcpd:
+            self.server.dhcpd.update()
 
         # notify user
         if should_reboot_devices:

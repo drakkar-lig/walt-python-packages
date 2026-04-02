@@ -775,13 +775,13 @@ class TopologyManager(object):
             db_info = server.devices.get_device_info(mac=mac)
             if db_info is None:
                 # new device, call add_or_update_device to add it
-                server.add_or_update_device(**info)
+                server.add_or_update_device(None, **info)
             elif ip != db_info.ip:
                 # call add_or_update_device to update ip
                 info.update(mac=db_info.mac,
                             type=db_info.type,
                             name=db_info.name)
-                server.add_or_update_device(**info)
+                server.add_or_update_device(None, **info)
         return None  # no error
 
     def get_and_process_bridge_neighbors(
