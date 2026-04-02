@@ -340,12 +340,15 @@ class DevicesManager(object):
             elif (
                 db_data.ip is not None
                 and args_data.get("ip", None) is not None
-                and not ip_in_walt_network(db_data.ip)
+                and db_data.ip != args_data["ip"]
                 and ip_in_walt_network(args_data["ip"])
             ):
-                # the device updated its IP by requesting our managed DHCP server
+                # If the device IP previously detected was not in WALT
+                # network, whereas the new one is, we update it.
+                # It can occur in the case the device was first detected
+                # by network scanning.
                 print(
-                    "Device: %s updating ip, %s -> %s (now in walt network)"
+                    "Device: %s updating ip, %s -> %s"
                     % (name, db_data.ip, args_data["ip"])
                 )
                 updates["ip"] = args_data["ip"]
@@ -355,7 +358,7 @@ class DevicesManager(object):
         else:
             # device was not known in db yet
             # generate a name for this device
-            if "name" not in args_data:
+            if args_data.get("name") is None:
                 args_data["name"] = self.generate_device_name(**args_data)
             print(
                 "Device: %s is new, adding (%s, %s)"
@@ -378,7 +381,7 @@ class DevicesManager(object):
                 dtype = "switch"
                 details = ""
             elif db_data.type == "node":
-                assert "model" in args_data
+                assert args_data.get("model") is not None
                 assert "image" in args_data
                 self.db.insert("nodes", **args_data)
                 dtype = "node"
