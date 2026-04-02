@@ -3,25 +3,23 @@ Description=WalT network DHCP daemon
 # WalT network has to be up for this service to run
 Requires=walt-server-netconfig.service
 After=walt-server-netconfig.service
-# Configuration file is created by walt-server-daemon.
-# Do not start if it has not been created yet.
-ConditionPathExists=/var/lib/walt/services/dhcpd/dhcpd.conf
-# walt-net interface must be present too
+# walt-net interface must be present
 ConditionPathExists=/sys/class/net/walt-net
 
 [Service]
+Type=notify
+NotifyAccess=all
+Environment=PYTHONUNBUFFERED=1
 EnvironmentFile=-/etc/walt/server.env
 RuntimeDirectory=walt/dhcpd
 StateDirectory=walt/services/dhcpd
 PIDFile=/run/walt/dhcpd/dhcpd.pid
-ExecStartPre=touch ${STATE_DIRECTORY}/dhcpd.leases
-ExecStart=/usr/sbin/dhcpd -f -4 -q walt-net \
-            -pf ${RUNTIME_DIRECTORY}/dhcpd.pid \
-            -cf ${STATE_DIRECTORY}/dhcpd.conf \
-            -lf ${STATE_DIRECTORY}/dhcpd.leases
+ExecStartPre=walt-update-mac-vendors
+ExecStart=walt-server-dhcpd
 AmbientCapabilities=CAP_NET_BIND_SERVICE CAP_NET_RAW
 ProtectSystem=full
 ProtectHome=read-only
+Restart=on-failure
 
 [Install]
 WantedBy=walt-server-netconfig.service

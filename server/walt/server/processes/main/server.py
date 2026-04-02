@@ -27,6 +27,7 @@ from walt.server.processes.main.logs import LogsManager
 from walt.server.processes.main.network.dhcpd import DHCPServer
 from walt.server.processes.main.network.named import DNSServer
 from walt.server.processes.main.nodes.manager import NodesManager
+from walt.server.processes.main.nodes.register import is_currently_registering_mac
 from walt.server.processes.main.registry import WalTLocalRegistry
 from walt.server.processes.main.settings import SettingsManager, PortSettingsManager
 from walt.server.processes.main.devices.expose import ExposeManager
@@ -100,15 +101,16 @@ class Server(object):
         # outside the WalT network, and we will not be able
         # to communicate with them when trying to update
         # the topology.
-        self.dhcpd.update(force=True)
+        self.dhcpd.update()
         self.named.update(force=True)
         self.devices.prepare()
         self.nodes.prepare()
-        self.vpn.prepare()
         # restore permanent expose sockets
         self.expose.restore()
 
     def _wf_after_exports_update(self, wf, **env):
+        # let walt-server-dhcpd leave the degraded mode
+        self.dhcpd.start_heartbeat()
         # enable PoE if some ports remained off
         self.poe.restore_poe_on_all_ports()
         # restores nodes setup
@@ -124,7 +126,6 @@ class Server(object):
         wf.run()
 
     def cleanup(self):
-        self.vpn.cleanup()
         self.unix_server.shutdown()
         self.tcp_server.shutdown()
         self.expose.cleanup()
@@ -167,54 +168,99 @@ class Server(object):
     def cleanup_device_name(self, name):
         return re.sub("[^a-zA-Z0-9-]+", "-", name.split(".")[0])
 
-    def add_or_update_device(
-        self, vci="", uci="", ip=None, mac=None, name=None, **kwargs
+    def add_or_update_device(self, task,
+        mac=None, ip=None, type="unknown",
+        model=None, name=None, tmp_ip=None
     ):
-        # let's try to identify this device given its mac address
-        # and/or the vci field of the DHCP request.
-        if uci.startswith("walt.node"):
-            auto_id = uci
-        elif vci.startswith("walt.node"):
-            auto_id = vci
-        else:
-            auto_id = None
-        if auto_id is None:
-            info = get_device_info_from_mac(mac)
-            info["type"] = info.get("type", "unknown")
-        else:
-            model = auto_id[10:]
-            info = {"type": "node", "model": model}
-        kwargs.update(**info)
+        # if the node is in a boot-loop waiting for the registration
+        # procedure to complete (includes setting up the OS image),
+        # return the temporary IP immediately.
+        already_registering = is_currently_registering_mac(mac)
+        if already_registering:
+            assert tmp_ip is not None
+            return tmp_ip
+        # cleanup name and model inputs
         if name is not None:
             name = self.cleanup_device_name(name)
-            if self.devices.validate_device_name(None, name):
-                # name seems meaningful...
-                kwargs.update(name=name)
+            if not self.devices.validate_device_name(None, name):
+                name = None  # name does not seem valid
+        if model is not None:
+            if len(model) == 0:
+                model = None
         # what is the current status of this device in db?
         db_info = self.db.select_unique("devices", mac=mac)
         if db_info is None:
             status = "new"
         else:
             status = db_info.type
-        # new nodes whose default image is not available yet are first recorded
+        # New nodes whose default image is not available yet are first recorded
         # as simple devices of unknown type because downloading their default
-        # image may fail.
-        if status in ("new", "unknown") and kwargs["type"] == "node":
-            image_fullname = self.images.store.get_default_image_fullname(info["model"])
-            if image_fullname in self.images.store:
-                kwargs["image"] = image_fullname
+        # image may fail. We allocate a temporary ip to them, different from
+        # their final ip, to handle the boot loop correctly until the OS
+        # is ready to be booted and the board restarts booting with a new
+        # DHCP DISCOVER request.
+        if status in ("new", "unknown") and type == "node":
+            # prepare the task for workflow mode
+            if task:
+                task.set_async()
+            def wf_reply_task(wf, task, reply_ip, **env):
+                if task:
+                    task.return_result(reply_ip)
+                wf.next()
+            # check if we have everything ready to expose a default OS for
+            # this new node, or if we should direct it to the boot-loop files
+            # with a temporary IP address.
+            fullname = self.images.store.get_default_image_fullname(model)
+            os_ready = (fullname in self.images.store and
+                        self.images.store[fullname].in_use())
+            if os_ready:
+                self.devices.add_or_update(ip = ip,
+                                           mac = mac,
+                                           type = "node",
+                                           image = fullname,
+                                           model = model,
+                                           name = name)
+                wf_steps = [
+                    self.nodes.wf_register_node,  # short, OS is ready
+                    wf_reply_task,                # reply with final ip
+                ]
+                reply_ip = ip
             else:
-                kwargs["type"] = "unknown"
-        modified = self.devices.add_or_update(ip=ip, mac=mac, **kwargs)
-        if status in ("new", "unknown") and info["type"] == "node":
-            # register the walt node or convert the unknown device to a walt node
-            self.nodes.register_node(mac=mac, model=info.get("model"))
-        elif modified:
-            # note: if registering a node (other if case, just above),
-            # self.nodes.register_node() takes care of updating dhcpd and named
-            # at the end of its procedure.
-            self.dhcpd.update()
-            self.named.update()
+                # the OS image is not ready, we'll first record the node as
+                # an unknown device, let the node enter a boot-loop mode by
+                # returning a temporary IP, and we will set up the OS image
+                # asynchronously.
+                assert tmp_ip is not None
+                if status == "new":
+                    self.devices.add_or_update(ip = ip,
+                                               mac = mac,
+                                               type = "unknown",
+                                               name = name)
+                wf_steps = [
+                    wf_reply_task,                # reply early with tmp IP
+                    self.nodes.wf_register_node,  # long operation
+                ]
+                reply_ip = tmp_ip
+            # run the workflow
+            wf = Workflow(wf_steps,
+                          task = task,
+                          mac = mac,
+                          model = model,
+                          reply_ip = reply_ip,
+            )
+            wf.run()
+        else:
+            # not a new node
+            modified = self.devices.add_or_update(
+                ip = ip,
+                mac = mac,
+                type = type,
+                model = model,
+                name = name)
+            if modified:
+                self.dhcpd.update()
+                self.named.update()
+            return ip
 
     def rename_device(self, requester, old_name, new_name):
         device = self.devices.rename(requester, old_name, new_name)
@@ -325,8 +371,62 @@ class Server(object):
         self.nodes.forget_device(device.mac)
         wf.next()
 
-    def wf_unblock_client(self, wf, task, **env):
-        task.return_result(True)
+    def wf_unblock_client(self, wf, task, task_result=True, **env):
+        task.return_result(task_result)
+        wf.next()
+
+    def wf_pull_image(self, wf,
+                      requester, model, default_image_fullname, **env):
+        requester.set_busy_label(f'Downloading default image for "{model}"')
+        self.blocking.pull_image(requester, default_image_fullname, wf.next)
+
+    def wf_after_pull_image(self, wf, pull_result, requester, task, **env):
+        if pull_result[0]:
+            wf.next()
+        else:
+            failure = pull_result[1]
+            requester.stderr.write(failure + "\n")
+            task.return_result(False)
+            wf.interrupt()
+
+    def wf_tag_default_image_to_user(self, wf, requester, username,
+                                     default_image_fullname, model, **env):
+        labels = self.images.store[default_image_fullname].labels
+        image_name = labels.get("walt.image.preferred-name")
+        if image_name is None:
+            # no 'preferred-name' tag, reuse name of default image
+            image_name = model + "-default"
+        user_image_fullname = format_image_fullname(username, image_name)
+        if user_image_fullname not in self.images.store:
+            self.registry.tag(default_image_fullname, user_image_fullname)
+            self.images.store.register_image(user_image_fullname)
+            requester.stdout.write(
+                f'Default image for {model} was saved as "{image_name}" in your'
+                " working set.\n"
+            )
+        wf.update_env(image_name=image_name,
+                      image_fullname=user_image_fullname)
+        wf.next()
+
+    def wf_add_vnode_in_db(self, wf, requester, mac, ip, model,
+                           name, image_fullname, **env):
+        requester.set_busy_label("Registering virtual node")
+        self.devices.add_or_update(
+            type="node", model=model, ip=ip, mac=mac, name=name, virtual=True,
+            image=image_fullname
+        )
+        wf.next()
+
+    def wf_start_vnode(self, wf, requester, mac, name, image_name, **env):
+        node = self.devices.get_device_info(mac=mac)
+        self.nodes.start_vnode(node)
+        requester.set_default_busy_label()
+        requester.stdout.write(
+            f'Node {name} is now booting your image "{image_name}".\n'
+        )
+        requester.stdout.write(
+            f"Use `walt node boot {name} <other-image>` if needed.\n"
+        )
         wf.next()
 
     def create_vnode(self, requester, task, name):
@@ -341,66 +441,35 @@ class Server(object):
         username = requester.get_username()
         if username is None:
             return False  # username already disconnected, give up
-        mac, ip, model = self.nodes.generate_vnode_info()
+        mac, ip, model = self.nodes.generate_vnode_info(requester)
+        if ip is None:
+            return False
         default_image_fullname = format_image_fullname(
             "waltplatform", model + "-default"
         )
-
-        def on_default_image_ready():
-            default_image_labels = self.images.store[default_image_fullname].labels
-            image_name = default_image_labels.get("walt.image.preferred-name")
-            if image_name is None:
-                # no 'preferred-name' tag, reuse name of default image
-                image_name = model + "-default"
-            user_image_fullname = format_image_fullname(username, image_name)
-            if user_image_fullname not in self.images.store:
-                self.registry.tag(default_image_fullname, user_image_fullname)
-                self.images.store.register_image(user_image_fullname)
-                requester.stdout.write(
-                    f'Default image for {model} was saved as "{image_name}" in your'
-                    " working set.\n"
-                )
-            requester.set_busy_label("Registering virtual node")
-            self.create_vnode_using_image(name, mac, ip, model, user_image_fullname)
-            requester.set_default_busy_label()
-            requester.stdout.write(
-                f'Node {name} is now booting your image "{image_name}".\n'
-            )
-            requester.stdout.write(
-                f"Use `walt node boot {name} <other-image>` if needed.\n"
-            )
-
+        # run the task as an async workflow
+        task.set_async()
+        wf_steps = []
         if default_image_fullname not in self.images.store:
-            requester.set_busy_label(f'Downloading default image for "{model}"')
-            task.set_async()
-
-            def callback(pull_result):
-                if pull_result[0]:
-                    on_default_image_ready()
-                    task.return_result(True)
-                else:
-                    failure = pull_result[1]
-                    requester.stderr.write(failure + "\n")
-                    task.return_result(False)
-
-            self.blocking.pull_image(requester, default_image_fullname, callback)
-        else:
-            on_default_image_ready()
-            return True
-
-    def create_vnode_using_image(self, name, mac, ip, model, image_fullname):
-        # declare node in db
-        self.devices.add_or_update(
-            type="node", model=model, ip=ip, mac=mac, name=name, virtual=True,
-            image=image_fullname
+            wf_steps += [self.wf_pull_image, self.wf_after_pull_image]
+        wf_steps += [
+            self.wf_tag_default_image_to_user,
+            self.wf_add_vnode_in_db,
+            self.nodes.wf_register_node,
+            self.wf_start_vnode,
+            self.wf_unblock_client
+        ]
+        wf = Workflow(wf_steps,
+                      requester=requester,
+                      task=task,
+                      username=username,
+                      name=name,
+                      mac=mac,
+                      ip=ip,
+                      model=model,
+                      default_image_fullname=default_image_fullname,
         )
-        self.nodes.register_node(mac=mac, model=model, image_fullname=image_fullname)
-        # start background vm
-        # note: create_vnode_using_image() is called after the default image
-        # is downloaded, so we know register_node() completed its process
-        # synchronously and we can proceed with the following steps.
-        node = self.devices.get_device_info(mac=mac)
-        self.nodes.start_vnode(node)
+        wf.run()
 
     def remove_vnode(self, requester, task, name):
         info = self.nodes.get_virtual_node_info(requester, name)

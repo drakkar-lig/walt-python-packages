@@ -22,7 +22,9 @@ from walt.server.processes.main.nodes.expose import ExposeManager
 from walt.server.processes.main.nodes.netservice import node_request
 from walt.server.processes.main.nodes.powersave import PowersaveManager
 from walt.server.processes.main.nodes.reboot import reboot_nodes
-from walt.server.processes.main.nodes.register import handle_registration_request
+from walt.server.processes.main.nodes.register import (
+        wf_handle_registration_request
+)
 from walt.server.processes.main.nodes.show import show
 from walt.server.processes.main.nodes.webapi import web_api_list_nodes
 from walt.server.processes.main.nodes.status import (
@@ -110,8 +112,16 @@ class NodesManager(object):
             cls=FetchNodeConfigHandler,
         )
         self.node_register_kwargs = dict(
-            images=server.images.store, dhcpd=server.dhcpd,
-            named=server.named, registry=server.registry
+            blocking=server.blocking,
+            db=server.db,
+            devices=server.devices,
+            dhcpd=server.dhcpd,
+            exports=server.exports,
+            images=server.images.store,
+            logs=server.logs,
+            named=server.named,
+            registry=server.registry,
+            status_manager=self.status_manager,
         )
         self._cleaning_up = False
 
@@ -169,21 +179,15 @@ class NodesManager(object):
         # note: the calling code takes care of discarding db data
         # about this vnode (see server.py)
 
-    def register_node(self, mac, model, image_fullname=None):
+    def wf_register_node(self, wf, **env):
         if self._cleaning_up:
+            wf.interrupt()
             return
-        handle_registration_request(
-            db=self.db,
-            devices=self.devices,
-            mac=mac,
-            model=model,
-            image_fullname=image_fullname,
-            blocking=self.blocking,
-            logs=self.logs,
-            exports=self.exports,
-            status_manager=self.status_manager,
+        wf.update_env(
             **self.node_register_kwargs,
         )
+        wf.insert_steps([wf_handle_registration_request])
+        wf.next()
 
     def blink_callback(self, results, requester, task):
         # we have just one node, so one entry in results
@@ -226,19 +230,16 @@ class NodesManager(object):
                 self.db.select_unique("vpnauth", vpnmac=free_mac) is None):
                 return free_mac  # ok, mac is free
 
-    def generate_vnode_info(self):
+    def generate_vnode_info(self, requester):
         # random mac address generation
         free_mac = self.generate_free_mac("52:54:00")
-        # find a free ip
-        subnet = get_walt_subnet()
-        server_ip = get_server_ip()
-        free_ips = set(subnet.hosts())
-        free_ips.discard(ip(server_ip))
-        for item in self.db.execute("SELECT ip FROM devices WHERE ip IS NOT NULL"):
-            device_ip = ip(item.ip)
-            if device_ip in subnet and device_ip in free_ips:
-                free_ips.discard(device_ip)
-        free_ip = str(min(free_ips))
+        # request a free ip from dhcpd
+        result = self.server.dhcpd.allocate_ip(free_mac)
+        if result[0]:
+            free_ip = result[1]
+        else:
+            requester.stderr.write("Failed: " + result[1])
+            free_ip = None
         return free_mac, free_ip, "pc-x86-64"
 
     def start_vnode(self, node):

@@ -133,11 +133,18 @@ end_of_mac() {
 }
 
 create_fake_device() {
+    dev_name="$1"
+    if [ -z ${3+x} ]
+    then
+        dev_type="unknown"
+        model=""
+    else
+        dev_type="$2"
+        model="$3"
+    fi
     # We first create the fake device as a virtual node, retrieve
     # its ip and mac, then remove this virtual node and recreate
-    # it as an unknown device using walt-dhcp-event.
-    dev_name="$1"
-    vci="$2"
+    # it as an unknown device using SSAPI.register_device().
     walt node create "$dev_name"
     ip_mac="$(
         psql --no-psqlrc walt -t \
@@ -146,9 +153,9 @@ create_fake_device() {
     set -- $ip_mac
     ip=$1
     mac=$2
-    mac_suffix=$(end_of_mac $mac)
     walt node remove "$dev_name"
-    walt-dhcp-event commit --force-name \
-        "$vci" "" $ip $mac "$dev_name" "0" "unknown"
+    $TESTS_DIR/includes/ssapi.py \
+        register_device "$mac" "$ip" "$dev_type" "$model" "$dev_name"
+    echo "mac: $mac"
     echo "ip: $ip"
 }

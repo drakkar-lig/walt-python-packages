@@ -3,6 +3,8 @@ import fcntl
 import itertools
 import json
 import numpy as np
+import os
+import sdnotify
 import shelve
 import socket
 
@@ -23,6 +25,8 @@ from walt.common.tools import (
 
 DEFAULT_JSON_HTTP_TIMEOUT = 10
 JSON_HTTP_RETRIES = 3
+RPI_MAC_PREFIXES = Path("/var/lib/walt/rpi-mac-prefixes.txt")
+NETGEAR_MAC_PREFIXES = Path("/var/lib/walt/netgear-mac-prefixes.txt")
 
 
 def update_conf_file(path, content):
@@ -369,13 +373,12 @@ def np_columnate(tabular_data, shrink_empty_cols=False, align=None):
     return "".join(data.flat)
 
 
-def get_rpi_foundation_mac_vendor_ids(zero_padded=True):
-    if zero_padded:
-        return ("28:cd:c1", "b8:27:eb", "d8:3a:dd", "dc:a6:32", "e4:5f:01",
-                "2c:cf:67", "88:a2:9e")
-    else:
-        return ("28:cd:c1", "b8:27:eb", "d8:3a:dd", "dc:a6:32", "e4:5f:1",
-                "2c:cf:67", "88:a2:9e")
+def get_rpi_foundation_mac_vendor_ids():
+    return RPI_MAC_PREFIXES.read_text().split()
+
+
+def get_netgear_mac_vendor_ids():
+    return NETGEAR_MAC_PREFIXES.read_text().split()
 
 
 def non_blocking_connect(sock, ip, port):
@@ -722,3 +725,8 @@ def SSAPILink():
         sys.stderr.write("Could not connect to the SSAPI.\n")
         sys.stderr.write("WalT main service is probably down.\n")
         sys.exit(1)
+
+
+def notify_systemd():
+    if "NOTIFY_SOCKET" in os.environ:
+        sdnotify.SystemdNotifier().notify("READY=1")

@@ -370,7 +370,6 @@ def get_env_start(info):
         setattr(env, attr, value)
     env.manufacturer = MANUFACTURER
     env.product = QEMU_PRODUCT
-    env.vci = "walt.node." + env.model
     if info._disks_path is None:
         env.disks_path = VNODE_DEFAULT_DISKS_PATH % dict(mac=info._mac)
     else:
@@ -560,7 +559,7 @@ def api_fake_netboot(env):
 
 def send_register_request(env):
     with ServerAPILink(env.server_ip, "VSAPI") as server:
-        return server.register_device(env.vci, "", env.ip, env.mac)
+        return server.register_device(env.mac, env.ip, "node", env.model)
 
 
 def add_network_info(env):
