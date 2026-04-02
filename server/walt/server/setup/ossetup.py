@@ -80,12 +80,12 @@ APT_WALT_DEPENDENCIES_PACKAGES = """
         apt-transport-https ca-certificates gnupg2 curl gnupg-agent
         software-properties-common binfmt-support qemu-user-static
         lldpd snmp snmpd openssh-server snmp-mibs-downloader iputils-ping
-        libsmi2-dev isc-dhcp-server bind9 nfs-kernel-server postgresql
+        libsmi2-dev bind9 nfs-kernel-server postgresql
         ntpdate ntp lockfile-progs ptpd tftpd-hpa ebtables bridge-utils
         screen ifupdown gcc python3-dev git make sudo expect libjson-perl
         docker.io podman buildah skopeo bash-completion dropbear-bin
         ksmtuned fdisk e2fsprogs dosfstools containernetworking-plugins
-        uuid-runtime qemu-system-x86 netcat-openbsd lsof
+        uuid-runtime qemu-system-x86 netcat-openbsd lsof ieee-data
 """.split()
 
 # note: containernetworking-plugins is needed for "walt image build".
