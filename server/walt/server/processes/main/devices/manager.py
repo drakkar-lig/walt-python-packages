@@ -492,23 +492,28 @@ class DevicesManager(object):
         return self.as_device_set(d.name for d in devices)
 
     def prepare_netsetup(self):
-        # force-create the chain WALT and assert it is empty
-        self._fw_rules.append("iptables --new-chain WALT")
-        self._fw_rules.append("iptables --flush WALT")
-        self._fw_rules.append("iptables --append WALT --jump DROP")
         # allow traffic on the bridge (virtual <-> physical nodes)
         self._fw_rules.append(
             "iptables --append FORWARD "
             "--in-interface walt-net --out-interface walt-net "
             "--jump ACCEPT"
         )
-        # direct the traffic going out of walt network to WALT chain
-        # (see the configuration of devices having netsetup=NAT below)
+        # Allow traffic going out of walt network and setup NAT for this.
+        # (in practice, only devices having netsetup=NAT will generate
+        # such traffic since others don't get the router DHCP option
+        # instructing them to use the server IP as a gateway.)
         self._fw_rules.append(
             "iptables --append FORWARD "
            f"--source {WALT_SUBNET} "
          f"! --destination {WALT_SUBNET} "
-            "--jump WALT"
+            "--jump ACCEPT"
+        )
+        self._fw_rules.append(
+            "iptables -m addrtype --table nat --append POSTROUTING "
+             f"--source {WALT_SUBNET} "
+           f"! --destination {WALT_SUBNET} "
+            "! --dst-type LOCAL "
+            "--jump MASQUERADE"
         )
         # allow incoming traffic to the walt network if the corresponding
         # outgoing traffic was previously allowed.
@@ -519,26 +524,9 @@ class DevicesManager(object):
             "--jump ACCEPT"
         )
         # NAT nodes traffic that is allowed to go outside
-        self._fw_rules.append(
-            "iptables -m addrtype --table nat --append POSTROUTING "
-             f"--source {WALT_SUBNET} "
-           f"! --destination {WALT_SUBNET} "
-            "! --dst-type LOCAL "
-            "--jump MASQUERADE"
-        )
         # Apply
         for rule in self._fw_rules:
             do(rule)
-        # Allow devices having netsetup=NAT to exit walt network.
-        # (We do not record these device-specific rules into
-        # self._fw_rules because they may change before
-        # cleanup_netsetup() is called.
-        # The WALT chain will just be flushed instead.)
-        for device_info in self.db.execute("""\
-                SELECT ip FROM devices
-                WHERE COALESCE((conf->'netsetup')::int, 0) = %d;
-                """ % NetSetup.NAT):
-            do(f"iptables --insert WALT --source '{device_info.ip}' --jump ACCEPT")
 
     def _invert_fw_rule(self, rule):
         return rule.replace("--insert", "--delete"
