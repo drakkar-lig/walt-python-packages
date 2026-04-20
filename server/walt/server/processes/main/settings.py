@@ -611,22 +611,6 @@ class SettingsManager:
         for setting_name, setting_value in all_settings.items():
             if setting_name == "netsetup":
                 new_netsetup_state = NetSetup(setting_value)
-                for device_info in device_infos:
-                    if device_info.conf.get("netsetup", 0) == new_netsetup_state:
-                        # skip this node: already configured
-                        continue
-                    # update iptables
-                    do(
-                        "iptables %(action)s WALT --source '%(ip)s' --jump ACCEPT"
-                        % dict(
-                            ip=device_info.ip,
-                            action=(
-                                "--insert"
-                                if new_netsetup_state == NetSetup.NAT
-                                else "--delete"
-                            ),
-                        )
-                    )
                 if new_netsetup_state == NetSetup.NAT:
                     gateway = get_server_ip()
                 else:  # LAN
