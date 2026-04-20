@@ -51,18 +51,18 @@ WALT_SUBNET = str(get_walt_subnet())
 #   the board firmware, once the VPN mode is enabled. It downloads
 #   a FAT image and a signature file from the VPN HTTP entrypoint,
 #   which redirects to the walt server.
-# * In case the VPN-enabled rpi5 is booting from the walt network,
-#   the VPN HTTP entrypoint may not be reachable (unless the node is
-#   configured with netsetup=NAT). For this reason, the walt server
-#   defines DNAT rules to catch this HTTP traffic and handle it
-#   locally (see the definition of firewall rules in the code below).
-# * If the HTTP entrypoint is reconfigured on server side, one can
-#   still make the rpi5 boards boot and auto-update their eeprom
-#   with the new value, by just connecting them to the walt network.
-#   This works even if the previous HTTP entrypoint is no longer
-#   reachable, because the DNAT rules match all VPN HTTP entrypoints
-#   ever configured on the platform. (However, this previous HTTP
-#   entrypoint must still exist in the DNS.)
+# * If the VPN HTTP entrypoint is reconfigured on server side, one
+#   should still be able to make the rpi5 boards boot and auto-update
+#   their eeprom with the new value, by just connecting them to the
+#   walt network. But the previous entrypoint value specified in the
+#   eeprom of the rpi5 trying to boot may no longer be available on
+#   the network. For this reason, the walt server defines DNAT rules
+#   to catch this HTTP traffic and handle it locally (see the
+#   definition of firewall rules in the code below). These DNAT rules
+#   match all VPN HTTP entrypoints ever configured on the platform.
+#   Note that for this to work, the previous HTTP entrypoint must
+#   still exist in the DNS. As a last resort, users can still
+#   use the SD recovery image to reset the eeprom of the rpi5 node.
 
 
 class VPNManager:
