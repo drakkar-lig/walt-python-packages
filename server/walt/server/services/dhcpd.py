@@ -80,6 +80,11 @@ OPT_CLIENT_ARCH         = 93   # option 93: client architecture (PXE)
 OPT_PXE_CLIENT_ID       = 97   # option 97: PXE UUID/GUID
 OPT_DOMAIN_SEARCH       = 119  # option 119: domain search list (RFC 3397)
 
+# Client architecture values (for option 93)
+# (https://www.iana.org/assignments/dhcpv6-parameters/dhcpv6-parameters.xhtml#processor-architecture)
+OPT_CLIENT_ARCH_X86_BIOS   = 0
+OPT_CLIENT_ARCH_X86_64_EFI = 7
+
 # PXE vendor suboption codes (used inside option 43)
 PXE_DISCOVERY_CONTROL = 6
 PXE_BOOT_SERVER       = 8
@@ -305,8 +310,12 @@ class DHCPPacket:
         return self.mac_address[:8] in self.RPI_OUIS
 
     @property
-    def is_x86(self) -> bool:
-        return self.client_arch == 0
+    def is_x86_bios(self) -> bool:
+        return self.client_arch == OPT_CLIENT_ARCH_X86_BIOS
+
+    @property
+    def is_x86_64_efi(self) -> bool:
+        return self.client_arch == OPT_CLIENT_ARCH_X86_64_EFI
 
     @property
     def is_netgear(self) -> bool:
@@ -843,20 +852,19 @@ class WalTDHCPdEngine:
         """Add PXE-specific options to a reply based on what the client is."""
         if pkt.is_rpi:
             reply.set_pxe_rpi_options()
-        elif pkt.is_x86:
-            uci = pkt.user_class_id or ""
-            if uci.startswith("walt.node"):
-                # iPXE 2nd stage --
-                # We get here when walt-x86-undionly.kpxe is running on
-                # the node. The VCI is still the one of PXE, but the UCI
-                # has been modified to indicate a walt node.
-                # The binary specifies itself the script to boot from TFTP,
-                # so no bootfile option is needed here.
-                pass
-            else:
-                # iPXE 1st stage
-                reply.set_tftp_options(self.server_ip,
-                                       "pxe/walt-x86-undionly.kpxe")
+        # note:
+        # when walt-x86-undionly.kpxe or walt-x86-64-ipxe.efi is running
+        # it will match the same cases below so they will receive a DHCP
+        # bootfile option targeting the same binary; however, the ipxe
+        # script they embed to not take the DHCP bootfile option into
+        # account and always run the start.ipxe script of the image
+        # instead, so there is no risk of a boot loop.
+        elif pkt.is_x86_bios:
+            reply.set_tftp_options(WALT_SERVER_IP,
+                                   "pxe/walt-x86-undionly.kpxe")
+        elif pkt.is_x86_64_efi:
+            reply.set_tftp_options(WALT_SERVER_IP,
+                                   "pxe/walt-x86-64-ipxe.efi")
 
     def _detect_type_and_model(self, pkt: DHCPPacket):
         # for device types on which we install a custom network bootloader,

@@ -16,6 +16,7 @@ MAP_FILE_CONTENT = """\
 # files used for standard PXE booting should not be
 # redirected because images of new nodes are not mounted yet
 e .*undionly.*
+e .*walt.*ipxe.efi
 # these two lines ensures compatibility of legacy
 # bootloader configurations.
 r boot/rpi-.*\\.uboot start.uboot

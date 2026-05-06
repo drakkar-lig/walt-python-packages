@@ -1,3 +1,4 @@
+import gzip
 import numpy as np
 import pickle
 import shelve
@@ -218,6 +219,10 @@ def prepare():
         failsafe_makedirs(PXE_PATH)
         orig_path = this_dir / "walt-x86-undionly.kpxe"
         shutil.copy(str(orig_path), PXE_PATH)
+    if not (PXE_PATH / "walt-x86-64-ipxe.efi").exists():
+        orig_path = this_dir / "walt-x86-64-ipxe.efi.gz"
+        with gzip.open(orig_path) as f:
+            (PXE_PATH / "walt-x86-64-ipxe.efi").write_bytes(f.read())
     if TFTP_STATIC_DIR.exists():
         static_dir_ts = 0
         date_file = TFTP_STATIC_DIR / "walt.date"
