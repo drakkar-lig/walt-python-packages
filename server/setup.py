@@ -105,6 +105,7 @@ setup_info = {
         "sh/walt-image-fs-helper",
         "sh/walt-server-cleanup",
         "sh/walt-device-ssh",
+        "sh/walt-run-container",
         "sh/walt-server-vpn-test-ssh-entrypoint",
         "sh/walt-update-mac-vendors",
     ],
