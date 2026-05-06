@@ -266,7 +266,23 @@ When these files are provided, the WALT server performs these steps:
 4. Similarly to the basic case, wait for the background container to end, then save changes to a new image, etc.
 
 Note that this procedure hides the startup messages of the init system (steps 1 and 3) to the user.
+
 For debugging, you can work on an image without `/bin/walt-image-shell-start` or `/bin/walt-image-shell-shutdown` at first, so just a basic virtual environment is set when you run `walt image shell`. In this basic environment, you can test the commands you wish to embed in those files one by one, for instance `exec /sbin/init`, and verify that everything can run properly in a container environment.
+
+Alternatively, if you have root access to the WALT server, you can test your
+setup there by running the following command:
+```
+$ walt-run-container -it --rm --systemd always \
+                     -v /run/rpc_pipefs:/run/rpc_pipefs \
+                     -h image-shell \
+                     --image-fullname YOUR_USERNAME/YOUR_IMAGE \
+                     --cmd 'exec /bin/walt-image-shell-start'
+```
+It will show the startup of the init system inside the container.
+If everything works, it should bring you to the login prompt.
+Then to test the shutdown you need to login as root and type `/bin/walt-image-shell-shutdown`.
+If the image has no root password, then instead of logging in check the container id in another terminal (using `podman ps`) and run `podman exec <cont-id> /bin/bash`.
+
 
 ### 10- Support for RAM swapping using NBD
 
