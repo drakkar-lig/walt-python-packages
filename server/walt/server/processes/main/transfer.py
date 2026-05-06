@@ -278,12 +278,13 @@ def docker_wrap_cmd(cmd, container_name, image_fullname,
                     input_needed=False, **env):
     walt_tar_send = script_path("walt-tar-send")
     cmd_sync_sync = f"{cmd}; sync; sync"
-    args = ["podman", "run", "--log-driver=none", "-q"]
+    args = ["walt-run-container"]
     if input_needed:
         args += ["-i"]
-    args += ["--name", container_name, "-w", "/root",
+    args += ["--container-name", container_name,
              "-v", f"{walt_tar_send}:/bin/_walt_internal_/walt-tar-send",
-             "--entrypoint", "/bin/sh", image_fullname, "-c", cmd_sync_sync]
+             "--image-fullname", image_fullname,
+             "--cmd", cmd_sync_sync]
     return shlex.join(args)
 
 
