@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+# walt-run-container is a wrapper for 'podman run' used by the
+# server in various cases:
+# - handling transfers for "walt image cp" (see main/transfer.py)
+# - using "walt image shell" (see sh/walt-image-shell-helper)
+# - when exploring the content of an image (see sh/walt-image-fs-helper)
+
+set -e
+progname="$0"
+image_fullname=""
+bin_interpreter="auto"
+cmd=""
+args=("podman" "run" "--log-driver=none" "-q" "-w" "/root")
+while [ ! -z "$*" ]
+do
+    case "$1" in
+        "--container-name")
+            args+=("--name" "$2")
+            shift 2
+            continue
+            ;;
+        "--image-fullname")
+            image_fullname="$2"
+            shift 2
+            continue
+            ;;
+        "--bin-interpreter")
+            bin_interpreter="$2"
+            shift 2
+            continue
+            ;;
+        "--cmd")
+            cmd="$2"
+            shift 2
+            continue
+            ;;
+        "--volume"|"-v"|"--systemd"|"--hostname"|"-h")
+            # option name and value passed directly into args
+            args+=("$1" "$2")
+            shift 2
+            continue
+            ;;
+        "-i"|"-t"|"-it"|"-ti"|"--rm"|"-d"|"--detach")
+            # pass option directly into args
+            args+=("$1")
+            shift 1
+            continue
+            ;;
+        *)
+            echo "$progname: Unknown option '$1'. Aborting." >&2
+            exit 1
+            ;;
+    esac
+done
+
+if [ -z "$image_fullname" -o -z "$cmd" ]
+then
+    echo "Error: options '--image-fullname' and '--cmd' are mandatory." >&2
+    exit 1
+fi
+
+if [ "$bin_interpreter" = "auto" ]
+then
+    bin_interpreter="$(
+        podman image inspect \
+          --format '{{index .Config.Labels "walt.image.bin.interpreter"}}' \
+          "$image_fullname")"
+fi
+
+if [ -z "$bin_interpreter" ]
+then
+    # no binary interpreter
+    args+=("--entrypoint" "/bin/sh" "$image_fullname" "-c" "$cmd")
+else
+    # we need to run the command with the interpreter
+    args+=("--entrypoint" "$bin_interpreter" "$image_fullname" \
+           "/bin/sh" "-c" "$cmd")
+fi
+
+# start the 'podman run' command
+exec "${args[@]}"
