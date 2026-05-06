@@ -60,6 +60,7 @@ OPT_ROUTERS             = 3
 OPT_DNS                 = 6
 OPT_HOSTNAME            = 12
 OPT_DOMAIN_NAME         = 15
+OPT_ROOT_PATH           = 17
 OPT_BROADCAST           = 28
 OPT_NTP                 = 42
 OPT_VENDOR_ENCAPSULATED = 43   # option 43: PXE vendor encapsulated options
@@ -355,7 +356,7 @@ class DHCPPacket:
 
     def set_network_options(self, request: "DHCPPacket", subnet: str, broadcast: str,
                             routers: list, dns: list,
-                            domain: str, ntp: list = None):
+                            domain: str, ntp: list, root_path: str):
         """Set standard network options on this (reply) packet."""
         self.set_option_if_requested(request, OPT_SUBNET_MASK, encode_ip(subnet))
         self.set_option_if_requested(request, OPT_BROADCAST, encode_ip(broadcast))
@@ -366,8 +367,8 @@ class DHCPPacket:
         self.set_option_if_requested(
             request, OPT_DOMAIN_SEARCH, encode_domain_search([domain])
         )
-        if ntp:
-            self.set_option_if_requested(request, OPT_NTP, encode_ip_list(ntp))
+        self.set_option_if_requested(request, OPT_NTP, encode_ip_list(ntp))
+        self.set_option_if_requested(request, OPT_ROOT_PATH, root_path.encode())
 
     def set_hostname(self, request: "DHCPPacket", hostname: str):
         self.set_option_if_requested(request, OPT_HOSTNAME, hostname.encode())
@@ -527,6 +528,7 @@ class WaltDHCPServer(DHCPServer):
             self.SUBNET_MASK, self.BROADCAST,
             self._get_routers(pkt),
             self.DNS, self.DOMAIN, self.NTP,
+            self._engine.get_root_path(ip)
         )
         if pkt.is_pxe:
             self._engine.apply_pxe_options(pkt, reply)
@@ -692,6 +694,9 @@ class WalTDHCPdEngine:
         if hints.get("boot-mode", None) == "vpn-http":
             return True
         return False
+
+    def get_root_path(self, ip):
+        return f"{WALT_SERVER_IP}:/var/lib/walt/nodes/{ip}/fs"
 
     def get_name_for_ip(self, ip):
         return self._name_per_ip.get(ip)
