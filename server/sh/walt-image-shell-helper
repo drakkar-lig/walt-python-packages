@@ -7,7 +7,7 @@ then
 	echo "Usage: $0 <image_fullname> <container_name>" >&2
 	exit
 fi
-
+set -e
 image_fullname="$1"
 container_name="$2"
 
@@ -15,6 +15,12 @@ HOSTNAME='image-shell'
 
 tmp_dir=$(mktemp -d)
 trap "rm -rf $tmp_dir" EXIT
+
+# Check if the image defines a label pointing to a binary interpreter
+bin_interpreter="$(
+    podman image inspect \
+        --format '{{index .Config.Labels "walt.image.bin.interpreter"}}' \
+        "$image_fullname")"
 
 # To explore various optional features of the image, we first
 # run the container once with a custom exploration script.
@@ -40,12 +46,12 @@ fi
 EOF
 chmod +x $tmp_dir/explore.sh
 
-docker_run_options="-w /root"
-
-podman run --rm --log-driver=none \
-        -v $tmp_dir/explore.sh:/bin/explore.sh \
-        --entrypoint /bin/explore.sh \
-        "$image_fullname" > $tmp_dir/explored
+walt-run-container \
+    --bin-interpreter "$bin_interpreter" \
+    --rm \
+    -v "$tmp_dir/explore.sh:/bin/explore.sh" \
+    --image-fullname "$image_fullname" \
+    --cmd "/bin/explore.sh" > $tmp_dir/explored
 
 # If the image has a file named /etc/cpuinfo, it should be bind-mounted
 # to /proc/cpuinfo (fixes emulation support for some programs such as yum).
@@ -54,9 +60,16 @@ s=__CPU_INFO__
 e=__CPU_INFO_END__
 sed -n "/^$s$/,/$e/ { /^$s$/d ; /$e/d ; p }" < $tmp_dir/explored > $tmp_dir/cpuinfo
 
+run_options=(--bin-interpreter "$bin_interpreter" \
+             --systemd always \
+             -v /run/rpc_pipefs:/run/rpc_pipefs \
+             -h "$HOSTNAME" \
+             --image-fullname "$image_fullname" \
+             --container-name "$container_name")
+
 if [ -s "$tmp_dir/cpuinfo" ]   # if not empty
 then
-    docker_run_options="$docker_run_options -v $tmp_dir/cpuinfo:/proc/cpuinfo"
+    run_options+=("-v" "$tmp_dir/cpuinfo:/proc/cpuinfo")
 fi
 
 shell=$(awk '$1 == "__SHELL__" {print $2}' < $tmp_dir/explored)
@@ -67,14 +80,10 @@ then
     # -------------
     # 1- run the container in the background with command /bin/walt-image-shell-start;
     #    typically, this command will tune a few things and then exec the init system.
-    container_id=$(podman run -d --log-driver=none   \
-            --systemd always          \
-            -v /run/rpc_pipefs:/run/rpc_pipefs \
-            --entrypoint /bin/walt-image-shell-start \
-            -h "$HOSTNAME"            \
-            --name "$container_name"  \
-            $docker_run_options       \
-            "$image_fullname")
+    container_id=$(walt-run-container \
+            -d \
+            "${run_options[@]}" \
+            --cmd "exec /bin/walt-image-shell-start")
     echo "Note: the OS was started in a virtual environment."
     echo "Run 'walt help show shells' for more info."
     echo
@@ -90,12 +99,5 @@ else
     echo "Note: this is a limited virtual environment (with just the shell process)."
     echo "Run 'walt help show shells' for more info."
     echo
-    podman run -it --log-driver=none  \
-        --systemd always          \
-        -v /run/rpc_pipefs:/run/rpc_pipefs \
-        --entrypoint $shell       \
-        -h "$HOSTNAME"            \
-        --name "$container_name"  \
-        $docker_run_options       \
-        "$image_fullname"
+    walt-run-container -it "${run_options[@]}" --cmd "exec $shell"
 fi
