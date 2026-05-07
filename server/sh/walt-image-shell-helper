@@ -38,9 +38,9 @@ if [ -x /bin/walt-image-shell-start -a -x /bin/walt-image-shell-shutdown ]
 then
     echo __ADVANCED_SHELL_MODE__
 fi
-if [ -x /bin/bash ]
+if bash_path="\$(which bash)"
 then
-    echo __SHELL__ /bin/bash
+    echo __SHELL__ "\${bash_path}"
 else
     echo __SHELL__ /bin/sh
 fi
