@@ -8,6 +8,7 @@ from plumbum import cli
 from walt.common import systemd
 from walt.common.setup import WaltGenericSetup
 from walt.common.tools import verify_root_login_shell
+from walt.server.tools import ensure_text_file_content
 from walt.server.setup.conf import (
     define_server_conf,
     fix_other_conf_files,
@@ -181,6 +182,13 @@ APPARMOR_CONFS = {
 """,
 }
 
+WALT_NFS_CONF_FILE = Path("/etc/nfs.conf.d/walt-nfs.conf")
+WALT_NFS_CONF = """\
+[nfsd]
+# freebsd pxeboot uses nfs over udp
+udp=y
+"""
+
 
 class WalTServerSetup(WaltGenericSetup):
     mode = cli.SwitchAttr(
@@ -321,6 +329,7 @@ class WalTServerSetup(WaltGenericSetup):
         sys.stdout.flush()
         self.setup_systemd_services(ALL_WALT_SERVICES)
         self.setup_apparmor_profiles()
+        self.fix_os_services_conf()
         print("done")
 
     def setup_apparmor_profiles(self):
@@ -331,6 +340,10 @@ class WalTServerSetup(WaltGenericSetup):
                 # reload the profile
                 subprocess.run(shlex.split(
                     f"apparmor_parser -r /etc/apparmor.d/{apparmor_file}"))
+
+    def fix_os_services_conf(self):
+        ensure_text_file_content(WALT_NFS_CONF_FILE,
+                                 WALT_NFS_CONF)
 
     def cleanup_old_walt_install(self):
         cleanup_old_walt_install()
