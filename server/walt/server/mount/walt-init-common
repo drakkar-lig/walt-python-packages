@@ -1,0 +1,353 @@
+#!/bin/sh
+
+. walt-script-base
+
+# private functions
+# #################
+
+_emergency_reboot() {
+    set +e
+    cd /
+    echo "emergency reboot"
+    walt_umount -a
+    busybox reboot -f now
+}
+
+_admin_sh()
+{
+    echo 'Starting a shell.'
+    echo '(the node will be rebooted on exit.)'
+    console="$1"
+    if [ "$console" != "unknown" ]
+    then
+        # see http://www.busybox.net/FAQ.html#job_control
+        busybox setsid sh -c "exec sh -i <>/dev/${console} 2>&1"
+    else
+        echo "Sorry, no job control."
+        busybox sh -i
+    fi
+}
+
+_detect_input() {
+    echo '>>> Issue detected!               <<<'
+    echo 'Will reboot... (or press <ENTER> now for a shell)'
+    nostdout wait_for_input_line_shortly 5
+}
+
+_reboot_or_sh()
+{
+    run_shell="no"
+    # for security reason, we disable the emergency
+    # shell on VPN nodes.
+    if [ "$(possibly_vpn_node)" = "0" ]
+    then
+        if [ -e "/sys/class/tty/console/active" ]
+        then
+            # if we could properly detect the console devices, detect
+            # on which one the standard input is connected
+            # by trying to read <ENTER> on each of them successively
+            for console_device in $(busybox cat /sys/class/tty/console/active)
+            do
+                if _detect_input <>/dev/$console_device 1>&0
+                then
+                    curr_console_device=$console_device
+                    run_shell="yes"
+                    break
+                fi
+            done
+        else
+            # if we could not detect the console devices
+            # just wait for <ENTER> on standard input
+            if _detect_input
+            then
+                curr_console_device="unknown"
+                run_shell="yes"
+                break
+            fi
+        fi
+    fi
+    if [ "$run_shell" = "yes" ]
+    then
+        _admin_sh $curr_console_device
+    fi
+    _emergency_reboot
+}
+
+_on_exit() {
+    if [ "$walt_init_done" = 1 ]
+    then
+        if [ ! -e "/run/.rebooting" ]
+        then
+            echo -n > "/run/.rebooting"   # touch file
+            echo "$0 exited! What happened?? Let's force-reboot!" >&2
+            exec busybox reboot -f now
+        else
+            # if we are rebooting, we can expect scripts to be interrupted
+            echo "$0 stopped, probably because of the running reboot procedure." >&2
+        fi
+    else
+        # walt-init is still running
+        _reboot_or_sh
+    fi
+}
+
+_wait_for_os_shutdown() {
+    busybox sleep 30
+    # if we are here...
+    echo 'Reboot failed or was too long.' >&2
+    _do_force_reboot
+}
+
+_do_force_reboot() {
+    echo "Calling 'reboot -f' command." >&2
+    exec busybox reboot -f now
+}
+
+_do_reboot() {
+    REBOOT_CMD_TIMEOUT=2        # the reboot command itself should not block
+    if [ "${walt_boot_mode}" = "network-volatile" ]
+    then
+        # we are on a readonly NFS-boot and all file changes
+        # were handled in RAM, so no need to wait for the init system
+        # shutdown procedure
+        _do_force_reboot
+    else
+        # we have booted on a local disk, or with a read-write NFS overlay,
+        # let the init system follow its shutdown procedure.
+        echo "Calling 'reboot' command." >&2
+        if do_on_finalfs walt-timeout $REBOOT_CMD_TIMEOUT reboot
+        then
+            # the OS should now be shutting down its services
+            _wait_for_os_shutdown
+        else
+            echo "'reboot' command failed, forcing reboot!" >&2
+            _do_force_reboot
+        fi
+    fi
+}
+
+_do_walt_reboot() {
+    script="$1"
+    # walt-reboot has to download a kernel, initrd, etc.
+    WALT_REBOOT_CMD_TIMEOUT=60
+    echo "Calling $script"
+    if nostdout nostderr do_on_finalfs \
+            walt-timeout $WALT_REBOOT_CMD_TIMEOUT $script
+    then
+        # the OS should now be shutting down its services
+        _wait_for_os_shutdown
+    else
+        echo "Command '$script' failed!" >&2
+        _do_force_reboot
+    fi
+}
+
+# public functions
+# ################
+
+update_walt_env() {
+    prop=$1
+    value=$2
+    export walt_env="$(
+        echo "$walt_env" | sed -e "s/\($prop\).*/\1=$value/"
+    )"
+    export $prop=$value
+}
+
+dump_walt_env() {
+    echo "$walt_env"
+}
+
+do_on_finalfs() {
+    cd /mnt/finalfs
+    # take into account the fact several calls to do_on_finalfs()
+    # may occur (e.g., for blink), and umounting may have failed
+    # on a previous call.
+    [ -e dev/null ] || walt_mount -o bind /dev dev
+    [ -e proc/self ] || walt_mount -o bind /proc proc
+    [ -e run/walt ] || walt_mount -o bind /run run
+    busybox chroot . "$@" || retcode=$?
+    [ ! -e dev/null ] || nostderr walt_umount dev || true
+    [ ! -e proc/self ] || nostderr walt_umount proc || true
+    [ ! -e run/walt ] || nostderr walt_umount run || true
+    nostdout cd -
+    return $retcode
+}
+
+allow_script_exit() {
+    trap '' EXIT
+}
+
+trigger_walt_reboot() {
+    reboot_kind="$1"
+    echo -n > "/run/.rebooting"   # touch file
+    if [ "$reboot_kind" = "walt-custom-reboot" ]
+    then
+        _do_walt_reboot $2
+    elif [ "$reboot_kind" = "reboot" ]
+    then
+        _do_reboot
+    elif [ "$reboot_kind" = "force-reboot" ]
+    then
+        _do_force_reboot
+    fi
+}
+
+boot_step_label_cr() {
+    busybox printf "*** %-60s ***\n" "$*"
+}
+
+copy_exec_to_rootfs()
+{
+    exec_path="$(busybox which "$1")"
+    # copy binary
+    mkdir -p bin
+    cp "$exec_path" bin/
+    # check that ldd is available
+    if ! nostdout busybox which ldd
+    then
+        echo "Warning: no ldd -- If $1 is a dynamic executable," \
+             "this script will not work."
+        return
+    fi
+    # check needed shared libraries
+    if ! bin_deps="$(nostderr ldd "$exec_path")"
+    then
+        # this executable is probably static, nothing more to do
+        return
+    fi
+    # copy shared libraries
+    echo "$bin_deps" | busybox awk '{print $(NF-1)}' | while read lib
+    do
+        if [ -f "$lib" ]
+        then
+            destdir="./$(dirname $lib)"
+            mkdir -p "$destdir"
+            cp "$lib" "$destdir"
+        fi
+    done
+}
+
+autodetect_block_modules() {
+    # we need to load at list the modules needed for block devices, and bus
+    # modules they are connected to (for hybrid boot modes).
+    # the original idea of looking into /sys/devices is borrowed from alpine's
+    # /etc/init.d/hwdrivers
+    nostderr busybox find /sys/devices/ -name modalias -type f -print0 | \
+        busybox xargs -0 busybox sort -u | \
+        happy_grep -v \
+            "^\(\(acpi\)\|\(platform\)\|\(cpu\)\|\(serio\)\|\(dmi\)\|\(input\)\)"
+}
+
+# default functions, overridable in [image-root]:/bin/walt-init-overrides
+# -----------------------------------------------------------------------
+walt_load_kernel_modules() {
+    # This function loads modules which we may need and may not be compiled
+    # in the kernel.
+    # crc32c may be needed for mounting ext4 filesystems without error
+    # (hybrid modes).
+    # nbd & zswap: useful for mounting a swap file stored remotely on server.
+    # if other or different modules are needed, the image may override this
+    # function in its walt-init-overrides file.
+    # note: "busybox modprobe" may cause dmesg warnings "Invalid ELF header magic"
+    # when dealing with compressed kernel modules, so we prefer the modprobe command
+    # provided by the OS if any.
+    modules="crc32c overlay overlayfs ext4 nfs nfsv3 nbd zswap"
+    more_modules=$(autodetect_block_modules)
+    nostderr run_busybox_or_not --prefer-system \
+        modprobe -a $modules $more_modules || true
+    # loading a bus module may uncover another module needed, so re-run autodetection
+    more_modules=$(autodetect_block_modules)
+    nostderr run_busybox_or_not --prefer-system \
+        modprobe -a $more_modules || true
+}
+
+walt_mount() {
+    busybox mount "$@"
+}
+
+walt_umount() {
+    busybox umount "$@"
+}
+
+walt_switch_root_fs() {
+    put_old="$1"
+    shift 1
+    # notes:
+    # - current dir will become the new root.
+    # - the old root (current one) will be mounted at $put_old
+    busybox pivot_root . "$put_old"
+    # switch to dev/console to release /dev
+    walt_set_console
+    # run specified command
+    exec busybox chroot . "$@"
+}
+
+walt_populate_rootfs_custom() {
+    # by default, nothing more to do
+    true
+}
+
+walt_preinit() {
+    # by default, nothing to do
+    true
+}
+
+walt_set_console() {
+    [ -e "dev/console" ] && exec <"dev/console" >"dev/console" 2>&1
+}
+
+# Mounting /persist, for storing persistent data even across reboots.
+# Data are stored on the server through an NFS share.
+walt_mount_persistent()
+{
+    options="rw,relatime,vers=3,nolock"
+    if [ "$1" = "--sync" ]
+    then
+        options="${options},sync"
+        shift
+    fi
+
+    # Mount the share
+    walt_mount -t nfs -o "$options" "$1" "$2"
+}
+
+walt_mount_union()
+{
+    lowerdir="$1"
+    upperdir="$2"
+    workdir="$3"
+    uniondir="$4"
+
+    # creating the union
+    # lowerdir: the nfs mount (that should remain read-only)
+    # upperdir: the place to hold the filesystem changes
+    # workdir: useful to let the filesystem implement atomic
+    #          operations properly
+    # uniondir: the mount point of the union
+    nostderr walt_mount -t overlay \
+        -o upperdir=${upperdir},lowerdir=${lowerdir},workdir=${workdir} \
+        union ${uniondir} || \
+    walt_mount -t overlayfs \
+        -o upperdir=${upperdir},lowerdir=${lowerdir} \
+        union ${uniondir}
+}
+
+# enable error monitoring for all scripts sourcing this file
+# ----------------------------------------------------------
+set -e
+trap _on_exit EXIT
+
+# apply image overrides if provided
+# ---------------------------------
+if [ -e /bin/walt-init-overrides ]
+then
+    . /bin/walt-init-overrides
+fi
+
+# apply initializations if not done yet
+# -------------------------------------
+# if we lose nfsroot we will not be able to reach /dev/null
+# because /dev is a symlink to mnt/nfsroot/dev in the rootfs.
+# so let's open the file in advance, as soon as we can.
+open_null_if_not_done_yet || true
