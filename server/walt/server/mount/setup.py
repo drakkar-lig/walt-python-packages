@@ -13,7 +13,6 @@ from walt.common.tools import do, failsafe_makedirs, failsafe_symlink, get_mac_a
 from walt.server import spec
 from walt.server.const import (
     WALT_INTF,
-    WALT_NODE_NET_SERVICE_PORT,
     NODE_SSH_ECDSA_HOST_KEY_PATH,
     NODE_SSH_ECDSA_HOST_KEY_PUB_PATH,
     NODE_DROPBEAR_ECDSA_HOST_KEY_PATH,
@@ -24,25 +23,24 @@ from walt.server.tools import get_server_ip
 # * if they contain template parameters that should be updated
 # * if they should be moved to directory "/bin/_walt_internal_/"
 NODE_SCRIPTS = {
-    "walt-env": (True, False),
+    "walt-env-image": (True, True),
     "walt-fetch-node-config": (True, True),
     "walt-log-echo": (False, False),
     "walt-log-cat": (False, False),
-    "walt-log-tee": (False, False),
+    "walt-log-tee": (True, False),
     "walt-echo": (False, False),
     "walt-cat": (False, False),
     "walt-tee": (False, False),
     "walt-timeout": (False, True),
-    "walt-rpc": (False, True),
+    "walt-rpc": (True, True),
     "walt-clock-sync": (False, True),
-    "walt-notify-bootup": (False, True),
     "walt-init": (False, False),
     "walt-fs-watchdog": (False, True),
     "walt-net-service": (False, True),
-    "walt-net-service-handler": (False, True),
     "walt-tar-send": (False, True),
     "walt-boot-modes": (False, True),
-    "walt-script-common": (False, True),
+    "walt-init-common": (False, True),
+    "walt-script-base": (False, False),
     "walt-log-script": (False, True),
     "walt-init-rootfs": (False, True),
     "walt-init-rootfs-main": (False, True),
@@ -60,7 +58,6 @@ TEMPLATE_ENV = dict(
     walt_server_rpc_port=WALT_SERVER_DAEMON_PORT,
     walt_server_logs_port=WALT_SERVER_TCP_PORT,
     walt_server_notify_bootup_port=WALT_SERVER_TCP_PORT,
-    walt_node_net_service_port=WALT_NODE_NET_SERVICE_PORT,
 )
 
 RESOLV_CONF = """
