@@ -57,7 +57,7 @@ detect_hybrid_boot_partition() {
     done
     if [ ! -z "$missing" ]
     then
-        _log_and_echo "cannot and hybrid boot mode:"
+        _log_and_echo "cannot handle hybrid boot mode:"
         _log_and_echo "[image]/bin/busybox misses" $missing
         return 1    # failed
     fi
@@ -86,7 +86,7 @@ detect_hybrid_boot_partition() {
         fi
         # Now, $is_ext4 may be "yes" or "maybe".
         # in any case, try to mount.
-        if mount -t ext4 "/dev/$dev" /mnt/hm_part >/dev/null 2>&1
+        if nostdout nostderr mount -t ext4 "/dev/$dev" /mnt/hm_part
         then
             # 1st ext4 partition, hybrid mode should use it
             if [ ! -d "$image_dir" ]
@@ -122,10 +122,6 @@ detect_hybrid_boot_partition() {
     fi
 }
 
-nfsroot_is_ro() {
-    grep nfsroot /proc/$$/mountinfo | grep -w ro >/dev/null
-}
-
 hybrid_boot_is_allowed() {
     # for now the SD card storage is not secured so allowing hybrid boot
     # would be a major security flaw for VPN nodes.
@@ -139,7 +135,8 @@ hybrid_boot_is_allowed() {
 }
 
 revert_to_network_volatile() {
-    sed -i -e "s/\(walt_boot_mode\).*/\1=network-volatile/" /bin/walt-env
+    update_walt_env "walt_boot_mode" "network-volatile"
+    dump_walt_env > /bin/walt-env
 }
 
 verify_boot_mode() {
@@ -182,12 +179,17 @@ mount_hybrid_mode() {
         rm -rf "$diff_dir/tmp" || true
     fi
     mkdir -p "$diff_dir" "$work_dir" /mnt/finalfs
-    mount_union $image_dir $diff_dir $work_dir /mnt/finalfs
+    walt_mount_union $image_dir $diff_dir $work_dir /mnt/finalfs
     # even if the <image_id> directory was downloaded at a
     # previous run, a server code update may have changed the
     # scripts contained in "/bin/_walt_internal_/".
     cp -rp /mnt/nfsroot/bin/_walt_internal_/* \
            /mnt/finalfs/bin/_walt_internal_/
+}
+
+need_rw_nfsroot()
+{
+    [ "$walt_boot_mode" = "network-persistent" ]
 }
 
 mount_network_mode()
@@ -202,19 +204,14 @@ mount_network_mode()
         # upperdir=fs_rw: the place to hold the filesystem changes
         # workdir=fs_work: a workdir for the overlay filesystem
         # uniondir=finalfs: the mount point of the union
-        mount_union /mnt/nfsroot fs_rw fs_work finalfs
+        walt_mount_union /mnt/nfsroot fs_rw fs_work finalfs
     else
         # walt_boot_mode: network-persistent
-        # in this case the NFS share should just be mounted read-write,
+        # in this case the NFS share should already have been
+        # mounted or re-mounted read-write, nothing more to to here.
         # the server has prepared an rw overlay layer on its side.
-        if nfsroot_is_ro
-        then
-            boot_step_label_cr "Re-mounting remote filesystem" \
-                               "as read-write..."
-            mount -o remount,rw /mnt/nfsroot
-        fi
         mkdir -p finalfs
-        mount -o bind /mnt/nfsroot finalfs
+        walt_mount -o bind /mnt/nfsroot finalfs
     fi
     cd /
 }

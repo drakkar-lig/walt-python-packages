@@ -1,42 +1,15 @@
 #!/bin/busybox sh
 
-# Check we are PID 1.
-if [ "$$" -ne 1 ]
-then
-    echo "This is the init script of walt nodes." >&2
-    echo "It is only useful when the node is booting. Exiting." >&2
-    exit 1
-fi
-
-MOUNT='busybox mount'
-UMOUNT='busybox umount'
 ROOTFS='/run/walt/rootfs'
-ROOTFS_BUSYBOX_APPLETS="
-    basename cat chroot cp date grep ln ls mkdir mkfifo mktemp modprobe
-    mount mv nc pivot_root reboot rm sed sh sleep timeout umount uname
+ROOTFS_EXECUTABLES="
+    basename cat chroot cp date grep ln ls mkdir mkfifo mktemp
+    mount mv nc reboot rm sed sh sleep timeout umount uname
 "
-ROOTFS_IMAGE_SCRIPTS="
-    /bin/walt-env
-    /bin/walt-log-tee
-    /bin/walt-log-cat
-    /bin/walt-log-echo
-    /bin/_walt_internal_/walt-fetch-node-config
-    /bin/_walt_internal_/walt-rpc
-    /bin/_walt_internal_/walt-clock-sync
-    /bin/_walt_internal_/walt-timeout
-    /bin/_walt_internal_/walt-boot-modes
-    /bin/_walt_internal_/walt-script-common
-    /bin/_walt_internal_/walt-init-rootfs
-    /bin/_walt_internal_/walt-init-rootfs-main
-    /bin/_walt_internal_/walt-init-disks
-    /bin/_walt_internal_/walt-init-finalfs
-    /bin/_walt_internal_/walt-init-nbd
-    /bin/_walt_internal_/walt-log-script
-    /bin/_walt_internal_/walt-fs-watchdog
-"
+
+. bin/_walt_internal_/walt-boot-modes  # needed for need_rw_nfsroot()
 
 _run_is_mounted() {
-    busybox mount | busybox grep " /run " >/dev/null
+    walt_mount | nostdout busybox grep " /run "
 }
 
 do_mounts()
@@ -47,14 +20,14 @@ do_mounts()
     then
         export had_procfs=1
     else
-        $MOUNT -t proc proc /proc
+        walt_mount -t proc proc /proc
         export had_procfs=0
     fi
     if [ -d "/sys/class" ]
     then
         export had_sysfs=1
     else
-        $MOUNT -t sysfs sysfs /sys
+        walt_mount -t sysfs sysfs /sys
         export had_sysfs=0
     fi
     # mount /dev and /run if missing.
@@ -62,123 +35,123 @@ do_mounts()
     # because walt bg processes need them.
     if [ ! -e "/dev/null" ]
     then
-        $MOUNT -t devtmpfs udev /dev
+        walt_mount -t devtmpfs udev /dev
     fi
     if ! _run_is_mounted
     then
-        $MOUNT -t tmpfs tmpfs /run
+        walt_mount -t tmpfs tmpfs /run
     fi
 }
 
-autodetect_block_modules() {
-    # we need to load at list the modules needed for block devices, and bus
-    # modules they are connected to (for hybrid boot modes).
-    # the original idea of looking into /sys/devices is borrowed from alpine's
-    # /etc/init.d/hwdrivers
-    busybox find /sys/devices/ -name modalias -type f -print0 2>/dev/null | \
-        busybox xargs -0 busybox sort -u | \
-        happy_grep -v \
-            "^\(\(acpi\)\|\(platform\)\|\(cpu\)\|\(serio\)\|\(dmi\)\|\(input\)\)"
-}
-
-# This function loads modules which we may need and may not be compiled in the kernel.
-load_modules() {
-    # crc32c may be needed for mounting ext4 filesystems without error (hybrid modes)
-    # nbd & zswap: useful for mounting a swap file stored remotely on server
-    # if other modules are needed, the image may provide a file /bin/walt-preinit
-    # to load them.
-    # note: "busybox modprobe" may cause dmesg warnings "Invalid ELF header magic"
-    # when dealing with compressed kernel modules, so we prefer the modprobe command
-    # provided by the OS if any.
-    modules="crc32c overlay overlayfs ext4 nfs nfsv3 nbd zswap"
-    more_modules=$(autodetect_block_modules)
-    run_busybox_or_not --prefer-system \
-        modprobe -a $modules $more_modules 2>/dev/null || true
-    # loading a bus module may uncover another module needed, so re-run autodetection
-    more_modules=$(autodetect_block_modules)
-    run_busybox_or_not --prefer-system \
-        modprobe -a $more_modules 2>/dev/null || true
-}
-
 preinit() {
-    if [ -e "/bin/walt-preinit" ]
+    if [ -x "/bin/walt-preinit" ]
     then
         boot_step_label_cr          "Calling /bin/walt-preinit..."
         /bin/walt-preinit
     fi
-}
-
-copy_exec_to_rootfs()
-{
-    exec_path="$(busybox which "$1")"
-    # copy binary
-    mkdir -p bin
-    cp "$exec_path" bin/
-    # check that ldd is available
-    if ! busybox which ldd >/dev/null
-    then
-        echo "Warning: no ldd -- If $1 is a dynamic executable," \
-             "this script will not work."
-        return
-    fi
-    # check needed shared libraries
-    if ! bin_deps="$(ldd "$exec_path" 2>/dev/null)"
-    then
-        # this executable is probably static, nothing more to do
-        return
-    fi
-    # copy shared libraries
-    echo "$bin_deps" | busybox awk '{print $(NF-1)}' | while read lib
-    do
-        if [ -f "$lib" ]
-        then
-            destdir="./$(dirname $lib)"
-            mkdir -p "$destdir"
-            cp "$lib" "$destdir"
-        fi
-    done
+    # call walt_preinit() optional function too,
+    # if defined in walt-init-overrides.
+    walt_preinit
 }
 
 prepare_rootfs()
 {
     busybox mkdir -p $ROOTFS
-    $MOUNT -t tmpfs tmpfs $ROOTFS  # pivot_root will need a mountpoint as <new_root>
+    # $ROOTFS must be a mountpoint for pivot_root() to work later
+    walt_mount -t tmpfs tmpfs $ROOTFS
     cd $ROOTFS
-    busybox mkdir -p tmp bin dev proc sys run mnt/nfsroot
+    busybox mkdir -p tmp bin mnt/nfsroot
     copy_exec_to_rootfs busybox
-    if busybox which nbd-client >/dev/null
+    if nostdout busybox which nbd-client
     then
         copy_exec_to_rootfs nbd-client
     fi
-    for image_script in $ROOTFS_IMAGE_SCRIPTS
+    for image_script in /bin/walt-* /bin/_walt_internal_/*
     do
         cp $image_script bin/
     done
-    for c in $ROOTFS_BUSYBOX_APPLETS
+    for c in $ROOTFS_EXECUTABLES
     do
-        ln -s busybox bin/$c
+        if [ ! -e bin/$c ]
+        then
+            if busybox_has_applet $c
+            then
+                ln -s busybox bin/$c
+            else
+                copy_exec_to_rootfs $c
+            fi
+        fi
     done
-    cd - >/dev/null
+    for fs_dir in proc sys dev run
+    do
+        ln -s mnt/nfsroot/$fs_dir $fs_dir
+    done
+    dump_walt_env > bin/walt-env
+    walt_populate_rootfs_custom
+}
+
+remount_nfsroot_if_needed()
+{
+    if need_rw_nfsroot
+    then
+        boot_step_label_cr "Ensuring the remote filesystem" \
+                           "is read-write..."
+        walt_mount -o remount,rw /
+    fi
+}
+
+mount_persistent() {
+    if [ -z "${walt_persist_path}" ]
+    then
+        echo "/persist was not mounted (cf. walt node config)"
+        return
+    fi
+    mkdir $ROOTFS/persist
+    walt_mount_persistent "$walt_persist_path" $ROOTFS/persist
+    # check if walt-init logs are enabled
+    walt_init_log_dir="$ROOTFS/persist/logs/walt-init"
+    if [ -d "$walt_init_log_dir" ]
+    then
+        # avoid NFS buffers by remounting with 'sync' option.
+        # note: "mount -o remount,sync" fails on some systems,
+        # so we umount + mount again.
+        walt_umount $ROOTFS/persist
+        walt_mount_persistent --sync "$walt_persist_path" $ROOTFS/persist
+    fi
 }
 
 switch_to_rootfs() {
     cd $ROOTFS
-    busybox pivot_root . mnt/nfsroot
-    exec busybox chroot . bin/walt-init-rootfs "$@" \
-        <mnt/nfsroot/dev/console \
-        >mnt/nfsroot/dev/console 2>&1
+    walt_switch_root_fs mnt/nfsroot \
+        bin/walt-init-rootfs "$@"
 }
 
 # let's go
 export PATH="$PATH:/bin/_walt_internal_"
 export walt_init_done=0
+# preparation work
 . walt-script-common
+# redefine console
+cd /; walt_set_console
+# run image's preinit code if any
+preinit
+# Check we are PID 1.
+if [ "$$" -ne 1 ]
+then
+    echo "This is the init script of walt nodes." >&2
+    echo "It is only useful when the node is booting. Exiting." >&2
+    exit 1
+fi
+# real start
 walt-log-echo "walt-init" "Starting up."
 boot_step_label_cr          "Initializing..."
 do_mounts
-load_modules
-preinit
-boot_step_label_cr          "Switching to rootfs..."
+walt_set_console  # in case do_mounts() just mounted /dev
+walt_load_kernel_modules
 prepare_rootfs
+boot_step_label_cr          "Mounting /persist..."
+mount_persistent
+remount_nfsroot_if_needed
+boot_step_label_cr          "Switching to rootfs..."
 switch_to_rootfs "$@"
 # the process continues in bin/_walt_internal_/walt-init-rootfs

@@ -42,7 +42,6 @@ fi
 # boot mode detection
 boot_step_label_cr "Verifying boot-mode..."
 verify_boot_mode
-. /bin/walt-env  # reload in case walt_boot_mode variable was updated
 # enable zswap
 enable_zswap
 # mount remote NBD swap

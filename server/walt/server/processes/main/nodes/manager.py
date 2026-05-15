@@ -13,13 +13,11 @@ from walt.server.const import (
         SSH_NODE_COMMAND,
         NODE_SSH_ECDSA_HOST_KEY_PUB_PATH,
         WALT_INTF,
-        WALT_NODE_NET_SERVICE_PORT
 )
 from walt.server.popen import BetterPopen
 from walt.server.processes.main.filesystem import FilesystemsCache
 from walt.server.processes.main.nodes.clock import NodesClockSyncInfo
 from walt.server.processes.main.nodes.expose import ExposeManager
-from walt.server.processes.main.nodes.netservice import node_request
 from walt.server.processes.main.nodes.powersave import PowersaveManager
 from walt.server.processes.main.nodes.reboot import reboot_nodes
 from walt.server.processes.main.nodes.register import (
@@ -27,8 +25,8 @@ from walt.server.processes.main.nodes.register import (
 )
 from walt.server.processes.main.nodes.show import show
 from walt.server.processes.main.nodes.webapi import web_api_list_nodes
-from walt.server.processes.main.nodes.status import (
-        NodeBootupStatusManager,
+from walt.server.processes.main.nodes.netservice import (
+        NodeNetServiceManager,
         NODE_DEFAULT_BOOT_RETRIES,
         NODE_DEFAULT_BOOT_TIMEOUT,
         NODE_MIN_BOOT_TIMEOUT
@@ -102,7 +100,8 @@ class NodesManager(object):
         self.exports = server.exports
         self.clock = NodesClockSyncInfo(server.ev_loop)
         self.expose_manager = ExposeManager(server.tcp_server, server.ev_loop)
-        self.status_manager = NodeBootupStatusManager(server.tcp_server, self)
+        self.netservices = NodeNetServiceManager(server.tcp_server, self)
+        self.status_manager = self.netservices  # it is the same object
         self.filesystems = FilesystemsCache(server.ev_loop, FS_CMD_PATTERN)
         self.vnodes = {}
         self.powersave = PowersaveManager(server)
@@ -211,7 +210,8 @@ class NodesManager(object):
             return False  # error already reported
         task.set_async()
         cb_kwargs = dict(requester=requester, task=task)
-        node_request(self.ev_loop, (node,), req, self.blink_callback, cb_kwargs)
+        self.netservices.node_request(
+                (node,), req, self.blink_callback, cb_kwargs)
 
     def show(self, username, show_all, names_only):
         return show(self, username, show_all, names_only)

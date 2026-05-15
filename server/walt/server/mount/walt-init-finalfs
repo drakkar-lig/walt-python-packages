@@ -2,54 +2,32 @@
 
 start_background_processes()
 {
-    # check if walt-init logs are enabled
-    log_dir="/persist/logs/walt-init"
-    if [ -d "$log_dir" ]
-    then
-        rootfs_log_dir="/mnt$log_dir"
-    else
-        log_dir=""
-        rootfs_log_dir=""
-    fi
-    # start bg processes.
-    # walt-fs-watchdog is run with chroot in the rootfs,
-    # a tmpfs in RAM where the busybox binary has been copied,
-    # in order to be able to run properly in case of NFS share
-    # disconnection.
-    walt-log-script bg "$log_dir" walt-net-service
-    walt-log-script bg "$log_dir" walt-notify-bootup
+    # start bg processes
+    # notes:
+    # - We run them in /run/walt/rootfs (filesystem in RAM) in order
+    #   to make them resist NFS share disconnections.
+    # - Using pivot_root changes the root filesystem of all processes
+    #   in the mount namespace, so we could not start them as part
+    #   of walt-init-rootfs: their root would have changed when
+    #   transitioning to finalfs. Instead, we start them only now,
+    #   when in finalfs, but use chroot to have their root in
+    #   /run/walt/rootfs.
     cd "/run/walt/rootfs"
-    busybox chroot . bin/walt-log-script bg "$rootfs_log_dir" walt-fs-watchdog
-    cd /
-}
-
-update_mounts_rootfs_to_finalfs() {
-    busybox mkdir -p /run/walt/rootfs/mnt/finalfs
-    cd /run/walt/rootfs
-    # note: /persist may be disabled by using "walt node config"
-    # in this case walt-init-rootfs does not create mnt/persist
-    if [ -d "mnt/persist" ]
-    then
-        busybox mkdir -p /persist
-        busybox mount -o bind mnt/persist /persist
-    fi
-    busybox mount -o bind /dev dev  # needed for walt-log-script & walt-fs-watchdog
+    # bg scripts may need to access the final filesystem in the rootfs
+    walt_mount -o bind / mnt/finalfs
+    busybox chroot . bin/walt-log-script bg walt-net-service
+    busybox chroot . bin/walt-log-script bg walt-fs-watchdog
     cd /
 }
 
 run_real_init()
 {
-    # try to make the system ressemble what we got when called
-    [ "$had_procfs" -eq 1 ] || busybox umount /proc
-    [ "$had_sysfs" -eq 1 ] || busybox umount /sys
     # call the OS init
-    exec /sbin/init "$@" </dev/console >/dev/console 2>&1
+    exec /sbin/init "$@"
 }
 
 # complete transition to finalfs
-mount -o bind /run/walt/rootfs/bin/walt-env /bin/walt-env
 . walt-script-common
-update_mounts_rootfs_to_finalfs
 export walt_init_done=1
 
 # start bg processes

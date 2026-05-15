@@ -3,10 +3,15 @@
 set +e  # if the subscript fails, we will handle the error
 
 mode="$1"
-log_dir="$2"
-script_name="$3"
-shift 3
+script_name="$2"
+shift 2
 script_args="$@"
+
+log_dir="/persist/logs/walt-init"
+if [ ! -d "$log_dir" ]
+then
+    log_dir=""
+fi
 
 # When logs are enabled, we want to monitor our shell scripts
 # by running them with 'sh -x' and redirecting stderr to a file
@@ -50,7 +55,7 @@ _logging_function() {
                     sh -x "$script_path" $script_args
                     echo $? >&5
                 } | busybox tee -a $log_file_base.out >&3
-            } 2>&1 | busybox tee -a $log_file_base.err >/dev/null
+            } 2>&1 | nostdout busybox tee -a $log_file_base.err
         } 5>&1)
         if [ "$res" != 0 ]
         then
@@ -73,7 +78,7 @@ _main() {
     result=$?
     if [ "$result" -ne 0 ]
     then
-        echo "$script_name returned with exit failure." >/dev/console
+        echo "$script_name returned with exit failure." >&2
         trigger_walt_reboot reboot
     fi
     allow_script_exit

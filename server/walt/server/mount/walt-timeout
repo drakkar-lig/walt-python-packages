@@ -1,10 +1,10 @@
 #!/bin/sh
 set -e
-
+. walt-script-common
 # this script allows to work around a syntax change in busybox timeout applet.
 
 # check if '-t' option must be specified or not
-if busybox timeout -t 1 busybox sleep 0 2>/dev/null
+if nostderr busybox timeout -t 1 busybox sleep 0
 then
     cmd_prefix='busybox timeout -t'
 else

@@ -15,7 +15,6 @@ SSH_NODE_COMMAND = (
         "-o ServerAliveInterval=5 "
 )
 SSH_DEVICE_COMMAND = "walt-device-ssh"
-WALT_NODE_NET_SERVICE_PORT = 12346
 SERVER_SNMP_CONF = dict(version=2, community="private")
 UNIX_SERVER_SOCK_PATH = "/var/run/walt/walt-server/walt-server.socket"
 PODMAN_API_SOCK_PATH = "/run/walt/podman/podman.socket"
