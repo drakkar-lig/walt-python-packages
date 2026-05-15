@@ -7,7 +7,7 @@ detect_partition_devices() {
     # - an entry /sys/class/block/<disk>/device/
     # - one entry /sys/class/block/<disk>/<partition>/ for each partition
     cd /sys/class/block/
-    ls -1 */*/dev 2>/dev/null | {
+    nostderr ls -1 */*/dev | {
         IFS="/"
         while read disk part dev;
         do
@@ -17,7 +17,7 @@ detect_partition_devices() {
             fi
         done
     }
-    cd - >/dev/null
+    nostdout cd -
 }
 
 create_partition_dev_entry() {
@@ -49,7 +49,7 @@ partition_dev_check_blkid() {
     if busybox_has_applet blkid
     then
         if busybox blkid $part_dev | \
-           busybox grep -o 'TYPE="'$part_type'"' >/dev/null
+           nostdout busybox grep -o 'TYPE="'$part_type'"'
         then
             echo yes
         else
@@ -72,8 +72,8 @@ partition_dev_check_xxd() {
         # note: some versions of busybox xxd return:
         # "<part-id><lots-of-spaces>", we remove those spaces
         # with busybox tr.
-        part_id="$(busybox xxd -s $part_id_offset -l $part_id_length \
-                    -p "$part_dev" 2>/dev/null | \
+        part_id="$(nostderr busybox xxd -s $part_id_offset \
+                    -l $part_id_length -p "$part_dev" | \
                    busybox tr -d ' ')"
         if [ ! -z "$part_id" ]
         then
@@ -148,7 +148,7 @@ activate_local_swap() {
             [ "$created_dev" = "0" ] || rm /dev/$dev
             return 1
         fi
-        if busybox swapon "/dev/$dev" >/dev/null 2>&1
+        if nostdout nostderr busybox swapon "/dev/$dev"
         then
             echo "Activated swap on /dev/$dev."
             res=0

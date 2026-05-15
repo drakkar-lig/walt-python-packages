@@ -4,7 +4,6 @@ from collections import defaultdict
 from time import time
 
 from walt.common.formatting import format_sentence_about_nodes
-from walt.server.processes.main.nodes.netservice import node_request
 from walt.server.workflow import Workflow
 
 POE_REBOOT_DELAY = 2  # seconds
@@ -68,7 +67,7 @@ def wf_hard_reboot_virtual_nodes(wf, nodes_manager, remaining_nodes, reboot_caus
     wf.next()
 
 
-def wf_soft_reboot_nodes(wf, ev_loop, db, nodes_manager, hard_only, remaining_nodes,
+def wf_soft_reboot_nodes(wf, db, nodes_manager, hard_only, remaining_nodes,
                          reboot_cause, **env):
     if hard_only or len(remaining_nodes) == 0:
         wf.update_env(softrebooted=[], softreboot_errors={})
@@ -77,8 +76,7 @@ def wf_soft_reboot_nodes(wf, ev_loop, db, nodes_manager, hard_only, remaining_no
         # do not try a softreboot for nodes with PoE off
         off_macs = db.get_poe_off_macs()
         softrebootable_nodes = list(n for n in remaining_nodes if n.mac not in off_macs)
-        node_request(
-            ev_loop,
+        nodes_manager.netservices.node_request(
             softrebootable_nodes,
             "REBOOT",
             wf_softreboot_callback,
