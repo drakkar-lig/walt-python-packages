@@ -1,5 +1,8 @@
 #!/bin/busybox sh
 
+set -x
+exec </dev/console >/dev/console 2>&1
+
 # Check we are PID 1.
 if [ "$$" -ne 1 ]
 then
@@ -8,35 +11,14 @@ then
     exit 1
 fi
 
-MOUNT='busybox mount'
-UMOUNT='busybox umount'
 ROOTFS='/run/walt/rootfs'
 ROOTFS_BUSYBOX_APPLETS="
     basename cat chroot cp date grep ln ls mkdir mkfifo mktemp modprobe
     mount mv nc pivot_root reboot rm sed sh sleep timeout umount uname
 "
-ROOTFS_IMAGE_SCRIPTS="
-    /bin/walt-env
-    /bin/walt-log-tee
-    /bin/walt-log-cat
-    /bin/walt-log-echo
-    /bin/_walt_internal_/walt-fetch-node-config
-    /bin/_walt_internal_/walt-rpc
-    /bin/_walt_internal_/walt-clock-sync
-    /bin/_walt_internal_/walt-timeout
-    /bin/_walt_internal_/walt-boot-modes
-    /bin/_walt_internal_/walt-script-common
-    /bin/_walt_internal_/walt-init-rootfs
-    /bin/_walt_internal_/walt-init-rootfs-main
-    /bin/_walt_internal_/walt-init-disks
-    /bin/_walt_internal_/walt-init-finalfs
-    /bin/_walt_internal_/walt-init-nbd
-    /bin/_walt_internal_/walt-log-script
-    /bin/_walt_internal_/walt-fs-watchdog
-"
 
 _run_is_mounted() {
-    busybox mount | busybox grep " /run " >/dev/null
+    walt_mount | busybox grep " /run " >/dev/null
 }
 
 do_mounts()
@@ -47,14 +29,14 @@ do_mounts()
     then
         export had_procfs=1
     else
-        $MOUNT -t proc proc /proc
+        walt_mount -t proc proc /proc
         export had_procfs=0
     fi
     if [ -d "/sys/class" ]
     then
         export had_sysfs=1
     else
-        $MOUNT -t sysfs sysfs /sys
+        walt_mount -t sysfs sysfs /sys
         export had_sysfs=0
     fi
     # mount /dev and /run if missing.
@@ -62,11 +44,11 @@ do_mounts()
     # because walt bg processes need them.
     if [ ! -e "/dev/null" ]
     then
-        $MOUNT -t devtmpfs udev /dev
+        walt_mount -t devtmpfs udev /dev
     fi
     if ! _run_is_mounted
     then
-        $MOUNT -t tmpfs tmpfs /run
+        walt_mount -t tmpfs tmpfs /run
     fi
 }
 
@@ -101,72 +83,52 @@ load_modules() {
 }
 
 preinit() {
-    if [ -e "/bin/walt-preinit" ]
+    if [ -x "/bin/walt-preinit" ]
     then
         boot_step_label_cr          "Calling /bin/walt-preinit..."
         /bin/walt-preinit
     fi
 }
 
-copy_exec_to_rootfs()
-{
-    exec_path="$(busybox which "$1")"
-    # copy binary
-    mkdir -p bin
-    cp "$exec_path" bin/
-    # check that ldd is available
-    if ! busybox which ldd >/dev/null
-    then
-        echo "Warning: no ldd -- If $1 is a dynamic executable," \
-             "this script will not work."
-        return
-    fi
-    # check needed shared libraries
-    if ! bin_deps="$(ldd "$exec_path" 2>/dev/null)"
-    then
-        # this executable is probably static, nothing more to do
-        return
-    fi
-    # copy shared libraries
-    echo "$bin_deps" | busybox awk '{print $(NF-1)}' | while read lib
-    do
-        if [ -f "$lib" ]
-        then
-            destdir="./$(dirname $lib)"
-            mkdir -p "$destdir"
-            cp "$lib" "$destdir"
-        fi
-    done
-}
-
 prepare_rootfs()
 {
     busybox mkdir -p $ROOTFS
-    $MOUNT -t tmpfs tmpfs $ROOTFS  # pivot_root will need a mountpoint as <new_root>
+    # $ROOTFS must be a mountpoint for pivot_root() to work later
+    walt_mount -t tmpfs tmpfs $ROOTFS
     cd $ROOTFS
-    busybox mkdir -p tmp bin dev proc sys run mnt/nfsroot
+    busybox mkdir -p tmp bin mnt/nfsroot
     copy_exec_to_rootfs busybox
     if busybox which nbd-client >/dev/null
     then
         copy_exec_to_rootfs nbd-client
     fi
-    for image_script in $ROOTFS_IMAGE_SCRIPTS
+    for image_script in /bin/walt-* /bin/_walt_internal_/*
     do
         cp $image_script bin/
     done
     for c in $ROOTFS_BUSYBOX_APPLETS
     do
-        ln -s busybox bin/$c
+        if [ ! -e bin/$c ]
+        then
+            if busybox_has_applet $c
+            then
+                ln -s busybox bin/$c
+            else
+                copy_exec_to_rootfs $c
+            fi
+        fi
+    done
+    for fs_dir in proc sys dev run
+    do
+        ln -s ../mnt/nfsroot/$fs_dir $fs_dir
     done
     cd - >/dev/null
 }
 
 switch_to_rootfs() {
     cd $ROOTFS
-    busybox pivot_root . mnt/nfsroot
-    exec busybox chroot . bin/walt-init-rootfs "$@" \
-        <mnt/nfsroot/dev/console \
-        >mnt/nfsroot/dev/console 2>&1
+    walt_switch_root_fs mnt/nfsroot \
+        bin/walt-init-rootfs "$@"
 }
 
 # let's go

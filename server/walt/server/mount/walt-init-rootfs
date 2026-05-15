@@ -1,5 +1,6 @@
 #!/bin/busybox sh
 
+set -x
 # This is the persistent mount point, available even across reboots.
 # Data are stored on the server through an NFS share.
 mount_persistent()
@@ -17,50 +18,62 @@ mount_persistent()
     fi
 
     # Mount the share
-    mkdir -p /mnt/persist
-    mount -t nfs -o "$options" "${walt_persist_path}" /mnt/persist
-}
-
-update_mounts_nfs_to_rootfs()
-{
-    # update mounts
-    # or, in the case /dev is not a mount (openwrt)
-    # copy contents.
-    for d in dev proc sys run
-    do
-        mount -o move /mnt/nfsroot/$d /$d 2>/dev/null || \
-            cp -a /mnt/nfsroot/$d/* /$d
-    done
+    mkdir -p /persist
+    walt_mount -t nfs -o "$options" "${walt_persist_path}" /persist
 }
 
 switch_to_finalfs() {
     cd /mnt/finalfs
-    for d in dev proc sys run
-    do
-        mount -o move /$d $d 2>/dev/null || \
-            cp -a /$d/* $d
-    done
-    pivot_root . run/walt/rootfs
-    exec chroot . bin/_walt_internal_/walt-init-finalfs "$@" \
-        <dev/console \
-        >dev/console 2>&1
+    # copy updated /bin/walt-env
+    cp /bin/walt-env bin/walt-env
+    # move /run on top of finalfs
+    walt_mount -o move /mnt/nfsroot/run run
+    ln -sf $PWD/run /  # update symlink rootfs:/run
+    # /persist may be disabled by using "walt node config", in this case
+    # the directory was not created.
+    if [ -d "/persist" ]
+    then
+        # finalfs:/persist will be a symlink to current rootfs mount
+        [ -e "persist" ] && rm -rf persist
+        ln -sf /run/walt/rootfs/persist persist
+    fi
+    # /dev may just be a directory with special files, not a mountpoint.
+    if [ ! -e dev/null ]
+    then
+        walt_mount -o move /mnt/nfsroot/dev dev
+        ln -sf $PWD/dev /  # update symlink rootfs:/dev
+    fi
+    # /proc and /sys: we try to make the system ressemble what we got
+    # when called.
+    if [ "$had_procfs" -eq 1 ]
+    then
+        walt_mount -o move /mnt/nfsroot/proc proc
+        rm /proc  # no longer needed in the rootfs
+    fi
+    if [ "$had_sysfs" -eq 1 ]
+    then
+        walt_mount -o move /mnt/nfsroot/sys sys
+        rm /sys  # no longer needed in the rootfs
+    fi
+    # switch root to final fs
+    walt_switch_root_fs run/walt/rootfs \
+        bin/_walt_internal_/walt-init-finalfs "$@"
 }
 
 # preparation work
 /bin/walt-fetch-node-config >> /bin/walt-env
 . walt-script-common
-update_mounts_nfs_to_rootfs
-# mount /persist (at /mnt/persist for now)
+# mount /persist
 boot_step_label_cr          "Mounting /persist..."
 mount_persistent
 # check if walt-init logs are enabled
-log_dir="/mnt/persist/logs/walt-init"
+log_dir="/persist/logs/walt-init"
 if [ -d "$log_dir" ]
 then
     # avoid NFS buffers by remounting with 'sync' option.
     # note: "mount -o remount,sync" fails on some systems,
     # so we umount + mount again.
-    umount /mnt/persist
+    walt_umount /persist
     mount_persistent sync
 else
     log_dir=""

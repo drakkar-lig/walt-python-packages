@@ -13,7 +13,7 @@ _emergency_reboot() {
     set +e
     cd /
     echo "emergency reboot"
-    busybox umount -a
+    run_busybox_or_not umount -a
     busybox reboot -f now
 }
 
@@ -185,10 +185,10 @@ mount_union()
     # /: the nfs mount (that should remain read-only)
     # fs_rw: the place to hold the filesystem changes
     # finalfs: the mount point of the union
-    busybox mount -t overlay \
+    walt_mount -t overlay \
         -o upperdir=${upperdir},lowerdir=${lowerdir},workdir=${workdir} \
         union ${uniondir} 2>/dev/null || \
-    busybox mount -t overlayfs \
+    walt_mount -t overlayfs \
         -o upperdir=${upperdir},lowerdir=${lowerdir} \
         union ${uniondir}
 }
@@ -236,3 +236,59 @@ possibly_vpn_node() {
         echo 1
     fi
 }
+
+copy_exec_to_rootfs()
+{
+    exec_path="$(busybox which "$1")"
+    # copy binary
+    mkdir -p bin
+    cp "$exec_path" bin/
+    # check that ldd is available
+    if ! busybox which ldd >/dev/null
+    then
+        echo "Warning: no ldd -- If $1 is a dynamic executable," \
+             "this script will not work."
+        return
+    fi
+    # check needed shared libraries
+    if ! bin_deps="$(ldd "$exec_path" 2>/dev/null)"
+    then
+        # this executable is probably static, nothing more to do
+        return
+    fi
+    # copy shared libraries
+    echo "$bin_deps" | busybox awk '{print $(NF-1)}' | while read lib
+    do
+        if [ -f "$lib" ]
+        then
+            destdir="./$(dirname $lib)"
+            mkdir -p "$destdir"
+            cp "$lib" "$destdir"
+        fi
+    done
+}
+
+# default functions, overridable in image
+walt_mount() {
+    busybox mount "$@"
+}
+
+walt_switch_root_fs() {
+    set -x
+    put_old="$1"
+    shift 1
+    # notes:
+    # - current dir will become the new root.
+    # - the old root (current one) will be mounted at $put_old
+    echo busybox pivot_root . "$put_old"
+    sh
+    busybox pivot_root . "$put_old"
+    # run specified command
+    exec busybox chroot . "$@" <dev/console >dev/console 2>&1
+}
+
+# apply image overrides if provided
+if [ -e /bin/walt-init-overrides ]
+then
+    . /bin/walt-init-overrides
+fi

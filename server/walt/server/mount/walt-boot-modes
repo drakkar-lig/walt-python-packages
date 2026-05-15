@@ -192,6 +192,7 @@ mount_hybrid_mode() {
 
 mount_network_mode()
 {
+    sh
     cd /mnt
     if [ "$walt_boot_mode" = "network-volatile" ]
     then

@@ -23,33 +23,14 @@ start_background_processes()
     cd /
 }
 
-update_mounts_rootfs_to_finalfs() {
-    busybox mkdir -p /run/walt/rootfs/mnt/finalfs
-    cd /run/walt/rootfs
-    # note: /persist may be disabled by using "walt node config"
-    # in this case walt-init-rootfs does not create mnt/persist
-    if [ -d "mnt/persist" ]
-    then
-        busybox mkdir -p /persist
-        busybox mount -o bind mnt/persist /persist
-    fi
-    busybox mount -o bind /dev dev  # needed for walt-log-script & walt-fs-watchdog
-    cd /
-}
-
 run_real_init()
 {
-    # try to make the system ressemble what we got when called
-    [ "$had_procfs" -eq 1 ] || busybox umount /proc
-    [ "$had_sysfs" -eq 1 ] || busybox umount /sys
     # call the OS init
     exec /sbin/init "$@" </dev/console >/dev/console 2>&1
 }
 
 # complete transition to finalfs
-mount -o bind /run/walt/rootfs/bin/walt-env /bin/walt-env
 . walt-script-common
-update_mounts_rootfs_to_finalfs
 export walt_init_done=1
 
 # start bg processes
