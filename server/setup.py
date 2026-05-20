@@ -27,7 +27,7 @@ setup_info = {
         "frozenlist==1.4.1",
         "gevent==24.2.1",
         "greenlet==3.0.3",
-        "idna==3.7",
+        "idna==3.15",
         "ipaddress==1.0.23",
         "jinja2==3.1.6",
         "llvmlite==0.42.0",
