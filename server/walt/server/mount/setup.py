@@ -259,6 +259,7 @@ def _setup(image_id, mount_path, image_size_kib, log_print,
         content = orig_path.read_bytes()
         if not p.exists() or p.read_bytes() != content:
             p.write_bytes(content)
+            p.chmod(orig_path.stat().st_mode)
     # append specified content to files listed in variable FILES_APPEND
     for path, content in FILES_APPEND.items():
         p = Path(mount_path + path)
