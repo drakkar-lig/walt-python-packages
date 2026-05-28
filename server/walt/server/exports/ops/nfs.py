@@ -35,6 +35,9 @@ FILE_TEMPLATE = f"""\
 
 # Exports for [node]:/persist mounts
 [persist-exports]
+
+# Temporary exports for "RUN --on-node <cmd>" directives in Dockerfiles
+[image-build-exports]
 """
 
 DT_EXPORT = np.dtype([("path", object),
@@ -52,6 +55,10 @@ PERSIST_EXPORT_PATTERN = np_str_pattern(f"""\
 %(path)s {WALT_SUBNET}(rw,{NFS_COMMON_OPTIONS})\
 """)
 
+IMAGE_BUILD_EXPORT_PATTERN = np_str_pattern(f"""\
+%(path)s {WALT_SUBNET}(rw,{NFS_COMMON_OPTIONS})\
+""")
+
 
 def _run_exportfs():
     if not succeeds("exportfs -r -f"):
@@ -59,9 +66,10 @@ def _run_exportfs():
 
 
 def wf_update_nfs(wf, image_exports, node_rw_exports,
-                  persist_exports, **env):
+                  persist_exports, image_build_exports, **env):
     nfs_conf = compute_nfs_conf(
-        image_exports, node_rw_exports, persist_exports)
+        image_exports, node_rw_exports,
+        persist_exports, image_build_exports)
     if update_conf_file(NFSD_EXPORTS_PATH, nfs_conf):
         _run_exportfs()
     wf.next()
@@ -110,10 +118,19 @@ def wf_compute_nfs_info(wf, new_status, db_nodes, **env):
             db_nodes.mac + "/persist_dirs/" + db_nodes.owner
         )
     wf.update_env(persist_exports=arr_exports)
+    # compute image build exports
+    mask_ibe = np.char.startswith(new_status, "EXPORT-ROOTFS")
+    image_build_exports = new_status[mask_ibe]
+    arr_exports = np.empty(len(image_build_exports), DT_EXPORT)
+    if len(image_build_exports) > 0:
+        image_build_exports_args = np_split_words(image_build_exports)
+        arr_exports["path"] = image_build_exports_args[:,1]
+    wf.update_env(image_build_exports=arr_exports)
     wf.next()
 
 
-def compute_nfs_conf(image_exports, node_rw_exports, persist_exports):
+def compute_nfs_conf(image_exports, node_rw_exports, persist_exports,
+                     image_build_exports):
     if len(image_exports) > 0:
         image_exports_str = "\n".join(
             np_apply_str_pattern(IMAGE_EXPORT_PATTERN, image_exports))
@@ -129,7 +146,15 @@ def compute_nfs_conf(image_exports, node_rw_exports, persist_exports):
             np_apply_str_pattern(PERSIST_EXPORT_PATTERN, persist_exports))
     else:
         persist_exports_str = '# (none)'
+    if len(image_build_exports) > 0:
+        image_build_exports_str = "\n".join(
+            np_apply_str_pattern(IMAGE_BUILD_EXPORT_PATTERN,
+                                 image_build_exports))
+    else:
+        image_build_exports_str = '# (none)'
     nfs_conf = FILE_TEMPLATE.replace("[image-exports]", image_exports_str)
     nfs_conf = nfs_conf.replace("[node-rw-exports]", node_rw_exports_str)
     nfs_conf = nfs_conf.replace("[persist-exports]", persist_exports_str)
+    nfs_conf = nfs_conf.replace("[image-build-exports]",
+                                image_build_exports_str)
     return nfs_conf

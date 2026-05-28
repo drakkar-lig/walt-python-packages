@@ -21,6 +21,82 @@ As a last command argument, one has to specify the name of the resulting image.
 If this name is already in use, the previous image will be overwritten (after a confirmation prompt).
 
 
+## Diverting Dockerfile RUN commands to a real node
+
+Sometimes, a setup procedure may have been tested successfully on a real machine
+but fail to run properly as a RUN command in the Dockerfile.
+
+For instance, let's consider the following Dockerfile:
+```
+FROM waltplatform/pc-x86-64-default
+RUN apt update && apt install -y sudo postgresql
+COPY backup.sql /root/
+RUN sudo -u postgres psql < /root/backup.sql
+```
+
+Unfortunately, building this Dockerfile fails at the last step:
+```
+$ walt image build --from-dir . dbimage
+[...]
+STEP 4/4: RUN sudo -u postgres psql < /root/backup.sql
+psql: error: connection to server failed [...]
+      Is the server running locally [...]?
+[...]
+$
+```
+
+Note that you would get the same failure with a plain `docker build` or
+`podman build`, this problem is not specific to `walt`.
+
+In fact, each RUN command is executed successively within its own "Linux container" -- a virtual
+and restricted environnement created on-the-fly on the WALT server.
+In this example, the postgresql client `psql` tries to connect to its server
+to populate the database with a backup. But in this minimal environment, the
+operating system is not started, so even if the postgresql server was properly
+installed by `apt` at step 2, it has never been started.
+
+Unless appropriate measures described below are taken, several kinds of commands
+will fail in a Dockerfile too:
+* commands supposed to work once the OS is running, such as `psql` in our example;
+* commands which require special privileges not allowed in a "Linux container";
+* commands specifically designed to work on a real machine, not as a step
+  of an OS image build procedure (e.g., a script trying to probe the model of
+  a peripheral device supposedly connected to the machine).
+
+Since v11, WALT offers an easy way to solve this problem: one can divert one
+or more `RUN` commands to a WALT node during the build of a Dockerfile.
+This requires two things:
+* Adding option `--with-node <node>` on `walt image build` command line.
+* Replacing failing `RUN` directives of the Dockerfile by `RUN --on-node`.
+
+So we can easily fix our example:
+```
+$ walt image build --from-dir . --with-node pc2-426 dbimage
+[...]
+STEP 4/4: RUN --on-node sudo -u postgres psql < /root/backup.sql
+Preparing intermediate image for node bootup...
+Rebooting pc2-426 on the intermediate image...
+Waiting for pc2-426 to be booted...
+Running the command on pc2-426...
+CREATE ROLE
+CREATE DATABASE
+[...]
+Successfully tagged docker.io/eduble/dbimage:latest
+```
+
+This time, the image was built properly.
+
+Note that for each `RUN --on-node` step, WALT has to:
+1. Boot the node on the intermediate OS image made of the previous
+   Dockerfile build steps.
+2. Run the specified command on the node.
+3. Save file changes made on the node as a new layer of the OS image
+   being built.
+
+This is significantly slower than a regular `RUN` command,
+so you are advised to use `RUN --on-node` only where a regular `RUN` fails.
+
+
 ## Build tips: selection of the base image
 
 The `FROM` line of the Dockerfile defines which existing image should be

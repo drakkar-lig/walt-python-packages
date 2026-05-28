@@ -1,8 +1,8 @@
 build a WalT image using a Dockerfile
 
 Usage:
-    walt image build --from-url <git-repo-url> [--sub-dir <path>] <image-name>
-    walt image build --from-dir <local-directory> <image-name>
+    walt image build --from-url <git-repo-url> [--sub-dir <path>] [--with-node <node>] <image-name>
+    walt image build --from-dir <local-directory> [--with-node <node>] <image-name>
 
     See 'walt help show image-build' for more info.
     
@@ -13,4 +13,5 @@ Switches:
     --from-dir DIRECTORY:str      Local directory containing a Dockerfile
     --from-url GIT_URL:str        Git repository URL containing a Dockerfile
     --sub-dir PATH:str            Sub-directory of git repo to use for the build
+    --with-node NODE:str          The node to use for 'RUN --on-node <cmd>' steps
 
