@@ -8,7 +8,6 @@ then
 fi
 
 echo "Starting $0 $1"
-set -x
 
 EXISTING_LATENCY_US=300    # with no traffic limit set, walt node ping <vnode> gives approx this number
 
