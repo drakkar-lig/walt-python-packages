@@ -23,6 +23,9 @@ FILE_TEMPLATE = f"""\
 
 # Read-Write OS exports for nodes with 'boot.mode=network-persistent'
 [node-rw-exports]
+
+# Temporary exports for "RUN --on-node <cmd>" directives in Dockerfiles
+[image-build-exports]
 """
 
 IMAGE_EXPORT_PATTERN = np_str_pattern(f"""\
@@ -33,9 +36,15 @@ NODE_RW_EXPORT_PATTERN = np_str_pattern(f"""\
 %(path)s {WALT_SUBNET}(fsid=%(fsid)s)\
 """)
 
+IMAGE_BUILD_EXPORT_PATTERN = np_str_pattern(f"""\
+%(path)s {WALT_SUBNET}\
+""")
 
-def wf_update_nbfs(wf, image_exports, node_rw_exports, **env):
-    nbfs_conf = compute_nbfs_conf(image_exports, node_rw_exports)
+
+def wf_update_nbfs(wf, image_exports, node_rw_exports,
+                   image_build_exports, **env):
+    nbfs_conf = compute_nbfs_conf(image_exports, node_rw_exports,
+                                  image_build_exports)
     if update_conf_file(NBFSD_EXPORTS_PATH, nbfs_conf):
         notify_nbfsd()
     wf.next()
@@ -47,7 +56,7 @@ def wf_cleanup_nbfs(wf, **env):
     wf.next()
 
 
-def compute_nbfs_conf(image_exports, node_rw_exports):
+def compute_nbfs_conf(image_exports, node_rw_exports, image_build_exports):
     if len(image_exports) > 0:
         image_exports_str = "\n".join(
             np_apply_str_pattern(IMAGE_EXPORT_PATTERN, image_exports))
@@ -58,8 +67,16 @@ def compute_nbfs_conf(image_exports, node_rw_exports):
             np_apply_str_pattern(NODE_RW_EXPORT_PATTERN, node_rw_exports))
     else:
         node_rw_exports_str = '# (none)'
+    if len(image_build_exports) > 0:
+        image_build_exports_str = "\n".join(
+            np_apply_str_pattern(IMAGE_BUILD_EXPORT_PATTERN,
+                                 image_build_exports))
+    else:
+        image_build_exports_str = '# (none)'
     nbfs_conf = FILE_TEMPLATE.replace("[image-exports]", image_exports_str)
     nbfs_conf = nbfs_conf.replace("[node-rw-exports]", node_rw_exports_str)
+    nbfs_conf = nbfs_conf.replace("[image-build-exports]",
+                                  image_build_exports_str)
     return nbfs_conf
 
 

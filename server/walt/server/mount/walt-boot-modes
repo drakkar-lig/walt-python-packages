@@ -189,7 +189,8 @@ mount_hybrid_mode() {
 
 need_rw_nfsroot()
 {
-    [ "$walt_boot_mode" = "network-persistent" ]
+    [ "$walt_boot_mode" = "network-persistent" -o \
+      "$walt_boot_mode" = "image-build-run-on-node" ]
 }
 
 mount_network_mode()
@@ -206,10 +207,10 @@ mount_network_mode()
         # uniondir=finalfs: the mount point of the union
         walt_mount_union /mnt/nfsroot fs_rw fs_work finalfs
     else
-        # walt_boot_mode: network-persistent
+        # walt_boot_mode: network-persistent or image-build-run-on-node
         # in this case the NFS share should already have been
-        # mounted or re-mounted read-write, nothing more to to here.
-        # the server has prepared an rw overlay layer on its side.
+        # exported read-write on the server and re-mounted read-write
+        # by the node, nothing more to to here.
         mkdir -p finalfs
         walt_mount -o bind /mnt/nfsroot finalfs
     fi
@@ -218,7 +219,7 @@ mount_network_mode()
 
 mount_finalfs() {
     case "$walt_boot_mode" in
-    "network-volatile"|"network-persistent")
+    "network-volatile"|"network-persistent"|"image-build-run-on-node")
         mount_network_mode
         ;;
     "hybrid-volatile"|"hybrid-persistent")
@@ -258,7 +259,8 @@ mount_hybrid_mode_localfs() {
 
 mount_secondaryfs() {
     case "$walt_boot_mode" in
-    "network-volatile"|"network-persistent")  # nothing to do
+    "network-volatile"|"network-persistent"|"image-build-run-on-node")
+        # nothing to do
         ;;
     "hybrid-volatile"|"hybrid-persistent")
         mount_hybrid_mode_localfs

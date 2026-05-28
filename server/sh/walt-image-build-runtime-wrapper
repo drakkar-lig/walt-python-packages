@@ -1,0 +1,34 @@
+#!/bin/sh
+# Most of the runtime logic is handled by walt-image-build-runtime,
+# a python executable. This script is here to triage and answer
+# "state" requests. buildah makes 10 "state" requests per second,
+# so starting a python executable each time is too slow.
+
+[ ! -z "$RUNTIME_WORKDIR" ] || \
+    echo "Missing RUNTIME_WORKDIR env variable." >&2
+
+get_last_arg() {
+    for last_arg in "$@"; do true; done
+    echo "$last_arg"
+}
+
+# only handle "state" requests
+case " $* " in
+    *" state "*)
+        ;;
+    *)
+        exec walt-image-build-runtime "$@"
+        ;;
+esac
+
+# if mode is runc, delegate to runc
+container_id=$(get_last_arg "$@")
+mode=$(cat $RUNTIME_WORKDIR/${container_id}.mode)
+
+if [ "$mode" = "runc" ]
+then
+    exec runc "$@"
+fi
+
+# otherwise, output the state file
+cat $RUNTIME_WORKDIR/${container_id}.state

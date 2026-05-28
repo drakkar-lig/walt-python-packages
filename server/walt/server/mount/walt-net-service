@@ -81,7 +81,8 @@ get_custom_walt_reboot_script() {
         return
     fi
     if [ "${walt_boot_mode}" = "network-volatile" -o \
-         "${walt_boot_mode}" = "network-persistent" ]
+         "${walt_boot_mode}" = "network-persistent" -o \
+         "${walt_boot_mode}" = "image-build-run-on-node" ]
     then
         # /bin/walt-network-reboot (new image)
         if [ -e "/mnt/finalfs/bin/walt-network-reboot" ]; then
