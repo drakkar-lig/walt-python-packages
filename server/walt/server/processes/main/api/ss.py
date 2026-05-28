@@ -44,3 +44,28 @@ class SSAPI(APISession):
     @api_expose_method
     def plan_update_exports(self, context, next_time):
         return context.server.exports.plan_update(next_time)
+
+    @api_expose_method
+    def image_build_run_on_node_prepare(self, context, session_id, rootfs):
+        session = self.get_session_object(session_id)
+        session.image_build_run_on_node_start_workflow(
+                context.requester, context.task, rootfs)
+
+    @api_expose_method
+    def image_build_run_on_node_run_cmd(self, context, session_id):
+        session = self.get_session_object(session_id)
+        session.image_build_run_on_node_resume_workflow(
+                context.requester, context.task)
+
+    @api_expose_method
+    def image_build_run_on_node_cleanup(self, context, session_id):
+        session = self.get_session_object(session_id)
+        # No need to make the client wait, we can handle that
+        # asynchronously. So we don't pass context.task in this case.
+        session.image_build_run_on_node_resume_workflow(
+                None, None)
+
+    @api_expose_method
+    def image_build_save_pid_file(self, context, session_id, pid_file):
+        session = self.get_session_object(session_id)
+        session.save_pid_file(pid_file)

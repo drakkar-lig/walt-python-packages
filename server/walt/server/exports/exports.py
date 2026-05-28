@@ -262,8 +262,9 @@ def update(auto_recall=False):
     curr_mounts_status = mount_image_status | mount_node_rw_status
     old_status = read_status_file(curr_mounts_status)
     # -- query exports info from main server daemon
+    # ibe: image-build export (temporary export for "RUN --on-node <cmd>")
     with SSAPILink() as server:
-        db_nodes, unknown_rpis, free_ips = server.get_exports_info()
+        db_nodes, unknown_rpis, free_ips, ibe_nodes = server.get_exports_info()
     # -- declare dirs
     mac_dirs = "DIR " + db_nodes.mac
     # -- declare ip, name and mac-dash symlinks
@@ -271,19 +272,28 @@ def update(auto_recall=False):
     ip_symlinks = "SYMLINK " + db_nodes.mac + " " + db_nodes.ip
     name_symlinks = "SYMLINK " + db_nodes.mac + " " + db_nodes.name
     # -- declare fs symlinks
+    ibe_nodes_mask = np.isin(db_nodes.mac, ibe_nodes.mac)
     rw_nodes_mask = (db_nodes.boot_mode == "network-persistent")
-    rw_nodes = db_nodes[rw_nodes_mask]
-    ro_nodes = db_nodes[~rw_nodes_mask]
+    rw_nodes_not_ibe = db_nodes[rw_nodes_mask & ~ibe_nodes_mask]
+    ro_nodes_not_ibe = db_nodes[~rw_nodes_mask & ~ibe_nodes_mask]
     fs_ro_symlinks = (
-        "SYMLINK ../../images/" + ro_nodes.image_id +
-        "/fs " + ro_nodes.mac + "/fs")
+        "SYMLINK ../../images/" + ro_nodes_not_ibe.image_id +
+        "/fs " + ro_nodes_not_ibe.mac + "/fs")
+    fs_rw_symlink_targets = np.concatenate((
+            get_node_rw_relative_mount_path(
+                rw_nodes_not_ibe.image_id,
+                rw_nodes_not_ibe.image
+            ),
+            ibe_nodes.rootfs
+    ))
+    fs_rw_symlink_macs = np.concatenate((
+            rw_nodes_not_ibe.mac,
+            ibe_nodes.mac
+    ))
     fs_rw_symlinks = (
-        "SYMLINK " +
-        get_node_rw_relative_mount_path(
-            rw_nodes.image_id,
-            rw_nodes.image
-        ) + " " +
-        rw_nodes.mac + "/fs")
+            "SYMLINK " + fs_rw_symlink_targets + " " +
+            fs_rw_symlink_macs + "/fs"
+    )
     # -- declare tftp symlinks
     tftp_symlinks = (
         "SYMLINK fs/boot/" + db_nodes.model +
@@ -322,10 +332,13 @@ def update(auto_recall=False):
     image_sizes = db_nodes.image_size_kib[uniq_idx].astype(str)
     image_mounts = ("MOUNT-IMAGE " + image_ids + " " + image_sizes)
     # node rw-mounts
+    rw_nodes = db_nodes[rw_nodes_mask]
     node_rw_mounts = ("MOUNT-NODE-RW " +
                       rw_nodes.mac + " " +
                       rw_nodes.image_id + " " +
                       rw_nodes.image)
+    # image build exports
+    image_build_exports = ("EXPORT-ROOTFS " + ibe_nodes.rootfs)
     # if we were in the grace time period before unmounting a mountpoint
     # but we now need it again, discard its grace time deadline.
     discard_grace_time_of_directives(image_mounts)
@@ -335,7 +348,7 @@ def update(auto_recall=False):
         mac_dirs, mac_dash_symlinks, ip_symlinks, name_symlinks,
         fs_ro_symlinks, fs_rw_symlinks, tftp_symlinks, persist_symlinks,
         free_ip_symlinks, unknown_rpis_symlinks,
-        image_mounts, node_rw_mounts), dtype=object))
+        image_mounts, node_rw_mounts, image_build_exports), dtype=object))
     if status == old_status:
         # nothing changed
         return

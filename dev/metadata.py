@@ -126,6 +126,7 @@ PACKAGE_SPECIFIC_INFO = {
                     "walt-exports-prepare = walt.server.exports.commands:prepare",
                     "walt-exports-update = walt.server.exports.commands:update",
                     "walt-exports-cleanup = walt.server.exports.commands:cleanup",
+                    "walt-image-build-runtime = walt.server.imagebuildruntime:run",
                 ]
             },
             scripts=["sh/walt-image-shell-helper",

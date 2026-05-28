@@ -21,6 +21,65 @@ As a last command argument, one has to specify the name of the resulting image.
 If this name is already in use, the previous image will be overwritten (after a confirmation prompt).
 
 
+## Diverting Dockerfile RUN commands to a real node
+
+Sometimes, a setup procedure may have been tested successfully on a real machine
+but fail to run properly as a RUN command in the Dockerfile.
+
+For instance, let's consider we want to prepare an OS image with a postgresql
+database populated with a backup.
+We could try the following Dockerfile:
+```
+FROM waltplatform/pc-x86-64-default
+RUN apt update && apt install -y sudo postgresql
+COPY backup.sql /root/
+RUN sudo -u postgres psql < /root/backup.sql
+```
+
+Unfortunately, the last step fails:
+```
+$ walt image build --from-dir . dbimage
+[...]
+STEP 4/4: RUN sudo -u postgres psql < /root/backup.sql
+psql: error: connection to server on socket "/var/run/postgresql/.s.PGSQL.5433" failed: No such file or directory
+	Is the server running locally and accepting connections on that socket?
+Error: building at STEP "RUN sudo -u postgres psql < /root/backup.sql": while running runtime: exit status 2
+Sorry, image build FAILED.
+See 'walt help show image-build' for help.
+$
+```
+
+This problem is not specific to `walt`.
+You would get the same failure with a plain `docker build` or `podman build`.
+
+This is due to the fact RUN commands are run in a "Linux container", a virtual
+and restricted environnement created on-the-fly on the WALT server.
+In this example, the `psql` command tries to connect to the postgresql server,
+but in this minimal environment the operating system is not started, so this
+postgresql server is not running.
+
+Unless appropriate measures described below are taken, other kinds of commands
+will also fail in a Dockerfile:
+* commands which require special privileges not allowed in a "Linux container".
+* commands specifically designed to work on a real machine and once the OS image
+  is deployed, not as a build step (e.g., probing the model of a peripheral device
+  supposedly connected to the machine).
+
+Since WalT v11, it is possible to divert one or more 
+TODO ici
+
+
+```
+FROM waltplatform/pc-x86-64-default
+RUN apt update && apt install -y sudo postgresql
+COPY backup.sql /root/
+RUN --on-node sudo -u postgres psql < /root/backup.sql
+```
+
+
+(firewall, probing the model of a peripheral board)
+
+
 ## Build tips: selection of the base image
 
 The `FROM` line of the Dockerfile defines which existing image should be

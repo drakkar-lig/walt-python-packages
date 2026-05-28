@@ -882,6 +882,7 @@ class PortSettingsManager:
                         "WHERE mac = %s "
                         "  AND port = %s",
                         (port_name, switch_mac, port_id))
+        self.server.dhcpd.update()
         requester.stdout.write("Done.\n")
 
     def get_config(self, requester, switch_name, port_id):
