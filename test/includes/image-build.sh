@@ -5,16 +5,19 @@ test_walt_image_build() {
     image_name_dir="$1"
     image_name_url="$2"
 
+    walt node create $(test_suite_node)
     tmpdir=$(mktemp -d)
 
     # build from dir
     cd $tmpdir
     git clone $IMAGE_BUILD_GIT_URL .
-    walt image build --from-dir . $image_name_dir
+    walt image build --from-dir . \
+        --with-node $(test_suite_node) $image_name_dir
     cd
 
     # build from url
-    walt image build --from-url $IMAGE_BUILD_GIT_URL --sub-dir / $image_name_url
+    walt image build --from-url $IMAGE_BUILD_GIT_URL --sub-dir / \
+        --with-node $(test_suite_node) $image_name_url
 
     # retrieve the file /root/test-result of each image
     # and verify they both contain OK
@@ -34,6 +37,7 @@ test_walt_image_build() {
     fi
 
     # cleanup
+    walt node remove $(test_suite_node)
     rm -rf tmpdir
 }
 

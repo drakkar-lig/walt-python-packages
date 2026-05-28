@@ -220,6 +220,19 @@ def on_sigterm_throw_exception():
     signal.signal(signal.SIGTERM, signal_handler)
 
 
+def temporary_signal_handler(signum, handler):
+    from signal import signal
+    from contextlib import contextmanager
+
+    @contextmanager
+    def cm():
+        old_handler = signal(signum, handler)
+        yield
+        signal(signum, old_handler)
+
+    return cm()
+
+
 class SimpleContainer(object):
     def __init__(self, **args):
         self.update(**args)
