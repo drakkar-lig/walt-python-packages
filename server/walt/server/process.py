@@ -411,6 +411,9 @@ class RPCTask(object):
     def is_completed(self):
         return self._completed
 
+    def interrupt(self):
+        self._completed = True
+
     def __repr__(self):
         return f"<RPCTask {self._task_label}>"
 

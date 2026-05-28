@@ -17,12 +17,18 @@ Instead of modifying an OS image for a given experiment and then booting nodes w
 this command allows to work the other way: do the modifications directly on a node,
 and then save the current node state as a new WalT image.
 
-Modifying an OS image using `walt image shell` or `walt image build` is sometimes
-challenging because those commands work in a "linux container" environment, not on
-a real node. See [`walt help show shells`](shells.md) for more info. Because of this, a small
-set of operations may not work or not be allowed.
+Modifying an OS image using `walt image shell` is sometimes challenging because this
+command works in a "linux container" environment, not on a real node.
+See [`walt help show shells`](shells.md) for more info.
+Because of this, a small set of operations may not work or not be allowed.
 In this case, making the changes directly on a node and then saving the OS image with
 `walt node save` is a handy workaround.
+
+If you want to make your image building procedure reproducible, you should
+use `walt image build` instead of `walt node save` or `walt image shell`.
+With `walt image build`, one can easily divert Dockerfile `RUN` commands to a real node
+if facing this kind of problem. See [`walt help show image-build`](image-build.md) for more info.
+
 
 
 ## Limits

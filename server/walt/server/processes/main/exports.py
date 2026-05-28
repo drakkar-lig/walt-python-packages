@@ -35,6 +35,9 @@ LEFT JOIN nodes n ON d.mac = n.mac
 WHERE d.ip IS NOT NULL
   AND d.ip::inet << '{str(WALT_SUBNET)}'::cidr
 """
+# IBE: Image Build Export (temporary rootfs export during image build)
+# when handling a "RUN --on-node <cmd>" directive in the Dockerfile.
+IBE_NODES_DTYPE = np.dtype([("mac", object), ("rootfs", object)])
 
 
 class FilesystemsExporter:
@@ -42,6 +45,7 @@ class FilesystemsExporter:
         self.db = server.db
         self.registry = server.registry
         self.ev_loop = server.ev_loop
+        self.image_build_exports = {}
 
     def get_exports_info(self):
         db_devices = self.db.execute(QUERY_EXPORTS_INFO)
@@ -62,7 +66,9 @@ class FilesystemsExporter:
         free_ips.discard(WALT_SERVER_IP)
         free_ips -= set(db_devices.ip)
         free_ips = np.array(list(free_ips), dtype=object)
-        return db_nodes, unknown_rpis, free_ips
+        ibe_nodes = np.fromiter(self.image_build_exports.items(),
+                                IBE_NODES_DTYPE).view(np.recarray)
+        return db_nodes, unknown_rpis, free_ips, ibe_nodes
 
     def wf_prepare(self, wf, **env):
         self.ev_loop.wf_do(wf, "walt-exports-prepare", silent=False)
@@ -81,3 +87,12 @@ class FilesystemsExporter:
 
     def cleanup(self):
         self.ev_loop.do("walt-exports-cleanup", silent=False)
+
+    def set_image_build_export(self, node_mac, rootfs):
+        self.image_build_exports[node_mac] = rootfs
+
+    def unset_image_build_export(self, node_mac):
+        self.image_build_exports.pop(node_mac)
+
+    def mac_used_for_image_build_export(self, node_mac):
+        return node_mac in self.image_build_exports

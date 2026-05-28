@@ -2,6 +2,7 @@ import re
 import sys
 from collections import defaultdict
 from pathlib import Path
+from signal import SIGINT
 
 from walt.client.apiobject.base import (
     APIItemClassFactory,
@@ -14,6 +15,7 @@ from walt.client.config import conf
 from walt.client.exceptions import NoSuchImageNameException
 from walt.client.transfer import run_transfer_for_image_build
 from walt.common.tools import parse_image_fullname
+from walt.common.tools import temporary_signal_handler
 
 
 class APIImageInfoCache(APIItemInfoCache):
@@ -127,10 +129,11 @@ class APIImagesSubModule(APIObjectBase):
         """Return images of your working set"""
         return get_images()
 
-    def build(self, image_name, dir_or_url, sub_dir="/"):
+    def build(self, image_name, dir_or_url, sub_dir="/",
+                    with_node=None, force=False):
         """Build an image using a Dockerfile"""
         mode = "dir" if Path(dir_or_url).exists() else "url"
-        info = dict(mode=mode, image_name=image_name)
+        info = dict(mode=mode, image_name=image_name, force=force, caller="api")
         if mode == "dir":
             if not Path(dir_or_url).is_dir():
                 sys.stderr.write(
@@ -149,27 +152,46 @@ class APIImagesSubModule(APIObjectBase):
                 )
                 return
             info["subdir"] = sub_dir.strip("/")
+        if with_node is not None:
+            with_node_name = with_node
+            try:
+                from walt.client import api
+                nodes = api.nodes.get_nodes(with_node_name)
+                if len(nodes) != 1:
+                    raise Exception()
+            except Exception:
+                sys.stderr.write(
+                    "Failed: parameter 'with_node' is invalid.\n"
+                    "It should be a valid node name or node API object."
+                )
+                return
+            node = list(nodes)[0]
+            try:
+                node._check_owned_or_force(force)
+            except Exception as e:
+                sys.stderr.write(f"Failed: {str(e)}.")
+                return
+            info["with_node_name"] = node.name
         with silent_server_link() as server:
             info = server.create_image_build_session(**info)
             if info is None:
                 return  # issue already reported
             image_overwrite = info.pop("image_overwrite")
-            if image_overwrite:
-                sys.stderr.write("Failed: An image with this name already exists.\n")
+            if image_overwrite and not force:
+                sys.stderr.write(
+                    "Add parameter force=True if you want to proceed anyway.\n")
                 return
-            session_id = info.pop("session_id")
-            if mode == "dir":
-                try:
+            session_id = info["session_id"]
+            def handle_sigint(signum, frame):
+                server.interrupt_image_build(session_id)
+            with temporary_signal_handler(SIGINT, handle_sigint):
+                if mode == "dir":
                     if not run_transfer_for_image_build(**info):
                         return
-                except (KeyboardInterrupt, EOFError):
-                    print()
-                    print("Aborted.")
-                    return
-            else:
-                if not server.run_image_build_from_url(session_id):
-                    # failed
-                    return
+                else:
+                    if not server.run_image_build_from_url(session_id):
+                        # failed
+                        return
             server.finalize_image_build_session(session_id)
         __info_cache__.refresh()  # detect the new image
         return APIImageFactory.create(image_name)

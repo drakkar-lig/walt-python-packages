@@ -249,9 +249,17 @@ class NodeImageManager:
         username = requester.get_username()
         if not validate_image_name(requester, image_name):
             return None
+        if "with_node_name" in info:
+            with_node_name = info["with_node_name"]
+            node = self.db.select_unique(
+                            "devices",
+                            name=with_node_name
+            )
+            info["with_node_mac"] = node.mac
         image_fullname = format_image_fullname(username, image_name)
-        image_overwrite = self.has_image(requester, image_name, False, expected=None)
-        if image_overwrite:
+        image_overwrite = self.has_image(
+                requester, image_name, False, expected=None)
+        if image_overwrite and info.get("force", False) is False:
             msg = self.store.get_image_overwrite_warning(image_fullname)
             requester.stderr.write(msg)
         session = ImageBuildSession(
