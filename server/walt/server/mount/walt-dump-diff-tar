@@ -166,7 +166,8 @@ dump_archive() {
     if [ "$walt_boot_mode" = 'network-volatile' ]
     then
         dump_archive_network_v_boot
-    elif [ "$walt_boot_mode" = 'network-persistent' ]
+    elif [ "$walt_boot_mode" = 'network-persistent' -o \
+           "$walt_boot_mode" = 'image-build-run-on-node' ]
     then
         echo "This script should not be called with boot mode " \
              "'$walt_boot_mode'. Aborting." >&2
