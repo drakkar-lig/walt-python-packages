@@ -134,18 +134,35 @@ def remote_revert_cd(env):
     env["REMOTEDIRSTACK"] = env["REMOTEDIRSTACK"][:-1]  # pop
 
 
-def execute_line(env, line):
-    # if flag 'should-boot' was just set to True and False was returned in an
-    # attempt to stop the process, we might still be called again to handle
-    # the right part of a current 'or' condition.
-    if env["should-boot"]:
-        return False  # stop!!
-    # strip comments
-    line = line.split("#")[0]
-    line = line.strip()
-    # handle empty line
-    if line == "":
-        return True
+def parse_script(env, content):
+    lines = []
+    labels = {}
+    for line in content.decode(OS_ENCODING).splitlines():
+        # strip comments & ignore empty lines
+        line = line.split("#")[0]
+        line = line.strip()
+        if line == "":
+            continue
+        # detect labels
+        if line.startswith(":"):
+            label = line[1:]
+            # the label will point to next line
+            labels[label] = len(lines)
+        else:
+            # append to lines
+            lines.append(line)
+    return lines, labels
+
+
+def execute_line(env, lines, labels, line, line_idx):
+    # if flag 'should-boot-kernel' was just set to True and False
+    # was returned in an attempt to stop the process, we might still
+    # be called again to handle the right part of a current 'or' condition.
+    if env["should-boot-kernel"]:
+        return False, None  # stop!!
+    # handle empty conditions (e.g. "<cmd> ||", means "<cmd> || true")
+    if line.strip() == "":
+        return True, line_idx+1
     # parse and / or conditions
     cond = None
     and_conditions = line.rsplit("&&", 1)
@@ -160,13 +177,19 @@ def execute_line(env, line):
     elif len(or_conditions) == 2:
         cond = "or"
     if cond == "and":
-        return execute_line(env, and_conditions[0]) and execute_line(
-            env, and_conditions[1]
-        )
+        success, _ = execute_line(
+                env, lines, labels, and_conditions[0], line_idx)
+        if not success:
+            return False, None
+        return execute_line(
+                env, lines, labels, and_conditions[1], line_idx)
     if cond == "or":
-        return execute_line(env, or_conditions[0]) or execute_line(
-            env, or_conditions[1]
-        )
+        success, new_line_idx = execute_line(
+                env, lines, labels, or_conditions[0], line_idx)
+        if success:
+            return True, new_line_idx
+        return execute_line(
+                env, lines, labels, or_conditions[1], line_idx)
     # tokenize
     words = shlex.split(line)
     # replace variables
@@ -186,68 +209,114 @@ def execute_line(env, line):
             env[words[1]] = ""
         else:
             env[words[1]] = " ".join(words[2:])
-        return True
+        return True, line_idx+1
     # handle "echo" directive
     if words[0] == "echo":
         print(" ".join(words[1:]))
-        return True
+        return True, line_idx+1
+    # handle "goto" directive
+    if words[0] == "goto":
+        label = words[1]
+        line_idx = labels[label]
+        return True, line_idx
+    # handle "isset" directive
+    if words[0] == "isset":
+        if len(words[1]) > 0:
+            return True, line_idx+1
+        else:
+            return False, None
+    # handle "iseq" directive
+    if words[0] == "iseq":
+        if words[1] == words[2]:
+            return True, line_idx+1
+        else:
+            return False, None
+    # handle "shell" directive
     if words[0] == "shell":
         code.interact(banner=SHELL_BANNER, local=env)
-        return True
-    # handle "chain" directive
-    if words[0] == "chain":
-        path = CanonicalPath.from_url(env, " ".join(words[1:]))
-        content = path.read(env)
-        if content is None:
-            return False
-        # when executing a script, relative paths will be interpreted
-        # as being relative to the path of the script itself
-        remote_cd(env, path.dirname())
-        for line in content.decode(OS_ENCODING).splitlines():
-            if not execute_line(env, line):
-                return False
-        remote_revert_cd(env)
-        return True
+        return True, line_idx+1
+    # handle "kernel" and "chain" directives and their aliases
+    if words[0] in ("boot", "chain", "imgexec",
+                    "kernel", "imgselect", "imgload"):
+        if words[0] in ("boot", "chain", "imgexec"):
+            # boot an image, either specified as argument
+            # or loaded previously with imgload/kernel/imgselect
+            directive = "chain"
+        else:
+            # just load an image, do not boot it yet
+            directive = "imgload"
+        # in any case, if arguments are given, record info
+        # about this image which will be booted
+        if len(words) > 1:
+            img_path = CanonicalPath.from_url(env, words[1])
+            img_cmdline = " ".join(words[2:])
+            img_content = img_path.read(env)
+            if img_content is None:
+                return False, None
+            env["boot-image"] = img_content
+            env["boot-image-cmdline"] = img_cmdline
+            env["boot-image-path"] = img_path
+        # boot right away if directive is "chain"
+        if directive == "chain":
+            img_content = env["boot-image"]
+            img_cmdline = env["boot-image-cmdline"]
+            img_path = env["boot-image-path"]
+            if img_content[:6] == b"#!ipxe":
+                # bootable image is a script, execute it recursively
+                caller_line_idx = line_idx
+                lines, labels = parse_script(env, img_content)
+                # when executing a script, relative paths will be interpreted
+                # as being relative to the path of the script itself
+                remote_cd(env, img_path.dirname())
+                # start with first line
+                line_idx = 0
+                while True:
+                    line = lines[line_idx]
+                    success, line_idx = execute_line(
+                            env, lines, labels, line, line_idx)
+                    if success:
+                        # stop if end of file, continue otherwise
+                        if line_idx == len(lines):
+                            break
+                    else:
+                        return False, None
+                remote_revert_cd(env)
+                return True, caller_line_idx+1
+            else:
+                # bootable image is a "kernel"
+                # (it should be suitable as qemu's "-kernel" option value)
+                kernel_copy = env["TMPDIR"] + "/kernel"
+                with open(kernel_copy, "wb") as f:
+                    f.write(img_content)
+                env["boot-kernel"] = kernel_copy
+                env["boot-kernel-cmdline"] = img_cmdline
+                env["should-boot-kernel"] = True
+                return False, None  # stop
+        else:
+            # "imgload" directive, just selecting, not booting yet
+            return True, line_idx+1
     # handle "imgfree" directive
     if words[0] == "imgfree":
-        return True  # nothing to do here
+        return True, line_idx+1  # nothing to do here
     # handle "initrd" directive
     if words[0] == "initrd":
         initrd_path = CanonicalPath.from_url(env, " ".join(words[1:]))
         content = initrd_path.read(env)
         if content is None:
-            return False
+            return False, None
         initrd_copy = env["TMPDIR"] + "/initrd"
         with open(initrd_copy, "wb") as f:
             f.write(content)
         env["boot-initrd"] = initrd_copy
-        return True
-    # handle "kernel" and "boot" directives
-    if words[0] in ("boot", "kernel"):
-        if len(words) > 1:
-            kernel_path = CanonicalPath.from_url(env, words[1])
-            kernel_cmdline = " ".join(words[2:])
-            content = kernel_path.read(env)
-            if content is None:
-                return False
-            kernel_copy = env["TMPDIR"] + "/kernel"
-            with open(kernel_copy, "wb") as f:
-                f.write(content)
-            env["boot-kernel"] = kernel_copy
-            env["boot-kernel-cmdline"] = kernel_cmdline
-        if words[0] == "boot":
-            env["should-boot"] = True
-            return False  # stop
-        else:
-            return True
+        return True, line_idx+1
     # handle "sleep" directive
     if words[0] == "sleep":
         delay = int(words[1])
         time.sleep(delay)
-        return True
+        return True, line_idx+1
     # handle "reboot" directive
     if words[0] == "reboot":
-        return False  # stop
+        return False, None  # stop
     # unknown directive!
     raise NotImplementedError(
         '[fake-ipxe] Unknown directive "' + words[0] + '". Aborted.'
@@ -257,7 +326,7 @@ def execute_line(env, line):
 def ipxe_boot(env):
     print("[fake-ipxe] note: this is not the real iPXE bootloader!")
     print("[fake-ipxe] note: support is limited to a basic command set.")
-    env["should-boot"] = False
+    env["should-boot-kernel"] = False
     with tempfile.TemporaryDirectory() as TMPDIR:
         net_setup_func = env["fake-network-setup"]
         with net_setup_func(env) as setup_result:
@@ -274,10 +343,11 @@ def ipxe_boot(env):
                 )
                 # start ipxe emulated netboot
                 remote_cd(env, CanonicalPath("tftp", "/"))  # default dir
-                execute_line(env, "chain /start.ipxe")
+                line = "chain /start.ipxe"
+                execute_line(env, [line], {}, line, 0)
         # note: we just left the with context because we no
         # longer need the temporary network setup that was
         # possibly established.
-        if env["should-boot"]:
+        if env["should-boot-kernel"]:
             boot_function = env["boot-function"]
             boot_function(env)
