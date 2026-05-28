@@ -107,11 +107,18 @@ _do_force_reboot() {
 
 _do_reboot() {
     REBOOT_CMD_TIMEOUT=2        # the reboot command itself should not block
-    if [ "${walt_boot_mode}" = "network-volatile" ]
+    if [ "${walt_boot_mode}" = "network-volatile" -o \
+         "${walt_boot_mode}" = "image-build-run-on-node" ]
     then
-        # we are on a readonly NFS-boot and all file changes
-        # were handled in RAM, so no need to wait for the init system
-        # shutdown procedure
+        # a. network-volatile: we are on a readonly NFS-root and all file
+        #    changes were handled in RAM.
+        # b. image-build-run-on-node: we are on a read-write NFS mount
+        #    targetting the content of a buidah container; when we get here,
+        #    the server has already applied the file changes as a new image
+        #    layer, and we're now rebooting the node to restore its previous
+        #    state.
+        # In one of these two cases, no need to wait for the init system
+        # shutdown procedure.
         _do_force_reboot
     else
         # we have booted on a local disk, or with a read-write NFS overlay,

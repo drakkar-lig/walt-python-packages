@@ -1,15 +1,25 @@
 #!/usr/bin/env bash
 # walt-image-build-helper is a build script run when the server
 # has to handle a "walt image build" command requested by a client.
-set -e
+set -e -o pipefail
 
 export LC_ALL=C
 
+ERR_CLIENT_MISSING_WITH_NODE="""\
+Error: Option '--on-node' detected on at least one RUN line,
+       but option '--with-node' is missing on the command line.
+"""
+ERR_API_MISSING_WITH_NODE="""\
+Error: Option '--on-node' detected on at least one RUN line,
+       but parameter 'with_node' was not specified.
+"""
 mode=""
 user=""
 image_fullname=""
 debug=0
 subdir=""
+caller_type=""
+has_with_node=0
 
 while [ ! -z "$1" ]
 do
@@ -43,24 +53,55 @@ do
             debug=1
             shift
             ;;
+        "--session-id")
+            shift
+            export WALT_BUILD_SESSION_ID="$1"
+            shift
+            ;;
+        "--caller")
+            shift
+            caller_type="$1"
+            shift
+            ;;
+        "--with-node")
+            shift 2
+            # note: we actually ignore the name of the node here, because
+            # the server has it recorded in its build session object.
+            has_with_node=1
+            ;;
         *)
             user="$1"
             image_fullname="$2"
+            export WALT_USER="$user"
             shift 2
             break
     esac
 done
 
-if [ -z "$mode" -o -z "$user" -o -z "$image_fullname" -o ! -z "$1" ]
+call_error=""
+if [ -z "$mode" ]
 then
-	echo "Usage:" >&2
-    echo "  $0 [--debug] --from-url <git-remote-build-repo>" \
-         "[--sub-dir <path>] <user> <image_fullname>" >&2
-    echo "  tar cf - . | $0 [--debug] --from-stdin" \
-         "<user> <image_fullname>" >&2
-    echo "  $0 [--debug] --from-node-diff <node-diff-dump-cmd>" \
-         "<node-image-fullname> <user> <image_fullname>" >&2
-	exit
+    call_error="none of '--from-url', '--from-stdin' or '--from-node-diff'"
+    call_error+=" was specified."
+elif [ -z "$user" -o -z "$image_fullname" ]
+then
+    call_error="last two arguments should be <user> and <image-fullname>."
+elif [ ! -z "$1" ]
+then
+    call_error="found extra arguments at the end of the command line."
+elif [ -z "$WALT_BUILD_SESSION_ID" ]
+then
+    call_error="'--session-id <id>' was not specified."
+elif [ -z "$caller_type" ]
+then
+    call_error="'--caller [client|api]' was not specified."
+fi
+
+if [ ! -z "$call_error" ]
+then
+    echo "Helper was not called properly by main daemon:" >&2
+    echo "$call_error" >&2
+    exit 1
 fi
 
 if [ $debug -eq 1 ]
@@ -222,6 +263,25 @@ replace_implicit_from_lines() {
     fi
 }
 
+dockerfile_has_run_on_node_directives() {
+    if grep "RUN.*--on-node" Dockerfile >/dev/null
+    then
+        if [ "$has_with_node" -eq 0 ]
+        then
+            if [ "$client_type" = "client" ]
+            then
+                echo "$ERR_CLIENT_MISSING_WITH_NODE" >&2
+            else
+                echo "$ERR_API_MISSING_WITH_NODE" >&2
+            fi
+            exit 1
+        fi
+        return 0  # yes, it has
+    else
+        return 1  # no, it has not
+    fi
+}
+
 podman_build() {
     # If it was named ContainerFile, rename it to Dockerfile
     # to avoid further tests in next commands
@@ -229,15 +289,56 @@ podman_build() {
     then
         mv ContainerFile Dockerfile
     fi
+
     # Ensure FROM lines specify a user
     replace_implicit_from_lines
-    # Build
-    podman build --format docker -f Dockerfile \
-            -t "docker.io/$image_fullname" .
+
+    # Compute options
+    local runtime=$(which walt-image-build-runtime-wrapper)
+    local podman_opts=""
+    local podman_build_opts=$(echo \
+                     "--format docker" \
+                     "-f Dockerfile" \
+                     "--runtime=$runtime" \
+                     "-t docker.io/$image_fullname")
+    mkdir $tmp_dir/runtime-workdir
+    export RUNTIME_WORKDIR="$tmp_dir/runtime-workdir"
+    export PYTHONUNBUFFERED=1
+
+    # Our runtime is useful for two things:
+    # 1. handle "RUN --on-node <cmd>" directives
+    #    (other RUN commands are just delegated to 'runc')
+    # 2. save pid files of run commands so that the server
+    #    can kill a long RUN command if the user presses ctrl-C.
+
+    if dockerfile_has_run_on_node_directives
+    then
+        # note: buildah does not allow us to handle a custom
+        # option name for our runtime, so we rename it to
+        # something which does not look like an option.
+        sed -i -e "s/--on-node/__on_node__/g" Dockerfile
+        # we need to:
+        # - let buildah mount the container rootfs with the option
+        #   allowing NFS export
+        # - prevent buildah to setup a separate network namespace
+        #   for the container (it could cause cleanup issues with
+        #   our runtime)
+        podman_opts+=" --storage-opt mountopt=nfs_export=on"
+        podman_build_opts+=" --network host"
+
+        echo "** Building the image"
+        # note: we revert the tag "__on_node__" back to "--on-node"
+        #       when "podman build" prints the RUN steps.
+        podman $podman_opts build $podman_build_opts . \
+            > >(sed -u -e "s/__on_node__/--on-node/g")  \
+            2> >(sed -u -e "s/__on_node__/--on-node/g" >&2)
+    else
+        echo "** Building the image"
+        podman $podman_opts build $podman_build_opts .
+    fi
 }
 
 build_image() {
-    echo "** Building the image"
     if [ "$1" = "--silent" ]
     then
         podman_build >/dev/null
@@ -251,7 +352,8 @@ verify_image() {
     walt-image-check "docker.io/$image_fullname"
 }
 
-cd "$tmp_dir"
+mkdir "$tmp_dir/helper-workdir"
+cd "$tmp_dir/helper-workdir"
 if [ "$mode" = "url" ]
 then
     clone_from_url

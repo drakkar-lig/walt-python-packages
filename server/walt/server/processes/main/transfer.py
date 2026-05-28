@@ -354,13 +354,24 @@ class NodeTarReceiver(ParallelProcessSocketListener):
 
 IMAGE_BUILD_TAR_RECEIVER_COMMAND = """\
 walt-annotate-cmd --mode pickle4 \
-    walt-image-build-helper --from-stdin %(username)s %(image_fullname)s"""
+    walt-image-build-helper \
+                --session-id %(session_id)s \
+                --caller %(caller)s \
+                %(other_options)s \
+                --from-stdin %(username)s %(image_fullname)s"""
 
 
 class ImageBuildTarReceiver(ParallelProcessSocketListener):
     REQ_ID = Requests.REQ_TAR_FOR_IMAGE_BUILD
 
     def get_command(self, **params):
+        other_options=""
+        with_node_name = params.get("with_node_name")
+        if with_node_name is not None:
+            other_options+=f" --with-node {with_node_name}"
+        if "caller" not in params:
+            params["caller"] = "client"
+        params.update(other_options=other_options)
         return IMAGE_BUILD_TAR_RECEIVER_COMMAND % params
 
 

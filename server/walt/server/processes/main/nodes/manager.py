@@ -469,7 +469,7 @@ class NodesManager(object):
         wf.next()
 
     def get_node_config_vars(self, node_ip):
-        node_info = self.db.execute(f"""
+        db_result = self.db.execute(f"""
             SELECT
                 COALESCE(conf->>'boot.mode', 'network-volatile')
                     as boot_mode,
@@ -477,22 +477,27 @@ class NodesManager(object):
                     as mount_persist,
                 virtual::int
                     as is_vnode,
-                name
+                name, mac
             FROM devices
             WHERE ip = '{node_ip}'
               AND type = 'node';
         """)
-        if len(node_info) != 1:
+        if len(db_result) != 1:
             return None
-        if node_info[0].mount_persist:
+        node_info = db_result[0]
+        if node_info.mount_persist:
             server_ip = get_server_ip()
-            name = node_info[0].name
+            name = node_info.name
             persist_path = f"{server_ip}:/var/lib/walt/nodes/{name}/persist"
         else:
             persist_path = ""
+        if self.exports.mac_used_for_image_build_export(node_info.mac):
+            boot_mode = "image-build-run-on-node"
+        else:
+            boot_mode = node_info.boot_mode
         return dict(
-            boot_mode = node_info[0].boot_mode,
-            is_vnode = node_info[0].is_vnode,
+            boot_mode = boot_mode,
+            is_vnode = node_info.is_vnode,
             persist_path = persist_path,
         )
 

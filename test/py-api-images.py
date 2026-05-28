@@ -6,6 +6,7 @@ from includes.common import (
     define_test,
     get_first_items,
     test_suite_image,
+    test_create_vnode,
 )
 from walt.client import api
 from walt.common.tools import do
@@ -19,19 +20,23 @@ IMAGE_RENAME_NAME = f"{test_suite_image()}-api-rename"
 def test_walt_image_build():
     image_name_dir = f"{test_suite_image()}-api-bdir"
     image_name_url = f"{test_suite_image()}-api-burl"
+    node = test_create_vnode()
     with tempfile.TemporaryDirectory() as tmpdirname:
         tmpdir = Path(tmpdirname)
         # build from dir
         do(f"git clone {IMAGE_BUILD_GIT_URL} {tmpdirname}")
-        api.images.build(image_name_dir, tmpdir)
+        api.images.build(image_name_dir, tmpdir,
+                         with_node=node)
         images = api.images.get_images()
         images[image_name_dir].remove()
         # build from url
-        api.images.build(image_name_url, IMAGE_BUILD_GIT_URL)
+        api.images.build(image_name_url, IMAGE_BUILD_GIT_URL,
+                         with_node=node)
         images = api.images.get_images()
         images[image_name_url].remove()
         # note: the validity of built images is already verified
         # by the cli test of 'walt image build'
+    node.remove()
 
 
 @define_test("api.images.clone()")

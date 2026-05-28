@@ -95,12 +95,14 @@ setup_info = {
             "walt-exports-prepare = walt.server.exports.commands:prepare",
             "walt-exports-update = walt.server.exports.commands:update",
             "walt-exports-cleanup = walt.server.exports.commands:cleanup",
+            "walt-image-build-runtime = walt.server.imagebuildruntime:run",
         ]
     },
     "include_package_data": True,
     "scripts": [
         "sh/walt-image-shell-helper",
         "sh/walt-image-build-helper",
+        "sh/walt-image-build-runtime-wrapper",
         "sh/walt-image-fs-helper",
         "sh/walt-server-cleanup",
         "sh/walt-device-ssh",

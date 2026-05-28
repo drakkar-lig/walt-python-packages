@@ -437,7 +437,16 @@ class VirtualMachine:
         # return to the start of the procedure
         self._step = 0
         self._qemu_process = None
-        self.run_next_step()
+        # at each reset we break the series of resursive calls by
+        # letting the event loop call self.run_next_step() for us,
+        # and add a little delay in order to limit CPU usage in
+        # case of failures in a loop.
+        if retcode == 0:
+            delay = 0.0
+        else:
+            delay = 1.0
+        self._ev_loop.plan_event(ts=time.time() + delay,
+                                 callback=self.run_next_step)
 
 
 class WalTVirtualNode(LoggedApplication):
