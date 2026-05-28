@@ -283,7 +283,6 @@ class CSAPI(APISession):
         context.server.settings.set_device_config(
             context.requester, device_set, conf_args
         )
-        context.server.dhcpd.update()
 
     @api_expose_method
     def get_device_config(self, context, device_set):
@@ -326,26 +325,31 @@ class CSAPI(APISession):
         if session is None:
             return None
         session_id = self.register_session_object(session)
-        session_info = session.get_parameters()
-        session_info.update(session_id=session_id)
-        return session_info
+        session.record_session_id(session_id)
+        return session.get_parameters()
 
     @api_expose_method
     def run_image_build_from_url(self, context, session_id):
         session = self.get_session_object(session_id)
-        return session.run_image_build_from_url(context.requester, context.task)
+        return session.run_image_build_from_url(
+                context.requester, context.task)
 
     @api_expose_method
     def run_image_build_from_node_diff(self, context, session_id):
         session = self.get_session_object(session_id)
         return session.run_image_build_from_node_diff(
-                context.requester, context.server, context.task)
+                context.requester, context.task)
+
+    @api_expose_method
+    def interrupt_image_build(self, context, session_id):
+        session = self.get_session_object(session_id)
+        session.interrupt()
 
     @api_expose_method
     def finalize_image_build_session(self, context, session_id):
         session = self.get_session_object(session_id)
         return session.finalize_image_build_session(
-            context.requester, context.server, context.task
+            context.requester, context.task
         )
 
     @api_expose_method
