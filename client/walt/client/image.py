@@ -5,13 +5,14 @@ from plumbum import cli
 from walt.client.application import WalTApplication, WalTCategoryApplication
 from walt.client.config import conf
 from walt.client.link import ClientToServerLink
-from walt.client.tools import confirm
+from walt.client.tools import confirm, check_nodes_ownership
 from walt.client.types import (
     IMAGE,
     IMAGE_BUILD_NAME,
     IMAGE_CLONE_URL,
     IMAGE_CP_DST,
     IMAGE_CP_SRC,
+    NODE,
 )
 
 
@@ -228,8 +229,8 @@ class WalTImageBuild(WalTApplication):
 
     ORDERING = 5
     USAGE = """\
-    walt image build --from-url <git-repo-url> [--sub-dir <path>] <image-name>
-    walt image build --from-dir <local-directory> <image-name>
+    walt image build --from-url <git-repo-url> [--sub-dir <path>] [--with-node <node>] <image-name>
+    walt image build --from-dir <local-directory> [--with-node <node>] <image-name>
 
     See 'walt help show image-build' for more info.
     """
@@ -254,6 +255,13 @@ class WalTImageBuild(WalTApplication):
         default=None,
         help="""Local directory containing a Dockerfile""",
     )
+    with_node = cli.SwitchAttr(
+        "--with-node",
+        str,
+        argname="NODE",
+        default=None,
+        help="""The node to use for 'RUN --on-node <cmd>' steps""",
+    )
 
     # note: we should not use type IMAGE like most other subcommands
     # because IMAGE only selects existing image names whereas the user
@@ -266,6 +274,9 @@ class WalTImageBuild(WalTApplication):
         if self.sub_dir is not None and self.src_url is None:
             print("Option --sub-dir is only supported when combined with --from-url.")
             return
+        from signal import SIGINT
+        from walt.client.transfer import run_transfer_for_image_build
+        from walt.common.tools import temporary_signal_handler
         mode = "dir" if self.src_url is None else "url"
         subdir = self.sub_dir.strip("/") if self.sub_dir is not None else ""
         with ClientToServerLink() as server:
@@ -275,6 +286,10 @@ class WalTImageBuild(WalTApplication):
             else:
                 info["url"] = self.src_url
                 info["subdir"] = subdir
+            if self.with_node is not None:
+                if not check_nodes_ownership(server, self.with_node):
+                    return
+                info["with_node_name"] = self.with_node
             info = server.create_image_build_session(**info)
             if info is None:
                 return False  # issue already reported
@@ -282,22 +297,19 @@ class WalTImageBuild(WalTApplication):
             if image_overwrite:
                 if not confirm():
                     return False
-            session_id = info.pop("session_id")
-            if mode == "dir":
-                from walt.client.transfer import run_transfer_for_image_build
-                try:
+            session_id = info["session_id"]
+            def handle_sigint(signum, frame):
+                server.interrupt_image_build(session_id)
+            with temporary_signal_handler(SIGINT, handle_sigint):
+                if mode == "dir":
                     if not run_transfer_for_image_build(**info):
                         print("See 'walt help show image-build' for help.")
                         return False
-                except (KeyboardInterrupt, EOFError):
-                    print()
-                    print("Aborted.")
-                    return False
-            else:
-                if not server.run_image_build_from_url(session_id):
-                    # failed
-                    print("See 'walt help show image-build' for help.")
-                    return False
+                else:
+                    if not server.run_image_build_from_url(session_id):
+                        # failed
+                        print("See 'walt help show image-build' for help.")
+                        return False
             server.finalize_image_build_session(session_id)
 
 
