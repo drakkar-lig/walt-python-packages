@@ -23,6 +23,8 @@ class ProgressMessageProcess(Process):
             sys.stdout.flush()
 
     def run(self):
+        import os
+        os.setpgrp()  # don't receive signals of others
         idx = 0
         try:
             while True:
