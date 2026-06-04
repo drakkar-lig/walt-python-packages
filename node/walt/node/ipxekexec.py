@@ -3,12 +3,12 @@ import os
 import socket
 import subprocess
 import sys
-from contextlib import contextmanager
+import tempfile
 from pathlib import Path
 from shutil import which
 
 from walt.common.apilink import ServerAPILink
-from walt.common.fakeipxe import ipxe_boot
+from walt.common.fakeipxe import ipxe_start
 
 PRODUCT_NAME_FILE = "/sys/devices/virtual/dmi/id/product_name"
 MANUFACTURER_FILE = "/sys/devices/virtual/dmi/id/sys_vendor"
@@ -44,34 +44,28 @@ def get_mac():
     sys.exit(1)
 
 
+# in the context of a reboot, network is already setup,
+# and we just retrieve network information (ip, gateway, etc.)
+# from the server (this is more robust than parsing local
+# interface and routing data).
 def add_network_info(env):
     try:
         with ServerAPILink(env["server_ip"], "VSAPI") as server:
             info = server.get_device_info(env["mac"])
             print(info)
             if info is None:
-                return False
+                raise Exception  # forgotten node?
             # check if kexec has been disabled for this node
             if not info["conf"].get("kexec.allow", True):
                 print("Kexec is not allowed for this node (cf. walt node config)")
-                return False
+                sys.exit(3)
             env.update(ip=info["ip"],
                        netmask=info["netmask"],
                        gateway=info["gateway"],
                        hostname=info["name"])
-            return True
     except Exception:
         print("Issue while trying to get node info from server.")
-        return False
-
-
-# in the context of a reboot, network is already setup,
-# and we just retrieve network information (ip, gateway, etc.)
-# from the server (this is easier than parsing local interface
-# and routing data).
-@contextmanager
-def void_network_setup(env):
-    yield add_network_info(env)
+        sys.exit(2)
 
 
 def get_env_start():
@@ -84,9 +78,7 @@ def get_env_start():
         model=get_cmdline_value("walt.node.model"),
         mac=get_mac(),
     )
-    # define callbacks for ipxe_boot()
-    env["fake-network-setup"] = void_network_setup
-    env["boot-function"] = kexec_reboot
+    add_network_info(env)
     return env
 
 
@@ -124,6 +116,10 @@ def run():
         sys.exit(1)
     try:
         env = get_env_start()
-        ipxe_boot(env)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            env["TMPDIR"] = tmpdir
+            ipxe_start(env)
+            if env["should-boot-kernel"]:
+                kexec_reboot(env)
     except NotImplementedError as e:
         print((str(e)))
