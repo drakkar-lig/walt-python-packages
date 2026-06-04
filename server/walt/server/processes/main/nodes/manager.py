@@ -48,11 +48,11 @@ MSG_NOT_VIRTUAL = "WARNING: %s is not a virtual node. IGNORED.\n"
 FS_CMD_PATTERN = SSH_NODE_COMMAND + ' root@%(fs_id)s "sh"'  # use node_ip as our fs ID
 
 CMD_START_VNODE = (
-    "walt-virtual-node --hostname %(name)s --mac %(mac)s --ip %(ip)s --model %(model)s"
+    "walt-virtual-node --hostname %(name)s --mac %(mac)s --ip %(ip)s"
     "                  --server-ip %(server_ip)s --cpu-cores %(cpu_cores)d"
     "                  --ram %(ram)s --disks %(disks)s --networks %(networks)s"
   """                  --netmask %(netmask)s --gateway "%(gateway)s" """
-    "                  --boot-delay %(boot_delay)s --managed"
+    "                  --boot-delay %(boot_delay)s"
 )
 
 FETCH_NODE_CONFIG_PATTERN = f"""\
@@ -247,7 +247,6 @@ class NodesManager(object):
         cmd = CMD_START_VNODE % dict(
             mac=node.mac,
             ip=node.ip,
-            model=node.model,
             name=node.name,
             server_ip=get_server_ip(),
             cpu_cores=node.conf.get("cpu.cores", VNODE_DEFAULT_CPU_CORES),

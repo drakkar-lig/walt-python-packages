@@ -323,31 +323,20 @@ def execute_line(env, lines, labels, line, line_idx):
     )
 
 
-def ipxe_boot(env):
+def ipxe_start(env):
     print("[fake-ipxe] note: this is not the real iPXE bootloader!")
     print("[fake-ipxe] note: support is limited to a basic command set.")
-    env["should-boot-kernel"] = False
-    with tempfile.TemporaryDirectory() as TMPDIR:
-        net_setup_func = env["fake-network-setup"]
-        with net_setup_func(env) as setup_result:
-            if setup_result is True:
-                # update env with netboot / ipxe specific info
-                env.update(
-                    {
-                        "TMPDIR": TMPDIR,
-                        "REMOTEDIRSTACK": ["/"],
-                        "name": env["hostname"],
-                        "mac:hexhyp": env["mac"].replace(":", "-"),
-                        "next-server": env["server_ip"],
-                    }
-                )
-                # start ipxe emulated netboot
-                remote_cd(env, CanonicalPath("tftp", "/"))  # default dir
-                line = "chain /start.ipxe"
-                execute_line(env, [line], {}, line, 0)
-        # note: we just left the with context because we no
-        # longer need the temporary network setup that was
-        # possibly established.
-        if env["should-boot-kernel"]:
-            boot_function = env["boot-function"]
-            boot_function(env)
+    # update env with netboot / ipxe specific info
+    env.update(
+        {
+            "should-boot-kernel": False,  # will be updated
+            "REMOTEDIRSTACK": ["/"],
+            "name": env["hostname"],
+            "mac:hexhyp": env["mac"].replace(":", "-"),
+            "next-server": env["server_ip"],
+        }
+    )
+    # start ipxe emulated netboot
+    remote_cd(env, CanonicalPath("tftp", "/"))  # default dir
+    line = "chain /start.ipxe"
+    execute_line(env, [line], {}, line, 0)
