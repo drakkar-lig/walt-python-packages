@@ -54,7 +54,13 @@ class WalT(WalTToolboxApplication):
         from walt.client.logo import try_add_logo
         from walt.common.formatting import framed, highlight
         from walt.client.config import conf
+        from walt.client.link import ClientToServerLink
 
+        # we have to ensure walt client config is set up,
+        # and if the config init procedure starts, it needs a valid
+        # server link.
+        with ClientToServerLink():
+            server_host = conf.walt.server
         comp_help = False
         completion_version = os.environ.get("_WALT_COMP_VERSION")
         if completion_version is None:
@@ -65,7 +71,7 @@ class WalT(WalTToolboxApplication):
             comp_help = True
         else:
             comp_status = "up-to-date"
-        box = STATUS_BOX.replace("SERVER", conf.walt.server)
+        box = STATUS_BOX.replace("SERVER", server_host)
         box = box.replace("COMP_STATUS", comp_status)
         box = framed("Status", box)
         if comp_help:
