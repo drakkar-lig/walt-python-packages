@@ -84,6 +84,9 @@ buildah images --format '{{.Name}}:{{.Tag}}' | grep ":node-rw-" | {
     done
 }
 
+# Clear podman build cache older than 2 months
+podman system prune --filter until=1440h --force
+
 # remove content of any non-empty image mounpoints
 # (Having content there may happen with badly broken
 # development code and will prevent next mount at
