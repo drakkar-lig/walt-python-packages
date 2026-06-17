@@ -84,6 +84,15 @@ buildah images --format '{{.Name}}:{{.Tag}}' | grep ":node-rw-" | {
     done
 }
 
+# Clear Buildah working containers (may occur in case
+# of interrupted podman builds)
+wrk_containers=$(buildah containers --format "{{.ContainerName}}" | \
+                     grep working-container)
+if [ ! -z "$wrk_containers" ]
+then
+    buildah rm $wrk_containers
+fi
+
 # Clear podman build cache older than 2 months
 podman system prune --filter until=1440h --force
 
