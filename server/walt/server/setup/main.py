@@ -187,6 +187,14 @@ WALT_NFS_CONF = """\
 [nfsd]
 # freebsd pxeboot uses nfs over udp
 udp=y
+
+[mountd]
+# We don't want the server to look up in its own
+# credential files (/etc/password, /etc/group) the GIDs
+# the NFS client sends.
+# This causes access denied errors because of GID
+# mismatches.
+manage-gids=n
 """
 
 
