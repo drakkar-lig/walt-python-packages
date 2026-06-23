@@ -448,17 +448,32 @@ class NodesManager(object):
         nodes = self.parse_node_set(requester, node_set)
         if nodes is None:
             return False  # unblock the client
-        not_booted = [node for node in nodes if not node.booted]
-        if len(not_booted) == 0:
-            return True  # unblock the client
         task.set_async()
         wf = Workflow(
-            [self.powersave.wf_wakeup_nodes, self.wait_info.wf_wait],
+            [self.wf_wait,
+             self._wf_unblock_wait_task,
+            ],
             requester=requester,
             task=task,
             nodes=nodes,
         )
         wf.run()
+
+    def wf_wait(self, wf, requester, nodes, **env):
+        # the "booted" attribute of given node objects is
+        # possibly outdated, update it.
+        booted_macs = self.get_booted_macs()
+        for node in nodes:
+            node.booted = (node.mac in booted_macs)
+        wf.insert_steps([
+            self.powersave.wf_wakeup_nodes,
+            self.wait_info.wf_wait,
+        ])
+        wf.next()
+
+    def _wf_unblock_wait_task(self, wf, task, **env):
+        task.return_result(True)
+        wf.next()
 
     def get_node_config_vars(self, node_ip):
         node_info = self.db.execute(f"""
