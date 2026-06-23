@@ -35,7 +35,7 @@ def pprint_netsetup(int_val):
     if int_val is None:
         return PPRINT_NONE
     else:
-        return NetSetup(int_val).readable_string()
+        return NetSetup(int_val).name
 
 
 def pprint_bool(bool_val):
@@ -411,9 +411,9 @@ class SettingsManager:
         self, requester, device_infos, setting_name, setting_value, all_settings
     ):
         try:
-            NetSetup(setting_value)
+            getattr(NetSetup, setting_value)
             return True
-        except ValueError:
+        except AttributeError:
             requester.stderr.write("Failed: netsetup value should be 'NAT' or 'LAN'.\n")
             return False
 
@@ -611,7 +611,7 @@ class SettingsManager:
         db_settings = all_settings.copy()
         for setting_name, setting_value in all_settings.items():
             if setting_name == "netsetup":
-                new_netsetup_state = NetSetup(setting_value)
+                new_netsetup_state = getattr(NetSetup, setting_value)
                 if new_netsetup_state == NetSetup.NAT:
                     gateway = get_server_ip()
                 else:  # LAN

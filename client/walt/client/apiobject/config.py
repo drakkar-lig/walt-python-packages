@@ -2,7 +2,7 @@ from walt.client.apiobject.base import APIObjectBase
 from walt.common.netsetup import NetSetup
 
 CONFIG_GET_TRANSFORMS = {
-    "netsetup": lambda int_val: NetSetup(int_val).readable_string()
+    "netsetup": lambda int_val: NetSetup(int_val).name
 }
 
 
