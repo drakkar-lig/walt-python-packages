@@ -355,20 +355,14 @@ class NodesManager(object):
 
     def reboot_nodes(self, requester, task_callback, nodes, hard_only, reboot_cause,
                      reset_boot_retries=True):
-        if reset_boot_retries:
-            self.status_manager.reset_boot_retries(nodes)
         reboot_nodes(
             server=self.server,
-            nodes_manager=self,
-            blocking=self.blocking,
-            ev_loop=self.ev_loop,
-            db=self.db,
-            powersave=self.powersave,
             requester=requester,
             task_callback=task_callback,
             nodes=nodes,
             hard_only=hard_only,
             reboot_cause=reboot_cause,
+            reset_boot_retries=reset_boot_retries,
         )
 
     def parse_node_set(self, requester, node_set, **kwargs):
