@@ -7,42 +7,9 @@ from walt.client.filesystem import Filesystem
 from walt.client.plugins import get_hook
 from walt.client.update import check_update
 from walt.common.api import api, api_expose_attrs, api_expose_method
-from walt.common.apilink import BaseAPIService, ServerAPILink
+from walt.common.apilink import BaseAPIService, ServerAPILink, ExposedStream
 from walt.common.constants import WALT_SERVER_TCP_PORT
 from walt.common.tcp import client_sock_file
-
-
-@api
-class ExposedStream(object):
-    def __init__(self, stream):
-        self.stream = stream
-
-    @api_expose_method
-    def fileno(self):
-        return self.stream.fileno()
-
-    @api_expose_method
-    def readline(self, size=-1):
-        return self.stream.readline(size)
-
-    @api_expose_method
-    def write(self, s):
-        self.stream.write(s)
-
-    @api_expose_method
-    def flush(self):
-        self.stream.flush()
-
-    @api_expose_method
-    def get_encoding(self):
-        if hasattr(self.stream, "encoding"):
-            return self.stream.encoding
-        else:
-            return None
-
-    @api_expose_method
-    def isatty(self):
-        return os.isatty(self.stream.fileno())
 
 
 # most of the functionality is provided at the server,
