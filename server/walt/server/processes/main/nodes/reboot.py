@@ -9,23 +9,44 @@ from walt.server.workflow import Workflow
 
 POE_REBOOT_DELAY = 2  # seconds
 
+def reboot_nodes(task_callback, **env):
+    wf = Workflow([wf_reboot_nodes,
+                   wf_return_task_result],
+                  task_callback=task_callback,
+                  **env)
+    wf.run()
 
-def reboot_nodes(nodes, powersave, **env):
+
+def wf_reboot_nodes(wf, requester, server, nodes, hard_only,
+                        reboot_cause, reset_boot_retries=True,
+                        **env):
+    # init remaining_nodes and provide shortcuts to server objects
+    wf.update_env(
+        remaining_nodes=list(nodes),
+        nodes_manager=server.nodes,
+        blocking=server.blocking,
+        ev_loop=server.ev_loop,
+        db=server.db,
+    )
+    # reset boot retries if requested or not specified
+    if reset_boot_retries:
+        server.nodes.status_manager.reset_boot_retries(nodes)
     # notify the powersave module we are working on these nodes
-    powersave.handle_event("reboot", nodes)
+    server.nodes.powersave.handle_event("reboot", nodes)
     # prepare work
-    env.update(remaining_nodes=list(nodes))
-    wf = Workflow(
-        [
+    wf.insert_steps([
             wf_soft_reboot_nodes,
             wf_hard_reboot_virtual_nodes,
             wf_hard_reboot_nodes,
             wf_reply_requester,
-        ],
-        **env
-    )
+    ])
     # start process
-    wf.run()
+    wf.next()
+
+
+def wf_return_task_result(wf, task_callback, reboot_result, **env):
+    task_callback(reboot_result)
+    wf.next()
 
 
 def wf_hard_reboot_virtual_nodes(wf, nodes_manager, remaining_nodes, reboot_cause,
@@ -210,7 +231,6 @@ def wf_reply_requester(
     wf,
     requester,
     nodes_manager,
-    task_callback,
     hard_only,
     vmrebooted,
     softrebooted,
@@ -232,7 +252,7 @@ def wf_reply_requester(
         # rebooted at this time => having no hard reboot error means we could
         # eventually reboot all requested nodes.
         # in this case we can be brief and not detail how each node was rebooted.
-        task_callback("OK")
+        wf.update_env(reboot_result="OK")
     else:
         # not all went well
         per_errors = defaultdict(list)
@@ -258,5 +278,5 @@ def wf_reply_requester(
             else:
                 requester.stderr.write(f"{logline}\n")
         # unblock client
-        task_callback("FAILED")
+        wf.update_env(reboot_result="FAILED")
     wf.next()
