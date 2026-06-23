@@ -2,6 +2,7 @@
 import contextlib
 import functools
 import os
+import shlex
 import signal
 from heapq import heappop, heappush
 from multiprocessing import current_process  # noqa: F401
@@ -49,33 +50,77 @@ class PIDListener:
             self._wait_cb()
 
 
+class StreamListener:
+    def __init__(self, popen_stream, stream_handler):
+        self._popen_stream = popen_stream
+        self._stream_handler = stream_handler
+
+    def fileno(self):
+        return self._popen_stream.fileno()
+
+    def handle_event(self, ts):
+        chunk = self._popen_stream.read(4096)
+        if len(chunk) == 0:
+            self._popen_stream.close()
+            return False
+        self._stream_handler.write(chunk)
+
+    def close(self):
+        pass
+
+
 # This object allows to implement ev_loop.do(<cmd>, <callback>)
 class ProcessListener:
     _num_processes = 0
 
-    def __init__(self, cmd, callback, silent, catch_stdout, catch_stderr):
+    def __init__(self, ev_loop, cmd, callback,
+                 silent=True,
+                 catch_stdout=False,
+                 catch_stderr=False,
+                 pipe_stdout=None,
+                 pipe_stderr=None,
+                 **ignored_kwargs):
+        self._ev_loop = ev_loop
         self._cmd = cmd
         self._callback = callback
         self._silent = silent
         self._catch_stdout = catch_stdout
         self._catch_stderr = catch_stderr
+        self._pipe_stdout = pipe_stdout
+        self._pipe_stderr = pipe_stderr
         self._popen = None
         self._pidfd = None
 
     def start(self):
         ProcessListener._num_processes += 1
+        bufsize = -1  # default
         if self._catch_stdout:
             stdout = PIPE
+        elif self._pipe_stdout is not None:
+            stdout = PIPE
+            bufsize = 0
         elif self._silent:
             stdout = DEVNULL
         else:
             stdout = None   # no redirection, print to parent stdout
         if self._catch_stderr:
             stderr = PIPE
+        elif self._pipe_stderr is not None:
+            stderr = PIPE
+            bufsize = 0
         else:
             stderr = None   # no redirection, print to parent stdout
-        self._popen = Popen(self._cmd, stdout=stdout, stderr=stderr, shell=True)
+        self._popen = Popen(shlex.split(self._cmd),
+                            stdout=stdout, stderr=stderr, bufsize=bufsize)
+        if self._pipe_stdout is not None:
+            self._add_stream_listener(self._popen.stdout, self._pipe_stdout)
+        if self._pipe_stderr is not None:
+            self._add_stream_listener(self._popen.stderr, self._pipe_stderr)
         self._pidfd = os.pidfd_open(self._popen.pid, 0)
+
+    def _add_stream_listener(self, popen_stream, stream_handler):
+        listener = StreamListener(popen_stream, stream_handler)
+        self._ev_loop.register_listener(listener)
 
     def fileno(self):
         return self._pidfd
@@ -361,11 +406,16 @@ class EventLoop(object):
         # print(f'__DEBUG__ {current_process().name} end depth={self.recursion_depth}')
         self.recursion_depth -= 1
 
-    def do(self, cmd, callback=None, silent=True,
-           catch_stdout=False, catch_stderr=False):
+    def do(self, cmd, callback=None, silent=True, **kwargs):
         if callback is None:
             callback = functools.partial(self._check_retcode, cmd)
-        p = ProcessListener(cmd, callback, silent, catch_stdout, catch_stderr)
+        kwargs.update(
+            cmd = cmd,
+            ev_loop = self,
+            callback = callback,
+            silent = silent,
+        )
+        p = ProcessListener(**kwargs)
         p.start()
         self.register_listener(p)
 
@@ -374,13 +424,19 @@ class EventLoop(object):
             raise Exception(f"Failed call to: {cmd}!")
 
     # This function works with server's Worflow objects
-    def wf_do(self, wf, cmd, **kwargs):
-        self.do(cmd,
-                functools.partial(self._wf_check_retcode, wf, cmd),
-                **kwargs)
+    def wf_do(self, wf, cmd, *args, **kwargs):
+        if kwargs.get("raise_exception", True):
+            cb = functools.partial(self._wf_check_retcode, wf, cmd)
+        else:
+            cb = functools.partial(self._wf_save_retcode, wf)
+        self.do(cmd, cb, *args, **kwargs)
 
     def _wf_check_retcode(self, wf, cmd, retcode):
         self._check_retcode(cmd, retcode)
+        wf.next()
+
+    def _wf_save_retcode(self, wf, retcode):
+        wf.update_env(retcode=retcode)
         wf.next()
 
     def auto_waitpid(self, pid, wait_cb=None):
