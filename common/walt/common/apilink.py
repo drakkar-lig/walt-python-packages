@@ -292,6 +292,40 @@ class ServerAPIConnection(object):
 
 
 @api
+class ExposedStream(object):
+    def __init__(self, stream):
+        self.stream = stream
+
+    @api_expose_method
+    def fileno(self):
+        return self.stream.fileno()
+
+    @api_expose_method
+    def readline(self, size=-1):
+        return self.stream.readline(size)
+
+    @api_expose_method
+    def write(self, s):
+        self.stream.write(s)
+
+    @api_expose_method
+    def flush(self):
+        self.stream.flush()
+
+    @api_expose_method
+    def get_encoding(self):
+        if hasattr(self.stream, "encoding"):
+            return self.stream.encoding
+        else:
+            return None
+
+    @api_expose_method
+    def isatty(self):
+        import os
+        return os.isatty(self.stream.fileno())
+
+
+@api
 class BaseAPIService(object):
     def __init__(self):
         self.client_type = "cli"
