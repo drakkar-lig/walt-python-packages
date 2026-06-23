@@ -90,6 +90,8 @@ class ProcessListener:
         self._pipe_stderr = pipe_stderr
         self._popen = None
         self._pidfd = None
+        self.pid = None
+        self.stdin = None
 
     def start(self):
         ProcessListener._num_processes += 1
@@ -111,12 +113,14 @@ class ProcessListener:
         else:
             stderr = None   # no redirection, print to parent stdout
         self._popen = Popen(shlex.split(self._cmd),
-                            stdout=stdout, stderr=stderr, bufsize=bufsize)
+                stdin=PIPE, stdout=stdout, stderr=stderr, bufsize=bufsize)
         if self._pipe_stdout is not None:
             self._add_stream_listener(self._popen.stdout, self._pipe_stdout)
         if self._pipe_stderr is not None:
             self._add_stream_listener(self._popen.stderr, self._pipe_stderr)
         self._pidfd = os.pidfd_open(self._popen.pid, 0)
+        self.pid = self._popen.pid
+        self.stdin = self._popen.stdin
 
     def _add_stream_listener(self, popen_stream, stream_handler):
         listener = StreamListener(popen_stream, stream_handler)
@@ -418,6 +422,7 @@ class EventLoop(object):
         p = ProcessListener(**kwargs)
         p.start()
         self.register_listener(p)
+        return p
 
     def _check_retcode(self, cmd, retcode):
         if retcode != 0:
