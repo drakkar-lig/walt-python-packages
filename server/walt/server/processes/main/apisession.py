@@ -1,3 +1,5 @@
+import itertools
+
 from walt.common.tools import SimpleContainer
 from walt.server.processes.main.task import APISessionTask
 
@@ -6,6 +8,8 @@ class APISession(object):
     SESSIONS = {}
     TARGET_APIS = {}
     SERVER_CONTEXT = None
+    SESSION_OBJECTS = {}
+    SESSION_IDS_GENERATOR = itertools.count()
 
     @staticmethod
     def register_target_api(name, cls):
@@ -35,7 +39,7 @@ class APISession(object):
         return APISession.SESSIONS[session_id]
 
     def __init__(self, server, remote_ip):
-        self.session_objects = []
+        self._my_session_object_ids = []
         if APISession.SERVER_CONTEXT is None:
             APISession.SERVER_CONTEXT = SimpleContainer(
                 server=server,
@@ -61,14 +65,19 @@ class APISession(object):
         return self._cached_username[1]
 
     def register_session_object(self, obj):
-        obj_id = len(self.session_objects)
-        self.session_objects.append(obj)
+        # note: session objects might be registered by an API
+        # and retrieved by another one
+        # (e.g., CSAPI and SSAPI for image build runtime)
+        obj_id = next(self.SESSION_IDS_GENERATOR)
+        self.SESSION_OBJECTS[obj_id] = obj
+        self._my_session_object_ids.append(obj_id)
         return obj_id
 
     def get_session_object(self, obj_id):
-        return self.session_objects[obj_id]
+        return self.SESSION_OBJECTS[obj_id]
 
     def cleanup(self):
-        for obj in self.session_objects:
+        for obj_id in self._my_session_object_ids:
+            obj = self.SESSION_OBJECTS.pop(obj_id)
             if hasattr(obj, "cleanup"):
                 obj.cleanup()
