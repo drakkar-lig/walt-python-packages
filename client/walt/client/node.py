@@ -7,7 +7,7 @@ from walt.client.config import conf
 from walt.client.link import ClientToServerLink
 from walt.client.log import analyse_history_range
 from walt.client.timeout import TimeoutException, cli_timeout_switch, timeout_context
-from walt.client.tools import confirm
+from walt.client.tools import confirm, check_nodes_ownership
 from walt.client.types import (
     IMAGE_OR_DEFAULT,
     NODE,
@@ -60,7 +60,7 @@ class WalTNode(WalTCategoryApplication):
             sys.stderr.write("Error: Only one node allowed when capturing output.\n")
             return
         with ClientToServerLink() as server:
-            if not WalTNode.check_nodes_ownership(server, node_set):
+            if not check_nodes_ownership(server, node_set):
                 return
             nodes_ip = server.get_nodes_ip(node_set)
             if len(nodes_ip) == 0:
@@ -104,7 +104,7 @@ class WalTNode(WalTCategoryApplication):
                 )
                 return
             replay_range = range_analysis[1]
-            if not WalTNode.check_nodes_ownership(server, node_name):
+            if not check_nodes_ownership(server, node_name):
                 return
             nodes_info = server.get_nodes_info(node_name)
             if len(nodes_info) == 0:
@@ -131,75 +131,12 @@ class WalTNode(WalTCategoryApplication):
                 node_set = server.develop_node_set(node_set)
                 if node_set is None:
                     return
-                if not WalTNode.check_nodes_ownership(server, node_set, ownership_mode):
+                if not check_nodes_ownership(server, node_set, ownership_mode):
                     return
                 if not server.set_image(node_set, image_name_or_default):
                     return
                 server.set_busy_label("Rebooting")
                 server.reboot_nodes(node_set, cause=cause)
-
-    @staticmethod
-    def check_nodes_ownership(
-        server, node_set, mode="owned-or-free", ignore_other_devices=False
-    ):
-        from walt.common.formatting import format_sentence
-
-        owned, free, not_owned, not_nodes = server.filter_ownership(node_set)
-        if len(owned) + len(free) + len(not_owned) + len(not_nodes) == 0:
-            return False  # error during api call, already reported
-        if not ignore_other_devices and len(not_nodes) > 0:
-            sys.stderr.write(
-                format_sentence(
-                    "Error: %s is(are) not a() WalT node(nodes).",
-                    not_nodes,
-                    "",
-                    "Device",
-                    "Devices",
-                ).replace('  ', ' ')
-                + " Aborting.\n"
-            )
-            return False
-        if mode == "free-or-not-owned" and len(owned) > 0:
-            sys.stderr.write(
-                format_sentence(
-                    (
-                        "Error: %s is(are) already yours."
-                        " See `walt help show node-ownership`."
-                    ),
-                    owned,
-                    "",
-                    "Node",
-                    "Nodes",
-                )
-                + "\n"
-            )
-            return False
-        if mode == "owned" and len(free) + len(not_owned) > 0:
-            sys.stderr.write(
-                format_sentence(
-                    "Error: %s is(are) not yours. See `walt help show node-ownership`.",
-                    free + not_owned,
-                    "",
-                    "Node",
-                    "Nodes",
-                )
-                + "\n"
-            )
-            return False
-        if mode in ("owned-or-free", "free-or-not-owned") and len(not_owned) > 0:
-            sys.stderr.write(
-                format_sentence(
-                    "Warning: %s seems(seem) to be used by another(other) user(users).",
-                    not_owned,
-                    "",
-                    "Node",
-                    "Nodes",
-                )
-                + "\n"
-            )
-            if not confirm():
-                return False
-        return True
 
 
 @WalTNode.subcommand("show")
@@ -242,7 +179,7 @@ class WalTNodeRemove(WalTApplication):
 
     def main(self, node_name: NODE):
         with ClientToServerLink() as server:
-            if not WalTNode.check_nodes_ownership(server, node_name):
+            if not check_nodes_ownership(server, node_name):
                 return
             server.remove_vnode(node_name)
 
@@ -255,7 +192,7 @@ class WalTNodeRename(WalTApplication):
 
     def main(self, old_node_name: NODE, new_node_name):
         with ClientToServerLink() as server:
-            if not WalTNode.check_nodes_ownership(server, old_node_name):
+            if not check_nodes_ownership(server, old_node_name):
                 return
             server.rename(old_node_name, new_node_name)
 
@@ -298,7 +235,7 @@ class WalTNodeSave(WalTApplication):
     # can specify a new image name here.
     def main(self, node_name: NODE, image_name: TARGET_IMAGE_NAME):
         with ClientToServerLink() as server:
-            if not WalTNode.check_nodes_ownership(server, node_name):
+            if not check_nodes_ownership(server, node_name):
                 return
             info = dict(mode="node-diff",
                         node_name=node_name,
@@ -327,7 +264,7 @@ class WalTNodeReboot(WalTApplication):
 
     def main(self, node_set: SET_OF_NODES):
         with ClientToServerLink() as server:
-            if not WalTNode.check_nodes_ownership(server, node_set):
+            if not check_nodes_ownership(server, node_set):
                 return
             server.reboot_nodes(node_set, hard_only=self._hard_only)
 
@@ -344,7 +281,7 @@ class WalTNodeAcquire(WalTApplication):
 
     def main(self, node_set: SET_OF_NODES):
         with ClientToServerLink() as server:
-            if not WalTNode.check_nodes_ownership(
+            if not check_nodes_ownership(
                 server, node_set, "free-or-not-owned"
             ):
                 return False
@@ -563,7 +500,7 @@ class WalTNodeConfig(WalTApplication):
             if node_set is None:
                 return
             if len(configuration) > 0:
-                if not WalTNode.check_nodes_ownership(server, node_set):
+                if not check_nodes_ownership(server, node_set):
                     return
                 server.set_device_config(node_set, configuration)
             else:

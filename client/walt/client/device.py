@@ -3,6 +3,7 @@ from walt.client.application import WalTApplication, WalTCategoryApplication
 from walt.client.expose import TCPExposer
 from walt.client.interactive import run_device_ping, run_device_shell
 from walt.client.link import ClientToServerLink
+from walt.client.tools import check_nodes_ownership
 from walt.client.types import (
     DEVICE,
     DEVICE_CONFIG_PARAM,
@@ -20,11 +21,9 @@ class WalTDevice(WalTCategoryApplication):
 
     @staticmethod
     def confirm_devices_not_owned(server, device_set):
-        from walt.client.node import WalTNode
-
         # if some of the devices are nodes owned by someone else,
         # ask confirmation before proceeding
-        return WalTNode.check_nodes_ownership(
+        return check_nodes_ownership(
             server, device_set, ignore_other_devices=True
         )
 
