@@ -80,6 +80,18 @@ sys.stdout = StdStreamWrapper(sys.stdout)
 sys.stderr = StdStreamWrapper(sys.stderr)
 
 
+def do(cmd, **kwargs):
+    # wrap subprocess.run() to execute and then print
+    # the output of the command explicitely, using print(),
+    # in order to have the '\n' to '\r\n' conversion applied.
+    process = subprocess.run(shlex.split(cmd),
+                             text=True,
+                             stdout=subprocess.PIPE,
+                             stderr=subprocess.STDOUT,
+                             **kwargs)
+    print(process.stdout.rstrip())
+
+
 def apply_disk_template(disk_path, disk_template):
     if disk_template == "none":
         return  # nothing to do
@@ -93,23 +105,18 @@ def apply_disk_template(disk_path, disk_template):
         part_type = "83"    # "Linux"
         mkfs = "mkfs.ext4"
     # format the disk
-    sfdisk_cmd = f"sfdisk --no-reread --no-tell-kernel {disk_path}"
-    subprocess.run(shlex.split(sfdisk_cmd),
-                   text=True,
-                   input=f" 1 : start=2048 type={part_type}")
+    do(f"sfdisk --no-reread --no-tell-kernel {disk_path}",
+       input=f" 1 : start=2048 type={part_type}")
     # get a free loop device
     loop_device = subprocess.run(shlex.split("losetup -f"),
                                  capture_output=True,
                                  text=True).stdout
     # map the loop device on first partition
-    subprocess.run(shlex.split(
-        f"losetup -o {2048*512} {loop_device} {disk_path}"))
+    do(f"losetup -o {2048*512} {loop_device} {disk_path}")
     # format the partition
-    subprocess.run(shlex.split(
-        f"{mkfs} {loop_device}"))
+    do(f"{mkfs} {loop_device}")
     # release the loop device
-    subprocess.run(shlex.split(
-        f"losetup -d {loop_device}"))
+    do(f"losetup -d {loop_device}")
 
 
 def get_qemu_disks_args(app):
