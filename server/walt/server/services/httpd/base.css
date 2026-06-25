@@ -1,0 +1,9 @@
+/* bootstrap gives <h2> a font-size of 2rem
+ * we make the logo twice bigger than this text size,
+ * and give a negative left margin to shift it
+ * on the left. */
+#title-logo {
+    margin-left: -5rem;
+    width: 4rem;
+    margin-right: 1rem;
+}

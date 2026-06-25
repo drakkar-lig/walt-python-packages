@@ -100,6 +100,6 @@ define_test "walt device expose" as {
     # check that running wget we get the html page returned by walt-server-httpd
     sleep 2
     echo "NOTE: this test also checks walt-server-httpd is responding."
-    wget -q -O - http://localhost:8083/ | grep "WalT server HTTP service"
+    wget -q -O - http://localhost:8083/ | grep "WALT web server"
 }
 
