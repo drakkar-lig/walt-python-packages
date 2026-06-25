@@ -74,7 +74,7 @@ setup_info = {
         "console_scripts": [
             "walt-server-setup = walt.server.setup.main:run",
             "walt-server-daemon = walt.server.daemon:run",
-            "walt-server-httpd = walt.server.services.httpd:run",
+            "walt-server-httpd = walt.server.services.httpd.httpd:run",
             "walt-server-tftpd = walt.server.services.tftpd:run",
             "walt-server-snmpd = walt.server.services.snmpd:run",
             "walt-server-lldpd = walt.server.services.lldpd:run",

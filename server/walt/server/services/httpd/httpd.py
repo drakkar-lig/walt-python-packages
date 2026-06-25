@@ -9,11 +9,13 @@ import socket
 import walt
 import warnings
 
+from bottle import template
 from functools import lru_cache
 from gevent.fileobject import FileObject
 from gevent.lock import RLock as Lock
 from gevent.pywsgi import WSGIServer
 from gevent import subprocess
+from importlib.resources import files
 from pathlib import Path
 from time import time
 from walt.common.apilink import ServerAPILink
@@ -28,73 +30,21 @@ from walt.server.tools import np_recarray_to_tuple_of_dicts
 from walt.server.tools import convert_query_param_value, get_walt_subnet
 from walt.server.tools import ttl_cache, get_server_ip, notify_systemd
 from walt.server.vpn.const import VPN_HTTP_EP_HISTORY_FILE
-from importlib.resources import files
 
 WALT_HTTPD_PORT = 80
 ROUTE_LOCALNET_SETTING = Path("/proc/sys/net/ipv4/conf/walt-net/route_localnet")
 VPN_REDIRECT_CHECK_PERIOD = 3
 WALT_SUBNET = str(get_walt_subnet())
-
-WELCOME_PAGE = """
-<html>
-<h2>WalT server HTTP service</h2>
-
-Available sub-directories:
-<ul>
-  <li> <b><a href="/doc">/doc</a></b> -- WalT documentation </li>
-  <li> <b><a href="/api">/api</a></b> -- WalT web API</li>
-  <li> <b><a href="/links">/links</a></b> -- Quick links to web apps of devices</li>
-  <li> <b>/boot</b> -- boot files to be retrieved by HTTP-capable node bootloaders </li>
-</ul>
-</html>
-"""
-
-API_PAGE = """
-<html>
-<h2>WalT web API</h2>
-
-WalT provides the following web API entrypoints:
-<ul>
-  <li> <b><a href="/api/v1/nodes">/api/v1/nodes</a></b> </li>
-  <li> <b><a href="/api/v1/images">/api/v1/images</a></b> </li>
-  <li> <b>/api/v1/logs</b> (no web-link here, because some query parameters are mandatory!) </li>
-</ul>
-
-Checkout <a href="/doc/web-api.html">the web API documentation</a> for more info.
-</html>
-"""
-
-LINKS_PAGE_TEMPLATE = """
-<html>
-<h2>Quick links to webapps of WalT devices</h2>
-
-<p>WalT allows you to expose a service running on a node (or another device,
-such as a switch) by mirroring the TCP port to a port of the WalT server.</p>
-
-<p>See <a href="/doc/device-expose.html">this</a> documentation topic for \
-more info.</p>
-
-{LINKS_LIST}
-</html>
-"""
-
-LINKS_LIST_HEADER = """\
-This page provides quick links to these exposed ports:
-"""
-
-LINKS_LIST_MSG_NONE = """\
-No port is currently exposed.
-Refresh this page once you have exposed a port.
-"""
-
-
 MAIN_DAEMON_SOCKET_TIMEOUT = 3
 HTML_DOC_DIR = str(files(walt) / "doc" / "html")
-
+THIS_DIR = str(files(walt) / "server" / "services" / "httpd")
 WALT_T0 = 1340000000  # Epoch timestamp corresponding to some time in june 2012
 HTTP_BOOT_SERVER_PRIV_KEY = Path("/var/lib/walt/http-boot/private.pem")
 HTTP_BOOT_SERVER_PUB_KEY = Path("/var/lib/walt/http-boot/public.pem")
 
+# let bottle find templates <name>.tpl in current directory only
+bottle.TEMPLATE_PATH.clear()
+bottle.TEMPLATE_PATH.append(THIS_DIR)
 
 # this will hold the socket to walt-server-daemon
 s_conn = None
@@ -103,39 +53,21 @@ s_conn = None
 s_lock = Lock()
 
 
-def _html_enum(l):
-    s = "\n".join(["<ul>"] + [f"  <li>{e}</li>" for e in l] + ["</ul>"])
-    return s + "\n"
-
-
 def _links_page():
     with ServerAPILink("localhost", "SSAPI") as server:
         links = server.get_web_links_info()
-    if len(links) == 0:
-        return LINKS_PAGE_TEMPLATE.replace(
-            "{LINKS_LIST}", LINKS_LIST_MSG_NONE)
-    devices_html = []
+    # pre-process data to let it match our simple template
+    pp_links = []
     for dev_name, dev_info in links.items():
         dev_type, dev_links = dev_info
         if dev_type == "unknown":
             dev_type = "device"
-        device_html = f"{dev_type} <b>{dev_name}</b>:\n"
-        dev_links_html = []
+        pp_dev_links = []
         for dev_port, link_info in dev_links.items():
             serv_port, label = link_info
-            target = f"/links/{dev_name}/tcp/{dev_port}"
-            dev_link_html = f'port <a href="{target}">{dev_port}</a>'
-            if label is not None:
-                dev_link_html += f" ({label})"
-            dev_links_html.append(dev_link_html)
-        device_html = (
-            f"{dev_type} <b>{dev_name}</b>:\n" +
-            _html_enum(dev_links_html)
-        )
-        devices_html.append(device_html)
-    return LINKS_PAGE_TEMPLATE.replace(
-        "{LINKS_LIST}",
-        LINKS_LIST_HEADER + _html_enum(devices_html))
+            pp_dev_links.append((dev_port, label))
+        pp_links.append((dev_type, dev_name, pp_dev_links))
+    return template("links", links_info=pp_links)
 
 
 def _detect_https(host, port, dev_name, dev_port):
@@ -411,7 +343,30 @@ def run_web_server():
     @app.route("/")
     @app.route("/index.html")
     def welcome():
-        return WELCOME_PAGE
+        return template("index")
+
+    @app.route("/api")
+    @app.route("/api/index.html")
+    def serve_api_page():
+        return template("api")
+
+    @app.route("/links")
+    @app.route("/links/index.html")
+    def serve_links_page():
+        return _links_page()
+
+    @app.route("/doc")
+    def redirect_doc():
+        bottle.redirect('/doc/')
+
+    @app.route("/doc/")
+    @app.route("/doc/<path:path>")
+    def serve_doc(path="index.html"):
+        return bottle.static_file(path, root=HTML_DOC_DIR)
+
+    @app.route("/base.css")
+    def serve_base_css():
+        return bottle.static_file("base.css", root=THIS_DIR)
 
     @app.route("/favicon.ico")
     def favicon():
@@ -499,30 +454,11 @@ def run_web_server():
     def serve_vpn_server():
         return socket.getfqdn() + "\n"
 
-    @app.route("/doc")
-    def redirect_doc():
-        bottle.redirect('/doc/')
-
-    @app.route("/doc/")
-    @app.route("/doc/<path:path>")
-    def serve_doc(path="index.html"):
-        return bottle.static_file(path, root=HTML_DOC_DIR)
-
-    @app.route("/links")
-    @app.route("/links/index.html")
-    def serve_links_page():
-        return _links_page()
-
     @app.route("/links/<dev_name>/tcp/<dev_port:int>")
     @app.route("/links/<dev_name>/tcp/<dev_port:int>/")
     @app.route("/links/<dev_name>/tcp/<dev_port:int>/index.html")
     def serve_link(dev_name, dev_port):
         return _serve_link(dev_name, dev_port)
-
-    @app.route("/api")
-    @app.route("/api/index.html")
-    def serve_api_page():
-        return API_PAGE
 
     @app.route("/api/v1/nodes")
     def api_v1_nodes():
