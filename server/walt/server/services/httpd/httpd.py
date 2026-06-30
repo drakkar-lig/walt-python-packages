@@ -204,7 +204,11 @@ def get_property_value(property_id, **kwargs):
 
 @ttl_cache(5)
 def dump_ssh_entrypoint_host_keys():
-    return dump_generated_file("ssh-ep-host-keys")
+    ssh_entrypoint = get_property_value("server.vpn.ssh-entrypoint")
+    return subprocess.run(
+            shlex.split(f"ssh-keyscan -H {ssh_entrypoint}"),
+            capture_output=True,
+            text=True).stdout
 
 
 def dump_ssh_pubkey_cert():
