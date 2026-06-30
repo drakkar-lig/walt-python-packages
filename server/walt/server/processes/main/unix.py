@@ -43,9 +43,7 @@ class FileGeneratorListener(BaseUnixSocketListener):
         self.server = server
 
     def run(self, s, peer_addr, file_id, node_ip=None):
-        if file_id == "ssh-ep-host-keys":
-            result = self.server.vpn.generate_ssh_ep_host_keys()
-        elif file_id == "ssh-pubkey-cert":
+        if file_id == "ssh-pubkey-cert":
             result = self.server.vpn.dump_ssh_pubkey_cert(node_ip)
         else:
             result = {"status": "KO", "error_msg": "Invalid file-id."}
