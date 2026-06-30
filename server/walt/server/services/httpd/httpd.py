@@ -10,7 +10,6 @@ import walt
 import warnings
 
 from bottle import template
-from functools import lru_cache
 from gevent.fileobject import FileObject
 from gevent.lock import RLock as Lock
 from gevent.pywsgi import WSGIServer
@@ -39,8 +38,6 @@ MAIN_DAEMON_SOCKET_TIMEOUT = 3
 HTML_DOC_DIR = str(files(walt) / "doc" / "html")
 THIS_DIR = str(files(walt) / "server" / "services" / "httpd")
 WALT_T0 = 1340000000  # Epoch timestamp corresponding to some time in june 2012
-HTTP_BOOT_SERVER_PRIV_KEY = Path("/var/lib/walt/http-boot/private.pem")
-HTTP_BOOT_SERVER_PUB_KEY = Path("/var/lib/walt/http-boot/public.pem")
 
 # let bottle find templates <name>.tpl in current directory only
 bottle.TEMPLATE_PATH.clear()
@@ -267,54 +264,6 @@ def _get_logs(ts_from, ts_to, ts_unit, issuers, streams_regexp):
     )
 
 
-_cache_context = {}
-
-
-@lru_cache
-def _generate_boot_sig(key):
-    # notes:
-    # * we had to pass fd using a _cache_context global
-    #   variable and not as a parameter because it should
-    #   not be taken into account by lru_cache for cache
-    #   lookup.
-    # * for coherency between cache and non-cache paths
-    #   it is important not to close fd here (thus the
-    #   parameter closefd=False)
-    fd = _cache_context["fd"]
-    boot_img = FileObject(fd, mode="rb", closefd=False)
-    boot_img_content = boot_img.read()
-    boot_img.close()
-    cmd = f"openssl dgst -sha256 -hex"
-    res = subprocess.run(shlex.split(cmd),
-                         input=boot_img_content,
-                         capture_output=True)
-    sha256 = res.stdout.decode().split()[1]
-    cmd = f"openssl dgst -sign {HTTP_BOOT_SERVER_PRIV_KEY} -sha256 -hex"
-    res = subprocess.run(shlex.split(cmd),
-                         input=boot_img_content,
-                         capture_output=True)
-    rsa2048 = res.stdout.decode().split()[1]
-    ts = int(time())
-    return f"{sha256}\nts: {ts}\nrsa2048: {rsa2048}\n"
-
-
-def get_boot_sig(fd):
-    stat =  os.fstat(fd)
-    key = (stat.st_ino, stat.st_mtime, stat.st_size)
-    _cache_context.update(fd=fd)
-    return _generate_boot_sig(key)
-
-
-def generate_boot_server_keys():
-    if not HTTP_BOOT_SERVER_PRIV_KEY.exists():
-        HTTP_BOOT_SERVER_PRIV_KEY.parent.mkdir(parents=True, exist_ok=True)
-        cmd = f"openssl genrsa -out {HTTP_BOOT_SERVER_PRIV_KEY} 2048"
-        subprocess.run(shlex.split(cmd), check=True)
-    if not HTTP_BOOT_SERVER_PUB_KEY.exists():
-        HTTP_BOOT_SERVER_PUB_KEY.parent.mkdir(parents=True, exist_ok=True)
-        cmd = (f"openssl rsa -in {HTTP_BOOT_SERVER_PRIV_KEY} "
-               f"-out {HTTP_BOOT_SERVER_PUB_KEY} -pubout -outform PEM")
-        subprocess.run(shlex.split(cmd), check=True)
 
 
 class MyBottle(bottle.Bottle):
@@ -334,9 +283,6 @@ class MyBottle(bottle.Bottle):
 
 
 def run_web_server():
-    # generate rsa boot server keys if not done yet
-    generate_boot_server_keys()
-
     # instanciate web app
     app = MyBottle()
 
@@ -389,17 +335,9 @@ def run_web_server():
     def serve_vpn_per_mac(path):
         ip_dash, path = path.split('/', maxsplit=1)
         ip = ip_dash.replace('-', '.')
-        if path == "boot.sig":
-            # this file is generated from boot.img on the fly
-            # because it includes a signature using the VPN private key
-            fd = open_from_server_daemon(node_ip=ip, path="/boot.img")
-            content = get_boot_sig(fd)
-            os.close(fd)
-            return content
-        else:
-            fd = open_from_server_daemon(node_ip=ip, path="/"+path)
-            bottle.response.add_header("Content-Length", os.fstat(fd).st_size)
-            return FileObject(fd, mode="rb")
+        fd = open_from_server_daemon(node_ip=ip, path="/"+path)
+        bottle.response.add_header("Content-Length", os.fstat(fd).st_size)
+        return FileObject(fd, mode="rb")
 
     @app.route("/walt-vpn/enroll", method='POST')
     def serve_vpn_enroll():

@@ -1,5 +1,6 @@
 import os
 import os.path
+import subprocess
 import sys
 from collections import OrderedDict
 from pathlib import Path
@@ -16,6 +17,8 @@ from walt.server.const import (
     NODE_SSH_ECDSA_HOST_KEY_PATH,
     NODE_SSH_ECDSA_HOST_KEY_PUB_PATH,
     NODE_DROPBEAR_ECDSA_HOST_KEY_PATH,
+    HTTP_BOOT_SERVER_PRIV_KEY,
+    HTTP_BOOT_SERVER_PUB_KEY,
 )
 from walt.server.tools import get_server_ip
 
@@ -199,6 +202,28 @@ def update_timezone(mount_path):
     image_etc_localtime.symlink_to(tz_file)
 
 
+def generate_boot_sig(mount_path, log_print):
+    mount_path = Path(mount_path)
+    boot_img_path = mount_path / "boot" / "rpi-5-b" / "boot.img"
+    boot_sig_path = mount_path / "boot" / "rpi-5-b" / "boot.sig"
+    if boot_img_path.exists() and not boot_sig_path.exists():
+        boot_img_content = boot_img_path.read_bytes()
+        cmd = f"openssl dgst -sha256 -hex"
+        res = subprocess.run(shlex.split(cmd),
+                             input=boot_img_content,
+                             capture_output=True)
+        sha256 = res.stdout.decode().split()[1]
+        cmd = f"openssl dgst -sign {HTTP_BOOT_SERVER_PRIV_KEY} -sha256 -hex"
+        res = subprocess.run(shlex.split(cmd),
+                             input=boot_img_content,
+                             capture_output=True)
+        rsa2048 = res.stdout.decode().split()[1]
+        ts = int(time())
+        boot_sig_path.write_text(
+                f"{sha256}\nts: {ts}\nrsa2048: {rsa2048}\n"
+        )
+
+
 def setup(image_id, mount_path, image_size_kib, log_print, **kwargs):
     try:
         _setup(image_id, mount_path, image_size_kib, log_print, **kwargs)
@@ -323,3 +348,5 @@ def _setup(image_id, mount_path, image_size_kib, log_print,
     fix_ptp(mount_path, log_print)
     # update timezone if the OS is using the standard Linux setup
     update_timezone(mount_path)
+    # generate rpi's boot.sig if a boot.img file is found
+    generate_boot_sig(mount_path, log_print)

@@ -26,3 +26,5 @@ DHCPD_VAR_LIB_PATH = Path("/var/lib/walt/services/dhcpd")
 DHCPD_DEVICES_FILE = DHCPD_VAR_LIB_PATH / "devices.pickle"
 DHCPD_CTRL_SOCK_PATH = Path("/run/walt/dhcpd/dhcpd.sock")
 DHCPD_HEARTBEAT_PERIOD = 4
+HTTP_BOOT_SERVER_PRIV_KEY = Path("/var/lib/walt/http-boot/private.pem")
+HTTP_BOOT_SERVER_PUB_KEY = Path("/var/lib/walt/http-boot/public.pem")
