@@ -2,7 +2,6 @@
 import bottle
 import gevent
 import json
-import os
 import requests
 import shlex
 import socket
@@ -23,7 +22,7 @@ from walt.common.tcp import Requests as TcpRequests
 from walt.common.tcp import MyPickle as pickle, client_sock_file
 from walt.common.tools import do
 from walt.common.unix import Requests as UnixRequests
-from walt.common.unix import bind_to_random_sockname, recv_msg_fds
+from walt.common.unix import bind_to_random_sockname
 from walt.server.const import UNIX_SERVER_SOCK_PATH
 from walt.server.tools import np_recarray_to_tuple_of_dicts
 from walt.server.tools import convert_query_param_value, get_walt_subnet
@@ -38,6 +37,7 @@ MAIN_DAEMON_SOCKET_TIMEOUT = 3
 HTML_DOC_DIR = str(files(walt) / "doc" / "html")
 THIS_DIR = str(files(walt) / "server" / "services" / "httpd")
 WALT_T0 = 1340000000  # Epoch timestamp corresponding to some time in june 2012
+TFTP_NODES = Path("/var/lib/walt/nodes")
 
 # let bottle find templates <name>.tpl in current directory only
 bottle.TEMPLATE_PATH.clear()
@@ -105,28 +105,17 @@ def _serve_link(dev_name, dev_port):
     bottle.redirect(f'{proto}://{this_server}:{server_port}')
 
 
-def open_from_server_daemon(path, node_ip):
-    try:
-        req_id = UnixRequests.REQ_FAKE_TFTP_GET_FD
-        args = ()
-        kwargs = dict(node_ip=node_ip, path=path)
-        fds = query_main_daemon(req_id, args, kwargs, maxfds=1)
-        if isinstance(fds, Exception):
-            raise fds
-        assert len(fds) == 1
-        fd = fds[0]
-        return fd
-    except ConnectionError:
-        raise bottle.HTTPError(500,
-                f"WalT main daemon is not responding.")
+def serve_node_boot_file(path, node_ip):
+    tftp_path = TFTP_NODES / node_ip / "tftp"
+    return bottle.static_file(path, root=str(tftp_path))
 
 
-def query_main_daemon(req_id, args, kwargs, msglen=256, maxfds=0):
+def query_main_daemon(req_id, args, kwargs, msglen=256):
     with s_lock:
-        return _query_main_daemon(req_id, args, kwargs, msglen, maxfds)
+        return _query_main_daemon(req_id, args, kwargs, msglen)
 
 
-def _query_main_daemon(req_id, args, kwargs, msglen, maxfds):
+def _query_main_daemon(req_id, args, kwargs, msglen):
     global s_conn
     req = req_id, args, kwargs
     error = "Unknown error, sorry."
@@ -137,17 +126,12 @@ def _query_main_daemon(req_id, args, kwargs, msglen, maxfds):
             # send message
             s_conn.send(pickle.dumps(req))
             # receive the response
-            if maxfds > 0:
-                msg, fds = recv_msg_fds(s_conn, msglen, maxfds)
-            else:
-                msg = s_conn.recv(msglen)
+            msg = s_conn.recv(msglen)
             resp = pickle.loads(msg)
             # return result
             assert "status" in resp
             if resp["status"] == "OK":
-                if maxfds > 0:
-                    return fds
-                elif "response_text" in resp:
+                if "response_text" in resp:
                     return resp["response_text"]
                 else:
                     return "OK\n"
@@ -268,8 +252,6 @@ def _get_logs(ts_from, ts_to, ts_unit, issuers, streams_regexp):
     )
 
 
-
-
 class MyBottle(bottle.Bottle):
     def default_error_handler(self, error):
         prefer_header = bottle.request.get_header("Prefer")
@@ -331,17 +313,13 @@ def run_web_server():
         node_ip = bottle.request.query.get("node_ip")
         if node_ip is None:
             node_ip = requester_ip()
-        fd = open_from_server_daemon(node_ip=node_ip, path="/"+path)
-        bottle.response.add_header("Content-Length", os.fstat(fd).st_size)
-        return FileObject(fd, mode="rb")
+        return serve_node_boot_file(path, node_ip)
 
     @app.route("/walt-vpn/per-ip/<path:path>")
     def serve_vpn_per_mac(path):
         ip_dash, path = path.split('/', maxsplit=1)
         ip = ip_dash.replace('-', '.')
-        fd = open_from_server_daemon(node_ip=ip, path="/"+path)
-        bottle.response.add_header("Content-Length", os.fstat(fd).st_size)
-        return FileObject(fd, mode="rb")
+        return serve_node_boot_file(path, ip)
 
     @app.route("/walt-vpn/enroll", method='POST')
     def serve_vpn_enroll():
