@@ -176,15 +176,6 @@ class VPNManager:
     def get_vpn_mac(self, node_ip):
         return self.get_vpn_node_property(node_ip, "vpnmac")
 
-    def generate_ssh_ep_host_keys(self):
-        ssh_entrypoint = self.get_vpn_entrypoint("ssh")
-        if ssh_entrypoint is None:
-            return {"status": "KO", "error_msg": ERR_VPN_EP_NOT_CONFIGURED}
-        host_keys = run(shlex.split(f"ssh-keyscan -H {ssh_entrypoint}"),
-                        capture_output=True,
-                        text=True).stdout
-        return {"status": "OK", "response_text": host_keys}
-
     def get_mac_from_vpn_mac(self, vpnmac):
         db_row = self.server.db.select_unique("vpnnodes", vpnmac=vpnmac)
         if db_row is None:
