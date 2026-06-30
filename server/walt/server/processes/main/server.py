@@ -16,6 +16,8 @@ from walt.server.popen import BetterPopen
 from walt.server.const import (
     NODE_SSH_ECDSA_HOST_KEY_PATH,
     NODE_DROPBEAR_ECDSA_HOST_KEY_PATH,
+    HTTP_BOOT_SERVER_PRIV_KEY,
+    HTTP_BOOT_SERVER_PUB_KEY,
 )
 from walt.server.processes.main.apisession import APISession
 from walt.server.processes.main.autocomplete import shell_autocomplete
@@ -88,6 +90,16 @@ class Server(object):
                     parents=True, exist_ok=True)
             do("dropbearconvert openssh dropbear "
               f"{NODE_SSH_ECDSA_HOST_KEY_PATH} {NODE_DROPBEAR_ECDSA_HOST_KEY_PATH}")
+        # We also need to generate http-boot keys if not done yet
+        if not HTTP_BOOT_SERVER_PRIV_KEY.exists():
+            HTTP_BOOT_SERVER_PRIV_KEY.parent.mkdir(parents=True, exist_ok=True)
+            cmd = f"openssl genrsa -out {HTTP_BOOT_SERVER_PRIV_KEY} 2048"
+            subprocess.run(shlex.split(cmd), check=True)
+        if not HTTP_BOOT_SERVER_PUB_KEY.exists():
+            HTTP_BOOT_SERVER_PUB_KEY.parent.mkdir(parents=True, exist_ok=True)
+            cmd = (f"openssl rsa -in {HTTP_BOOT_SERVER_PRIV_KEY} "
+                   f"-out {HTTP_BOOT_SERVER_PUB_KEY} -pubout -outform PEM")
+            subprocess.run(shlex.split(cmd), check=True)
 
     def prepare(self):
         self.prepare_keys()
