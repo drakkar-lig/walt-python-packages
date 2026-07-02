@@ -25,18 +25,38 @@ has_iptables() {
     which iptables >/dev/null
 }
 
+ifb="ifb-$intf"
+
+# tap device traffic is split between two directions:
+# * "egress" on the tap device is host-to-guest traffic
+# * "ingress" on the tap device is guest-to-host traffic
+# tc qdiscs can only be attached on the egress side of a netdevice, so in
+# order to shape the ingress side too (and thus apply latency & bandwidth
+# limits symmetrically), guest-to-host traffic is redirected to a dedicated
+# ifb virtual device, and shaped there (on its own egress side).
+create_ifb_if_needed() {
+    modprobe ifb numifbs=0 2>/dev/null
+    ip link add "$ifb" type ifb 2>/dev/null
+    ip link set up dev "$ifb"
+    tc qdisc add dev "$intf" handle ffff: ingress
+    tc filter add dev "$intf" parent ffff: protocol all u32 \
+        match u32 0 0 action mirred egress redirect dev "$ifb"
+}
+
 shape_traffic_latency() {
-    opts="$@"
-    delay_added_us=$((lat_us-EXISTING_LATENCY_US))
-    if [ $delay_added_us -lt 1 ]
+    dev="$1"
+    opts="$2"
+    half_delay_us=$((lat_us/2 - EXISTING_LATENCY_US/2))
+    if [ $half_delay_us -lt 1 ]
     then
-        delay_added_us=1
+        half_delay_us=1
     fi
-    tc qdisc add dev "$intf" $opts netem delay ${delay_added_us}us
+    tc qdisc add dev "$dev" $opts netem delay ${half_delay_us}us
 }
 
 shape_traffic_bandwidth() {
-    opts="$@"
+    dev="$1"
+    opts="$2"
     if [ -z "$lat_us" ]
     then
         lat_us=$EXISTING_LATENCY_US
@@ -44,23 +64,32 @@ shape_traffic_bandwidth() {
     bdp_kbytes=$((lat_us * bw_Mbps / 8 / 1000))
     min_buffer_kbytes=256
     buf_kbytes=$((bdp_kbytes + min_buffer_kbytes))
-    tc qdisc add dev "$intf" $opts tbf rate ${bw_Mbps}mbit burst ${buf_kbytes}k latency ${lat_us}us
+    tc qdisc add dev "$dev" $opts tbf rate ${bw_Mbps}mbit burst ${buf_kbytes}k latency ${lat_us}us
 }
 
 # ensure vhost-net kernel module is loaded
 modprobe vhost_net
 
-# apply network restrictions if any
+# apply network restrictions if any, symmetrically on both directions:
+# * host-to-guest traffic is shaped directly on the tap device (egress)
+# * guest-to-host traffic is redirected to an ifb device and shaped there
+if [ ! -z "$lat_us" ] || [ ! -z "$bw_Mbps" ]
+then
+    create_ifb_if_needed
+fi
 if [ ! -z "$lat_us" ]
 then
-    shape_traffic_latency root handle 1:0
+    shape_traffic_latency "$intf" "root handle 1:0"
+    shape_traffic_latency "$ifb" "root handle 1:0"
     if [ ! -z "$bw_Mbps" ]
     then
-        shape_traffic_bandwidth parent 1:0
+        shape_traffic_bandwidth "$intf" "parent 1:0"
+        shape_traffic_bandwidth "$ifb" "parent 1:0"
     fi
 elif [ ! -z "$bw_Mbps" ]
 then
-    shape_traffic_bandwidth root
+    shape_traffic_bandwidth "$intf" "root"
+    shape_traffic_bandwidth "$ifb" "root"
 fi
 
 # create bridge
