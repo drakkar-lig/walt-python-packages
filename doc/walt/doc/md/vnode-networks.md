@@ -37,10 +37,10 @@ Bandwidth unit may be `Mbps` (megabit per second) or `Gbps` (gigabit per second)
 Latency unit may be `ms` (millisecond) or `us` (microsecond).
 
 Here `vnode1` will have its connexion to `home-net` limited to 100Mbps, and a round-trip latency of 10ms
-will be observed. Note that the bandwidth limitation applies to download traffic only.
+will be observed.
 
 Also note that applying this configuration to both `vnode1` and `vnode2` will result in:
-* a bandwith limit at 100Mbps applied on both ways
+* a bandwith limit at 100Mbps
 * a round trip latency of 20ms
 
 Another important remark is that depending on your hardware, the WALT server OS may not be
@@ -53,3 +53,4 @@ are easy to install.
 As a side note, it is even possible to apply network resource limits to `walt-net` connexion,
 if ever this is needed. However, this may severely impact the performance of the node
 (such as the time for the network boot to complete).
+It may even fail to boot properly because of OS timeouts.
