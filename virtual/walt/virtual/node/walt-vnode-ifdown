@@ -14,10 +14,16 @@ intf_alias="%(intf_alias)s"
 lat_us="%(lat_us)s"
 bw_Mbps="%(bw_Mbps)s"
 intf="$1"
+ifb="ifb-$intf"
 
 has_iptables() {
     which iptables >/dev/null
 }
+
+# remove the ifb device used to shape guest-to-host traffic, if any
+# (the tap device itself is destroyed by the kernel when qemu exits, but
+# the ifb device we created in the ifup script is not)
+ip link del dev "$ifb" 2>/dev/null
 
 # set tap device down
 ip link set down dev "$intf"
