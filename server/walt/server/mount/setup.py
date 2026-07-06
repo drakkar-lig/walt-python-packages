@@ -29,6 +29,7 @@ from walt.server.tools import get_server_ip
 # * if they should be moved to directory "/bin/_walt_internal_/"
 NODE_SCRIPTS = {
     "walt-env": (True, False),
+    "walt-clock-sync": (False, False),
     "walt-fetch-node-config": (True, True),
     "walt-log-echo": (False, False),
     "walt-log-cat": (False, False),
@@ -38,7 +39,6 @@ NODE_SCRIPTS = {
     "walt-tee": (False, False),
     "walt-timeout": (False, True),
     "walt-rpc": (False, True),
-    "walt-clock-sync": (False, True),
     "walt-init": (False, False),
     "walt-fs-watchdog": (False, True),
     "walt-net-service": (False, True),

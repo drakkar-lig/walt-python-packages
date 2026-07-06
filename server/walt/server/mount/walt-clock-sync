@@ -1,28 +1,106 @@
 #!/bin/sh
+
+if [ "$1" != "--in-walt-init" ]
+then
+    export PATH="/bin/_walt_internal_:$PATH"
+fi
+
+. walt-script-common
+
 SYNC_CLOCK_TIMEOUT=3
 TRIALS=5
+NUM_EXPECTED_SUCCESSES=2
 
-sync_clock() {
-    ts="none"
+input_manager() {
+    echo REQ_CLOCK_SYNC
+    echo SYNC
+    # block until output_manager() tells us
+    # we can stop.
+    read endmsg < /tmp/clock_sync.fifo
+}
+
+set_date_opt1() {
+    # hopefully '@' epoch format is recognised
+    busybox date -s @$1
+}
+
+set_date_opt2() {
+    # fallback method if '@' epoch format is not recognised
+    busybox date -s \
+        "$(busybox date -D "%s" -d $1 "+%Y-%m-%d %H:%M:%S")"
+}
+
+detect_set_date_function() {
+    ts=$(busybox date +%s)
+    if nostdout nostderr set_date_opt1 $ts
+    then
+        set_date=set_date_opt1
+    else
+        set_date=set_date_opt2
+    fi
+}
+
+output_manager() {
+    retcode=0
+    read ts
+    $set_date $ts || retcode=$?
+    # let input_manager() stop
+    echo done > /tmp/clock_sync.fifo
+    return $retcode
+}
+
+try_once() {
+    input_manager | \
+    busybox nc "$walt_server_ip" "$walt_server_tcp_port" | \
+    output_manager
+}
+
+cleanup() {
+    busybox rm -f /tmp/clock_sync.fifo
+}
+
+main() {
+    [ -e /tmp/clock_sync.fifo ] || busybox mkfifo /tmp/clock_sync.fifo
+
+    detect_set_date_function
+
+    successes=0
     trials=$TRIALS
     while [ $trials -gt 0 ]
     do
         trials=$((trials-1))
-        # get timestamp from server (format epoch)
-        ts=$(/bin/walt-timeout $SYNC_CLOCK_TIMEOUT /bin/walt-rpc sync_clock) || continue
-        break
+        # try several recursive calls with parameters "try-once"
+        # and the function for setting date.
+        walt-timeout $SYNC_CLOCK_TIMEOUT $0 try-once $set_date || continue
+        successes=$((successes+1))
+        # If we're on an NFS root, binaries may take time to load and run
+        # and that may skew our clock update.
+        # So we don't stop after having succeeded just once:
+        # the first success serves as a warmup phase.
+        if [ "$successes" = "$NUM_EXPECTED_SUCCESSES" ]
+        then
+            break
+        fi
     done
 
-    if [ "$ts" = "none" ]
+    if [ "$successes" -lt "$NUM_EXPECTED_SUCCESSES" ]
     then
-        echo "walt-clock-sync: failed $TRIALS times."
-        trigger_walt_reboot reboot
-        exit 1
+        failures="$((TRIALS-successes))"
+        echo "walt-clock-sync: failed $failures times. Rebooting."
+        cleanup
+        busybox sleep 1
+        busybox reboot -f now
     fi
 
-    # set local clock
-    # (if '@' epoch format is recognised, use it, otherwise convert
-    # before setting date)
-    nostderr busybox date -s @$ts || \
-    busybox date -s "$(busybox date -D "%s" -d $ts "+%Y-%m-%d %H:%M:%S")"
+    cleanup
 }
+
+if [ "$1" = "try-once" ]
+then
+    set_date=$2
+    nostdout nostderr try_once
+else
+    main
+fi
+
+allow_script_exit

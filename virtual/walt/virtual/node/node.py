@@ -50,6 +50,7 @@ DEFAULT_BOOT_DELAY = "random"
 QEMU_ARGS = (
     f"{QEMU_PROG} -name %(name)s "
     f"            -enable-kvm -nodefaults {QEMU_MACHINE_DEF}"
+    "             -rtc base=utc,clock=host"
     "             -m %(ram_megabytes)d -smp %(cpu_cores)s"
     "             %(qemu_disks_args)s %(qemu_networks_args)s"
     "             -nographic -serial mon:stdio -no-reboot"
