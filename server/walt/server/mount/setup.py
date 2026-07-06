@@ -332,11 +332,18 @@ def _setup(image_id, mount_path, image_size_kib, log_print,
             src_content = src_content % env
         if internal:
             dst_path = image_widir / script_name
+            wrong_dst_path = image_bindir / script_name
         else:
             dst_path = image_bindir / script_name
+            wrong_dst_path = image_widir / script_name
         if not dst_path.exists() or dst_path.read_text() != src_content:
             dst_path.write_text(src_content)
         _copy_mode(src_path, dst_path)
+        # if we changed the location of one file between /bin/ and
+        # /bin/_walt_internal_/, then network-persistent nodes still
+        # have the old file after rebooting.
+        if wrong_dst_path.exists():
+            wrong_dst_path.unlink()
     if process_image_spec:
         # read image spec file if any
         image_spec = spec.read_image_spec(mount_path)
