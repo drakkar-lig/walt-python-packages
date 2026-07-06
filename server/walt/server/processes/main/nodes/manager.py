@@ -16,7 +16,6 @@ from walt.server.const import (
 )
 from walt.server.popen import BetterPopen
 from walt.server.processes.main.filesystem import FilesystemsCache
-from walt.server.processes.main.nodes.clock import ClockSyncManager
 from walt.server.processes.main.nodes.expose import ExposeManager
 from walt.server.processes.main.nodes.powersave import PowersaveManager
 from walt.server.processes.main.nodes.reboot import reboot_nodes
@@ -98,7 +97,6 @@ class NodesManager(object):
         self.wait_info = WaitInfo()
         self.ev_loop = server.ev_loop
         self.exports = server.exports
-        self.clock = ClockSyncManager(server.tcp_server, server.ev_loop)
         self.expose_manager = ExposeManager(server.tcp_server, server.ev_loop)
         self.netservices = NodeNetServiceManager(server.tcp_server, self)
         self.status_manager = self.netservices  # it is the same object

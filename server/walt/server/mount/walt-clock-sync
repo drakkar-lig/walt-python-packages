@@ -12,7 +12,6 @@ TRIALS=5
 NUM_EXPECTED_SUCCESSES=2
 
 input_manager() {
-    echo REQ_CLOCK_SYNC
     echo SYNC
     # block until output_manager() tells us
     # we can stop.
@@ -51,7 +50,7 @@ output_manager() {
 
 try_once() {
     input_manager | \
-    busybox nc "$walt_server_ip" "$walt_server_tcp_port" | \
+    busybox nc "$walt_server_ip" "$walt_server_syncd_port" | \
     output_manager
 }
 
