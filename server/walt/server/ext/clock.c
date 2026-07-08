@@ -14,8 +14,9 @@
 #include <errno.h>
 #include <signal.h>
 #include <assert.h>
+#include <sys/timex.h>
 
-//#define DEBUG
+#define DEBUG
 #ifdef DEBUG
 #define debug_printf(...) fprintf(stderr, __VA_ARGS__)
 #else
@@ -23,13 +24,13 @@
 #endif
 
 #define MAX_EPOLL_EVENTS    32
-#define SYNC_MSG            "SYNC\n"
-#define SYNC_MSG_LEN        5
+#define SYNC_MSG_LEN        strlen("SYNC A\n")
 #define NSEC_PER_SEC        1000000000L
 
 /* This code implements the server side of the walt clock synchronization
  * protocol used by nodes at boot time (see walt-clock-sync on node side):
- * 1- the node opens a TCP connection and sends a "SYNC\n" message
+ * 1- the node opens a TCP connection and sends a "SYNC a\n" (adjtime)
+ *    or "SYNC b\n" (basic, clock offset only) message
  * 2- the server computes the one-way-delay (owd) to this node, using the
  *    RTT estimate provided by the kernel through getsockopt(TCP_INFO),
  *    divided by two
@@ -37,7 +38,8 @@
  *    clock, minus this one-way-delay, so that the message reaches the node
  *    right when the server clock reaches this second boundary
  * 4- at the planned time, the server sends this integer value as text,
- *    then closes the connection
+ *    and the frequency offset to apply ('a' mode only), then closes
+ *    the connection
  * Nodes may only be able to set their own clock with a 1-second resolution
  * (e.g. busybox date), hence the integer value.
  *
@@ -56,9 +58,10 @@
  */
 
 typedef enum {
-    ST_WAIT_SYNC_MSG = 0,   /* waiting to receive "SYNC\n" */
-    ST_WAIT_SEND_TIME = 1   /* timerfd created and armed, waiting for it
-                               to fire so we can send the answer */
+    ST_IDLE = 0,               /* initial state */
+    ST_WAIT_SEND_SYNC = 1,     /* wait before sending the first SYNC */
+    ST_WAIT_SEND_ADJTIME = 2,  /* wait before sending ADJTIME */
+    ST_WAIT_RECV_ADJTIME = 3,  /* wait before receiving ADJTIME info */
 } client_state_t;
 
 typedef struct client {
@@ -67,7 +70,7 @@ typedef struct client {
     client_state_t state;
     char rbuf[SYNC_MSG_LEN];
     int rbuf_len;
-    long clock_ts;              /* integer value (unix timestamp) to send */
+    long clock_ts;             /* integer value (unix timestamp) to send */
 } client_t;
 
 /* fd -> client_t* table, indexed by fd value (fds are small integers).
@@ -146,14 +149,48 @@ static void set_nonblocking(int fd) {
     fcntl(fd, F_SETFL, flags | O_NONBLOCK);
 }
 
+static void register_fd(int fd) {
+    struct epoll_event ev;
+    ev.events = EPOLLIN;
+    ev.data.fd = fd;
+    if (epoll_ctl(epfd, EPOLL_CTL_ADD, fd, &ev) != 0) {
+        perror("epoll_ctl(ADD)");
+        abort();
+    }
+}
+
+static inline void unregister_fd(int fd) {
+    epoll_ctl(epfd, EPOLL_CTL_DEL, fd, NULL);
+}
+
+static inline void register_client_fd(client_t *client, int fd) {
+    set_client_at(fd, client);
+    register_fd(fd);
+}
+
+static inline void unregister_client_fd(client_t *client, int fd) {
+    unregister_fd(fd);
+    set_client_at(fd, NULL);
+}
+
+static void cleanup_timer(client_t *client) {
+    unregister_client_fd(client, client->timer_fd);
+    close(client->timer_fd);
+    client->timer_fd = -1;
+}
+
+static inline void consume_timer(client_t *client) {
+    uint64_t nb_expirations;
+    /* we must read the timerfd to acknowledge the event, even though we
+     * are about to close it anyway right after. */
+    (void)!read(client->timer_fd, &nb_expirations, sizeof(nb_expirations));
+}
+
 static void cleanup_client(client_t *client) {
     if (client->timer_fd >= 0) {
-        epoll_ctl(epfd, EPOLL_CTL_DEL, client->timer_fd, NULL);
-        set_client_at(client->timer_fd, NULL);
-        close(client->timer_fd);
+        cleanup_timer(client);
     }
-    epoll_ctl(epfd, EPOLL_CTL_DEL, client->sock_fd, NULL);
-    set_client_at(client->sock_fd, NULL);
+    unregister_client_fd(client->sock_fd);
     close(client->sock_fd);
     free(client);
 }
@@ -161,34 +198,31 @@ static void cleanup_client(client_t *client) {
 /* returns the RTT estimate in microseconds, or -1 if it could not be
  * retrieved */
 static long get_rtt_us(int fd) {
-    unsigned char buf[256];
-    socklen_t optlen = sizeof(buf);
-    uint32_t tcpi_rtt;
-    /* struct tcp_info layout (see linux/tcp.h): 8 bytes of small (u8)
-     * fields, then a series of u32 fields; tcpi_rtt is the 16th u32 field
-     * (0-indexed: 15), thus at byte offset 8 + 15*4 = 68.
-     * We read it as raw bytes (instead of relying on a full local
-     * definition of struct tcp_info, which may slightly differ across
-     * kernel versions) to stay robust, similar to what is done on the
-     * python side when this protocol was first prototyped. */
-    if (getsockopt(fd, IPPROTO_TCP, TCP_INFO, buf, &optlen) != 0) {
-        return -1;
+    struct tcp_info tcp_info;
+    socklen_t optlen = sizeof(tcp_info);
+    if (getsockopt(fd, IPPROTO_TCP, TCP_INFO, &tcp_info, &optlen) != 0) {
+        perror("getsockopt");
+        abort();
     }
-    if (optlen < 68 + 4) {
-        return -1;
-    }
-    memcpy(&tcpi_rtt, buf + 68, sizeof(tcpi_rtt));
-    return (long)tcpi_rtt;
+    return (long)tcp_info.tcpi_rtt;
 }
 
 /* subtract a given number of nanoseconds (>= 0) from a timespec, using
  * plain integer arithmetic only */
 static void ts_sub_ns(struct timespec *ts, long ns) {
-    ts->tv_sec -= ns / NSEC_PER_SEC;
-    ts->tv_nsec -= ns % NSEC_PER_SEC;
-    if (ts->tv_nsec < 0) {
-        ts->tv_nsec += NSEC_PER_SEC;
+    while (ns >= NSEC_PER_SEC) {
+        /* highly unlikely */
         ts->tv_sec -= 1;
+        ns -= NSEC_PER_SEC;
+    }
+    if (ns > ts->tv_nsec) {
+        /* unlikely */
+        ts->tv_sec -= 1;
+        ts->tv_nsec += NSEC_PER_SEC - ns;
+    }
+    else {
+        /* likely */
+        ts->tv_nsec -= ns;
     }
 }
 
@@ -202,22 +236,75 @@ static inline int ts_cmp(const struct timespec *a, const struct timespec *b) {
     return 0;
 }
 
-/* handle a just-received "SYNC\n" message: compute the timing and arm a
- * timerfd for this client, so that it fires exactly at the right time */
-static void handle_sync_msg(client_t *client) {
+static void create_timer(client_t *client) {
+    int tfd;
+
+    tfd = timerfd_create(CLOCK_REALTIME, TFD_NONBLOCK);
+    if (tfd < 0) {
+        perror("timerfd_create");
+        abort();
+    }
+    client->timer_fd = tfd;
+}
+
+static void arm_timer_at(client_t *client, struct timespec *ts) {
+    struct itimerspec its;
+
+    memset(&its, 0, sizeof(its));
+    its.it_value = *ts;   /* it_interval left at 0: one-shot timer */
+    if (timerfd_settime(tfd, TFD_TIMER_ABSTIME, &its, NULL) != 0) {
+        perror("timerfd_settime");
+        abort();
+    }
+}
+
+static void send_message(client_t *client, char *fmt, ...) {
+    int off = 0;
+    int retries_left = 1000;
+    va_list ap;
+    char msg[32];
+    int len;
+
+    va_start(ap, fmt);
+    len = vsnprintf(msg, sizeof(msg), fmt, ap);
+    va_end(ap);
+
+    /* the messages are tiny (a handful of bytes) and the socket send buffer
+     * is virtually never full in this scenario, so a simple retry loop is
+     * enough; we bound retries so that a stuck/broken client can never
+     * cause us to loop indefinitely. */
+    while (off < len && retries_left > 0) {
+        ssize_t n = write(client->sock_fd, msg + off, len - off);
+        if (n > 0) {
+            off += n;
+            continue;
+        }
+        if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+            retries_left--;
+            usleep(1000);
+            continue;
+        }
+        if (n < 0 && errno == EINTR) {
+            continue;
+        }
+        break;  /* other error, give up sending to this client */
+    }
+}
+
+static void plan_sync_msg(client_t *client) {
     long rtt_us, owd_ns;
     struct timespec now, target;
     long clock_ts;
     int tfd;
-    struct itimerspec its;
     struct epoll_event ev;
 
+    /* The client's tooling only supports setting the date
+     * as an integer epoch number, so we wait for the next
+     * second boundary. We take the one-way-delay into account:
+     * we send the message slightly earlier so that the client
+     * receives it at the right time. */
     rtt_us = get_rtt_us(client->sock_fd);
-    if (rtt_us < 0) {
-        rtt_us = 0;  /* could not retrieve rtt, fall back to no compensation */
-    }
-    /* rtt (us) -> owd (ns): / 2 * 1000 ; done with plain integers, no
-     * floating point (and thus no libm dependency) needed. */
+    /* rtt (us) -> owd (ns) */
     owd_ns = (rtt_us / 2) * 1000L;
 
     clock_gettime(CLOCK_REALTIME, &now);
@@ -233,68 +320,99 @@ static void handle_sync_msg(client_t *client) {
         ts_sub_ns(&target, owd_ns);
     }
 
-    tfd = timerfd_create(CLOCK_REALTIME, TFD_NONBLOCK);
-    if (tfd < 0) {
-        perror("timerfd_create");
-        return;   /* give up on this client, it will just time out */
-    }
-    memset(&its, 0, sizeof(its));
-    its.it_value = target;   /* it_interval left at 0: one-shot timer */
-    if (timerfd_settime(tfd, TFD_TIMER_ABSTIME, &its, NULL) != 0) {
-        perror("timerfd_settime");
-        close(tfd);
-        return;
-    }
-
     client->clock_ts = clock_ts;
-    client->timer_fd = tfd;
-    client->state = ST_WAIT_SEND_TIME;
-    set_client_at(tfd, client);
-    ev.events = EPOLLIN;
-    ev.data.fd = tfd;
-    if (epoll_ctl(epfd, EPOLL_CTL_ADD, tfd, &ev) != 0) {
-        perror("epoll_ctl(ADD) on timerfd");
-        set_client_at(tfd, NULL);
-        close(tfd);
-        client->timer_fd = -1;
-        return;
-    }
+    arm_timer_at(client, &target);
     debug_printf("client fd=%d: rtt=%ldus owd=%ldns clock_ts=%ld\n",
                  client->sock_fd, rtt_us, owd_ns, clock_ts);
 }
 
-/* try to complete reading the "SYNC\n" message on this client;
- * returns 0 if the client should be kept (either still waiting for more
- * data, or transitioned to ST_WAIT_SEND_TIME), -1 if it should be dropped
- * (protocol error, or peer closed / error on socket) */
-static int handle_readable(client_t *client) {
-    ssize_t n;
-    for (;;) {
-        n = read(client->sock_fd, client->rbuf + client->rbuf_len,
-                 SYNC_MSG_LEN - client->rbuf_len);
-        if (n < 0) {
-            if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                return 0;   /* nothing more to read for now */
-            }
-            if (errno == EINTR) {
-                continue;
-            }
-            return -1;  /* socket error */
+int parse_bb_adjtimex_output(const char *input, struct timex *result) {
+    int mask_found = 0;
+
+    char *saveptr;
+    for (char *line = strtok_r(input, "\n", &saveptr); line;
+         line = strtok_r(NULL, "\n", &saveptr)) {
+
+        // Skip leading whitespace
+        while (isspace(*line)) line++;
+
+        char *colon = strchr(line, ':');
+        if (!colon) continue;
+
+        char *value = colon + 1;
+        while (isspace(*value)) value++;
+
+        if (strstr(line, "offset:")) {
+            result->offset = strtol(value, NULL, 10);
+            mask_found += 1;
+        } else if (strstr(line, "freq.adjust:")) {
+            result->freq = strtol(value, NULL, 10);
+            mask_found += 2;
+        } else if (strstr(line, "status:")) {
+            result->status = strtol(value, NULL, 10);
+            mask_found += 4;
+        } else if (strstr(line, "time.tv_sec:")) {
+            result->time.tv_sec = strtol(value, NULL, 10);
+            mask_found += 8;
+        } else if (strstr(line, "time.tv_usec:")) {
+            result->time.tv_usec = strtol(value, NULL, 10);
+            mask_found += 16;
         }
-        if (n == 0) {
-            return -1;  /* peer closed the connection */
-        }
-        client->rbuf_len += n;
-        if (client->rbuf_len == SYNC_MSG_LEN) {
-            if (memcmp(client->rbuf, SYNC_MSG, SYNC_MSG_LEN) != 0) {
-                return -1;  /* protocol error */
-            }
-            handle_sync_msg(client);
-            return 0;
-        }
-        /* else, loop again, trying to read more (level-triggered epoll may
-         * have more data available right away) */
     }
+
+    if (mask_found != 31) {
+        fprintf(stderr, "Could not parse adjtime data successfully!\n");
+        return 1;
+    }
+
+    if (!(result->status & STA_NANO)) {
+        result->time.tv_usec *= 1000L;  /* was in microseconds */
+    }
+
+    return 0;
+}
+
+int read_until_double_newline(int fd, char *buf, int buflen) {
+    size_t total = 0;
+    ssize_t n;
+
+    while (total < buflen) {
+        n = read(fd, buf + total, buflen - total);
+        if (n <= 0) {
+            return -1;
+        }
+        total += n;
+
+        char *found = strstr(buf, "\n\n");
+        if (found) {
+            return found - buf;
+        }
+    }
+    return -1;
+}
+
+static int handle_adjtime_response(client_t *client) {
+    struct timex data;
+    char buf[1024];
+    int msg_size;
+
+    msg_size = read_until_double_newline(client->sock_fd, buf, 1024);
+    if (msg_size == -1) {
+        return -1;
+    }
+
+    buf[msg_size] = '\0';
+    if (parse_bb_adjtimex_output(buf, &data) != 0) {
+        return -1;
+    }
+
+    printf("Offset: %ld\n", data.offset);
+    printf("Freq adjust: %ld\n", data.freq);
+    printf("Status: %d\n", data.status);
+    printf("Time sec: %ld\n", data.time.tv_sec);
+    printf("Time usec: %ld\n", data.time.tv_usec);
+
+    return 0;
 }
 
 /* accept as many pending incoming connections as possible on the listening
@@ -314,58 +432,14 @@ static void accept_new_clients(int listen_fd) {
             /* unexpected error, ignore and keep serving other clients */
             return;
         }
-        set_nonblocking(fd);
         client = malloc_or_abort(sizeof(client_t));
         memset(client, 0, sizeof(client_t));
         client->sock_fd = fd;
-        client->timer_fd = -1;
-        client->state = ST_WAIT_SYNC_MSG;
-        set_client_at(fd, client);
-        ev.events = EPOLLIN;
-        ev.data.fd = fd;
-        if (epoll_ctl(epfd, EPOLL_CTL_ADD, fd, &ev) != 0) {
-            perror("epoll_ctl(ADD)");
-            set_client_at(fd, NULL);
-            close(fd);
-            free(client);
-        }
+        register_client_fd(client, fd);
+        create_timer(client);
+        plan_sync_msg(client);
+        client->state = ST_WAIT_SEND_SYNC;
     }
-}
-
-/* the timerfd of this client just fired: send the response and drop the
- * client */
-static void handle_timer_fired(client_t *client) {
-    uint64_t nb_expirations;
-    char msg[32];
-    int len, off = 0;
-
-    /* we must read the timerfd to acknowledge the event, even though we
-     * are about to close it anyway right after */
-    (void)!read(client->timer_fd, &nb_expirations, sizeof(nb_expirations));
-
-    len = snprintf(msg, sizeof(msg), "%ld\n", client->clock_ts);
-    /* the message is tiny (a handful of bytes) and the socket send buffer
-     * is virtually never full in this scenario, so a simple retry loop is
-     * enough; we bound retries so that a stuck/broken client can never
-     * cause us to loop indefinitely. */
-    int retries_left = 1000;
-    while (off < len && retries_left > 0) {
-        ssize_t n = write(client->sock_fd, msg + off, len - off);
-        if (n > 0) {
-            off += n;
-            continue;
-        }
-        if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
-            retries_left--;
-            usleep(1000);
-            continue;
-        }
-        if (n < 0 && errno == EINTR) {
-            continue;
-        }
-        break;  /* other error, give up sending to this client */
-    }
-    cleanup_client(client);
 }
 
 void _clock_syncd_main_loop(int listen_fd) {
@@ -377,12 +451,7 @@ void _clock_syncd_main_loop(int listen_fd) {
         exit(1);
     }
     set_nonblocking(listen_fd);
-    ev.events = EPOLLIN;
-    ev.data.fd = listen_fd;
-    if (epoll_ctl(epfd, EPOLL_CTL_ADD, listen_fd, &ev) != 0) {
-        perror("epoll_ctl(ADD) on listen socket");
-        exit(1);
-    }
+    register_fd(listen_fd);
 
     redirect_sigint();
 
@@ -414,9 +483,22 @@ void _clock_syncd_main_loop(int listen_fd) {
                 continue;   /* stale event, ignore */
             }
             if (fd == client->timer_fd) {
-                /* the timer fired: send the answer, regardless of
-                 * EPOLLHUP/EPOLLERR (irrelevant for a timerfd) */
-                handle_timer_fired(client);
+                /* the timer fired */
+                consume_timer(client);
+                switch (client->state) {
+                    case ST_WAIT_SEND_SYNC:
+                        /* send the SYNC message */
+                        send_message(client, "SYNC %ld\n", client->clock_ts);
+                        /* prepare sending the first adjtime */
+                        arm_timer_delay(client, 5);
+                        client->state = ST_WAIT_SEND_ADJTIME;
+                        break;
+                    case ST_WAIT_SEND_ADJTIME:
+                        /* send ADJTIME info request */
+                        send_message(client, "ADJTIME\n");
+                        client->state = ST_WAIT_RECV_ADJTIME;
+                        break;
+                }
                 continue;
             }
             /* otherwise this event is about client->sock_fd */
@@ -424,19 +506,14 @@ void _clock_syncd_main_loop(int listen_fd) {
                 cleanup_client(client);
                 continue;
             }
-            if (client->state == ST_WAIT_SYNC_MSG) {
-                if (handle_readable(client) != 0) {
+            if (client->state == ST_WAIT_RECV_ADJTIME) {
+                if (handle_adjtime_response(client) != 0) {
                     cleanup_client(client);
                 }
-            } else {
-                /* ST_WAIT_SEND_TIME: we do not expect more input, but if
-                 * the peer closes early (or sends garbage), detect it and
-                 * drop it, so we do not keep useless pending timers. */
-                char discard[16];
-                ssize_t r = read(fd, discard, sizeof(discard));
-                if (r <= 0 && !(r < 0 && (errno == EAGAIN || errno == EWOULDBLOCK))) {
-                    cleanup_client(client);
-                }
+            }
+            else {
+                /* we do not expect client input */
+                cleanup_client(client);
             }
         }
     }

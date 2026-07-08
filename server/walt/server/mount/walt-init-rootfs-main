@@ -16,7 +16,7 @@ enable_zswap() {
 
 # setting clock
 boot_step_label_cr "Setting clock..."
-walt-clock-sync --in-walt-init
+#walt-clock-sync --in-walt-init
 
 # mounting local swap partitions
 if [ "$(possibly_vpn_node)" = "1" ]

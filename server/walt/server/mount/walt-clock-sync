@@ -1,21 +1,30 @@
 #!/bin/sh
 
-if [ "$1" != "--in-walt-init" ]
-then
-    export PATH="/bin/_walt_internal_:$PATH"
-fi
+set -e
+. walt-script-base
 
-. walt-script-common
-
-SYNC_CLOCK_TIMEOUT=3
-TRIALS=5
-NUM_EXPECTED_SUCCESSES=2
+#if nostdout busybox which walt-clock-sync-native
+#then
+#    walt-clock-sync-native "$walt_server_ip" "$walt_server_syncd_port"
+#    allow_script_exit
+#    exit
+#fi
 
 input_manager() {
-    echo SYNC
-    # block until output_manager() tells us
-    # we can stop.
-    read endmsg < /tmp/clock_sync.fifo
+    # send busybox adjtimex data on the connection and quit
+    # when output_manager() tells us to.
+    while read verb args < /tmp/clock_sync.fifo
+    do
+        case "$verb" in
+            "RUN_ADJTIME")
+                busybox adjtimex
+                echo
+                ;;
+            "QUIT")
+                break
+                ;;
+        esac
+    done
 }
 
 set_date_opt1() {
@@ -26,11 +35,11 @@ set_date_opt1() {
 set_date_opt2() {
     # fallback method if '@' epoch format is not recognised
     busybox date -s \
-        "$(busybox date -D "%s" -d $1 "+%Y-%m-%d %H:%M:%S")"
+        "$(busybox date -D "%%s" -d $1 "+%%Y-%%m-%%d %%H:%%M:%%S")"
 }
 
 detect_set_date_function() {
-    ts=$(busybox date +%s)
+    ts=$(busybox date +%%s)
     if nostdout nostderr set_date_opt1 $ts
     then
         set_date=set_date_opt1
@@ -41,65 +50,40 @@ detect_set_date_function() {
 
 output_manager() {
     retcode=0
-    read ts
-    $set_date $ts || retcode=$?
-    # let input_manager() stop
-    echo done > /tmp/clock_sync.fifo
-    return $retcode
+    while read verb arg
+    do
+        case "$verb" in
+            "SYNC")
+                $set_date $arg
+                ;;
+            "ADJ_OFFSET")
+                busybox adjtimex -o "$offset"
+                ;;
+            "ADJ_FREQ")
+                busybox adjtimex -o "$freq"
+                ;;
+            "RUN_ADJTIME")
+                echo "RUN_ADJTIME" > /tmp/clock_sync.fifo
+                ;;
+            "QUIT")
+                echo "QUIT" > /tmp/clock_sync.fifo
+                break
+                ;;
+        esac
+    done
 }
 
-try_once() {
+bg_process() {
+    [ -e /tmp/clock_sync.fifo ] || busybox mkfifo /tmp/clock_sync.fifo
     input_manager | \
-    busybox nc "$walt_server_ip" "$walt_server_syncd_port" | \
+        busybox nc %(server_ip)s %(walt_server_syncd_port)s | \
     output_manager
-}
-
-cleanup() {
     busybox rm -f /tmp/clock_sync.fifo
 }
 
 main() {
-    [ -e /tmp/clock_sync.fifo ] || busybox mkfifo /tmp/clock_sync.fifo
-
     detect_set_date_function
-
-    successes=0
-    trials=$TRIALS
-    while [ $trials -gt 0 ]
-    do
-        trials=$((trials-1))
-        # try several recursive calls with parameters "try-once"
-        # and the function for setting date.
-        walt-timeout $SYNC_CLOCK_TIMEOUT $0 try-once $set_date || continue
-        successes=$((successes+1))
-        # If we're on an NFS root, binaries may take time to load and run
-        # and that may skew our clock update.
-        # So we don't stop after having succeeded just once:
-        # the first success serves as a warmup phase.
-        if [ "$successes" = "$NUM_EXPECTED_SUCCESSES" ]
-        then
-            break
-        fi
-    done
-
-    if [ "$successes" -lt "$NUM_EXPECTED_SUCCESSES" ]
-    then
-        failures="$((TRIALS-successes))"
-        echo "walt-clock-sync: failed $failures times. Rebooting."
-        cleanup
-        busybox sleep 1
-        busybox reboot -f now
-    fi
-
-    cleanup
+    bg_process &
 }
 
-if [ "$1" = "try-once" ]
-then
-    set_date=$2
-    nostdout nostderr try_once
-else
-    main
-fi
-
-allow_script_exit
+main
