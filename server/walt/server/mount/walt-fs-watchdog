@@ -1,5 +1,5 @@
 #!/bin/sh
-. walt-script-common
+. walt-init-common
 
 echo "[walt:bg] walt-fs-watchdog started."
 

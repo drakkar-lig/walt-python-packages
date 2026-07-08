@@ -1,6 +1,6 @@
 #!/bin/sh
 set -e
-. walt-script-common
+. walt-script-base
 # this script allows to work around a syntax change in busybox timeout applet.
 
 # check if '-t' option must be specified or not

@@ -1,5 +1,5 @@
 #!/bin/sh
-. walt-script-common
+. walt-init-common
 MSG_NO_BLINK_EXEC='/bin/blink unavailable or not executable on image'
 MSG_BLINK_FAILED='/bin/blink returned a non-zero error code'
 

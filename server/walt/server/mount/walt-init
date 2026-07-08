@@ -130,7 +130,13 @@ switch_to_rootfs() {
 export PATH="$PATH:/bin/_walt_internal_"
 export walt_init_done=0
 # preparation work
-. walt-script-common
+. walt-init-common
+# init env variables specific to the image or to the node
+export walt_env="$(
+    cat /bin/_walt_internal_/walt-env-image
+    /bin/_walt_internal_/walt-fetch-node-config
+)"
+eval "$walt_env"
 # redefine console
 cd /; walt_set_console
 # run image's preinit code if any

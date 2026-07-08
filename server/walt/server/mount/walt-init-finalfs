@@ -27,7 +27,7 @@ run_real_init()
 }
 
 # complete transition to finalfs
-. walt-script-common
+. walt-init-common
 export walt_init_done=1
 
 # start bg processes

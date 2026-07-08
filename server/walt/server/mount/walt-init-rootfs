@@ -41,7 +41,7 @@ switch_to_finalfs() {
         bin/_walt_internal_/walt-init-finalfs "$@"
 }
 
-. walt-script-common
+. walt-init-common
 # continue with walt-init-rootfs-main
 walt-log-script fg walt-init-rootfs-main
 # switch to finalfs

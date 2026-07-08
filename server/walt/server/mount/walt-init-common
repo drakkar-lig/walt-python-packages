@@ -1,8 +1,6 @@
 #!/bin/sh
 
-# all scripts sourcing this file have error monitoring enabled:
-set -e
-trap _on_exit EXIT
+. walt-script-base
 
 # private functions
 # #################
@@ -151,60 +149,8 @@ _do_walt_reboot() {
     fi
 }
 
-# if we lose nfsroot we will not be able to reach /dev/null
-# because /dev is a symlink to mnt/nfsroot/dev in the rootfs.
-# so let's open the file in advance, as soon as we can.
-
-_open_null_if_not_done_yet() {
-    if [ -z "$_null_opened" ]
-    then
-        if [ -e "/dev/null" ]
-        then
-            exec 9>/dev/null
-            export _null_opened=1
-        else
-            return 1
-        fi
-    fi
-}
-
-_open_null_if_not_done_yet || true
-
-_init_walt_env() {
-    if [ -z "$walt_env" ]
-    then
-        export walt_env="$(
-            cat /bin/walt-env
-            /bin/_walt_internal_/walt-fetch-node-config
-        )"
-        eval "$walt_env"
-    fi
-}
-
-_init_walt_env
-
 # public functions
 # ################
-
-nostdout() {
-    if _open_null_if_not_done_yet
-    then
-        "$@" >&9
-    else
-        echo "warning: nostdout ignored, /dev/null is not available" >&2
-        "$@"
-    fi
-}
-
-nostderr() {
-    if _open_null_if_not_done_yet
-    then
-        "$@" 2>&9
-    else
-        echo "warning: nostderr ignored, /dev/null is not available" >&2
-        "$@"
-    fi
-}
 
 update_walt_env() {
     prop=$1
@@ -235,10 +181,6 @@ do_on_finalfs() {
     return $retcode
 }
 
-happy_grep() {
-    grep "$@" || true   # always return status ok
-}
-
 allow_script_exit() {
     trap '' EXIT
 }
@@ -258,52 +200,8 @@ trigger_walt_reboot() {
     fi
 }
 
-wait_for_input_line_shortly() {
-    nostderr walt-timeout $1 busybox sh -c 'read l && echo "$l"'
-}
-
 boot_step_label_cr() {
     busybox printf "*** %-60s ***\n" "$*"
-}
-
-busybox_has_applet() {
-    nostdout nostderr busybox $1 --help
-}
-
-run_busybox_or_not() {
-    # run as a busybox or direct command
-    if [ "$1" = "--prefer-system" ]
-    then
-        shift
-        cmd="$(notsderr busybox which "$1")" || cmd="busybox $1"
-    else
-        if busybox_has_applet "$1"
-        then
-            cmd="busybox $1"
-        else
-            cmd="$1"
-        fi
-    fi
-    shift
-    $cmd "$@"
-}
-
-possibly_vpn_node() {
-    if [ -d /sys/class/net/ ]
-    then
-        if [ -d /sys/class/net/walt-vpn ]
-        then
-            echo 1  # yes, it is a VPN node
-        else
-            echo 0  # no, not a VPN node
-        fi
-    else
-        # At this step of the boot procedure
-        # /sys/class/net/ does not exist so
-        # we cannot tell.
-        # So we return 1 ("possibly" a VPN node).
-        echo 1
-    fi
 }
 
 copy_exec_to_rootfs()
@@ -442,8 +340,21 @@ walt_mount_union()
         union ${uniondir}
 }
 
+# enable error monitoring for all scripts sourcing this file
+# ----------------------------------------------------------
+set -e
+trap _on_exit EXIT
+
 # apply image overrides if provided
+# ---------------------------------
 if [ -e /bin/walt-init-overrides ]
 then
     . /bin/walt-init-overrides
 fi
+
+# apply initializations if not done yet
+# -------------------------------------
+# if we lose nfsroot we will not be able to reach /dev/null
+# because /dev is a symlink to mnt/nfsroot/dev in the rootfs.
+# so let's open the file in advance, as soon as we can.
+open_null_if_not_done_yet || true
