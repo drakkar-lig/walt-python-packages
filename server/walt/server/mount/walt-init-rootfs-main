@@ -4,7 +4,6 @@
 . walt-init-common
 . walt-init-disks
 . walt-boot-modes
-. walt-clock-sync
 . walt-init-nbd
 
 # helper functions
@@ -15,14 +14,6 @@ enable_zswap() {
         echo 1 > /sys/module/zswap/parameters/enabled || true
 }
 
-# setting clock
-if [ $walt_vnode_mode -eq 1 ]
-then
-    boot_step_label_cr "Setting clock... skipped (virtual node)"
-else
-    boot_step_label_cr "Setting clock..."
-    sync_clock
-fi
 # mounting local swap partitions
 if [ "$(possibly_vpn_node)" = "1" ]
 then
