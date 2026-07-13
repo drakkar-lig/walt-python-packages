@@ -35,6 +35,7 @@ STOPPABLE_WALT_SERVICES = [
     "walt-server-snmpd.service",
     "walt-server-lldpd.service",
     "walt-server-ptpd.service",
+    "walt-server-syncd.service",
     "walt-server-httpd.service",
     "walt-server-nbd.service",
     "walt-server-nbd.socket",
