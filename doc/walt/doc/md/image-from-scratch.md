@@ -113,12 +113,17 @@ LLDP (link layer discovery protocol) allows the WalT server to locate your node 
 
 ### 2- precise time synchronization
 
-WalT bootup scripts will automatically synchronize node's clock with the server at bootup. For a more precise synchronization between nodes, and to avoid clock drift over the long term, a network synchronization protocol is needed.
+Many IoT experiments require precise synchronization between nodes.
+See [`walt help show synchronization`](synchronization.md) for the various options
+WalT provides.
+
+In any case, WalT bootup scripts will automatically synchronize the node's clock with the server at bootup. And if the `busybox` binary provides the `adjtimex` applet, the clock synchronization will be improved and preserved over time.
+If not, or for a more precise synchronization between nodes, a network synchronization daemon should be installed in the OS image.
 
 PTP (Precision Time Protocol) is the preferred synchronization protocol.
 The WalT server is a PTP master.
 
-For reference, the images we provide come with the following configuration files:
+For reference, some images we provide come with the following configuration files:
 
 ```
 $ cat /etc/default/ptpd
@@ -143,6 +148,8 @@ ptpengine:ip_mode=hybrid
 ptpengine:log_delayreq_interval=3
 $
 ```
+
+Make sure that the interface name (here `eth0`) is correct once the node is booted. You might need to use the kernel parameter `net.ifnames=0` if you want the OS to use the old naming scheme (`eth0`, `eth1`, etc.). On recent Raspberry Pi images for 64bit models, kernel parameters can be tuned in the file `[image-root]:/boot/<model>/cmdline.txt` for instance.
 
 An alternative protocol is NTP (Network Time Protocol), also available on server side. However using NTP is discouraged because synchronization is much slower and less stable.
 A working configuration would be in this case:

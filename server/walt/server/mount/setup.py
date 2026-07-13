@@ -10,6 +10,7 @@ from time import time
 from importlib.resources import files
 from walt.common.constants import (
     WALT_SERVER_DAEMON_PORT,
+    WALT_SERVER_SYNCD_PORT,
     WALT_SERVER_TCP_PORT,
 )
 from walt.common.tools import do, failsafe_makedirs, failsafe_symlink, get_mac_address
@@ -38,7 +39,7 @@ NODE_SCRIPTS = {
     "walt-tee": (False, False),
     "walt-timeout": (False, True),
     "walt-rpc": (True, True),
-    "walt-clock-sync": (False, True),
+    "walt-clock-sync": (True, True),
     "walt-init": (False, False),
     "walt-fs-watchdog": (False, True),
     "walt-net-service": (False, True),
@@ -63,6 +64,7 @@ TEMPLATE_ENV = dict(
     walt_server_rpc_port=WALT_SERVER_DAEMON_PORT,
     walt_server_logs_port=WALT_SERVER_TCP_PORT,
     walt_server_notify_bootup_port=WALT_SERVER_TCP_PORT,
+    walt_server_syncd_port=WALT_SERVER_SYNCD_PORT,
 )
 
 RESOLV_CONF = """
