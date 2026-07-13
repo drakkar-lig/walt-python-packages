@@ -1,28 +1,87 @@
 #!/bin/sh
-SYNC_CLOCK_TIMEOUT=3
-TRIALS=5
 
-sync_clock() {
-    ts="none"
-    trials=$TRIALS
-    while [ $trials -gt 0 ]
-    do
-        trials=$((trials-1))
-        # get timestamp from server (format epoch)
-        ts=$(/bin/walt-timeout $SYNC_CLOCK_TIMEOUT /bin/walt-rpc sync_clock) || continue
-        break
-    done
+set -e
+. walt-script-base
 
-    if [ "$ts" = "none" ]
+input_manager() {
+    if busybox_has_applet adjtimex
     then
-        echo "walt-clock-sync: failed $TRIALS times."
-        trigger_walt_reboot reboot
-        exit 1
+        bb_adjtimex="busybox adjtimex"
+    else
+        bb_adjtimex="echo NO_BB_ADJTIMEX"
     fi
-
-    # set local clock
-    # (if '@' epoch format is recognised, use it, otherwise convert
-    # before setting date)
-    nostderr busybox date -s @$ts || \
-    busybox date -s "$(busybox date -D "%s" -d $ts "+%Y-%m-%d %H:%M:%S")"
+    # send busybox adjtimex data on the connection and quit
+    # when output_manager() tells us to.
+    while read verb args < /tmp/clock_sync.fifo
+    do
+        case "$verb" in
+            "DUMP_ADJTIMEX")
+                $bb_adjtimex
+                echo
+                ;;
+            "QUIT")
+                break
+                ;;
+        esac
+    done
 }
+
+set_date_opt1() {
+    # hopefully '@' epoch format is recognised
+    busybox date -s @$1
+}
+
+set_date_opt2() {
+    # fallback method if '@' epoch format is not recognised
+    busybox date -s \
+        "$(busybox date -D "%%s" -d $1 "+%%Y-%%m-%%d %%H:%%M:%%S")"
+}
+
+connection_to_server() {
+    busybox nc %(server_ip)s %(walt_server_syncd_port)s || \
+        echo "QUIT could not connect to walt-server-syncd"
+}
+
+output_manager() {
+    # detect appropriate set_date function
+    ts=$(busybox date +%%s)
+    if nostdout nostderr set_date_opt1 $ts
+    then
+        set_date=set_date_opt1
+    else
+        set_date=set_date_opt2
+    fi
+    # run the loop handling nc output
+    retcode=0
+    while read verb arg
+    do
+        case "$verb" in
+            "SYNC")
+                $set_date $arg
+                echo "DUMP_ADJTIMEX" > /tmp/clock_sync.fifo
+                ;;
+            "ADJ_OFFSET")
+                busybox adjtimex -o "$arg"
+                ;;
+            "ADJ_FREQ")
+                busybox adjtimex -f "$arg"
+                ;;
+            "DUMP_ADJTIMEX")
+                echo "DUMP_ADJTIMEX" > /tmp/clock_sync.fifo
+                ;;
+            "QUIT")
+                echo "walt-clock-sync -- exiting: $arg." >&2
+                echo "QUIT" > /tmp/clock_sync.fifo
+                break
+                ;;
+        esac
+    done
+}
+
+main() {
+    [ -e /tmp/clock_sync.fifo ] || busybox mkfifo /tmp/clock_sync.fifo
+    input_manager | connection_to_server | nostdout output_manager
+    busybox rm -f /tmp/clock_sync.fifo
+}
+
+main
