@@ -59,6 +59,7 @@ class Requests(ServiceRequests):
     REQ_DEVICE_SHELL = 15
     REQ_TAR_FOR_IMAGE_BUILD = 16
     REQ_FETCH_NODE_CONFIG = 17
+    REQ_CLOCK_SYNC = 18
 
     @staticmethod
     def read_id(stream):
@@ -123,6 +124,10 @@ class RWSocketFile:
         # as a loop reading 1 char at a time.
         self._readline_f = self._s.makefile("rb", 0)
         self.readline = self._readline_f.readline
+
+    @property
+    def sock(self):
+        return self._s
 
     def shutdown(self, mode):
         return self._s.shutdown(mode)
