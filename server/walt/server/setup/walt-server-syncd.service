@@ -1,0 +1,24 @@
+# walt-server-syncd - WalT platform clock synchronization daemon
+#
+# The WalT platform provides a lightweight distributed testbed for
+# sensor networks, distributed protocols, distributed data
+# management.
+
+[Unit]
+Description=WalT clock synchronization daemon
+# WalT network has to be up for this service to run
+Requires=walt-server-netconfig.service
+After=walt-server-netconfig.service
+# walt-net interface must be present
+ConditionPathExists=/sys/class/net/walt-net
+
+[Service]
+Type=notify
+NotifyAccess=all
+Environment=PYTHONUNBUFFERED=1
+EnvironmentFile=-/etc/walt/server.env
+ExecStart=walt-server-syncd
+Restart=on-failure
+
+[Install]
+WantedBy=walt-server-netconfig.service

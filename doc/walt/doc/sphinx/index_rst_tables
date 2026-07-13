@@ -43,6 +43,7 @@ Full table of Contents
    vnode-networks
    vnode-disks
    slash-persist
+   synchronization
 
 
 .. toctree::

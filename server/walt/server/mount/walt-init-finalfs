@@ -17,6 +17,7 @@ start_background_processes()
     walt_mount -o bind / mnt/finalfs
     busybox chroot . bin/walt-log-script bg walt-net-service
     busybox chroot . bin/walt-log-script bg walt-fs-watchdog
+    busybox chroot . bin/walt-log-script bg walt-clock-sync
     cd /
 }
 
