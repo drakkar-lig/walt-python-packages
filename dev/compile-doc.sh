@@ -12,7 +12,7 @@ cd "$root_dir"
 
 # install sphinx requirements
 cd doc/walt/doc/sphinx
-$python -m pip install -r requirements.txt
+$python -m pip install -q -r requirements.txt
 
 # compile the doc to html
 export LOCAL_SPHINX_BUILD=1
