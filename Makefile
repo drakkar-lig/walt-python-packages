@@ -33,27 +33,27 @@ BUILD=$(PYTHON) -m build
 install: server.install
 
 %.install:
-	$(MAKE) PACKAGES="$(INSTALLABLE_PACKAGES_ON_$(call upper,$*))" install-packages
-	[ "$*" = "server" ] && $(ROOT_DIR)/.venv/bin/walt-server-setup || true
+	@$(MAKE) PACKAGES="$(INSTALLABLE_PACKAGES_ON_$(call upper,$*))" install-packages
+	@[ "$*" = "server" ] && $(ROOT_DIR)/.venv/bin/walt-server-setup || true
 
 doc.install:
-	$(MAKE) PACKAGES="doc" install-packages
+	@$(MAKE) PACKAGES="doc" install-packages
 
 uninstall:
-	$(MAKE) PACKAGES="$(ALL_PACKAGES)" uninstall-packages
+	@$(MAKE) PACKAGES="$(ALL_PACKAGES)" uninstall-packages
 
 # parallel make -j steps could fail if trying to uninstall several
 # namespace packages in parallel: so uninstall steps should be sequential.
 # however, build steps can be run in parallel.
 install-packages:
-	$(MAKE) PACKAGES="$(PACKAGES)" uninstall-packages build-packages
-	$(PIP) install $(patsubst %,./%/dist/*.whl,$(PACKAGES))
+	@$(MAKE) PACKAGES="$(PACKAGES)" uninstall-packages build-packages
+	@$(PIP) install -q $(patsubst %,./%/dist/*.whl,$(PACKAGES))
 
 uninstall-packages:
-	for p in $(PACKAGES); do $(MAKE) $$p.uninstall; done
+	@for p in $(PACKAGES); do $(MAKE) $$p.uninstall; done
 
 build-packages: build.pip-package black.pip-package
-	dev/build-packages.sh $(PACKAGES)
+	@dev/build-packages.sh $(PACKAGES)
 
 pull: $(patsubst %,%.pull,$(INSTALLABLE_PACKAGES_ON_SERVER))
 
@@ -63,21 +63,21 @@ clean: $(patsubst %,%.clean,$(ALL_PACKAGES))
 	cd $*; pwd; rm -rf dist build *.egg-info
 
 %.pip-package:
-	$(PIP) show "$*" >/dev/null 2>&1 || $(PIP) install "$*"
+	@$(PIP) show "$*" >/dev/null 2>&1 || $(PIP) install -q "$*"
 
 compile-doc:
-	dev/compile-doc.sh $(ROOT_DIR)
+	@dev/compile-doc.sh $(ROOT_DIR)
 
 %.build:
-	$(MAKE) PACKAGES="$*" build-packages
+	@$(MAKE) PACKAGES="$*" build-packages
 
 %/setup.py: common/walt/common/version.py dev/metadata.py dev/setup-updater.py
 	@echo updating $*/setup.py
-	dev/setup-updater.py "walt-$*"
+	@dev/setup-updater.py "walt-$*"
 
 update-setup: black.pip-package
 	@echo updating all setup.py files
-	dev/setup-updater.py
+	@dev/setup-updater.py
 
 quick-venv-update:
 	@dev/quick-venv-update.sh
@@ -86,7 +86,7 @@ clean:
 	find . -name \*.pyc -delete
 
 %.uninstall:
-	$(PIP) show walt-$* >/dev/null 2>&1 && $(PIP) uninstall -y walt-$* || true
+	@$(PIP) show walt-$* >/dev/null 2>&1 && $(PIP) uninstall -q -y walt-$* || true
 
 upload: keyrings.cryptfile.pip-package wheel.pip-package auditwheel.pip-package
 	./dev/upload.sh $(ALL_PACKAGES)

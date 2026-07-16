@@ -38,7 +38,17 @@ do
 
     cd $package
     pwd
-    rm -rf dist && ../dev/python.sh -m build
-
+    if [ -d "dist" ]
+    then
+        rm -rf dist
+    fi
+    if ! ../dev/python.sh -m build -q
+    then
+        echo "-----------------------------------------" >&2
+        echo "An error occurred!" >&2
+        echo "Restarting the build with verbose output." >&2
+        echo "-----------------------------------------" >&2
+        ../dev/python.sh -m build
+    fi
     cd ..
 done
