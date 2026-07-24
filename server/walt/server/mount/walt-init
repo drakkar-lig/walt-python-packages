@@ -158,6 +158,8 @@ prepare_rootfs
 boot_step_label_cr          "Mounting /persist..."
 mount_persistent
 remount_nfsroot_if_needed
+boot_step_label_cr          "Updating network interface altname(s)..."
+walt_set_network_names
 boot_step_label_cr          "Switching to rootfs..."
 switch_to_rootfs "$@"
 # the process continues in bin/_walt_internal_/walt-init-rootfs
