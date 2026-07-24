@@ -340,6 +340,35 @@ walt_mount_union()
         union ${uniondir}
 }
 
+walt_set_network_names() {
+    if [ ! -d "/sys/class/net" -o -z "$(ls "/sys/class/net")" ]
+    then
+        echo "Bypassed, /sys/class/net not found or empty."
+        return
+    fi
+    set -- $(echo "$walt_network_names" | busybox tr "@" " ")
+    while [ ! -z "$1" ]
+    do
+        netname="$1"
+        mac="$2"
+        shift 2
+        if path=$(busybox grep "$mac" /sys/class/net/*/address)
+        then
+            intfname=$(busybox basename $(busybox dirname "$path"))
+            if nostderr ip link property add altname "$netname" \
+                           dev "$intfname"
+            then
+                echo "interface $intfname -> altname $netname"
+            else
+                echo "Bypassed, ip command not able to set an alt name."
+                return
+            fi
+        else
+            echo "Failed, mac address of $netname not found!"
+        fi
+    done
+}
+
 # enable error monitoring for all scripts sourcing this file
 # ----------------------------------------------------------
 set -e
