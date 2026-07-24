@@ -41,7 +41,7 @@ setup_info = {
         "podman==5.0.0",
         "propcache==0.2.0",
         "psycopg2-binary==2.9.9",
-        "pyasn1==0.6.3",
+        "pyasn1==0.6.4",
         "pycparser==2.22",
         "pygments==2.20.0",
         "pysnmp==7.1.22",
