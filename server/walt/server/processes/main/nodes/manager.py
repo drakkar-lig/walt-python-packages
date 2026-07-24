@@ -7,6 +7,7 @@ from walt.common.constants import (
         WALT_SERVER_TCP_PORT
 )
 from walt.common.tools import get_mac_address
+from walt.common.tools import get_persistent_random_mac
 from walt.common.tcp import Requests
 from walt.server.const import (
         SSH_NODE_COMMAND,
@@ -55,6 +56,7 @@ FETCH_NODE_CONFIG_PATTERN = f"""\
 export walt_boot_mode=%(boot_mode)s
 export walt_persist_path=%(persist_path)s
 export walt_vnode_mode=%(is_vnode)d
+export walt_network_names='%(network_names)s'
 """
 
 MSG_NODE_CMD_PERSISTENT = """\
@@ -445,16 +447,19 @@ class NodesManager(object):
     def get_node_config_vars(self, node_ip):
         db_result = self.db.execute(f"""
             SELECT
-                COALESCE(conf->>'boot.mode', 'network-volatile')
+                COALESCE(d.conf->>'boot.mode', 'network-volatile')
                     as boot_mode,
-                COALESCE((conf->'mount.persist')::boolean::int, 1)
+                COALESCE((d.conf->'mount.persist')::boolean::int, 1)
                     as mount_persist,
-                virtual::int
+                COALESCE(d.conf->>'networks', 'walt-net')
+                    as networks,
+                d.virtual::int
                     as is_vnode,
-                name, mac
-            FROM devices
-            WHERE ip = '{node_ip}'
-              AND type = 'node';
+                d.name, d.mac, vn.vpnmac
+            FROM devices d
+            LEFT JOIN vpnnodes vn ON d.mac = vn.mac
+            WHERE d.ip = '{node_ip}'
+              AND d.type = 'node';
         """)
         if len(db_result) != 1:
             return None
@@ -469,10 +474,29 @@ class NodesManager(object):
             boot_mode = "image-build-run-on-node"
         else:
             boot_mode = node_info.boot_mode
+        network_names = {}
+        network_names[node_info.mac] = "walt-net"
+        if node_info.vpnmac:
+            # VPN nodes may reach the walt network with or without the VPN
+            network_names[node_info.vpnmac] = "walt-net"
+        for net_info in node_info.networks.split(','):
+            net_name = net_info.split('[')[0]
+            if net_name == 'walt-net':
+                continue  # already processed above
+            mac_file = (
+                    Path("/var/lib/walt/nodes/") /
+                    node_info.name /
+                    "networks" /
+                    f"{net_name}.mac")
+            mac = get_persistent_random_mac(mac_file)
+            network_names[mac] = net_name
+        network_names = " ".join(
+                f"{name}@{mac}" for mac, name in network_names.items())
         return dict(
             boot_mode = boot_mode,
             is_vnode = node_info.is_vnode,
             persist_path = persist_path,
+            network_names = network_names,
         )
 
     def get_node_cmd_startup_msg(self, node_name):
