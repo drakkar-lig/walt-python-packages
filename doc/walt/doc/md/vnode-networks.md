@@ -27,6 +27,40 @@ A virtual node may even define more than two networks if needed (e.g. `networks=
 However, referencing `walt-net` is mandatory (this is obviously needed for proper operation as a WALT node).
 Thus the default configuration for newly created virtual nodes is just `networks=walt-net`.
 
+If the OS image provides an `ip` command able to define alternate network
+interface names (this should be the case unless the image is based on a
+minimalist OS such as OpenWRT), the node will add the names corresponding
+to your configuration during the `walt-init` bootup procedure.
+
+This allows to easily know which interface is which:
+```
+root@vnode1:~# ip addr show
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 [...]
+    [...]
+2: ens3: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 [...]
+    [...]
+    altname walt-net
+    inet 192.168.223.80/23 brd 192.168.223.255 [...]
+    [...]
+3: ens4: <BROADCAST,MULTICAST> mtu 1500 [...]
+    [...]
+    altname home-net
+    [...]
+root@vnode1:~#
+```
+
+And you can use the alternate name when you have to name an interface
+in a command line, a script, or a configuration file:
+```
+root@vnode1:~# ip addr show dev walt-net
+2: ens3: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 [...]
+    [...]
+    altname walt-net
+    inet 192.168.223.80/23 brd 192.168.223.255 [...]
+    [...]
+root@vnode1:~#
+```
+
 Network resource limits may be applied by using this kind of syntax:
 
 ```
