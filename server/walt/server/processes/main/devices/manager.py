@@ -307,11 +307,15 @@ class DevicesManager(object):
         new_equipment = False
         modified = False
         newly_identified = False
-        db_data = self.db.select_unique("devices", mac=args_data["mac"])
+        db_data = self.db.select_unique("alldevices", mac=args_data["mac"])
         if db_data:
             # -- device found in db
             updates = {}
             name = db_data.name
+            if db_data.type == "deleted":
+                updates["type"] = args_data["type"]
+                print(f"Device: {name} was forgotten and now re-discovered")
+                new_equipment = True
             if db_data.type == "unknown" and args_data["type"] != "unknown":
                 # device was in db, but type was unknown.
                 if "unknown" in db_data.name:
@@ -354,7 +358,8 @@ class DevicesManager(object):
                 updates["ip"] = args_data["ip"]
             if len(updates) > 0:
                 modified = True
-                self.db.update("devices", "mac", mac=args_data["mac"], **updates)
+                self.db.update("alldevices", "mac",
+                               mac=args_data["mac"], **updates)
         else:
             # device was not known in db yet
             # generate a name for this device
