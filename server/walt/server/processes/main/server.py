@@ -467,7 +467,7 @@ class Server(object):
                 random.randint(0, 255),
                 random.randint(0, 255),
             )
-            if (self.db.select_unique("devices", mac=free_mac) is None and
+            if (self.db.select_unique("alldevices", mac=free_mac) is None and
                 self.db.select_unique("vpnauth", vpnmac=free_mac) is None):
                 return free_mac  # ok, mac is free
 

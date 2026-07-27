@@ -25,54 +25,69 @@ class ServerDB(PostgresDB):
         # parent constructor
         PostgresDB.__init__(self)
 
-    def prepare(self):
-        PostgresDB.prepare(self)  # parent method
-        # create the db schema
-        # tables
-        self.execute("""CREATE TABLE IF NOT EXISTS devices (
-                    mac TEXT PRIMARY KEY,
-                    ip TEXT,
-                    name TEXT,
-                    type TEXT,
-                    virtual BOOLEAN DEFAULT FALSE,
-                    conf JSONB DEFAULT '{}');""")
-        self.execute("""CREATE TABLE IF NOT EXISTS topology (
-                    mac1 TEXT REFERENCES devices(mac),
-                    port1 INTEGER,
-                    mac2 TEXT REFERENCES devices(mac),
-                    port2 INTEGER,
-                    confirmed BOOLEAN,
-                    last_seen TIMESTAMP WITH TIME ZONE);""")
-        self.execute("""CREATE TABLE IF NOT EXISTS images (
-                    fullname TEXT PRIMARY KEY);""")
-        self.execute("""CREATE TABLE IF NOT EXISTS nodes (
-                    mac TEXT REFERENCES devices(mac),
-                    image TEXT REFERENCES images(fullname),
-                    model TEXT);""")
-        self.execute("""CREATE TABLE IF NOT EXISTS switches (
-                    mac TEXT REFERENCES devices(mac),
-                    model TEXT);""")
-        self.execute("""CREATE TABLE IF NOT EXISTS switchports (
-                    mac TEXT REFERENCES devices(mac),
-                    port INTEGER,
-                    name TEXT,
-                    PRIMARY KEY (mac, port));""")
-        self.execute("""CREATE TABLE IF NOT EXISTS logstreams (
-                    id SERIAL PRIMARY KEY,
-                    issuer_mac TEXT REFERENCES devices(mac),
-                    name TEXT);""")
-        self.execute("""CREATE TABLE IF NOT EXISTS logs (
-                    stream_id INTEGER REFERENCES logstreams(id),
-                    timestamp TIMESTAMP WITH TIME ZONE,
-                    line TEXT);""")
-        self.execute("""CREATE TABLE IF NOT EXISTS checkpoints (
-                    username TEXT,
-                    timestamp TIMESTAMP,
-                    name TEXT);""")
-        self.execute("""CREATE TABLE IF NOT EXISTS poeoff (
-                    mac TEXT REFERENCES devices(mac),
-                    port INTEGER,
-                    reason TEXT);""")
+    def _create_views(self):
+        self.execute("""CREATE VIEW devices AS
+                        SELECT * FROM alldevices
+                        WHERE type != 'deleted' """)
+        self.execute("""CREATE VIEW deleted_macs AS
+                        SELECT mac FROM alldevices
+                        WHERE type = 'deleted'""")
+        in_deleted_macs = "IN (SELECT * FROM deleted_macs)"
+        self.execute(f"""CREATE VIEW logstreams AS
+                        SELECT * FROM alllogstreams
+                        WHERE issuer_mac NOT {in_deleted_macs}""")
+        self.execute(f"""CREATE VIEW logs AS
+                         SELECT * FROM alllogs
+                         WHERE stream_id NOT IN (
+                             SELECT id FROM alllogstreams
+                             WHERE issuer_mac {in_deleted_macs}
+                         )""")
+
+    def _create_tables(self):
+        self.execute("""CREATE TABLE alldevices (
+            mac TEXT PRIMARY KEY,
+            ip TEXT,
+            name TEXT,
+            type TEXT,
+            virtual BOOLEAN DEFAULT FALSE,
+            conf JSONB DEFAULT '{}');""")
+        self.execute("""CREATE TABLE topology (
+            mac1 TEXT REFERENCES alldevices(mac),
+            port1 INTEGER,
+            mac2 TEXT REFERENCES alldevices(mac),
+            port2 INTEGER,
+            confirmed BOOLEAN,
+            last_seen TIMESTAMP WITH TIME ZONE);""")
+        self.execute("""CREATE TABLE images (
+            fullname TEXT PRIMARY KEY);""")
+        self.execute("""CREATE TABLE nodes (
+            mac TEXT REFERENCES alldevices(mac),
+            image TEXT REFERENCES images(fullname),
+            model TEXT);""")
+        self.execute("""CREATE TABLE switches (
+            mac TEXT REFERENCES alldevices(mac),
+            model TEXT);""")
+        self.execute("""CREATE TABLE switchports (
+            mac TEXT REFERENCES alldevices(mac),
+            port INTEGER,
+            name TEXT,
+            PRIMARY KEY (mac, port));""")
+        self.execute("""CREATE TABLE alllogstreams (
+            id SERIAL PRIMARY KEY,
+            issuer_mac TEXT REFERENCES alldevices(mac),
+            name TEXT);""")
+        self.execute("""CREATE TABLE alllogs (
+            stream_id INTEGER REFERENCES logstreams(id),
+            timestamp TIMESTAMP WITH TIME ZONE,
+            line TEXT);""")
+        self.execute("""CREATE TABLE checkpoints (
+            username TEXT,
+            timestamp TIMESTAMP,
+            name TEXT);""")
+        self.execute("""CREATE TABLE poeoff (
+            mac TEXT REFERENCES alldevices(mac),
+            port INTEGER,
+            reason TEXT);""")
         # We have two different tables "vpnnodes" and "vpnauth"
         # because in the case of "walt device forget" we may want
         # to forget a vpn node, but still keep track of the auth data
@@ -80,78 +95,56 @@ class ServerDB(PostgresDB):
         # The device is identified by either a corresponding entry in
         # table vpnnodes or a non-NULL device_label value,
         # depending on whether the device was forgotten or not.
-        self.execute("""CREATE TABLE IF NOT EXISTS vpnauth (
-                    vpnmac TEXT PRIMARY KEY,
-                    pubkeycert TEXT,
-                    certid TEXT,
-                    device_label TEXT,
-                    revoked BOOLEAN DEFAULT FALSE);""")
-        self.execute("""CREATE TABLE IF NOT EXISTS vpnnodes (
-                    mac TEXT REFERENCES devices(mac),
-                    vpnmac TEXT REFERENCES vpnauth(vpnmac));""")
-        # migration v4 -> v5
-        if not self.column_exists("devices", "conf"):
-            self.execute("""ALTER TABLE devices
-                            ADD COLUMN conf JSONB DEFAULT '{}';""")
-            self.execute("""UPDATE devices d
-                            SET conf = conf || (
-                                    '{"lldp.explore":' || s.lldp_explore || ',' ||
-                                    ' "poe.reboots":' || s.poe_reboot_nodes || '}'
-                                )::jsonb
-                            FROM switches s
-                            WHERE s.mac = d.mac;""")
-            self.execute("""UPDATE devices d
-                            SET conf = conf || (
-                                    '{"snmp.version": ' ||
-                                        (s.snmp_conf::jsonb->'version')::text || ',' ||
-                                    ' "snmp.community": ' ||
-                                        (s.snmp_conf::jsonb->'community')::text || '}'
-                                )::jsonb
-                            FROM switches s
-                            WHERE s.mac = d.mac AND s.snmp_conf IS NOT NULL;""")
-            self.execute("""ALTER TABLE switches
-                            DROP COLUMN snmp_conf,
-                            DROP COLUMN lldp_explore,
-                            DROP COLUMN poe_reboot_nodes;""")
-            self.execute("""UPDATE devices d
-                            SET conf = conf || \
-                                    ('{"netsetup":' || n.netsetup || '}')::jsonb
-                            FROM nodes n
-                            WHERE n.mac = d.mac;""")
-            self.execute("""ALTER TABLE nodes
-                            DROP COLUMN netsetup;""")
-            # When migrating to v5, walt image storage management moves from
-            # docker to podman.
-            # In order to avoid duplicating many old and unused images to podman
-            # storage, we remove the reference of unused images from database.
-            self.execute("""DELETE FROM images
-                            WHERE fullname NOT IN (
-                                SELECT DISTINCT image FROM nodes
-                            );""")
-        # migration v7 -> v8
-        if not self.column_exists("logstreams", "mode"):
-            self.execute("""CREATE TYPE logmode AS ENUM ('line', 'chunk');""")
-            self.execute("""ALTER TABLE logstreams
-                            ADD COLUMN mode logmode DEFAULT 'line';""")
-        if self.column_exists("images", "ready"):
-            self.execute("""DELETE FROM images WHERE ready = false;""")
-            self.execute("""ALTER TABLE images DROP COLUMN ready;""")
-        # logstreams.sender_mac renamed to logstreams.issuer_mac
-        if self.column_exists("logstreams", "sender_mac"):
-            self.execute(
-                """ALTER TABLE logstreams RENAME COLUMN sender_mac TO issuer_mac;"""
-            )
-            # the following dropped index will be re-created below
-            self.execute("""DROP INDEX IF EXISTS logstreams_sender_mac_name_idx;""")
+        self.execute("""CREATE TABLE vpnauth (
+            vpnmac TEXT PRIMARY KEY,
+            pubkeycert TEXT,
+            certid TEXT,
+            device_label TEXT,
+            revoked BOOLEAN DEFAULT FALSE);""")
+        self.execute("""CREATE TABLE vpnnodes (
+            mac TEXT REFERENCES alldevices(mac),
+            vpnmac TEXT REFERENCES vpnauth(vpnmac));""")
+
+    def _migrate_v10_to_v11(self):
+        # migration v10 -> v11
+        # "devices" was a table, it must be renamed to "alldevices"
+        # and "devices" will become a view on "alldevices".
+        # The same applies to tables "logstreams" and "logs".
+        # Table "alldevices" may contain rows with 'type' = 'deleted'
+        # but those rows are excluded from the view.
+        # Views 'logs' and 'logstreams' also exclude logging data
+        # issued by devices with 'type' = 'deleted'.
+        # This allows to postpone de deletion of logging data
+        # to next daemon restart when forgetting a device or
+        # removing a virtual node.
+        for view in ("devices", "logstreams", "logs"):
+            tbl = f"all{view}"
+            self.execute(f"ALTER TABLE {view} RENAME TO {tbl}")
+        self._create_views()
+
+    def _init_new_db(self):
+        # first db initialization, create tables and views
+        self._create_tables()
+        self._create_views()
+
+    def prepare(self):
+        PostgresDB.prepare(self)  # parent method
+        # create the db schema
+        # tables
+        if not self.table_exists("alldevices"):
+            if self.table_exists("devices"):
+                self._migrate_v10_to_v11()
+            else:
+                self._init_new_db()
         # indexes
         self.execute("""CREATE INDEX IF NOT EXISTS logs_timestamp_idx
-                         ON logs ( timestamp );""")
+                         ON alllogs ( timestamp );""")
         self.execute("""CREATE INDEX IF NOT EXISTS logs_stream_id_idx
-                         ON logs ( stream_id );""")
+                         ON alllogs ( stream_id );""")
         self.execute("""CREATE INDEX IF NOT EXISTS logstreams_issuer_mac_name_idx
-                         ON logstreams ( issuer_mac, name );""")
+                         ON alllogstreams ( issuer_mac, name );""")
         self.execute("""CREATE INDEX IF NOT EXISTS devices_ip_idx
-                         ON devices ( ip );""")
+                         ON alldevices ( ip );""")
         self.execute("""CREATE INDEX IF NOT EXISTS checkpoints_username_idx
                          ON checkpoints ( username );""")
         # migration v8.2 -> v8.3
@@ -169,8 +162,27 @@ class ServerDB(PostgresDB):
             self.execute("""UPDATE topology SET last_seen = now();""")
         # fix server entry
         self.fix_server_device_entry()
+        # cleanup db about devices removed at previous run
+        self._cleanup_removed_devices()
         # commit
         self.commit()
+
+    def _cleanup_removed_devices(self):
+        # cleanup the database from devices previously deleted
+        # (i.e., "forgotten" physical devices and removed virtual nodes).
+        if len(self.select("deleted_macs")) > 0:
+            print("removing references to devices previously deleted...")
+            self.execute(
+                """
+                DELETE FROM alllogs l USING alllogstreams s, alldevices d
+                    WHERE s.issuer_mac = d.mac
+                      AND d.type = 'deleted'
+                      AND l.stream_id = s.id;
+                DELETE FROM alllogstreams s USING alldevices d
+                    WHERE s.issuer_mac = d.mac
+                      AND d.type = 'deleted';
+                DELETE FROM alldevices d WHERE d.type = 'deleted';
+            """)
 
     def fix_server_device_entry(self):
         server_ip = get_server_ip()
@@ -196,7 +208,7 @@ class ServerDB(PostgresDB):
         # ensure wrong entries were not left out by previous versions
         # of walt server code
         wrong_entries = self.execute(
-            """SELECT mac FROM devices
+            """SELECT mac FROM alldevices
                    WHERE mac != %s
                      AND (  ip = %s OR
                             type = 'server' OR
@@ -207,13 +219,13 @@ class ServerDB(PostgresDB):
         for entry in wrong_entries:
             self.execute(
                 """
-                DELETE FROM logs l USING logstreams s
+                DELETE FROM alllogs l USING logstreams s
                     WHERE s.issuer_mac = %s AND l.stream_id = s.id;
-                DELETE FROM logstreams s WHERE s.issuer_mac = %s;
-                DELETE FROM topology t WHERE t.mac1 = %s;
-                DELETE FROM topology t WHERE t.mac2 = %s;
-                DELETE FROM poeoff po WHERE po.mac = %s;
-                DELETE FROM devices d WHERE d.mac = %s;
+                DELETE FROM alllogstreams s WHERE s.issuer_mac = %s;
+                DELETE FROM alltopology t WHERE t.mac1 = %s;
+                DELETE FROM alltopology t WHERE t.mac2 = %s;
+                DELETE FROM allpoeoff po WHERE po.mac = %s;
+                DELETE FROM alldevices d WHERE d.mac = %s;
             """,
                 (entry.mac,) * 6,
             )
@@ -226,6 +238,18 @@ class ServerDB(PostgresDB):
             table_name=table_name,
             column_name=column_name,
         )
+
+    def table_exists(self, table_name):
+        return self.select_unique(
+            "pg_class",
+            relname=table_name,
+            relkind='r') is not None
+
+    def view_exists(self, view_name):
+        return self.select_unique(
+            "pg_class",
+            relname=view_name,
+            relkind='v') is not None
 
     def column_exists(self, table_name, column_name):
         return self._column_info(table_name, column_name) is not None
@@ -349,8 +373,7 @@ class ServerDB(PostgresDB):
         # note: We deliberately never remove the entries of
         # table vpnauth, in order to be able to revoke any key
         # in the future. But we update the device_label column.
-        self.execute(
-            """
+        sql = """
             UPDATE vpnauth va
             SET device_label = (
                 SELECT 'forgotten device "' ||
@@ -360,25 +383,27 @@ class ServerDB(PostgresDB):
             )
             FROM vpnnodes vn
             WHERE va.vpnmac = vn.vpnmac
-              AND vn.mac = %s
-            """, (mac, mac)
-        )
-
-        self.execute(
+              AND vn.mac = %s;
             """
-            DELETE FROM logs l USING logstreams s
-                WHERE s.issuer_mac = %s AND l.stream_id = s.id;
-            DELETE FROM logstreams s WHERE s.issuer_mac = %s;
+        # Removing all logging data issued by a device from the
+        # database can be a heavy operation and block the db process
+        # too long.
+        # Instead, we just update the device type to 'deleted'
+        # so that it is excluded from database views (devices,
+        # logstreams, and logs) and db cleanup will occur when the
+        # server daemon is restarted.
+        sql += "UPDATE alldevices SET type='deleted' WHERE mac = %s;"
+        # For other tables it should be fast so we can proceed
+        # right away.
+        sql += """
             DELETE FROM nodes n WHERE n.mac = %s;
             DELETE FROM switchports sp WHERE sp.mac = %s;
             DELETE FROM switches s WHERE s.mac = %s;
             DELETE FROM topology t WHERE t.mac1 = %s OR t.mac2 = %s;
             DELETE FROM poeoff po WHERE po.mac = %s;
             DELETE FROM vpnnodes vn WHERE vn.mac = %s;
-            DELETE FROM devices d WHERE d.mac = %s;
-        """,
-            (mac,) * 10,
-        )
+        """
+        self.execute(sql, (mac,) * sql.count("%s"))
         self.commit()
 
     def get_vpn_auth_keys(self):
