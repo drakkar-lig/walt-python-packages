@@ -22,7 +22,7 @@ Scripting features for image management are available at `walt.client.api.images
 Use API method `api.images.build()`:
 ```
 >>> from walt.client import api
->>> new_image = api.images.build('test-suite-image', "https://github.com/eduble/pc-x86-64-test-suite-mod")
+>>> new_image = api.images.build('test-suite-image', "https://github.com/eduble/pc-x86-64-test-suite-mod", force=True)
 ** Cloning the git repository at https://github.com/eduble/pc-x86-64-test-suite-mod
 Cloning into '.'...
 ** Verifying the repository
@@ -70,6 +70,19 @@ OK
 ```
 
 Instead of the URL of a git repository, one can also specify a local directory as the 2nd argument.
+Method `api.images.build()` also supports the following optional keyword-only
+parameters:
+* `sub_dir`: after cloning the remote repository, change to the specified
+  sub-directory. Thanks to this option, it is possible to manage the build
+  files of several images in the same source repository.
+* `with_node`: specify a node name or node object for executing the
+  `RUN --on-node` directives the Dockerfile contains.
+  See `walt help show image-build` for help on this topic.
+* `force`: proceed even if some check would normally forbid the process;
+  for instance, force the overwrite if the image name already exists.
+
+WALT will look for a Dockerfile named `Dockerfile` or `ContainerFile` at the
+root of the remote repository (or local directory).
 
 
 ## Cloning an image
