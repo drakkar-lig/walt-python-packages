@@ -129,7 +129,7 @@ class APIImagesSubModule(APIObjectBase):
         """Return images of your working set"""
         return get_images()
 
-    def build(self, image_name, dir_or_url, sub_dir="/",
+    def build(self, image_name, dir_or_url, *, sub_dir="/",
                     with_node=None, force=False):
         """Build an image using a Dockerfile"""
         mode = "dir" if Path(dir_or_url).exists() else "url"
@@ -140,7 +140,7 @@ class APIImagesSubModule(APIObjectBase):
                     "Failed: parameter dir_or_url must be a directory or a git"
                     " repository URL.\n"
                 )
-                return
+                return False
             info["src_dir"] = str(dir_or_url)
         else:
             info["url"] = dir_or_url
@@ -150,7 +150,7 @@ class APIImagesSubModule(APIObjectBase):
                     "Failed: parameter sub_dir is only supported when using"
                     " a repository URL.\n"
                 )
-                return
+                return False
             info["subdir"] = sub_dir.strip("/")
         if with_node is not None:
             with_node_name = with_node
@@ -164,34 +164,34 @@ class APIImagesSubModule(APIObjectBase):
                     "Failed: parameter 'with_node' is invalid.\n"
                     "It should be a valid node name or node API object."
                 )
-                return
+                return False
             node = list(nodes)[0]
             try:
                 node._check_owned_or_force(force)
             except Exception as e:
                 sys.stderr.write(f"Failed: {str(e)}.")
-                return
+                return False
             info["with_node_name"] = node.name
         with silent_server_link() as server:
             info = server.create_image_build_session(**info)
             if info is None:
-                return  # issue already reported
+                return False  # issue already reported
             image_overwrite = info.pop("image_overwrite")
             if image_overwrite and not force:
                 sys.stderr.write(
                     "Add parameter force=True if you want to proceed anyway.\n")
-                return
+                return False
             session_id = info["session_id"]
             def handle_sigint(signum, frame):
                 server.interrupt_image_build(session_id)
             with temporary_signal_handler(SIGINT, handle_sigint):
                 if mode == "dir":
                     if not run_transfer_for_image_build(**info):
-                        return
+                        return False
                 else:
                     if not server.run_image_build_from_url(session_id):
                         # failed
-                        return
+                        return False
             server.finalize_image_build_session(session_id)
         __info_cache__.refresh()  # detect the new image
         return APIImageFactory.create(image_name)

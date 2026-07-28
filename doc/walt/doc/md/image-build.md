@@ -12,13 +12,21 @@ This command has two modes of operation:
 * option `--from-url` allows to specify the URL of a git repository (e.g., on github)
 * option `--from-dir` allows to specify a local directory on the client.
 
-When using `--from-url`, one may use option `--sub-dir` to target a specific sub-directory
-of the git repository to be used for the build. Otherwise the root directory is used.
-In any case, a Dockerfile must be present in the target directory.
-The other files contained in the target directory may be used in ADD and COPY instructions.
+The command also supports the following options:
+* `--sub-dir <path>`: after cloning the remote repository, change to the
+  specified sub-directory. Thanks to this option, it is possible to manage
+  the build files of several images in the same source repository.
+* `--with-node <node-name>`: indicate which node will be used for executing
+  the `RUN --on-node` directives the Dockerfile contains.
+  The section below about "Diverting Dockerfile RUN commands to a real node"
+  provides more details about this feature.
 
 As a last command argument, one has to specify the name of the resulting image.
-If this name is already in use, the previous image will be overwritten (after a confirmation prompt).
+If this name is already in use, the previous image will be overwritten
+(after a confirmation prompt).
+
+Similarly to other container image building tools, the files contained in
+the target directory or repository may be used in ADD and COPY instructions.
 
 
 ## Diverting Dockerfile RUN commands to a real node
