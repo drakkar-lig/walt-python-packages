@@ -229,8 +229,8 @@ class WalTImageBuild(WalTApplication):
 
     ORDERING = 5
     USAGE = """\
-    walt image build --from-url <git-repo-url> [--sub-dir <path>] [--with-node <node>] <image-name>
-    walt image build --from-dir <local-directory> [--with-node <node>] <image-name>
+    walt image build --from-url <git-repo-url> [OPTIONS] <image-name>
+    walt image build --from-dir <local-directory> [OPTIONS] <image-name>
 
     See 'walt help show image-build' for more info.
     """
@@ -246,14 +246,14 @@ class WalTImageBuild(WalTApplication):
         str,
         argname="PATH",
         default=None,
-        help="""Sub-directory of git repo to use for the build""",
+        help="""Sub-directory of the git repo to use for the build""",
     )
     src_dir = cli.SwitchAttr(
         "--from-dir",
         str,
         argname="DIRECTORY",
         default=None,
-        help="""Local directory containing a Dockerfile""",
+        help="""Local directory to use for the build""",
     )
     with_node = cli.SwitchAttr(
         "--with-node",
@@ -270,14 +270,28 @@ class WalTImageBuild(WalTApplication):
         if self.src_url is None and self.src_dir is None:
             print("You must specify 1 of the options --from-url and --from-dir.")
             print("See 'walt help show image-build' for more info.")
-            return
-        if self.sub_dir is not None and self.src_url is None:
-            print("Option --sub-dir is only supported when combined with --from-url.")
-            return
+            return False
+        if self.src_url is not None and self.src_dir is not None:
+            print("Use either --from-url or --from-dir, not both.")
+            print("See 'walt help show image-build' for more info.")
+            return False
+        mode = "dir" if self.src_url is None else "url"
+        if mode == "dir" and self.sub_dir is not None:
+            print("Cannot use options --from-dir and --sub-dir "
+                  "at the same time.")
+            print("Tip: just adjust '--from-dir' value to include "
+                  "the sub-directory.")
+            return False
+        from pathlib import Path
+        if mode == "dir":
+            src_dir = Path(self.src_dir)
+            if not src_dir.is_dir():
+                print("Option --from-dir does not match a valid "
+                      "directory path.")
+                return False
         from signal import SIGINT
         from walt.client.transfer import run_transfer_for_image_build
         from walt.common.tools import temporary_signal_handler
-        mode = "dir" if self.src_url is None else "url"
         subdir = self.sub_dir.strip("/") if self.sub_dir is not None else ""
         with ClientToServerLink() as server:
             info = dict(mode=mode, image_name=image_name)
