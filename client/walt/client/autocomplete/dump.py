@@ -271,15 +271,10 @@ _walt_comp_get_possible() {
     # after previous loop, $token_type gives us the type of the expected token
     case "$token_type" in
         'value-of-option')
-            if [ "$valued_option_type" = "DIRECTORY" ]
-            then
-                possible=($(compgen -d -- "$partial_token"))
-            else
-                _walt_comp_run_helper "$valued_option_type"
-                if [ "$?" -ne 0 ]
-                then    # issue (it is important not to store this result in cache)
-                    return 1
-                fi
+            _walt_comp_run_helper "$valued_option_type"
+            if [ "$?" -ne 0 ]
+            then    # issue (it is important not to store this result in cache)
+                return 1
             fi
             ;;
         'positional')
