@@ -20,6 +20,7 @@ debug=0
 subdir=""
 caller_type=""
 has_with_node=0
+dockerfile=""
 
 while [ ! -z "$1" ]
 do
@@ -68,6 +69,10 @@ do
             # note: we actually ignore the name of the node here, because
             # the server has it recorded in its build session object.
             has_with_node=1
+            ;;
+        "--dockerfile")
+            dockerfile="$2"
+            shift 2
             ;;
         *)
             user="$1"
@@ -136,23 +141,48 @@ trap "on_exit" EXIT
 
 verify_repo() {
     echo "** Verifying the repository"
-    precision=""
-    if [ ! -f Dockerfile -a ! -f ContainerFile ]
+    local prefix path word=""
+    if [ ! -z "$subdir" ]
     then
-        if [ "$mode" = "url" ]
-        then
-            word="repository"
-            if [ ! -z "$subdir" ]
-            then
-                precision=" in sub-directory '$subdir'"
-            fi
-        else
-            word="directory"
-        fi
-        echo "FAILED: the specified $word does not contain a Dockerfile" \
-             "or ContainerFile${precision}."
-        exit 1
+        prefix="$subdir/"
+    else
+        prefix="./"
     fi
+    if [ ! -z "$dockerfile" ]
+    then
+        check_paths=("$dockerfile")
+        err_msg_paths="${prefix}$dockerfile"
+    else
+        check_paths=("Dockerfile" "ContainerFile")
+        err_msg_paths="${prefix}Dockerfile nor ${prefix}ContainerFile"
+    fi
+    for path in "${check_paths[@]}"
+    do
+        if [ -f "$path" ]
+        then
+            resolved_dockerfile="$path"
+            return  # ok
+        fi
+    done
+    # we did not find the dockerfile, let's format an error message
+    if [ "$mode" = "url" ]
+    then
+        word="repository"
+    else
+        word="directory"
+    fi
+    echo "FAILED: the specified $word does not contain a file at" \
+         "${err_msg_paths}."
+    if [ -z "$dockerfile" ]
+    then
+        if [ "$caller_type" = "client" ]
+        then
+            echo "You might want to use the '--file' option."
+        else
+            echo "You might want to use the 'dockerfile_path' parameter."
+        fi
+    fi
+    exit 1
 }
 
 clone_from_url() {
@@ -207,7 +237,7 @@ _replace_implicit_from_lines() {
     stages=" "
     # grep: remove comments
     # sed: handle "\" line continuation char
-    grep -v "^#" Dockerfile | \
+    grep -v "^#" "$resolved_dockerfile" | \
     sed -e :a -e '/\\$/N; s/\\\n//; ta' | \
     while read cmd args
     do
@@ -269,22 +299,22 @@ _replace_implicit_from_lines() {
         else
             echo "$cmd $args"
         fi
-    done > Dockerfile.__fixed__
+    done > "$resolved_dockerfile".__fixed__
     return 0  # OK
 }
 
 replace_implicit_from_lines() {
     if _replace_implicit_from_lines
     then
-        mv Dockerfile.__fixed__ Dockerfile
+        mv "$resolved_dockerfile".__fixed__ "$resolved_dockerfile"
     else
         # failed, leave Dockerfile unchanged
-        rm Dockerfile.__fixed__
+        rm "$resolved_dockerfile".__fixed__
     fi
 }
 
 dockerfile_has_run_on_node_directives() {
-    if grep "RUN.*--on-node" Dockerfile >/dev/null
+    if grep "RUN.*--on-node" "$resolved_dockerfile" >/dev/null
     then
         if [ "$has_with_node" -eq 0 ]
         then
@@ -303,24 +333,16 @@ dockerfile_has_run_on_node_directives() {
 }
 
 podman_build() {
-    # If it was named ContainerFile, rename it to Dockerfile
-    # to avoid further tests in next commands
-    if [ ! -f Dockerfile ]
-    then
-        mv ContainerFile Dockerfile
-    fi
-
     # Ensure FROM lines specify a user
     replace_implicit_from_lines
 
     # Compute options
     local runtime=$(which walt-image-build-runtime-wrapper)
-    local podman_opts=""
-    local podman_build_opts=$(echo \
-                     "--format docker" \
-                     "-f Dockerfile" \
-                     "--runtime=$runtime" \
-                     "-t docker.io/$image_fullname")
+    local podman_opts=()
+    local podman_build_opts=("--format" "docker" \
+                             "-f" "$resolved_dockerfile" \
+                             "--runtime=$runtime" \
+                             "-t" "docker.io/$image_fullname")
     mkdir $tmp_dir/runtime-workdir
     export RUNTIME_WORKDIR="$tmp_dir/runtime-workdir"
     export PYTHONUNBUFFERED=1
@@ -336,25 +358,25 @@ podman_build() {
         # note: buildah does not allow us to handle a custom
         # option name for our runtime, so we rename it to
         # something which does not look like an option.
-        sed -i -e "s/--on-node/__on_node__/g" Dockerfile
+        sed -i -e "s/--on-node/__on_node__/g" "$resolved_dockerfile"
         # we need to:
         # - let buildah mount the container rootfs with the option
         #   allowing NFS export
         # - prevent buildah to setup a separate network namespace
         #   for the container (it could cause cleanup issues with
         #   our runtime)
-        podman_opts+=" --storage-opt mountopt=nfs_export=on"
-        podman_build_opts+=" --network host"
+        podman_opts+=("--storage-opt" "mountopt=nfs_export=on")
+        podman_build_opts+=("--network" "host")
 
         echo "** Building the image"
         # note: we revert the tag "__on_node__" back to "--on-node"
         #       when "podman build" prints the RUN steps.
-        podman $podman_opts build $podman_build_opts . \
+        podman "${podman_opts[@]}" build "${podman_build_opts[@]}" . \
             > >(sed -u -e "s/__on_node__/--on-node/g")  \
             2> >(sed -u -e "s/__on_node__/--on-node/g" >&2)
     else
         echo "** Building the image"
-        podman $podman_opts build $podman_build_opts .
+        podman "${podman_opts[@]}" build "${podman_build_opts[@]}" .
     fi
 }
 

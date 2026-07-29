@@ -75,14 +75,14 @@ parameters:
 * `sub_dir`: after cloning the remote repository, change to the specified
   sub-directory. Thanks to this option, it is possible to manage the build
   files of several images in the same source repository.
+* `dockerfile_path`: specify the path of the Dockerfile to use. If not given,
+  WALT will look for a file named `Dockerfile` or `ContainerFile` at the root
+  of the remote repository (or local directory).
 * `with_node`: specify a node name or node object for executing the
   `RUN --on-node` directives the Dockerfile contains.
   See `walt help show image-build` for help on this topic.
 * `force`: proceed even if some check would normally forbid the process;
   for instance, force the overwrite if the image name already exists.
-
-WALT will look for a Dockerfile named `Dockerfile` or `ContainerFile` at the
-root of the remote repository (or local directory).
 
 
 ## Cloning an image

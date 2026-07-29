@@ -7,6 +7,7 @@ Usage:
     OPTIONS:
     --sub-dir <path>
     --with-node <node>
+    --file <dockerfile>
 
     See 'walt help show image-build' for more info.
     
@@ -14,6 +15,7 @@ Meta-switches:
     -h, --help                    Prints this help message and quits
 
 Switches:
+    --file DOCKERFILE:str         The Dockerfile or ContainerFile to use
     --from-dir DIRECTORY:str      Local directory to use for the build
     --from-url GIT_URL:str        Git repository URL containing a Dockerfile
     --sub-dir PATH:str            Sub-directory of the git repo to use for the build
