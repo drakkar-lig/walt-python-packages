@@ -12,6 +12,7 @@ test_walt_image_build() {
     cd $tmpdir
     git clone $IMAGE_BUILD_GIT_URL .
     walt image build --from-dir . \
+        --file Dockerfile \
         --with-node $(test_suite_node) $image_name_dir
     cd
 
