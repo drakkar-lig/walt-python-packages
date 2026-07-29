@@ -26,7 +26,8 @@ def test_walt_image_build():
         # build from dir
         do(f"git clone {IMAGE_BUILD_GIT_URL} {tmpdirname}")
         api.images.build(image_name_dir, tmpdir,
-                         with_node=node)
+                         with_node=node,
+                         dockerfile_path=(tmpdir / "Dockerfile"))
         images = api.images.get_images()
         images[image_name_dir].remove()
         # build from url
