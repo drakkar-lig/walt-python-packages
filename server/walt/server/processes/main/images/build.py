@@ -77,6 +77,7 @@ class ImageBuildSession(object):
     def run_image_build_from_url(self, requester, task):
         url, subdir = self.info["url"], self.info.get("subdir", "")
         with_node_name = self.info.get("with_node_name")
+        dockerfile = self.info.get("dockerfile")
         username = self.info["username"]
         options = f"--from-url {url} --session-id {self.session_id}"
         options += f" --caller {self._caller}"
@@ -84,6 +85,8 @@ class ImageBuildSession(object):
             options += f' --sub-dir "{subdir}"'
         if with_node_name is not None:
             options += f' --with-node "{with_node_name}"'
+        if dockerfile is not None:
+            options += f' --dockerfile "{dockerfile}"'
         cmd = (f"walt-image-build-helper {options} "
                f"{username} {self.image_fullname}")
         self._run_image_build_from_cmd(requester, task, cmd)
