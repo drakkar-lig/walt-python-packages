@@ -262,6 +262,13 @@ class WalTImageBuild(WalTApplication):
         default=None,
         help="""The node to use for 'RUN --on-node <cmd>' steps""",
     )
+    dockerfile = cli.SwitchAttr(
+        "--file",
+        str,
+        argname="DOCKERFILE",
+        default=None,
+        help="""The Dockerfile or ContainerFile to use""",
+    )
 
     # note: we should not use type IMAGE like most other subcommands
     # because IMAGE only selects existing image names whereas the user
@@ -289,6 +296,20 @@ class WalTImageBuild(WalTApplication):
                 print("Option --from-dir does not match a valid "
                       "directory path.")
                 return False
+            if self.dockerfile is not None:
+                dockerfile = Path(self.dockerfile)
+                if not dockerfile.is_file():
+                    print("Option --file resolves to invalid file path "
+                          f"'{dockerfile.absolute()}'.")
+                    return False
+                try:
+                    dockerfile = dockerfile.resolve().relative_to(
+                            src_dir.resolve())
+                    self.dockerfile = str(dockerfile)
+                except ValueError:
+                    print("The file specified by option --file must "
+                          "belong to the source directory.")
+                    return False
         from signal import SIGINT
         from walt.client.transfer import run_transfer_for_image_build
         from walt.common.tools import temporary_signal_handler
@@ -300,6 +321,8 @@ class WalTImageBuild(WalTApplication):
             else:
                 info["url"] = self.src_url
                 info["subdir"] = subdir
+            if self.dockerfile is not None:
+                info["dockerfile"] = self.dockerfile.strip("/")
             if self.with_node is not None:
                 if not check_nodes_ownership(server, self.with_node):
                     return
