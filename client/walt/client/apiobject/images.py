@@ -130,7 +130,7 @@ class APIImagesSubModule(APIObjectBase):
         return get_images()
 
     def build(self, image_name, dir_or_url, *, sub_dir="/",
-                    with_node=None, force=False):
+                    dockerfile_path=None, with_node=None, force=False):
         """Build an image using a Dockerfile"""
         mode = "dir" if Path(dir_or_url).exists() else "url"
         info = dict(mode=mode, image_name=image_name, force=force, caller="api")
@@ -141,9 +141,24 @@ class APIImagesSubModule(APIObjectBase):
                     " repository URL.\n"
                 )
                 return False
+            if dockerfile_path is not None:
+                dockerfile = Path(dockerfile_path)
+                if not dockerfile.is_file():
+                    print(f"dockerfile_path='{dockerfile.absolute()}' does not "
+                           "match a valid file path.")
+                    return False
+                try:
+                    dockerfile_path = dockerfile.resolve().relative_to(
+                            Path(dir_or_url).resolve())
+                except ValueError:
+                    print("The file specified by dockerfile_path must "
+                          "belong to the source directory.")
+                    return False
             info["src_dir"] = str(dir_or_url)
         else:
             info["url"] = dir_or_url
+        if dockerfile_path is not None:
+            info["dockerfile"] = str(dockerfile_path).strip("/")
         if sub_dir.strip("/") != "":
             if mode != "url":
                 sys.stderr.write(
