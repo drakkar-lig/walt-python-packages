@@ -16,6 +16,9 @@ The command also supports the following options:
 * `--sub-dir <path>`: after cloning the remote repository, change to the
   specified sub-directory. Thanks to this option, it is possible to manage
   the build files of several images in the same source repository.
+* `--file <path>`: specify the path of the Dockerfile to use. If not given,
+  WALT will look for a file named `Dockerfile` or `ContainerFile` at the root
+  of the remote repository (or local directory).
 * `--with-node <node-name>`: indicate which node will be used for executing
   the `RUN --on-node` directives the Dockerfile contains.
   The section below about "Diverting Dockerfile RUN commands to a real node"
