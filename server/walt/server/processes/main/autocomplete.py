@@ -351,6 +351,10 @@ def complete_directory(requester, partial_token):
             if item[-1] == '/')
 
 
+def complete_dockerfile(requester, partial_token):
+    return requester.filesystem.get_completions(partial_token)
+
+
 def wf_shell_autocomplete_switch(wf, task, server, requester, username, argv, **env):
     arg_type = argv[0]
     partial_token = argv[-1]
@@ -404,6 +408,8 @@ def wf_shell_autocomplete_switch(wf, task, server, requester, username, argv, **
             possible = complete_image_registry(partial_token)
         elif arg_type == "DIRECTORY":
             possible = complete_directory(requester, partial_token)
+        elif arg_type == "DOCKERFILE":
+            possible = complete_dockerfile(requester, partial_token)
         else:
             possible = ()
         wf.update_env(possible=possible)
