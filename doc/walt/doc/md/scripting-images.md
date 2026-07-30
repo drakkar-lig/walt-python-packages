@@ -78,6 +78,7 @@ parameters:
 * `dockerfile_path`: specify the path of the Dockerfile to use. If not given,
   WALT will look for a file named `Dockerfile` or `ContainerFile` at the root
   of the remote repository (or local directory).
+* `target_stage`: specify which stage of a multi-stage Dockerfile to build.
 * `with_node`: specify a node name or node object for executing the
   `RUN --on-node` directives the Dockerfile contains.
   See `walt help show image-build` for help on this topic.
