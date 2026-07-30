@@ -130,7 +130,8 @@ class APIImagesSubModule(APIObjectBase):
         return get_images()
 
     def build(self, image_name, dir_or_url, *, sub_dir="/",
-                    dockerfile_path=None, with_node=None, force=False):
+                    dockerfile_path=None, target_stage=None,
+                    with_node=None, force=False):
         """Build an image using a Dockerfile"""
         mode = "dir" if Path(dir_or_url).exists() else "url"
         info = dict(mode=mode, image_name=image_name, force=force, caller="api")
@@ -159,6 +160,8 @@ class APIImagesSubModule(APIObjectBase):
             info["url"] = dir_or_url
         if dockerfile_path is not None:
             info["dockerfile"] = str(dockerfile_path).strip("/")
+        if target_stage is not None:
+            info["target"] = target_stage
         if sub_dir.strip("/") != "":
             if mode != "url":
                 sys.stderr.write(
