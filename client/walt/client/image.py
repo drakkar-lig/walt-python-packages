@@ -269,6 +269,13 @@ class WalTImageBuild(WalTApplication):
         default=None,
         help="""The Dockerfile or ContainerFile to use""",
     )
+    target = cli.SwitchAttr(
+        "--target",
+        str,
+        argname="STAGE",
+        default=None,
+        help="""The Dockerfile stage to build""",
+    )
 
     # note: we should not use type IMAGE like most other subcommands
     # because IMAGE only selects existing image names whereas the user
@@ -323,6 +330,8 @@ class WalTImageBuild(WalTApplication):
                 info["subdir"] = subdir
             if self.dockerfile is not None:
                 info["dockerfile"] = self.dockerfile.strip("/")
+            if self.target is not None:
+                info["target"] = self.target
             if self.with_node is not None:
                 if not check_nodes_ownership(server, self.with_node):
                     return

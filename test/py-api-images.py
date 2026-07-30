@@ -32,7 +32,7 @@ def test_walt_image_build():
         images[image_name_dir].remove()
         # build from url
         api.images.build(image_name_url, IMAGE_BUILD_GIT_URL,
-                         with_node=node)
+                         with_node=node, target_stage="final")
         images = api.images.get_images()
         images[image_name_url].remove()
         # note: the validity of built images is already verified
