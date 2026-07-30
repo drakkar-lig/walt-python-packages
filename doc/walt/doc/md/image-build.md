@@ -19,6 +19,7 @@ The command also supports the following options:
 * `--file <path>`: specify the path of the Dockerfile to use. If not given,
   WALT will look for a file named `Dockerfile` or `ContainerFile` at the root
   of the remote repository (or local directory).
+* `--target <stage>`: specify which stage of a multi-stage Dockerfile to build.
 * `--with-node <node-name>`: indicate which node will be used for executing
   the `RUN --on-node` directives the Dockerfile contains.
   The section below about "Diverting Dockerfile RUN commands to a real node"
