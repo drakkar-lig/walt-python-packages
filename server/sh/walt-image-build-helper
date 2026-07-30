@@ -21,6 +21,7 @@ subdir=""
 caller_type=""
 has_with_node=0
 dockerfile=""
+target=""
 
 while [ ! -z "$1" ]
 do
@@ -72,6 +73,10 @@ do
             ;;
         "--dockerfile")
             dockerfile="$2"
+            shift 2
+            ;;
+        "--target")
+            target="$2"
             shift 2
             ;;
         *)
@@ -343,6 +348,10 @@ podman_build() {
                              "-f" "$resolved_dockerfile" \
                              "--runtime=$runtime" \
                              "-t" "docker.io/$image_fullname")
+    if [ ! -z "$target" ]
+    then
+        podman_build_opts+=("--target" "$target")
+    fi
     mkdir $tmp_dir/runtime-workdir
     export RUNTIME_WORKDIR="$tmp_dir/runtime-workdir"
     export PYTHONUNBUFFERED=1
