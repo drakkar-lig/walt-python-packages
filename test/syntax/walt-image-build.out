@@ -4,11 +4,6 @@ Usage:
     walt image build --from-url <git-repo-url> [OPTIONS] <image-name>
     walt image build --from-dir <local-directory> [OPTIONS] <image-name>
 
-    OPTIONS:
-    --sub-dir <path>
-    --with-node <node>
-    --file <dockerfile>
-
     See 'walt help show image-build' for more info.
     
 Meta-switches:
@@ -19,5 +14,6 @@ Switches:
     --from-dir DIRECTORY:str      Local directory to use for the build
     --from-url GIT_URL:str        Git repository URL containing a Dockerfile
     --sub-dir PATH:str            Sub-directory of the git repo to use for the build
+    --target STAGE:str            The Dockerfile stage to build
     --with-node NODE:str          The node to use for 'RUN --on-node <cmd>' steps
 

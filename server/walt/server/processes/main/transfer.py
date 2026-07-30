@@ -373,6 +373,9 @@ class ImageBuildTarReceiver(ParallelProcessSocketListener):
         dockerfile = params.get("dockerfile")
         if dockerfile is not None:
             other_options+=f' --dockerfile "{dockerfile}"'
+        target = params.get("target")
+        if target is not None:
+            other_options+=f' --target "{target}"'
         if "caller" not in params:
             params["caller"] = "client"
         params.update(other_options=other_options)
