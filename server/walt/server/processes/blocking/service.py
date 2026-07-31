@@ -151,9 +151,6 @@ class BlockingTasksContextService:
     def topology_tree(self, *args, **kwargs):
         return self.topology.tree(self.requester, self.server, self.db, *args, **kwargs)
 
-    def restore_poe_on_all_ports(self):
-        return self.topology.restore_poe_on_all_ports(self.server, self.db)
-
     def run_shell_cmd(self, *args, pipe_outstreams=False, **kwargs):
         if pipe_outstreams:
             kwargs.update(
