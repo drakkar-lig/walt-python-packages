@@ -179,3 +179,35 @@ class PoEManager:
     def _wf_after_rescan_restore_poe(self, wf, **env):
         self.server.nodes.powersave.handle_event("rescan_restore_poe")
         wf.next()
+
+    def lldp_neighbor_event(self, sw_mac, sw_port):
+        sw_port_off = self.server.db.execute(
+            """SELECT sw_d.ip as sw_ip,
+                      sw_d.mac as sw_mac,
+                      po.port as sw_port,
+                      sw_d.name as sw_name,
+                      sw_d.conf->'snmp.version' as sw_snmp_version,
+                      sw_d.conf->'snmp.community' as sw_snmp_community,
+                      NULL as poe_error
+               FROM devices sw_d, poeoff po
+               WHERE sw_d.mac = po.mac
+                 AND po.mac = %s
+                 AND po.port = %s""", (sw_mac, sw_port))
+        if len(sw_port_off) > 0:
+            # We got an lldp neighbor event on this port which is
+            # supposed to have its PoE disabled.
+            # This can occur in the following scenario:
+            # 1. a node n1 passed in "powersave" mode, so the PoE
+            #    was turned off.
+            # 2. node n1 was physically disconnected and replaced
+            #    by a node n2 which is externally powered (so it
+            #    does not need PoE to boot).
+            # We have to re-enable the PoE on the port so that
+            # if n1 is reconnected to the port, it can be powered.
+            print("LLDP neighbor detected on a switch port "
+                  "which had PoE disabled. Restoring PoE on this port.")
+            wf = Workflow([self._wf_multiple_sw_ports_set_poe,
+                           self._wf_end_of_restore_poe],
+                          sw_ports_info=sw_port_off,
+                          poe_status=True)
+            wf.run()

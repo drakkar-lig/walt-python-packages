@@ -365,14 +365,24 @@ class Server(object):
         # if lldp.explore=false, we cannot do more
         if sw_info.conf.get("lldp.explore", False) is False:
             return
-        # for the rest, call self.blocking
+        # most of the work is done by self.blocking,
+        # and we'll continue with self._after_report_lldp_neighbor()
+        cb = functools.partial(self._after_report_lldp_neighbor, sw_mac)
         self.blocking.report_lldp_neighbor(
+                cb,
                 sw_mac=sw_mac,
                 sw_ip=sw_info.ip,
                 sw_name=sw_info.name,
                 sw_port_lldp_label=sw_port_lldp_label,
                 node_mac=node_info.mac,
                 node_name=node_info.name)
+
+    def _after_report_lldp_neighbor(self, sw_mac, sw_port):
+        # we continue only if the blocking process could identify
+        # which sw_port the sw_port_lldp_label corresponds to...
+        if sw_port is not None:
+            # in some cases, the PoE subsystem needs to know this
+            self.poe.lldp_neighbor_event(sw_mac, sw_port)
 
     def forget_device(self, requester, task, device_name):
         device = self.devices.get_device_info(requester, device_name)
