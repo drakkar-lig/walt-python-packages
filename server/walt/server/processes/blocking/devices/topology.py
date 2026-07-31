@@ -889,7 +889,7 @@ class TopologyManager(object):
                 sw_mac != sw_mac_again):
                 # for some reason (communication failure?) node_mac was
                 # not detected by the scan, we cannot continue
-                return
+                return None
             # all fine, record the lldp label for next time
             save_lldp_label_for_port_number(sw_ip, sw_port, sw_port_lldp_label)
             updated = True
@@ -900,6 +900,7 @@ class TopologyManager(object):
             logline = (f"Node {node_name} is now connected "
                        f"on {sw_name} port {sw_port_name}")
             server.logs.platform_log("devices", line=logline)
+        return sw_port
 
     def get_tree_root_mac(self, server, db_topology):
         # the root of the tree should be the main switch.
