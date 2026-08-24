@@ -38,25 +38,27 @@ class PowersaveManager:
     def _check(self):
         off_macs = self.server.db.get_poe_off_macs()
         now = time()
-        it = self._poweroff_timeouts_per_mac.copy().items()
         # print(
         #     f"_check off_macs={off_macs}",
         #     f"poweroff_timeouts={self._poweroff_timeouts_per_mac}",
         # )
-        self._poweroff_timeouts_per_mac = {}
         macs_to_be_turned_off = []
-        for mac, ts in it:
-            if ts <= now:
-                if mac not in off_macs:
-                    macs_to_be_turned_off.append(mac)
-            else:
-                self._poweroff_timeouts_per_mac[mac] = ts
+        for mac, ts in self._poweroff_timeouts_per_mac.copy().items():
+            if mac in off_macs:
+                # we managed to turn the port off at previous step,
+                # so we no longer need this timeout entry
+                self._poweroff_timeouts_per_mac.pop(mac, None)
+            elif ts <= now:
+                # otherwise, we will try to set this PoE port off below
+                macs_to_be_turned_off.append(mac)
         if len(macs_to_be_turned_off) == 0:
             self._next_check = None  # notify concurrent code that this check is done
             self._plan_check()  # plan next one
         else:
-            to_be_turned_off = self.server.devices.get_multiple_device_info_for_macs(
-                    macs_to_be_turned_off, include_connectivity=True)
+            to_be_turned_off = (
+                    self.server.devices.get_multiple_device_info_for_macs(
+                        macs_to_be_turned_off, include_connectivity=True)
+            )
             wf = Workflow(
                 [
                     self._wf_toggle_power_on_nodes,
@@ -69,9 +71,22 @@ class PowersaveManager:
             )
             wf.run()
 
-    def _wf_recurse_check(self, wf, **env):
-        # resurse in case things would have changed during the SNMP communication delay
-        self._check()
+    def _wf_recurse_check(self, wf, nodes_ok, **env):
+        # Things may have changed during the SNMP communication delay,
+        # so we will recheck.
+        # However, in case of communication issue we would get an
+        # infinite recursion loop, so let's check we managed to power off
+        # at least one more node.
+        if len(nodes_ok) > 0:
+            self._check()
+        else:
+            # notify concurrent code this check is done, plan next one
+            self._next_check = None
+            self._plan_check()
+        wf.next()
+
+    def _wf_plan_check(self, wf, **env):
+        self._plan_check()
         wf.next()
 
     def _wf_toggle_power_on_nodes(
@@ -122,7 +137,6 @@ class PowersaveManager:
                 self.server.nodes.change_nodes_bootup_status(
                     nodes=nodes_ok, booted=False,
                     cause="powersave", method="PoE")
-        self._plan_check()
         wf.next()
 
     def _wf_forget_obsolete_topology_entry(self, wf, obsolete_mac_in_topology, **env):
@@ -173,21 +187,21 @@ class PowersaveManager:
         self._plan_check()
 
     def node_bootup_event(self, node):
+        # if the node is free, restart its powersave timeout
+        self._record_node_usage(node.mac)
         off_macs = self.server.db.get_poe_off_macs()
         if node.mac in off_macs:
             # bootup event for a node supposedly powered off!
             # this means it was moved somewhere else.
             # we must:
-            # 0. restart the powersave timeout
             # 1. re-enable PoE on the switch port
             # 2. forget the previous position in network topology table
-            self._reset_node_mac_poweroff_timeout(node.mac)
-            self._plan_check()
             wf = Workflow(
                 [
                     self._wf_toggle_power_on_nodes,
                     self._wf_after_toggle_power_on_nodes,
                     self._wf_forget_obsolete_topology_entry,
+                    self._wf_plan_check,
                 ],
                 requester=None,
                 poe_toggle_nodes=[node],
@@ -195,6 +209,8 @@ class PowersaveManager:
                 obsolete_mac_in_topology=node.mac,
             )
             wf.run()
+        else:
+            self._plan_check()
 
     def _wf_forget_node_mac(self, wf, obsolete_node_mac, **env):
         self._poweroff_timeouts_per_mac.pop(obsolete_node_mac, None)
@@ -224,6 +240,8 @@ class PowersaveManager:
             )
             wf.update_env(poe_toggle_nodes=off_nodes, poe_toggle_value=True)
             wf.insert_steps(
-                [self._wf_toggle_power_on_nodes, self._wf_after_toggle_power_on_nodes]
+                [self._wf_toggle_power_on_nodes,
+                 self._wf_after_toggle_power_on_nodes,
+                 self._wf_plan_check]
             )
         wf.next()
