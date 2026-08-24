@@ -318,6 +318,8 @@ class Pager:
                     # reposition the viewport to include the selected link
                     next_index = selected_link_line + repositioning_offset
             elif action == Pager.OPEN_SELECTED_LINK:
+                if selected_link_num >= len(topic_links):
+                    continue  # ignore the keypress
                 selected_topic, selected_link_line = topic_links[selected_link_num]
                 if (
                     self._scroll_index > selected_link_line
