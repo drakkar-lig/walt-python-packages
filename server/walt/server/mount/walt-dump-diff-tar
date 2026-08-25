@@ -4,44 +4,23 @@
 
 set -e
 
-# This script aims to dump an archive containing the files modified
-# after the bootup.
-# In order to achieve this, it inspects the r-w layer directory of the
-# RAM overlay all walt nodes mount on bootup. It checks which files
-# have a modification or inode change timestamp higher than the ones
-# of /run/uptime-ready, a file which was created at the time the OS
-# bootup was completed, and then dumps an archive of these files
-# on stdout.
-
-# The script seems much more complex than it should because of the limited
-# busybox features of "tar" and "find" applets. We want this script to run
-# whichever the OS...
-
-busybox_stat_has_tz_fields() {
-    f3="$(busybox stat -c "%y -" . | busybox awk '{print $3}')"
-    [ "$f3" != '-' ]
-}
-
-busybox_stat_uniform() {
-    if busybox_stat_has_tz_fields
-    then
-        busybox stat -c "%Y %y %Z %z %n" "$@"
-    else
-        busybox stat -c "%Y %y - %Z %z - %n" "$@"
-    fi
-}
-
-get_files_times() {
-    # notes: the two sed commands are for replacing only the
-    # first two occurences of "." with " "
-    # (because the file path at the end of the line may also contain
-    # dots and those should no be replaced).
-    busybox_stat_uniform "$@" | \
-        busybox sed 's/\./ /' | \
-        busybox sed 's/\./ /' | \
-        busybox awk '{print $1 "." $4 " " $6 "." $9 " " $0}' | \
-        busybox cut -d' ' -f 1,2,13-
-}
+# This script aims to dump an archive containing the files created,
+# modified or removed by the node compared to the OS image it booted,
+# and dumps a corresponding archive on its output.
+#
+# In order to achieve this, it dumps the upper layer directory of
+# the OS root filesystem union. The dump also includes the "/local"
+# directory if relevant (hybrid boot modes).
+#
+# The upper directory is supposed to represent whiteout files as
+# device files with major and minor number set to zero.
+# This corresponds to Linux's overlay filesystem technique.
+#
+# In a previous version, we were trying to ignore changes which
+# occured during the bootup, but that causes problems. For instance,
+# a postgresql instance may proceed with first boot initialization
+# during the bootup, and if transmitting only the database changes
+# performed after the bootup the resulting image will not work properly.
 
 clone_parent_dirs_of() {
     local src_pdir="$(busybox dirname "$1")"
@@ -79,18 +58,6 @@ filter_out_files() {
     busybox grep -v "README.nonlocal"
 }
 
-list_files_modified_after_os_bootup() {
-    set -- $(get_files_times /run/uptime-ready | awk '{print $1 " " $2}')
-    local mref="$1"
-    local cref="$2"
-    busybox find . '(' -type f -o -type l ')' -print0 | \
-        busybox xargs -0 "$0" "__get_files_times__" | \
-        busybox awk -v mref="$mref" -v cref="$cref" \
-            '$1>=mref || $2>=cref {print $0}' | \
-        busybox cut -d' ' -f 3- | \
-        filter_out_files
-}
-
 list_files() {
     busybox find "$1" '(' -type f -o -type l ')' | filter_out_files
 }
@@ -98,15 +65,6 @@ list_files() {
 dump_archive_network_v_boot() {
     tmp_dir="/run/walt/rootfs/tmp/d$$"
     cd /run/walt/rootfs/mnt/fs_rw
-    list_files_modified_after_os_bootup | hard_link_files
-    cd "${tmp_dir}"
-    busybox tar cf - .
-    rm -rf "${tmp_dir}"
-}
-
-dump_archive_network_p_boot() {
-    tmp_dir="/persist/network-persistent/tmp/d$$"
-    cd "/persist/network-persistent/${walt_image_id}/diff"
     list_files "." | hard_link_files
     cd "${tmp_dir}"
     busybox tar cf - .
@@ -116,9 +74,7 @@ dump_archive_network_p_boot() {
 dump_archive_hybrid_v_boot() {
     tmp_dir="/run/walt/rootfs/mnt/hm_part/walt_hybrid/tmp/d$$"
     cd "/run/walt/rootfs/mnt/hm_part/walt_hybrid/${walt_image_id}/diff"
-    list_files_modified_after_os_bootup | hard_link_files
-    # note: there is no reason why the OS would modify files in /local
-    # during bootup, so include all files there
+    list_files "." | hard_link_files
     cd "/run/walt/rootfs/mnt/hm_part/walt_hybrid/${walt_image_id}/"
     list_files "./local" | hard_link_files
     cd "${tmp_dir}"
@@ -127,10 +83,6 @@ dump_archive_hybrid_v_boot() {
 }
 
 dump_archive_hybrid_p_boot() {
-    # we cannot filter the "diff" on dates as we do for other boot modes
-    # (get only files modified after /run/uptime-ready) because files
-    # there are persisted across reboots, so they may be much older than
-    # /run/uptime-ready.
     tmp_dir="/run/walt/rootfs/mnt/hm_part/walt_hybrid/tmp/d$$"
     cd "/run/walt/rootfs/mnt/hm_part/walt_hybrid/${walt_image_id}/diff"
     list_files "." | hard_link_files
@@ -159,12 +111,5 @@ dump_archive() {
     fi
 }
 
-if [ "$1" = "__get_files_times__" ]
-then
-    shift
-    get_files_times "$@"
-    exit 0
-else
-    dump_archive
-    exit 0
-fi
+dump_archive
+exit 0
