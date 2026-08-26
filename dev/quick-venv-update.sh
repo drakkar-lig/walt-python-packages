@@ -14,7 +14,8 @@ file_changes="$({
 } | \
     grep -v "\.swp$" | \
     grep -v ":w$" | \
-    grep -v ":$"
+    grep -v ":$" | \
+    grep -v "version.py$"
 )"
 
 {
