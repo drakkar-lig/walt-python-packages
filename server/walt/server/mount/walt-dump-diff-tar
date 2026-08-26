@@ -1,6 +1,7 @@
 #!/bin/sh
 
 . /bin/walt-env
+. /bin/walt-script-base
 
 set -e
 
@@ -22,6 +23,46 @@ set -e
 # during the bootup, and if transmitting only the database changes
 # performed after the bootup the resulting image will not work properly.
 
+get_mode_bits() {
+    mode="$1"
+    charrange="$2"
+    echo "$mode" | \
+        busybox cut -c "$charrange" | \
+        busybox tr -d "-"
+}
+
+copy_mode_and_owner() {
+    src="$1"
+    dst="$2"
+    if busybox_has_applet stat
+    then
+        mode="$(busybox stat -c "%a" "$src")"
+        owner="$(busybox stat -c "%U:%G" "$src")"
+        busybox chmod "$mode" "$dst"
+        busybox chown "$owner" "$dst"
+    else
+        set -- $(busybox ls -ld "$src")
+        mode="$1"
+        owner="$3"
+        group="$4"
+        mode_user="$(get_mode_bits "$mode" "2-4")"
+        mode_group="$(get_mode_bits "$mode" "5-7")"
+        mode_other="$(get_mode_bits "$mode" "8-10")"
+        busybox chmod "u=${mode_user}" "$dst"
+        busybox chmod "g=${mode_group}" "$dst"
+        busybox chmod "o=${mode_other}" "$dst"
+        busybox chown "$owner:$group" "$dst"
+    fi
+}
+
+clone_dir() {
+    if [ ! -e "$2" ]
+    then
+        busybox mkdir "$2"
+        copy_mode_and_owner "$1" "$2"
+    fi
+}
+
 clone_parent_dirs_of() {
     local src_pdir="$(busybox dirname "$1")"
     local dst_pdir="${tmp_dir}/${src_pdir}"
@@ -29,11 +70,7 @@ clone_parent_dirs_of() {
     then
         # depth-first recursion
         clone_parent_dirs_of "$src_pdir"
-        mode="$(busybox stat -c "%a" "$src_pdir")"
-        owner="$(busybox stat -c "%U:%G" "$src_pdir")"
-        busybox mkdir "$dst_pdir"
-        busybox chmod "$mode" "$dst_pdir"
-        busybox chown "$owner" "$dst_pdir"
+        clone_dir "$src_pdir" "$dst_pdir"
     fi
 }
 
