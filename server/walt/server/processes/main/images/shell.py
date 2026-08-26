@@ -22,12 +22,16 @@ class ImageShellSession(object):
         self.image.task_label = task_label
         self.update_status = "init"
 
+    def record_session_id(self, session_id):
+        self.session_id = session_id
+
     def get_parameters(self):
-        # return an immutable object (a tuple, not a dict)
-        # otherwise we will cause other RPC calls
-        # default new name is to propose the same name
-        # (and override the image if user confirms)
-        return self.image.fullname, self.container_name, self.image.name
+        return dict(
+            session_id=self.session_id,
+            image_fullname=self.image.fullname,
+            container_name=self.container_name,
+            default_new_name=self.image.name,
+        )
 
     def save(
         self, blocking, requester, image_fullname, name_confirmed, cb_return_status
