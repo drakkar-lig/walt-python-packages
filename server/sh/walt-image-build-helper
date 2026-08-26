@@ -75,6 +75,14 @@ on_exit() {
     retcode="$?"
     # cleanup
     cd /tmp
+    if [ ! -z "$mount_point" ]
+    then
+        buildah umount "$cont_id" >/dev/null
+    fi
+    if [ ! -z "$cont_id" ]
+    then
+        buildah rm "$cont_id" >/dev/null
+    fi
     rm -rf "${tmp_dir}"
     # print failure message if relevant
     if [ "$retcode" -ne 0 ]
@@ -118,13 +126,25 @@ receive_tar() {
     tar x
 }
 
-prepare_build_dir_from_node_diff() {
+apply_node_diff() {
     echo "** Analysing changes made on this node"
-    $node_diff_dump_cmd > ar.tar
-    cat > Dockerfile << EOF
-FROM ${from_image_fullname}
-ADD ar.tar /
-EOF
+    # create container from image
+    cont_id=$(buildah from --pull=never "${from_image_fullname}")
+    # mount the container
+    mount_point=$(buildah mount "$cont_id")
+    # get the upperdir
+    upperdir=$(findmnt --json "$mount_point" | \
+                 grep -o "upperdir=[^,]*" | \
+                 sed -e "s/.*=//")
+    # populate the upperdir with the node dump
+    $node_diff_dump_cmd | {
+        cd "$upperdir"
+        tar x
+    }
+    echo "** Building the resulting image"
+    # commit the container as the new image
+    buildah commit --quiet "$cont_id" "docker.io/$image_fullname"
+    # note: we let on_exit() do the cleanup for us
 }
 
 # We will modify FROM directives of the Dockerfile which do not specify
@@ -269,8 +289,7 @@ then
     verify_image
 elif [ "$mode" = "node-diff" ]
 then
-    prepare_build_dir_from_node_diff
-    build_image --silent
+    apply_node_diff
     verify_image
 elif [ "$mode" = "stdin" ]
 then
