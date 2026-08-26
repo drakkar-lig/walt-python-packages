@@ -153,9 +153,10 @@ class WalTImageShell(WalTApplication):
             )
             if session_info is None:
                 return  # issue already reported
-            session_id, image_fullname, container_name, default_new_name = session_info
             from walt.client.interactive import run_image_shell_prompt
-            run_image_shell_prompt(image_fullname, container_name)
+            run_image_shell_prompt(session_info['image_fullname'],
+                                   session_info['container_name'])
+            default_new_name = session_info['default_new_name']
             try:
                 while True:
                     print("------")
@@ -169,7 +170,10 @@ class WalTImageShell(WalTApplication):
                         new_name = default_new_name
                         print("Selected: %s" % new_name)
                     res = server.image_shell_session_save(
-                        conf.walt.username, session_id, new_name, name_confirmed=False
+                        conf.walt.username,
+                        session_info['session_id'],
+                        new_name,
+                        name_confirmed=False,
                     )
                     if res == "NAME_NOT_OK":
                         continue
@@ -177,7 +181,7 @@ class WalTImageShell(WalTApplication):
                         if confirm(komsg=None):
                             server.image_shell_session_save(
                                 conf.walt.username,
-                                session_id,
+                                session_info['session_id'],
                                 new_name,
                                 name_confirmed=True,
                             )
@@ -386,8 +390,7 @@ class WalTImageCp(WalTApplication):
             )
             if session_info is None:
                 return  # issue already reported
-            session_id, image_fullname, container_name, default_new_name = session_info
-            info.update(image_fullname=image_fullname, container_name=container_name)
+            info.update(**session_info)
             from walt.client.transfer import run_transfer_with_image
             try:
                 run_transfer_with_image(**info)
@@ -395,7 +398,10 @@ class WalTImageCp(WalTApplication):
                     # client was sending -> image has been modified
                     # save the image under the same name
                     server.image_shell_session_save(
-                        conf.walt.username, session_id, default_new_name, True
+                        conf.walt.username,
+                        session_info["session_id"],
+                        session_info["default_new_name"],
+                        True,
                     )
             except (KeyboardInterrupt, EOFError):
                 print()

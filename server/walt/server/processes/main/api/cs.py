@@ -203,8 +203,8 @@ class CSAPI(APISession):
         if session is None:
             return None
         session_id = self.register_session_object(session)
-        fullname, container_name, default_new_name = session.get_parameters()
-        return session_id, fullname, container_name, default_new_name
+        session.record_session_id(session_id)
+        return session.get_parameters()
 
     @api_expose_method
     def image_shell_session_save(
