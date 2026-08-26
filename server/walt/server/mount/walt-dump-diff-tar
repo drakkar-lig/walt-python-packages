@@ -17,6 +17,13 @@ set -e
 # device files with major and minor number set to zero.
 # This corresponds to Linux's overlay filesystem technique.
 #
+# If a different filesystem is used instead, the image may provide a
+# specific tool at '<image-root>:/bin/walt-list-hidden-whiteouts' able
+# to dump a list of the relative paths of these whiteout files.
+# This script (walt-dump-diff-tar) will call walt-list-hidden-whiteouts
+# in order to add them in the generated archive dump with the expected
+# format (i.e., as device files).
+#
 # In a previous version, we were trying to ignore changes which
 # occured during the bootup, but that causes problems. For instance,
 # a postgresql instance may proceed with first boot initialization
@@ -105,10 +112,27 @@ list_files() {
     busybox find "$1" | filter_out_files
 }
 
+add_hidden_whiteouts() {
+    if [ -x "/bin/walt-list-hidden-whiteouts" ]
+    then
+        busybox mkdir -p "$tmp_dir"
+        # we create a single device file and then one hard link
+        # for each hidden whiteout walt-list-hidden-whiteouts reports.
+        busybox mknod "$tmp_dir/.whiteout" c 0 0
+        /bin/walt-list-hidden-whiteouts "$1" | while read wh
+        do
+            clone_parent_dirs_of "$wh"
+            busybox ln "$tmp_dir/.whiteout" "${tmp_dir}/$f"
+        done
+        busybox rm "$tmp_dir/.whiteout"
+    fi
+}
+
 dump_archive_network_v_boot() {
     tmp_dir="/run/walt/rootfs/tmp/d$$"
     cd /run/walt/rootfs/mnt/fs_rw
     list_files "." | hard_link_files
+    add_hidden_whiteouts "."
     cd "${tmp_dir}"
     busybox tar cf - .
     rm -rf "${tmp_dir}"
@@ -118,6 +142,7 @@ dump_archive_hybrid_v_boot() {
     tmp_dir="/run/walt/rootfs/mnt/hm_part/walt_hybrid/tmp/d$$"
     cd "/run/walt/rootfs/mnt/hm_part/walt_hybrid/${walt_image_id}/diff"
     list_files "." | hard_link_files
+    add_hidden_whiteouts "."
     cd "/run/walt/rootfs/mnt/hm_part/walt_hybrid/${walt_image_id}/"
     list_files "./local" | hard_link_files
     cd "${tmp_dir}"
@@ -129,6 +154,7 @@ dump_archive_hybrid_p_boot() {
     tmp_dir="/run/walt/rootfs/mnt/hm_part/walt_hybrid/tmp/d$$"
     cd "/run/walt/rootfs/mnt/hm_part/walt_hybrid/${walt_image_id}/diff"
     list_files "." | hard_link_files
+    add_hidden_whiteouts "."
     cd "/run/walt/rootfs/mnt/hm_part/walt_hybrid/${walt_image_id}/"
     list_files "./local" | hard_link_files
     cd "${tmp_dir}"
