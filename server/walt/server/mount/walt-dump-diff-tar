@@ -81,13 +81,19 @@ hard_link_files() {
         # clone parent directories of $f recursively in $tmp_dir,
         # preserving mode and ownership.
         clone_parent_dirs_of "$f"
-        # make a hardlink of $f in $tmp_dir.
-        busybox ln "$f" "${tmp_dir}/$f"
+        if [ -d "$f" ]
+        then
+            clone_dir "$f" "${tmp_dir}/$f"
+        else
+            # make a hardlink of $f in $tmp_dir.
+            busybox ln "$f" "${tmp_dir}/$f"
+        fi
     done
 }
 
 filter_out_files() {
     busybox grep -v "/log/" | \
+    busybox grep -v "/log$" | \
     busybox grep -v "\.lock$" | \
     busybox grep -v "machine-id" | \
     busybox grep -v "walt-env" | \
@@ -96,7 +102,7 @@ filter_out_files() {
 }
 
 list_files() {
-    busybox find "$1" '(' -type f -o -type l ')' | filter_out_files
+    busybox find "$1" | filter_out_files
 }
 
 dump_archive_network_v_boot() {
