@@ -119,8 +119,8 @@ def _wf_analyse_file_types(wf, task, requester, operand_types, info,
     wf.next()
 
 
-def get_manager(server, image_or_node_label):
-    if image_or_node_label == "node":
+def get_manager(server, image_or_node_cp_command):
+    if image_or_node_cp_command == "node":
         return server.nodes
     else:
         return server.images
@@ -146,7 +146,7 @@ def add_operand_type(operand_types, operand_type):
     return True  # valid
 
 
-def validate_cp(task, image_or_node_label, server, requester, src, dst):
+def validate_cp(task, image_or_node_cp_command, server, requester, src, dst):
     invalid = False
     operand_types = []
     filesystems = []
@@ -159,23 +159,25 @@ def validate_cp(task, image_or_node_label, server, requester, src, dst):
         parts = operand.rsplit(":", 1)  # caution, we may have <image>:<tag>:<path>
         if operand == "booted-image" or len(parts) > 1:
             if operand == "booted-image":
-                if image_or_node_label == "image":
+                if image_or_node_cp_command == "image":
                     requester.stderr.write(
                         "Keyword 'booted-image' is only available with command"
                         " 'walt node cp'.\n"
                     )
                     return RESPONSE_BAD
-                if not add_operand_type(operand_types, TYPE_BOOTED_IMAGE):
+                operand_type = TYPE_BOOTED_IMAGE
+                if not add_operand_type(operand_types, operand_type):
                     invalid = True
                     break
                 image_tag_or_node, path = "booted-image", paths[0]
                 manager = server.images
             else:
-                if not add_operand_type(operand_types, TYPE_IMAGE_OR_NODE):
+                operand_type = TYPE_IMAGE_OR_NODE
+                if not add_operand_type(operand_types, operand_type):
                     invalid = True
                     break
                 image_tag_or_node, path = parts
-                manager = get_manager(server, image_or_node_label)
+                manager = get_manager(server, image_or_node_cp_command)
             status = manager.validate_cp_entity(
                 requester, image_tag_or_node, index, **info
             )
@@ -186,7 +188,8 @@ def validate_cp(task, image_or_node_label, server, requester, src, dst):
             filesystem = manager.get_cp_entity_filesystem(
                 requester, image_tag_or_node, **info
             )
-            if image_or_node_label == "node":
+            if image_or_node_cp_command == "node" and \
+                    operand_type == TYPE_IMAGE_OR_NODE:
                 node_fs = filesystem
             info.update(
                 **manager.get_cp_entity_attrs(requester, image_tag_or_node, **info)
@@ -201,7 +204,7 @@ def validate_cp(task, image_or_node_label, server, requester, src, dst):
             paths.append(operand.rstrip("/"))
             info.update(client_operand_index=index)
     if invalid:
-        requester.stderr.write(HELP_INVALID[image_or_node_label])
+        requester.stderr.write(HELP_INVALID[image_or_node_cp_command])
         return RESPONSE_BAD
     src_fs, dst_fs = filesystems
     src_path, dst_path = [
