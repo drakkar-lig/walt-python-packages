@@ -31,14 +31,22 @@ if facing this kind of problem. See [`walt help show image-build`](image-build.m
 
 
 
-## Limits
+## Tips and limits
 
-Heavy operations on files (such as installation of OS packages) should preferably
-be done on the OS image, not directly on the node, because it will probably cause
-the node to **swap** or run out of RAM. See [`walt help show boot-modes`](boot-modes.md) for
-more info. If a part of your setup procedure uses `walt node save`, then it should
-preferably be called with an image where those preliminary steps have already been
-applied.
+Remember that nodes have their internet connectivity disabled by default.
+See [`walt help show device-netsetup`](device-netsetup.md) if you need to
+update this parameter while working on the node.
+
+When the node is configured with the default boot mode, `network-volatile`,
+it stores file changes in its RAM. As a result, heavy operations on files
+(such as installation of OS packages) will probably cause the node to **swap**
+or run out of RAM. One should run those heavy operations as a preliminary
+OS setup phase instead, using `walt image build` or `walt image shell`,
+and then let the node boot this prepared OS.
+If for whatever reason this is not possible, one could also configure the
+node with boot mode `network-persistent`, which stores file changes remotely
+on the server with no size limit.
+See [`walt help show boot-modes`](boot-modes.md) for more info.
 
 
 ## How the command works
@@ -49,13 +57,9 @@ Then the new image is built by applying this set of modifications on top of the
 current WalT image which was booted by the node.
 
 This command usually runs fast because WalT nodes store file modifications separately
-from the content of the initial image:
+from the content of the initial image. In the default boot mode for instance:
 * The content of the initial image is accessed as a read-only NFS mount.
 * The file modifications are stored in a RAM overlay.
 
-The main reason for storing the overlay in RAM is to ease reproducibity. It ensures
-the node discards all previous changes when it reboots, so it restarts with only the
-content of the WalT image, unchanged.
-To benefit from this "automatic cleanup", most WalT users reboot the nodes just before
-each experiment run.
-See [`walt help show boot-modes`](boot-modes.md) for more info about this overlay.
+Storing file modifications separately allows to implement a concept of
+"reproducibility at each reboot". See [`walt help show node-reboot`](node-reboot.md) for more info.
