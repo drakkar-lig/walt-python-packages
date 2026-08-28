@@ -26,23 +26,23 @@ Users usually acquire nodes from the set of "free" ones. However, a teammate may
 In this case, one can still acquire such nodes owned by someone else but a confirmation is required.
 
 
-## Relation with OS images
+## The OS image of free nodes
 
-A "free" node boots a special image owned by fictitious user `waltplatform`: `waltplatform/<node-model>-free`.
-This image is a clone of the default image for this node model.
+A "free" node boots a special OS image owned by fictitious user `waltplatform`: `waltplatform/<node-model>-free`.
+At first, this OS image is a clone of the default image for this node model.
+See [`walt help show default-images`](default-images.md) for more information about default OS images.
 
-When a new model of node is connected to the platform, the default image is downloaded [from the docker hub](https://hub.docker.com/u/waltplatform)
-in the background and associated to the new node.
-
-A node belonging to a given user is a node that boots one of the images of that user.
-Thus, `walt node acquire <node(s)>` is actually the same as:
+It is possible to let free nodes boot a different image by using the following command:
 ```
-$ walt image clone walt:waltplatform/<node-model>-default  # I get my own clone of the default image
-$ walt node boot <node(s)> <node-model>-default            # I associate nodes to my new image
+$ walt advanced set-free-nodes-image <node-model> <image-name>
 ```
-For clarity regarding images supporting several node models, `walt node acquire` sometimes gives a different name to the cloned image (not `<node-model>-default`).
-This name is obviously printed.
 
-New users automatically get a clone of the default images present on the platform, the first time they type `walt image show`.
-It is possible to update the default images present on the platform using `walt advanced update-default-images`. This command will look for newer
-default images on remote registries (docker hub and/or any private registry configured) and will also query the docker daemon running on the WALT server.
+Here `<image-name>` is either one of your images (as listed by `walt image show`), or the keyword `default`.
+Keyword `default` allows to revert the image of free nodes to their default image.
+Since a given image may be compatible with several node models, the `<node-model>` parameter allows to specify which one the command should apply to.
+
+Use this command with caution: it applies to all current and future free nodes of the specified model, whoever releases a node.
+
+For instance `walt advanced set-free-nodes-image rpi-3-b-plus rpi-standby` clones my image `rpi-standby` under the name `waltplatform/<node-model>-free` and reboots all free rpi 3B+ nodes. Moreover, from now on, each time a user releases a rpi 3B+ node it will also boot this image.
+
+The `set-free-nodes-image` command is often used to enable free nodes to host a discovery service—such as the detection of connected USB devices—so that users know which nodes to acquire for a specific experiment.

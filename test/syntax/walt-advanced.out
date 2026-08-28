@@ -17,5 +17,7 @@ Sub-commands:
     dump-bash-autocomplete  dump bash auto-completion code
     dump-zsh-autocomplete   dump zsh auto-completion code
     update-default-images   update default images (images of free nodes)
+    set-free-nodes-image    let free nodes boot the specified OS image
     fix-image-owner         fix the owner of images
     sql                     start a remote SQL prompt on the WalT server database
+
