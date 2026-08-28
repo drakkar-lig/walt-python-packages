@@ -1,3 +1,4 @@
+source $TESTS_DIR/includes/common.sh
 
 define_test "walt advanced sql" as {
     result="$(echo "\dt" | walt advanced sql | grep -c logstreams)"
@@ -30,3 +31,12 @@ define_test "walt advanced update-default-images" as {
     walt advanced update-default-images
 }
 
+define_test "walt advanced set-free-nodes-image" as {
+    walt image clone --force "$TEST_IMAGE_URL"
+    image_exists pc-x86-64-test-suite
+    walt advanced "set-free-nodes-image" \
+        pc-x86-64 pc-x86-64-test-suite
+    walt advanced "set-free-nodes-image" \
+        pc-x86-64 default
+    walt image remove "set-free-nodes-image"
+}
