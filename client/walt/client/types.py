@@ -105,3 +105,7 @@ class SWITCH(STRTYPE):
 
 class PORT_CONFIG_PARAM(STRTYPE):
     pass
+
+
+class NODE_MODEL(STRTYPE):
+    pass
