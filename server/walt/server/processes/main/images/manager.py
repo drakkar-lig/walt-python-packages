@@ -21,6 +21,8 @@ from walt.server.processes.main.images.squash import squash
 from walt.server.processes.main.images.store import NodeImageStore
 from walt.server.processes.main.images.tabular import get_user_tabular_data
 from walt.server.processes.main.images.webapi import web_api_list_images
+from walt.server.processes.main.nodes.reboot import wf_reboot_nodes
+from walt.server.tools import get_temp_image_fullname
 from walt.server.workflow import Workflow
 
 if typing.TYPE_CHECKING:
@@ -203,7 +205,6 @@ class NodeImageManager:
             return True
         return True
 
-
     def _analyse_set_image_keyword(self, requester, nodes, keyword):
         # get info about images clones, possibly clone them
         valid, _, image_per_node_name = (
@@ -235,6 +236,65 @@ class NodeImageManager:
         image_per_node_name = { node.name: image.fullname
                                 for node in nodes }
         return True, image_per_node_name
+
+    def set_free_nodes_image(self, requester, task,
+                             node_model, image_name_or_default):
+        # check if node_model is valid
+        nodes = self.server.devices.get_multiple_device_info(
+                    "d.type = 'node' and n.model = %s", (node_model,))
+        if len(nodes) == 0:
+            requester.stderr.write(
+                f"The node model specified '{node_model}' seems wrong.\n"
+                "There is no node of this model in the platform.\n")
+            return False
+        # compute src_image_fullname
+        if image_name_or_default == "default":
+            default_image = self.store.get_default_image_fullname(node_model)
+            src_image_fullname = default_image
+        else:
+            image_name = image_name_or_default
+            image = self.store.get_user_image_from_name(
+                        requester, image_name)
+            if image is None:
+                return False
+            if node_model not in image.get_node_models():
+                requester.stderr.write(
+                    f"Sorry '{node_model}' is not one of the node models "
+                    f"'{image_name}' declares compatibility with.\n"
+                )
+                return False
+            src_image_fullname = image.fullname
+        # associate the image to free nodes
+        free_image = self.store.get_free_image_fullname(node_model)
+        requester.stdout.write(
+            f"Tagging '{src_image_fullname}' as '{free_image}'.\n"
+        )
+        self.registry.tag(src_image_fullname, free_image)
+        # filter nodes to get only free ones
+        free_nodes = nodes[nodes.image == free_image]
+        # reexport image and reboot free nodes
+        task.set_async()
+        steps = [self.server.exports.wf_update]
+        env = dict(
+              requester=requester,
+              task=task,
+        )
+        if len(free_nodes) > 0:
+            steps += [wf_reboot_nodes]
+            env.update(
+                  reboot_cause="free image change",
+                  server=self.server,
+                  nodes=free_nodes,
+                  hard_only=False,
+            )
+        steps += [self._wf_end_set_free_nodes_image]
+        wf = Workflow(steps, **env)
+        wf.run()
+
+    def _wf_end_set_free_nodes_image(self, wf, task, **env):
+        # unblock the client
+        task.return_result(True)
+        wf.next()
 
     def _wf_end_of_set_image(self, wf, requester, task, message, **env):
         # inform requester

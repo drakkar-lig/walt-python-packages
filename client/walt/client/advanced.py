@@ -2,6 +2,7 @@ from plumbum import cli
 from walt.client.application import WalTApplication, WalTCategoryApplication
 from walt.client.interactive import run_sql_prompt
 from walt.client.link import ClientToServerLink
+from walt.client.types import IMAGE_OR_DEFAULT, NODE_MODEL
 
 
 class WalTAdvanced(WalTCategoryApplication):
@@ -108,3 +109,16 @@ class WalTUpdateDefaultImages(WalTApplication):
     def main(self):
         with ClientToServerLink() as server:
             return server.update_default_images()
+
+
+@WalTAdvanced.subcommand("set-free-nodes-image")
+class WalTSetFreeNodesImage(WalTApplication):
+    """let free nodes boot the specified OS image"""
+
+    ORDERING = 5.1
+
+    def main(self, node_model: NODE_MODEL,
+             image_name_or_default: IMAGE_OR_DEFAULT):
+        with ClientToServerLink() as server:
+            return server.set_free_nodes_image(node_model,
+                                               image_name_or_default)
