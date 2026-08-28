@@ -349,6 +349,12 @@ class CSAPI(APISession):
         )
 
     @api_expose_method
+    def set_free_nodes_image(self, context, node_model, image_name_or_default):
+        return context.images.set_free_nodes_image(
+                context.requester, context.task,
+                node_model, image_name_or_default)
+
+    @api_expose_method
     def get_client_install_wheels(self, context):
         # note: this CS entry is used for client auto-updates when a
         # version mismatch is detected between the client and the server.

@@ -52,6 +52,7 @@ Full table of Contents
 
    image-build
    image-cp
+   default-images
    image-spec-file
    image-from-scratch
 
