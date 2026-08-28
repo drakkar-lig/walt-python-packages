@@ -12,10 +12,10 @@ Help about WalT in general:
     walt help show
 
 Sub-commands:
+    update-hub-meta         update hub metadata (docker images pushed without walt)
+    rescan-hub-account      alias to 'update-hub-meta' subcommand
     dump-bash-autocomplete  dump bash auto-completion code
     dump-zsh-autocomplete   dump zsh auto-completion code
-    fix-image-owner         fix the owner of images
-    rescan-hub-account      alias to 'update-hub-meta' subcommand
-    sql                     start a remote SQL prompt on the WalT server database
     update-default-images   update default images (images of free nodes)
-    update-hub-meta         update hub metadata (docker images pushed without walt)
+    fix-image-owner         fix the owner of images
+    sql                     start a remote SQL prompt on the WalT server database
