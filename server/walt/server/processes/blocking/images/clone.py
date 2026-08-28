@@ -3,7 +3,6 @@ from __future__ import annotations
 import re
 import subprocess
 import typing
-import uuid
 
 from walt.common.formatting import format_sentence
 from walt.server.exttools import docker
@@ -12,7 +11,10 @@ from walt.server.processes.blocking.registries import (
     DockerHubClient,
     get_registry_client,
 )
-from walt.server.tools import get_clone_url_locations
+from walt.server.tools import (
+    get_clone_url_locations,
+    get_temp_image_fullname,
+)
 
 if typing.TYPE_CHECKING:
     from walt.server.processes.main.server import Server
@@ -99,10 +101,6 @@ def parse_clonable_link(requester, clonable_link):
             MSG_INVALID_CLONABLE_LINK.format(link_format=link_format)
         )
         return None, None, None
-
-
-def get_temp_image_fullname():
-    return "walt/clone-temp:" + str(uuid.uuid4()).split("-")[0]
 
 
 def exit_no_such_image(requester):

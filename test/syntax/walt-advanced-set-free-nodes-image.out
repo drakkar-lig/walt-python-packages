@@ -1,0 +1,8 @@
+let free nodes boot the specified OS image
+
+Usage:
+    walt advanced set-free-nodes-image [SWITCHES] model image_name_or_default
+
+Meta-switches:
+    -h, --help      Prints this help message and quits
+
