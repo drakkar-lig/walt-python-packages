@@ -7,6 +7,7 @@ import os
 import sdnotify
 import shelve
 import socket
+import uuid
 
 import sys
 from contextlib import contextmanager
@@ -730,3 +731,7 @@ def SSAPILink():
 def notify_systemd():
     if "NOTIFY_SOCKET" in os.environ:
         sdnotify.SystemdNotifier().notify("READY=1")
+
+
+def get_temp_image_fullname():
+    return "walt/clone-temp:" + str(uuid.uuid4()).split("-")[0]
