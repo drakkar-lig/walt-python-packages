@@ -14,6 +14,8 @@ class WalTAdvanced(WalTCategoryApplication):
 class WalTAdvancedSql(WalTApplication):
     """start a remote SQL prompt on the WalT server database"""
 
+    ORDERING = 7
+
     def main(self):
         run_sql_prompt()
 
@@ -22,6 +24,7 @@ class WalTAdvancedSql(WalTApplication):
 class WalTAdvancedFixImageOwner(WalTApplication):
     """fix the owner of images"""
 
+    ORDERING = 6
     _force = False  # default
 
     def main(self, other_user):
@@ -46,6 +49,7 @@ walt advanced fix-image-owner --yes-i-know-do-it-please %s
 class WalTUpdateHubMeta(WalTApplication):
     """update hub metadata (docker images pushed without walt)"""
 
+    ORDERING = 1
     _waltplatform_user = False  # default
 
     def main(self):
@@ -68,12 +72,14 @@ class WalTUpdateHubMeta(WalTApplication):
 class WalTRescanHubAccount(WalTUpdateHubMeta):
     """alias to 'update-hub-meta' subcommand"""
 
-    pass
+    ORDERING = 2
 
 
 @WalTAdvanced.subcommand("dump-bash-autocomplete")
 class WalTDumpBashAutocomplete(WalTApplication):
     """dump bash auto-completion code"""
+
+    ORDERING = 3
 
     def main(self):
         import walt.client.autocomplete.dump as dumper
@@ -85,6 +91,8 @@ class WalTDumpBashAutocomplete(WalTApplication):
 class WalTDumpZshAutocomplete(WalTApplication):
     """dump zsh auto-completion code"""
 
+    ORDERING = 4
+
     def main(self):
         import walt.client.autocomplete.dump as dumper
 
@@ -94,6 +102,8 @@ class WalTDumpZshAutocomplete(WalTApplication):
 @WalTAdvanced.subcommand("update-default-images")
 class WalTUpdateDefaultImages(WalTApplication):
     """update default images (images of free nodes)"""
+
+    ORDERING = 5
 
     def main(self):
         with ClientToServerLink() as server:
