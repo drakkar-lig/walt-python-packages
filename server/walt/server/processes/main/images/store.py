@@ -40,8 +40,32 @@ class NodeImageStore(object):
         self.filesystems = FilesystemsCache(server.ev_loop, FS_CMD_PATTERN)
         self.exports = server.exports
 
+    def _migrate(self):
+        # migration v10->v11:
+        # free nodes where booting waltplatform/<model>-default,
+        # they will now boot waltplatform/<model>-free.
+        db_wrong_fullnames_v10 = self.db.execute(
+                "select distinct image from nodes "
+                "where image like 'waltplatform/%-default:latest'"
+        )
+        if len(db_wrong_fullnames_v10) > 0:
+            for db_row_v10 in db_wrong_fullnames_v10:
+                fullname_v10 = db_row_v10.image
+                fullname_v11 = fullname_v10[:-len("-default:latest")]
+                fullname_v11 += "-free:latest"
+                self.registry.tag(fullname_v10, fullname_v11)
+                self.db.execute(
+                        "insert into images(fullname) values (%s)",
+                        (fullname_v11,)
+                )
+                self.db.execute(
+                        "update nodes set image=%s where image=%s",
+                        (fullname_v11, fullname_v10)
+                )
+
     def resync_from_db(self):
         "Synchronization function called on daemon startup."
+        self._migrate()
         db_images = set(db_img.fullname for db_img in self.db.select("images"))
         # gather local images
         podman_images = set(self.registry.get_images())
@@ -207,7 +231,7 @@ class NodeImageStore(object):
         if found is None and not self.user_has_images(username):
             # new user, try to make his life easier by cloning
             # default images of node models present on the platform.
-            self.get_clones_of_default_images(requester, "all-nodes")
+            self.get_clones_of_images(requester, "all-nodes", "default")
         found = self.images.get(fullname)
         if expected is True and found is None:
             requester.stderr.write(
@@ -239,6 +263,9 @@ class NodeImageStore(object):
     def get_default_image_fullname(self, node_model):
         return "waltplatform/%s-default:latest" % node_model
 
+    def get_free_image_fullname(self, node_model):
+        return "waltplatform/%s-free:latest" % node_model
+
     def image_is_used(self, fullname):
         return self.num_nodes_using_image(fullname) > 0
 
@@ -267,52 +294,76 @@ class NodeImageStore(object):
     def get_filesystem(self, image_id):
         return self.filesystems[image_id]
 
-    def get_clones_of_default_images(self, requester, node_set):
+    def get_clones_of_images(self, requester, node_set, keyword):
+        nodes = self.server.nodes.parse_node_set(requester,
+                                                 node_set, allow_empty=True)
+        if nodes is None:  # issue already reported
+            return False, False, {}
+        return self.get_clones_of_images_for_nodes(requester, nodes, keyword)
+
+    def get_clones_of_images_for_nodes(self, requester, nodes, keyword):
         # returns a tuple of 3 values:
         # 1: whether the request was valid
         # 2: whether some new images have been cloned by this procedure
         # 3: a dictionary indicating the defaut image name for each input node name
         username = requester.get_username()
         if not username:
-            return False, False, {}  # client already disconnected, give up
-        nodes = self.server.nodes.parse_node_set(requester, node_set, allow_empty=True)
-        if nodes is None:  # issue already reported
-            return False, False, {}
+            return False, False, {}, {}  # client already disconnected, give up
+        long_work = False
         real_update = False
         image_per_node_name = {}
-        while len(nodes) > 0:
-            model = nodes[0].model
-            default_image = self.get_default_image_fullname(model)
-            # if default image has a 'preferred-name' tag, clone it with that name
-            image_labels = self.images[default_image].labels
-            image_name = image_labels.get("walt.image.preferred-name")
-            if image_name is None:
-                # no 'preferred-name' tag, reuse name of default image
-                image_name = default_image.split("/")[1]
-            if ':' not in image_name:
-                image_name = image_name + ':latest'
-            image_node_models = self.images[default_image].node_models
-            image_node_models_desc = self.images[default_image].node_models_desc
-            ws_image = username + "/" + image_name
-            if ws_image not in self.images:
-                if real_update is False:
+        if keyword == "default":
+            while len(nodes) > 0:
+                model = nodes[0].model
+                default_image = self.get_default_image_fullname(model)
+                # if default image has a 'preferred-name' tag, clone it with that name
+                image_labels = self.images[default_image].labels
+                image_name = image_labels.get("walt.image.preferred-name")
+                if image_name is None:
+                    # no 'preferred-name' tag, reuse name of default image
+                    image_name = default_image.split("/")[1]
+                if ':' not in image_name:
+                    image_name = image_name + ':latest'
+                image_node_models = self.images[default_image].node_models
+                image_node_models_desc = self.images[default_image].node_models_desc
+                ws_image = username + "/" + image_name
+                if ws_image not in self.images:
                     real_update = True
-                    requester.set_busy_label("Cloning default images")
-                self.registry.tag(default_image, ws_image)
-                self.register_image(ws_image)
-                requester.stdout.write(
-                    f"Cloned {image_name}, a defaut image for"
-                    f" {image_node_models_desc}.\n"
-                )
-            # remove from remaining nodes those with a model declared in label
-            # "walt.node.models"
-            remaining_nodes = []
+                    if long_work is False:
+                        long_work = True
+                        requester.set_busy_label("Cloning default images")
+                    self.registry.tag(default_image, ws_image)
+                    self.register_image(ws_image)
+                    requester.stdout.write(
+                        f"Cloned {image_name}, a defaut image for"
+                        f" {image_node_models_desc}.\n"
+                    )
+                # remove from remaining nodes those with a model declared in label
+                # "walt.node.models"
+                remaining_nodes = []
+                for node in nodes:
+                    if node.model in image_node_models:
+                        image_per_node_name[node.name] = ws_image
+                    else:
+                        remaining_nodes.append(node)
+                nodes = remaining_nodes
+        elif keyword == "free":
+            # in some rare cases (i.e., only virtual nodes and someone
+            # released one of them), the image for free nodes of a model
+            # might not exist yet. In this case, clone the default image
+            # for this model.
+            for model in set(n.model for n in nodes):
+                free_image = self.get_free_image_fullname(model)
+                if free_image not in self.images:
+                    real_update = True
+                    default_image = self.get_default_image_fullname(model)
+                    self.registry.tag(default_image, free_image)
+                    self.register_image(free_image)
             for node in nodes:
-                if node.model in image_node_models:
-                    image_per_node_name[node.name] = image_name
-                else:
-                    remaining_nodes.append(node)
-            nodes = remaining_nodes
-        if real_update:
+                image_per_node_name[node.name] = (
+                        self.get_free_image_fullname(node.model))
+        else:
+            raise NotImplementedError
+        if long_work:
             requester.set_default_busy_label()
         return True, real_update, image_per_node_name
