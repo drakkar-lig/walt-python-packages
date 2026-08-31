@@ -120,23 +120,22 @@ class WalTNode(WalTCategoryApplication):
             run_node_console(server, node_info, realtime, replay_range)
 
     @staticmethod
-    def boot_nodes(node_set, image_name_or_default, cause,
+    def boot_nodes(node_set, image_name_or_keyword, cause,
                    ownership_mode="owned-or-free"):
         with ClientToServerLink() as server:
-            if server.has_image(image_name_or_default, True):
-                # the list of nodes keywords "my-nodes" or "free-nodes" refers to
-                # may be altered by the server.set_image() call, thus
-                # we have to get a real list of nodes before starting
-                # anything.
-                node_set = server.develop_node_set(node_set)
-                if node_set is None:
-                    return
-                if not check_nodes_ownership(server, node_set, ownership_mode):
-                    return
-                if not server.set_image(node_set, image_name_or_default):
-                    return
-                server.set_busy_label("Rebooting")
-                server.reboot_nodes(node_set, cause=cause)
+            # the list of nodes keywords "my-nodes" or "free-nodes" refers to
+            # may be altered by the server.set_image() call, thus
+            # we have to get a real list of nodes before starting
+            # anything.
+            node_set = server.develop_node_set(node_set)
+            if node_set is None:
+                return False
+            if not check_nodes_ownership(server, node_set, ownership_mode):
+                return False
+            if not server.set_image(node_set, image_name_or_keyword):
+                return False
+            server.set_busy_label("Rebooting")
+            server.reboot_nodes(node_set, cause=cause)
 
 
 @WalTNode.subcommand("show")
@@ -280,34 +279,8 @@ class WalTNodeAcquire(WalTApplication):
     ORDERING = 2
 
     def main(self, node_set: SET_OF_NODES):
-        with ClientToServerLink() as server:
-            if not check_nodes_ownership(
-                server, node_set, "free-or-not-owned"
-            ):
-                return False
-            # get info about images clones, possibly clone them
-            valid, _, image_per_node = server.get_clones_of_default_images(node_set)
-            if not valid:
-                return False  # already reported
-            # the list of nodes keywords "my-nodes" or "free-nodes" refers to
-            # may be altered by the server.set_image() call, thus
-            # we have to get a real list of nodes before starting
-            # anything.
-            node_set = server.develop_node_set(node_set)
-            # revert image_per_node dictionary
-            from collections import defaultdict
-
-            nodes_per_image = defaultdict(list)
-            for node, image in image_per_node.items():
-                nodes_per_image[image].append(node)
-            # associate nodes with appropriate image
-            for image, nodes in nodes_per_image.items():
-                image_node_set = ",".join(nodes)
-                if not server.set_image(image_node_set, image):
-                    return False  # unexpected issue
-            # reboot
-            server.set_busy_label("Rebooting")
-            server.reboot_nodes(node_set, cause="acquire")
+        return WalTNode.boot_nodes(node_set, "default", "acquire",
+                                   "free-or-not-owned")
 
 
 @WalTNode.subcommand("release")
@@ -317,7 +290,7 @@ class WalTNodeRelease(WalTApplication):
     ORDERING = 3
 
     def main(self, node_set: SET_OF_NODES):
-        return WalTNode.boot_nodes(node_set, "default", "release", "owned")
+        return WalTNode.boot_nodes(node_set, "free", "release", "owned")
 
 
 @WalTNode.subcommand("boot")
@@ -326,18 +299,17 @@ class WalTNodeBoot(WalTApplication):
 
     ORDERING = 4
 
-    def main(self, node_set: SET_OF_NODES, image_name_or_default: IMAGE_OR_DEFAULT):
-        return WalTNode.boot_nodes(node_set, image_name_or_default, "image change")
+    def main(self, node_set: SET_OF_NODES,
+             image_name_or_default: IMAGE_OR_DEFAULT):
+        return WalTNode.boot_nodes(node_set, image_name_or_default,
+                                   "image change")
 
 
 @WalTNode.subcommand("deploy")
-class WalTNodeDeploy(WalTApplication):
+class WalTNodeDeploy(WalTNodeBoot):
     """alias to 'boot' subcommand"""
 
     ORDERING = 19
-
-    def main(self, node_set: SET_OF_NODES, image_name_or_default: IMAGE_OR_DEFAULT):
-        return WalTNode.boot_nodes(node_set, image_name_or_default, "image change")
 
 
 @WalTNode.subcommand("ping")
