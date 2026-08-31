@@ -48,8 +48,8 @@ def get_user_tabular_data(
     if len(images_db_info) == 0 and may_clone_default_images:
         # new user, try to make his life easier by cloning
         # default images of node models present on the platform.
-        valid, updated, _ = images_store.get_clones_of_default_images(
-                                requester, "all-nodes")
+        valid, updated, _ = images_store.get_clones_of_images(
+                                requester, "all-nodes", "default")
         if valid and updated:
             # succeeded, restart the process to get info about new images
             return get_user_tabular_data(
