@@ -172,12 +172,6 @@ class Server(object):
             for reg_info in conf["registries"]
         )
 
-    def set_image(self, requester, task, node_set, image_tag):
-        nodes = self.nodes.parse_node_set(requester, node_set)
-        if nodes is None:
-            return False  # error already reported
-        return self.images.set_image(requester, task, nodes, image_tag)
-
     def cleanup_device_name(self, name):
         return re.sub("[^a-zA-Z0-9-]+", "-", name.split(".")[0])
 
@@ -224,12 +218,12 @@ class Server(object):
             status = "new"
         else:
             status = db_info.type
-        # New nodes whose default image is not available yet are first recorded
-        # as simple devices of unknown type because downloading their default
-        # image may fail. We allocate a temporary ip to them, different from
-        # their final ip, to handle the boot loop correctly until the OS
-        # is ready to be booted and the board restarts booting with a new
-        # DHCP DISCOVER request.
+        # New nodes for which a default OS image is not available yet are
+        # first recorded as simple devices of unknown type because
+        # downloading their default image may fail. We allocate a temporary
+        # ip to them, different from their final ip, to handle the boot loop
+        # correctly until the OS is ready to be booted and the board restarts
+        # booting with a new DHCP DISCOVER request.
         if status in ("new", "unknown") and type == "node":
             # prepare the task for workflow mode
             if task:
@@ -241,7 +235,7 @@ class Server(object):
             # check if we have everything ready to expose a default OS for
             # this new node, or if we should direct it to the boot-loop files
             # with a temporary IP address.
-            fullname = self.images.store.get_default_image_fullname(model)
+            fullname = self.images.store.get_free_image_fullname(model)
             os_ready = (fullname in self.images.store and
                         self.images.store[fullname].in_use())
             if os_ready:

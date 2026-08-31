@@ -244,8 +244,18 @@ class APIDefaultImage(APIClonableImage):
         self.model = model
         self.owner = "waltplatform"
         self.fullname = f"waltplatform/{model}-default:latest"
-        self.clonable_link = f"walt:{self.fullname}"
+        self.clonable_link = f"walt:waltplatform/{model}-default"
         self.__doc__ = f"default for {self.model} nodes"
+
+
+class APIFreeImage(APIClonableImage):
+    def __init__(self, model):
+        super().__init__()
+        self.model = model
+        self.owner = "waltplatform"
+        self.fullname = f"waltplatform/{model}-free:latest"
+        self.clonable_link = f"walt:waltplatform/{model}-free"
+        self.__doc__ = f"for free (released) {self.model} nodes"
 
 
 class APIOtherUserImage(APIClonableImage):
@@ -261,6 +271,9 @@ def get_image_object_from_fullname(image_fullname):
     if image_user == "waltplatform" and image_name.endswith("-default"):
         model = image_fullname[len("waltplatform/") : -len("-default:latest")]
         return APIDefaultImage(model)
+    elif image_user == "waltplatform" and image_name.endswith("-free"):
+        model = image_fullname[len("waltplatform/") : -len("-free:latest")]
+        return APIFreeImage(model)
     elif image_user != conf.walt.username:
         return APIOtherUserImage(image_fullname)
     else:

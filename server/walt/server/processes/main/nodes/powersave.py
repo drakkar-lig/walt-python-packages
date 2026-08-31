@@ -137,11 +137,11 @@ class PowersaveManager:
         wf.next()
 
     def restore(self):
-        # init attributes considering nodes having their default image
+        # detect free nodes by the fact they boot their '*-free' image
         for row in self.server.db.execute("""
                 SELECT mac
                 FROM nodes
-                WHERE image = 'waltplatform/' || model || '-default:latest';
+                WHERE image = 'waltplatform/' || model || '-free:latest';
                 """):
             self._mac_of_free_nodes.add(row.mac)
             self._reset_node_mac_poweroff_timeout(row.mac)
@@ -151,8 +151,8 @@ class PowersaveManager:
         ev_cb = getattr(self, f"{ev_name}_event")
         return ev_cb(*args, **kwargs)
 
-    def set_image_event(self, node_mac, is_default_image):
-        if is_default_image:
+    def set_image_event(self, node_mac, is_free_image):
+        if is_free_image:
             # new free node
             self._mac_of_free_nodes.add(node_mac)
             self._reset_node_mac_poweroff_timeout(node_mac)
