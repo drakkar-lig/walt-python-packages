@@ -30,6 +30,9 @@ Other users of this platform have created the following images:"""
 TITLE_IMAGE_SHOW_DEFAULT_IMAGES_PART = """\
 The following are default OS images:"""
 
+TITLE_IMAGE_SHOW_FREE_IMAGES_PART = """\
+The following are the OS images free nodes boot:"""
+
 MSG_NO_IMAGES = """\
 No OS images found!"""
 
@@ -40,9 +43,12 @@ def user_subsets(data, username):
     # default: images of "waltplatform" with "-default" suffix
     mask_d = (data.user == "waltplatform")
     mask_d &= np.char.endswith(data.name.astype(str), "-default")
+    # free nodes: images of "waltplatform" with "-free" suffix
+    mask_f = (data.user == "waltplatform")
+    mask_f &= np.char.endswith(data.name.astype(str), "-free")
     # other: other images
-    mask_o = ~mask_u & ~mask_d
-    return data[mask_u], data[mask_o], data[mask_d]
+    mask_o = ~mask_u & ~mask_d & ~mask_f
+    return data[mask_u], data[mask_o], data[mask_d], data[mask_f]
 
 
 def generate_table(title, footnote, records, *col_titles):
@@ -57,12 +63,12 @@ def get_tabular_data(db, images_store, requester,
     fields = ("user", "name", "in_use", "created",
               "compatibility:compact", "clonable_link")
     data = get_all_tabular_data(db, images_store, refresh, fields)
-    res_user, res_other, res_default = user_subsets(data, username)
+    res_user, res_other, res_default, res_free = user_subsets(data, username)
     if len(res_user) == 0 and may_clone_default_images:
         # new user, try to make his life easier by cloning
         # default images of node models present on the platform.
-        valid, updated, _ = images_store.get_clones_of_default_images(
-                                requester, "all-nodes")
+        valid, updated, _, _ = images_store.get_clones_of_images(
+                                requester, "all-nodes", "default")
         if valid and updated:
             # succeeded, restart the process to get info about new images
             return get_tabular_data(
@@ -73,7 +79,7 @@ def get_tabular_data(db, images_store, requester,
                 refresh=False,  # already done at 1st iteration
                 may_clone_default_images=False,
             )
-    return res_user, res_other, res_default
+    return res_user, res_other, res_default, res_free
 
 
 def show(requester, images_manager, username, show_all, names_only, refresh):
@@ -87,16 +93,16 @@ def show(requester, images_manager, username, show_all, names_only, refresh):
                                      username, refresh, fields)
         return (data.name + "\n").sum().rstrip("\n")
     # compute "user", "other" and "default" subsets
-    res_user, res_other, res_default = get_tabular_data(
+    res_user, res_other, res_default, res_free = get_tabular_data(
             db, images_store, requester, username, refresh)
     # format output
     result_msg = ""
     footnotes = ()
-    if not show_all and len(res_other) + len(res_default) > 0:
+    if not show_all and len(res_other) + len(res_default) + len(res_free) > 0:
         footnotes += (MSG_RERUN_WITH_ALL,)
     if len(res_user) == 0 and not show_all:
         footnotes = (MSG_WS_IS_EMPTY,) + footnotes
-    elif len(res_other) + len(res_user) + len(res_default) == 0:
+    elif len(res_other) + len(res_user) + len(res_default) + len(res_free) == 0:
         footnotes = (MSG_NO_IMAGES,) + footnotes
     else:
         if len(res_user) > 0:
@@ -132,7 +138,17 @@ def show(requester, images_manager, username, show_all, names_only, refresh):
                     "created",
                     "clonable_link",
                 )
-            if len(res_other) + len(res_default) > 0:
+            if len(res_free) > 0:
+                # display default images
+                result_msg += generate_table(
+                    TITLE_IMAGE_SHOW_FREE_IMAGES_PART,
+                    None,
+                    res_free,
+                    "name",
+                    "created",
+                    "clonable_link",
+                )
+            if len(res_other) + len(res_default) + len(res_free) > 0:
                 footnotes += (MSG_TIP_CLONE,)
             footnotes += (MSG_TIP_SEARCH,)
     return result_msg + "\n".join(footnotes)

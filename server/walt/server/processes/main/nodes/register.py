@@ -24,22 +24,26 @@ def wf_handle_registration_request(wf,
         return
     currently_registering_macs.add(mac)
     if image_fullname is None:
-        image_fullname = images.get_default_image_fullname(model)
-        wf.update_env(image_fullname = image_fullname)
+        image_fullname = images.get_free_image_fullname(model)
+        default_image_fullname = images.get_default_image_fullname(model)
+        wf.update_env(image_fullname = image_fullname,
+                      default_image_fullname = default_image_fullname)
     wf_steps = []
-    # if image is new
+    # if image is not available locally yet
     if image_fullname not in images:
-        # we have to pull an image, that will be long,
-        # let's inform the user (by logs)
-        db_info = db.select_unique("devices", mac=mac)
-        logs.platform_log("devices",
-            line=f"Device {db_info.name} is a walt node of type '{model}'.")
-        logs.platform_log("devices",
-            line=(
-                f"Trying to download a default image for '{model}' nodes:"
-                f" {image_fullname}..."
-            ))
-        wf_steps += [wf_pull_image, wf_after_pull_image]
+        if default_image_fullname not in images:
+            # we have to pull an image, that will be long,
+            # let's inform the user (by logs)
+            db_info = db.select_unique("devices", mac=mac)
+            logs.platform_log("devices",
+                line=f"Device {db_info.name} is a walt node of type '{model}'.")
+            logs.platform_log("devices",
+                line=(
+                    f"Trying to download a default image for '{model}' nodes:"
+                    f" {default_image_fullname}..."
+                ))
+            wf_steps += [wf_pull_image, wf_after_pull_image]
+        wf_steps += [wf_retag_default_image]
     wf_steps += [wf_update_device_in_db, wf_update_status_manager,
                  exports.wf_update, dhcpd.wf_update, named.wf_update,
                  wf_done_registering_mac]
@@ -47,15 +51,17 @@ def wf_handle_registration_request(wf,
     wf.next()
 
 
-def wf_pull_image(wf, blocking, image_fullname, **env):
-    blocking.pull_image(None, image_fullname, wf.next)
+def wf_pull_image(wf, blocking, default_image_fullname, **env):
+    blocking.pull_image(None, default_image_fullname, wf.next)
 
 
-def wf_after_pull_image(wf, pull_result, image_fullname, mac, model, logs, **env):
+def wf_after_pull_image(wf, pull_result, default_image_fullname,
+                        mac, model, logs, **env):
     if pull_result[0]:
         # ok
         logs.platform_log("devices",
-            line=f"Image {image_fullname} was downloaded successfully.")
+            line=(f"Image {default_image_fullname} "
+                  "was downloaded successfully."))
         wf.next()
     else:
         failure = pull_result[1]
@@ -69,6 +75,12 @@ def wf_after_pull_image(wf, pull_result, image_fullname, mac, model, logs, **env
             ), error=True)
         currently_registering_macs.discard(mac)
         wf.interrupt()
+
+
+def wf_retag_default_image(wf, images, registry,
+                           default_image_fullname, image_fullname, **env):
+    registry.tag(default_image_fullname, image_fullname)
+    images.register_image(image_fullname)
 
 
 def wf_update_device_in_db(wf, devices, mac, model,

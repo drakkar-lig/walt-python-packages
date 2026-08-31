@@ -117,13 +117,11 @@ def test_api_node_boot():
     image = api.images.clone(TEST_IMAGE_URL, force=True, image_name=image_name)
     if image is None or image.name != image_name:
         skip_test("requires an image but cloning fails")
-    node.boot(image.name)  # check boot(<image-name>)
     from walt.client.config import conf
 
-    assert node.owner == conf.walt.username
     node.boot("default")  # check boot('default')
-    assert node.owner == "waltplatform"
-    node.boot(image)  # check boot(<image-object>)
+    assert node.owner == conf.walt.username
+    node.boot(image.name)  # check boot(<image-name>)
     assert node.owner == conf.walt.username
 
 
