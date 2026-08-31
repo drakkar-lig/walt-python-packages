@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+from collections import defaultdict
 import typing
 
 from walt.common.formatting import format_sentence, format_sentence_about_nodes
-from walt.common.tools import format_image_fullname
+from walt.common.tools import format_image_fullname, parse_image_fullname
 from walt.server.processes.main.images.build import ImageBuildSession
 from walt.server.processes.main.images.clone import clone
 from walt.server.processes.main.images.duplicate import duplicate
@@ -26,9 +27,13 @@ if typing.TYPE_CHECKING:
     from walt.server.processes.main.server import Server
 
 # About terminology: See comment about it in image.py.
-MSG_BOOT_DEFAULT_IMAGE = """\
-%s will now boot its(their) default image \
-(other users will see it(they) is(are) 'free')."""
+MSG_BOOT_FREE_IMAGE = """\
+%s will now boot a special 'waltplatform/<model>-free' OS image;
+it(they) will appear as 'free' when users run "walt node show".\
+"""
+MSG_BOOT_USER_IMAGE = \
+    lambda image_name: f"%s will now boot your OS image '{image_name}'."
+
 MSG_INCOMPATIBLE_MODELS = """\
 Sorry, this image is not compatible with %s.
 """
@@ -96,7 +101,7 @@ class NodeImageManager:
             if self.store.warn_if_would_reboot_nodes(requester, image_fullname):
                 return "NEEDS_CONFIRM"
         else:
-            if not self.has_image(requester, image_name, False):
+            if not self.has_image(requester, image_name):
                 return "FAILED"
             if index == 1:  # image is destination, it will be modified
                 if self.store.warn_if_would_reboot_nodes(requester, image_name):
@@ -122,62 +127,42 @@ class NodeImageManager:
     def fix_owner(self, requester, other_user):
         fix_owner(self.store, self.registry, requester, other_user)
 
-    def has_image(self, requester, image_name, default_allowed, expected=True):
-        if default_allowed and image_name == "default":
-            return True
-        else:
-            image = self.store.get_user_image_from_name(
-                requester, image_name, expected=expected
-            )
-            return image is not None
+    def has_image(self, requester, image_name, expected=True):
+        image = self.store.get_user_image_from_name(
+            requester, image_name, expected=expected
+        )
+        return image is not None
 
-    def set_image(self, requester, task, nodes, image_name):
-        is_default = image_name == "default"
-        # if image tag is specified, let's get its fullname
-        if not is_default:
-            image = self.store.get_user_image_from_name(requester, image_name)
-            if image is None:
-                return False
-            image_compatible_models = set(image.get_node_models())
-            node_models = set(node.model for node in nodes)
-            incompatible_models = node_models - image_compatible_models
-            if len(incompatible_models) > 0:
-                sentence = format_sentence(
-                    MSG_INCOMPATIBLE_MODELS,
-                    incompatible_models,
-                    None,
-                    "node model",
-                    "node models",
-                )
-                requester.stderr.write(sentence)
-                return False
-            ignored_names = set(
-                node.name for node in nodes if node.image == image.fullname
-            )
-            image_fullnames = {
-                node.mac: image.fullname
-                for node in nodes
-                if node.name not in ignored_names
-            }
+    def set_image(self, requester, task, node_set, image_name_or_keyword):
+        nodes = self.server.nodes.parse_node_set(
+                requester, node_set, allow_empty=True)
+        if nodes is None:  # issue already reported
+            return False
+        if image_name_or_keyword in ("default", "free"):
+            valid, image_per_node_name = self._analyse_set_image_keyword(
+                    requester, nodes, image_name_or_keyword)
         else:
-            ignored_names = set()
-            image_fullnames = {}
-            # since the 'default' keyword was specified, we might have to associate
-            # different images depending on the type of each WalT node.
-            # we compute the appropriate image fullname here.
-            for node in nodes:
-                image_fullname = self.store.get_default_image_fullname(node.model)
-                if node.image == image_fullname:
-                    ignored_names.add(node.name)
-                else:
-                    image_fullnames[node.mac] = image_fullname
+            valid, image_per_node_name = self._analyse_set_image_name(
+                    requester, nodes, image_name_or_keyword)
+        if not valid:
+            return False
+        ignored_names = set()
+        image_fullnames = {}
+        for node in nodes:
+            image_fullname = image_per_node_name[node.name]
+            if node.image == image_fullname:
+                ignored_names.add(node.name)
+            else:
+                image_fullnames[node.mac] = image_fullname
+        is_free = (image_name_or_keyword == "free")
+        is_default = (image_name_or_keyword == "default")
         if len(ignored_names) > 0:
+            if is_free:
+                sentence = "%s: ignored, already free."
+            else:
+                sentence = "%s: ignored, already using this image."
             requester.stdout.write(
-                format_sentence_about_nodes(
-                    "%s: ignored, it(they) is(are) already using this image.",
-                    ignored_names,
-                )
-                + "\n"
+                format_sentence_about_nodes(sentence, ignored_names) + "\n"
             )
         ok_names = set(n.name for n in nodes if n.name not in ignored_names)
         if len(ok_names) > 0:
@@ -185,15 +170,26 @@ class NodeImageManager:
             for node_mac, image_fullname in image_fullnames.items():
                 self.db.update("nodes", "mac", mac=node_mac, image=image_fullname)
                 self.server.nodes.powersave.handle_event(
-                    "set_image", node_mac, is_default
+                    "set_image", node_mac, is_free
                 )
             self.db.commit()
-            # prepare message
+            # inform user
             if is_default:
-                sentence = MSG_BOOT_DEFAULT_IMAGE
+                node_names_per_image = defaultdict(list)
+                for node_name, fullname in image_per_node_name.items():
+                    if node_name not in ok_names:
+                        continue
+                    node_names_per_image[fullname].append(node_name)
+                for fullname, node_names in node_names_per_image.items():
+                    _, _, image_name = parse_image_fullname(image_fullname)
+                    sentence = MSG_BOOT_USER_IMAGE(image_name)
+                    message = format_sentence_about_nodes(sentence, node_names)
             else:
-                sentence = "%s will now boot " + image_name + "."
-            message = format_sentence_about_nodes(sentence, ok_names)
+                if is_free:
+                    sentence = MSG_BOOT_FREE_IMAGE
+                else:
+                    sentence = MSG_BOOT_USER_IMAGE(image_name_or_keyword)
+                message = format_sentence_about_nodes(sentence, ok_names)
             # turn the client task to async mode and run a workflow
             task.set_async()
             wf = Workflow([self.server.exports.wf_update,
@@ -204,8 +200,41 @@ class NodeImageManager:
                           task = task,
                           message = message)
             wf.run()
-            return
+            return True
         return True
+
+
+    def _analyse_set_image_keyword(self, requester, nodes, keyword):
+        # get info about images clones, possibly clone them
+        valid, _, image_per_node_name = (
+            self.store.get_clones_of_images_for_nodes(
+                requester,
+                nodes,
+                keyword,
+            )
+        )
+        return valid, image_per_node_name
+
+    def _analyse_set_image_name(self, requester, nodes, image_name):
+        image = self.store.get_user_image_from_name(requester, image_name)
+        if image is None:
+            return False, {}
+        image_compatible_models = set(image.get_node_models())
+        node_models = set(node.model for node in nodes)
+        incompatible_models = node_models - image_compatible_models
+        if len(incompatible_models) > 0:
+            sentence = format_sentence(
+                MSG_INCOMPATIBLE_MODELS,
+                incompatible_models,
+                None,
+                "node model",
+                "node models",
+            )
+            requester.stderr.write(sentence)
+            return False, {}
+        image_per_node_name = { node.name: image.fullname
+                                for node in nodes }
+        return True, image_per_node_name
 
     def _wf_end_of_set_image(self, wf, requester, task, message, **env):
         # inform requester
@@ -258,7 +287,7 @@ class NodeImageManager:
             info["with_node_mac"] = node.mac
         image_fullname = format_image_fullname(username, image_name)
         image_overwrite = self.has_image(
-                requester, image_name, False, expected=None)
+                requester, image_name, expected=None)
         if image_overwrite and info.get("force", False) is False:
             msg = self.store.get_image_overwrite_warning(image_fullname)
             requester.stderr.write(msg)

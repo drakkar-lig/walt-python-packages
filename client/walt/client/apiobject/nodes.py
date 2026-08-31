@@ -78,56 +78,30 @@ class Tools:
         return ",".join(node_names)
 
     @staticmethod
-    def get_image_name_or_default(image):
+    def get_image_name_or_keyword(image):
         if isinstance(image, str):
-            if image == "default":
-                image_name_or_default = "default"
+            if image in ("default", "free"):
+                image_name_or_keyword = image
             else:
                 image = get_image_from_name(image)
-                image_name_or_default = image.name
+                image_name_or_keyword = image.name
         else:
             if isinstance(image, APIImageBase):
-                image_name_or_default = image.name
+                image_name_or_keyword = image.name
             else:
                 raise ParameterNotAnImageException()
-        return image_name_or_default
+        return image_name_or_keyword
 
     @staticmethod
     def boot_image(nodes, image, cause, force=False, ownership_mode="owned-or-free"):
-        image_name_or_default = Tools.get_image_name_or_default(image)
+        image_name_or_keyword = Tools.get_image_name_or_keyword(image)
         for n in nodes:
             n._check_owned_or_force(force, ownership_mode)
         nodeset = Tools.get_comma_nodeset(nodes)
         with silent_server_link() as server:
-            if not server.set_image(nodeset, image_name_or_default):
+            if not server.set_image(nodeset, image_name_or_keyword):
                 return
             server.reboot_nodes(nodeset, cause=cause)
-        # update node info cache to print the correct image name
-        # on this node
-        __info_cache__.refresh()
-        # update image info cache (the <image>.in_use flag may have changed)
-        update_image_cache()
-
-    @staticmethod
-    def acquire(nodes, force=False):
-        for n in nodes:
-            n._check_owned_or_force(force=force, mode="free-or-not-owned")
-        nodeset = Tools.get_comma_nodeset(nodes)
-        with silent_server_link() as server:
-            _, _, image_per_node = server.get_clones_of_default_images(nodeset)
-            # revert image_per_node dictionary
-            from collections import defaultdict
-
-            nodes_per_image = defaultdict(list)
-            for node, image in image_per_node.items():
-                nodes_per_image[image].append(node)
-            # associate nodes with appropriate image
-            for image, nodes in nodes_per_image.items():
-                image_node_set = ",".join(nodes)
-                if not server.set_image(image_node_set, image):
-                    return  # unexpected issue
-            # reboot
-            server.reboot_nodes(nodeset, cause="acquire")
         # update node info cache to print the correct image name
         # on this node
         __info_cache__.refresh()
@@ -259,11 +233,14 @@ class APINodeFactory:
 
             def release(self):
                 """Release ownership of this node"""
-                Tools.boot_image((self,), "default", "release", ownership_mode="owned")
+                Tools.boot_image((self,), "free", "release",
+                                 ownership_mode="owned")
 
             def acquire(self, force=False):
                 """Get ownership of this node"""
-                Tools.acquire((self,), force=force)
+                Tools.boot_image((self,), "default", "acquire",
+                                 ownership_mode="free-or-not-owned",
+                                 force=force)
 
         api_node = APINode()
         APINodeFactory.__nodes_per_mac__[node_mac] = api_node

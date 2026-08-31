@@ -60,7 +60,7 @@ DEVICE_SET_QUERIES = {
             SELECT  d.mac as mac
             FROM devices d, nodes n
             WHERE   d.mac = n.mac
-            AND     n.image = ('waltplatform/' || n.model || '-default:latest')
+            AND     n.image = ('waltplatform/' || n.model || '-free:latest')
             ORDER BY name;""",
     "all-switches": """
             SELECT  d.mac as mac
