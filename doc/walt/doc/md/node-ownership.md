@@ -28,10 +28,9 @@ In this case, one can still acquire such nodes owned by someone else but a confi
 
 ## Relation with OS images
 
-A "free" node is a node that boots its default image.
-Thus, command `walt node release <node(s)>` is actually the same as `walt node boot <node(s)> default`.
+A "free" node boots a special image owned by fictitious user `waltplatform`: `waltplatform/<node-model>-free`.
+This image is a clone of the default image for this node model.
 
-The default image of a node is an image stored in walt internal repository with the name `waltplatform/<node-model>-default`.
 When a new model of node is connected to the platform, the default image is downloaded [from the docker hub](https://hub.docker.com/u/waltplatform)
 in the background and associated to the new node.
 
