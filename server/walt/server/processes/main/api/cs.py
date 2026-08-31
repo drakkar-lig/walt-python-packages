@@ -126,12 +126,8 @@ class CSAPI(APISession):
         return context.server.rename_device(context.requester, old_name, new_name)
 
     @api_expose_method
-    def has_image(self, context, image_name, default_allowed):
-        return context.images.has_image(context.requester, image_name, default_allowed)
-
-    @api_expose_method
     def set_image(self, context, node_set, image_name):
-        return context.server.set_image(context.requester, context.task,
+        return context.images.set_image(context.requester, context.task,
                                         node_set, image_name)
 
     @api_expose_method
@@ -350,12 +346,6 @@ class CSAPI(APISession):
         session = self.get_session_object(session_id)
         return session.finalize_image_build_session(
             context.requester, context.task
-        )
-
-    @api_expose_method
-    def get_clones_of_default_images(self, context, node_set):
-        return context.images.store.get_clones_of_default_images(
-            context.requester, node_set
         )
 
     @api_expose_method
