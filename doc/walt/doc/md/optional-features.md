@@ -48,8 +48,7 @@ Note: the switch must support PoE (obviously), SNMP (for remote requests) and LL
 ### PoE power saving
 
 When a PoE-powered WalT node has not been used for 2 hours, WalT will automatically disable PoE on the corresponding switch port to save power.
-The concept of "unused node" is rather conservative: only free nodes (cf. [`walt help show node-ownership`](node-ownership.md)) are considered unused after 2 hours.
-Thus, thanks to commands `walt node acquire` and `walt node release`, experiments involving unattended nodes and lasting more than 2 hours cannot be interrupted by this power saving feature.
+See [`walt help show powersave`](powersave.md) for more info.
 
 Again, this requires that the switch supports PoE (obviously), SNMP (for remote requests) and LLDP (to know on which port the node is connected).
 

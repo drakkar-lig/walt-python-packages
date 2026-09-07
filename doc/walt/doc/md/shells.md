@@ -115,7 +115,7 @@ nodes too) now provide this support.
 You can find these updated images by typing `walt image search waltplatform`
 and then use `walt image clone` to get them. You may also let the server
 update these default images in its internal repository by running
-`walt advanced update-default-images` (cf. [`walt help show node-ownership`](node-ownership.md)),
+`walt advanced update-default-images` (cf. [`walt help show default-images`](default-images.md)),
 so that new users, newly created virtual nodes and newly detected physical
 nodes get those updated OS images by default.
 
