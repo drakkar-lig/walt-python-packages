@@ -32,6 +32,7 @@ Full table of Contents
    :caption: Using nodes
 
    node-ownership
+   free-nodes
    node-reboot
    node-config
    node-console
@@ -141,6 +142,7 @@ Full table of Contents
 
    design-notes
    optional-features
+   powersave
    shell-completion
    compatibility
    new-node-support
