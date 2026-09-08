@@ -30,7 +30,8 @@ class APILogsSubModule(APIObjectBase):
             )
             if issuers is None:
                 raise Exception("""Invalid set of issuers.""")
-        return self._iterate(history_range, realtime, issuers, timeout)
+            WalTLogShowOrWait.record_nodes_continuous_use(server, issuers)
+            return self._iterate(history_range, realtime, issuers, timeout)
 
     def _iterate(self, history_range, realtime, issuers, timeout):
         from walt.client.apiobject.nodes import APINodeFactory
