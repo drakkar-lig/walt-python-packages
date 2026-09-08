@@ -58,14 +58,18 @@ def parse_settings_args(requester, settings_args):
     return all_settings
 
 
-def positive_int(s):
+def strictly_positive_int(s):
     try:
         i = int(s)
-        if i >= 0:
+        if i > 0:
             return True
     except ValueError:
         pass
     return False
+
+
+def positive_int(s):
+    return s == "0" or strictly_positive_int(s)
 
 
 class SettingsManager:
@@ -297,7 +301,7 @@ class SettingsManager:
     def correct_cpu_value(
         self, requester, device_infos, setting_name, setting_value, all_settings
     ):
-        if positive_int(setting_value):
+        if strictly_positive_int(setting_value):
             return True
         requester.stderr.write(
             "Failed: '%s' is not a valid value for cpu.cores (expecting for"
