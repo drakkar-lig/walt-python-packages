@@ -24,7 +24,7 @@ class PowersaveManager:
         self._poweroff_timeouts_per_mac.pop(node_mac, None)
         self._poweroff_timeouts_per_mac[node_mac] = time() + POWERSAVE_TIMEOUT
 
-    def _record_node_usage(self, node_mac):
+    def _record_node_use(self, node_mac):
         # if a free node is in use,
         # reset the timeout for 2 more hours before powersave
         if node_mac in self._mac_of_free_nodes:
@@ -174,7 +174,7 @@ class PowersaveManager:
 
     def reboot_event(self, nodes):
         for node in nodes:
-            self._record_node_usage(node.mac)
+            self._record_node_use(node.mac)
         self._plan_check()
 
     def rescan_restore_poe_event(self):
@@ -188,7 +188,7 @@ class PowersaveManager:
 
     def node_bootup_event(self, node):
         # if the node is free, restart its powersave timeout
-        self._record_node_usage(node.mac)
+        self._record_node_use(node.mac)
         off_macs = self.server.db.get_poe_off_macs()
         if node.mac in off_macs:
             # bootup event for a node supposedly powered off!
@@ -231,7 +231,7 @@ class PowersaveManager:
             if node.mac in off_macs:
                 off_nodes.append(node)
             # ensuring a node is woken up means we want to use it
-            self._record_node_usage(node.mac)
+            self._record_node_use(node.mac)
         if len(off_nodes) == 0:
             self._plan_check()
         else:
