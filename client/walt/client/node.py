@@ -73,7 +73,6 @@ class WalTNode(WalTCategoryApplication):
             if show_startup_msg:
                 assert several_nodes_allowed is False
                 startup_msg = server.get_node_cmd_startup_msg(node_set)
-        if nodes_ip:
             for ip in nodes_ip:
                 if startup_msg:
                     print("\x1b[1m" + startup_msg + "\x1b[0m")
