@@ -232,7 +232,14 @@ class WalTLogShowOrWait(WalTApplication):
                 yield record
                 if stop_test is not None and stop_test(**record):
                     break
-
+    @staticmethod
+    def record_nodes_continuous_use(server, issuers):
+        issuer_nodes = tuple(name for name in issuers if name != "walt-server")
+        if len(issuer_nodes) > 0:
+            # record start of continuous use
+            # (the end is implicitely detected when the connection to
+            # server API ends)
+            server.record_continuous_use(",".join(issuer_nodes))
 
 @WalTLog.subcommand("show")
 class WalTLogShow(WalTLogShowOrWait):
@@ -278,6 +285,7 @@ class WalTLogShow(WalTLogShowOrWait):
                     " See 'walt help show log-history' for more info."
                 )
                 return
+            WalTLogShowOrWait.record_nodes_continuous_use(server, issuers)
             history_range = range_analysis[1]
             # Note : if a regular expression is specified, we do not bother computing
             # the number of log records, because this computation may be quite expensive
@@ -294,15 +302,15 @@ class WalTLogShow(WalTLogShowOrWait):
                     )
                     if not confirm():
                         return
-        return WalTLogShowOrWait.start_display(
-            self.format_string,
-            history_range,
-            self.realtime,
-            issuers,
-            self.streams,
-            logline_regexp,
-            None,
-        )
+            return WalTLogShowOrWait.start_display(
+                self.format_string,
+                history_range,
+                self.realtime,
+                issuers,
+                self.streams,
+                logline_regexp,
+                None,
+            )
 
 
 @WalTLog.subcommand("add-checkpoint")
@@ -398,29 +406,30 @@ class WalTLogWait(WalTLogShowOrWait):
                 history_range = range_analysis[1]
             else:
                 history_range = None
-        if self.mode.upper() == "ANY":
-            # as soon as a logline matches, we stop
-            def stop_test(**record):
-                return True
+            WalTLogShowOrWait.record_nodes_continuous_use(server, issuers)
+            if self.mode.upper() == "ANY":
+                # as soon as a logline matches, we stop
+                def stop_test(**record):
+                    return True
 
-        else:
-            # we stop when all nodes have emitted a matching logline
-            missing_issuers = set(issuers)
+            else:
+                # we stop when all nodes have emitted a matching logline
+                missing_issuers = set(issuers)
 
-            def stop_test(**record):
-                missing_issuers.discard(record["issuer"])
-                if len(missing_issuers) == 0:
-                    return True  # yes, we should stop
-                else:
-                    return False  # no, we are not done yet
+                def stop_test(**record):
+                    missing_issuers.discard(record["issuer"])
+                    if len(missing_issuers) == 0:
+                        return True  # yes, we should stop
+                    else:
+                        return False  # no, we are not done yet
 
-        return WalTLogShowOrWait.start_display(
-            self.format_string,
-            history_range,
-            True,
-            issuers,
-            self.streams,
-            logline_regexp,
-            stop_test,
-            self.timeout,
-        )
+            return WalTLogShowOrWait.start_display(
+                self.format_string,
+                history_range,
+                True,
+                issuers,
+                self.streams,
+                logline_regexp,
+                stop_test,
+                self.timeout,
+            )
