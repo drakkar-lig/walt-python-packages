@@ -260,6 +260,7 @@ def run_node_console(server, node_info, realtime, replay_range):
         realtime=realtime,
         **logs_filter)
     # run loop
+    server.record_continuous_use(node_name)
     print(WELCOME_MESSAGE, end="")
     sys.stdout.flush()
     input()

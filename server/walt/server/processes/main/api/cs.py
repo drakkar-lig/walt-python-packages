@@ -119,7 +119,13 @@ class CSAPI(APISession):
 
     @api_expose_method
     def wait_for_nodes(self, context, node_set):
-        return context.nodes.wait(context.requester, context.task, node_set)
+        return context.nodes.wait_for_nodes(
+                self, context.requester, context.task, node_set)
+
+    @api_expose_method
+    def record_continuous_use(self, context, node_set):
+        return context.nodes.record_continuous_use(
+                self, context.requester, node_set)
 
     @api_expose_method
     def rename(self, context, old_name, new_name):

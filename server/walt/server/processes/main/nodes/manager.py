@@ -23,6 +23,7 @@ from walt.server.processes.main.nodes.register import (
         wf_handle_registration_request
 )
 from walt.server.processes.main.nodes.show import show
+from walt.server.processes.main.nodes.use import ContinuousUseSession
 from walt.server.processes.main.nodes.webapi import web_api_list_nodes
 from walt.server.processes.main.nodes.netservice import (
         NodeNetServiceManager,
@@ -413,10 +414,7 @@ class NodesManager(object):
                 not_owned += (n.name,)
         return owned, free, not_owned, not_nodes
 
-    def wait(self, requester, task, node_set):
-        nodes = self.parse_node_set(requester, node_set)
-        if nodes is None:
-            return False  # unblock the client
+    def wait(self, requester, task, nodes):
         task.set_async()
         wf = Workflow(
             [self.wf_wait,
@@ -516,3 +514,19 @@ class NodesManager(object):
         else:
             msg = MSG_NODE_CMD_PERSISTENT
         return msg.replace("{boot_mode}", boot_mode)
+
+    def wait_for_nodes(self, api, requester, task, node_set):
+        nodes = self.parse_node_set(requester, node_set)
+        if nodes is None:
+            return False  # issue already reported
+        session = ContinuousUseSession(self.powersave, nodes)
+        api.register_session_object(session)
+        return self.wait(requester, task, nodes)
+
+    def record_continuous_use(self, api, requester, node_set):
+        nodes = self.parse_node_set(requester, node_set)
+        if nodes is None:
+            return False  # issue already reported
+        session = ContinuousUseSession(self.powersave, nodes)
+        api.register_session_object(session)
+        return True
