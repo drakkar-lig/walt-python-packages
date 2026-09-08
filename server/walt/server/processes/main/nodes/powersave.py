@@ -4,7 +4,8 @@ from time import time
 from walt.common.formatting import format_sentence_about_nodes
 from walt.server.workflow import Workflow
 
-POWERSAVE_TIMEOUT = 2 * 60 * 60  # 2 hours
+#POWERSAVE_TIMEOUT = 2 * 60 * 60  # 2 hours
+POWERSAVE_TIMEOUT = 3 * 60
 
 
 class PowersaveManager:
@@ -13,10 +14,29 @@ class PowersaveManager:
         self._poweroff_timeouts_per_mac = {}
         self._mac_of_free_nodes = set()
         self._next_check = None
+        self._continuous_uses_per_mac = {}
         # note: for the list of devices powered off at a given time
         # we rather rely on the database.
 
+    def record_start_use(self, node_mac):
+        """Record start of a countinuous use of this node (e.g. shell)"""
+        self._poweroff_timeouts_per_mac.pop(node_mac, None)
+        self._continuous_uses_per_mac[node_mac] = (
+            self._continuous_uses_per_mac.get(node_mac, 0) +1
+        )
+
+    def record_end_use(self, node_mac):
+        """Record end of a countinuous use of this node (e.g. shell)"""
+        self._continuous_uses_per_mac[node_mac] -= 1
+        if self._continuous_uses_per_mac[node_mac] == 0:
+            del self._continuous_uses_per_mac[node_mac]
+            if node_mac in self._mac_of_free_nodes:
+                self._reset_node_mac_poweroff_timeout(node_mac)
+                self._plan_check()
+
     def _reset_node_mac_poweroff_timeout(self, node_mac):
+        if node_mac in self._continuous_uses_per_mac:
+            return
         # we take care preserving the order of dictionary entries,
         # the first one having the earliest timeout, etc.
         # so here we cannot just update the entry, we remove it
@@ -214,6 +234,7 @@ class PowersaveManager:
 
     def _wf_forget_node_mac(self, wf, obsolete_node_mac, **env):
         self._poweroff_timeouts_per_mac.pop(obsolete_node_mac, None)
+        self._continuous_uses_per_mac.pop(obsolete_node_mac, None)
         wf.next()
 
     def wf_forget_device(self, wf, requester, device, **env):
