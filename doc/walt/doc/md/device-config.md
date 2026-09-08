@@ -44,8 +44,8 @@ Here is the set of settings currently allowed:
 | networks       | e.g. 'walt-net,ext-net' | virtual nodes       | (5)   |
 | poe.reboots    | true or false           | switches            | (1)   |
 | ram            | e.g. '384M' or '1G'     | virtual nodes       |       |
-| snmp.version   | 1 or 2                  | switches            | (1)   |
 | snmp.community | e.g. 'private'          | switches            | (1)   |
+| snmp.version   | 1 or 2                  | switches            | (1)   |
 | type           | 'switch'                | 'unknown' devices   | (2)   |
 
 Notes:
