@@ -68,7 +68,9 @@ shape_traffic_bandwidth() {
 }
 
 # ensure vhost-net kernel module is loaded
-modprobe vhost_net
+# (We avoid running modprobe unconditionally because it may
+# trigger alerts if an EDR is installed on the OS.)
+lsmod | grep vhost_net >/dev/null || modprobe vhost_net
 
 # apply network restrictions if any, symmetrically on both directions:
 # * host-to-guest traffic is shaped directly on the tap device (egress)
