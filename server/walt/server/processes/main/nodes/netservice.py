@@ -315,13 +315,9 @@ class NodeNetServiceManager(object):
             dt = [("ip", "O"), ("booted", "?"), ("details", "O")]
             booted_evts = np.array(self._booted_events, dtype=dt)
             self._booted_events = []    # reset
-            # if we have several events for one ip, consider the last one only
-            if booted_evts.size > 1:
-                booted_evts = np.flip(booted_evts)
-                _, uniq_idx = np.unique(booted_evts["ip"], return_index=True)
-                booted_evts = booted_evts[uniq_idx]
             # analyse content of details
-            dt = [("ip", "O"), ("booted", "?"), ("cause", "O"), ("ll_details", "O")]
+            dt = [("ip", "O"), ("booted", "?"),
+                  ("cause", "O"), ("ll_details", "O")]
             processed_evts = np.empty(booted_evts.size, dtype=dt)
             processed_evts[["ip", "booted"]] = booted_evts[["ip", "booted"]]
             # extract cause
@@ -337,60 +333,100 @@ class NodeNetServiceManager(object):
                         VALUES {values_holder}
                     )
                     SELECT d.name, d.mac, e.booted, e.cause, e.ll_details,
-                           NULL as old_booted, NULL as logline
+                           NULL as logline, 0 as priority
                     FROM events e
                     LEFT JOIN devices d ON e.ip = d.ip
                     WHERE d.ip IS NOT NULL"""
-            evts = self._db.execute(sql, processed_evts.tolist())
-            evts.old_booted = np.isin(evts.mac, list(self._booted_macs))
-            # ignore events not changing current status
-            mask = np.bitwise_xor(evts.booted, evts.old_booted).astype(bool)
-            if mask.any():
-                evts = evts[mask]
-                now = time()
-                # prepare logline column
+            next_evts = self._db.execute(sql, processed_evts.tolist())
+            while next_evts.size > 0:
+                # In some rare cases we may have a batch of two events or
+                # more from the same node.
+                # Let's compute the first event of each distinct mac address,
+                # and the remaining events will be processed at next
+                # loop step.
+                _, uniq_idx = np.unique(next_evts["mac"], return_index=True)
+                if uniq_idx.size < next_evts.size:  # unlikely
+                    # slow path
+                    evts = next_evts[uniq_idx]
+                    # Note: 'uniq_idx' is an array of indices, we have
+                    # to compute the corresponding negative mask.
+                    mask_next_step = np.ones(next_evts.size, dtype=bool)
+                    mask_next_step[uniq_idx] = False
+                    next_evts = next_evts[mask_next_step]
+                else:
+                    # fast path
+                    evts = next_evts
+                    next_evts = next_evts[:0]  # empty
+                # ignore 'down' events when the node is already down,
+                # except if the cause is 'powersave'.
+                mask_evt_up = evts.booted.astype(bool)
+                mask_already_up = np.isin(evts.mac, list(self._booted_macs))
+                mask_evt_down = ~mask_evt_up
+                mask_ignore = mask_evt_down
+                if mask_ignore.any():
+                    mask_already_down = ~(mask_already_up)
+                    mask_ignore = mask_evt_down & mask_already_down
+                    if mask_ignore.any():
+                        mask_powersave = (evts.cause == 'powersave')
+                        mask_ignore &= (~mask_powersave)
+                        if mask_ignore.any():
+                            if mask_ignore.size == evts.size:
+                                continue
+                            mask_keep = ~mask_ignore
+                            # update evts and the mask variables reused later
+                            evts = evts[mask_keep]
+                            mask_evt_up = mask_evt_up[mask_keep]
+                            mask_already_up = mask_already_up[mask_keep]
+                            mask_evt_down = ~mask_evt_up
+                # compute and emit a logline for each event
                 evts.logline = "node " + evts.name
-                if evts.booted.any():   # "booted" events
-                    mask = evts.booted.astype(bool)
-                    # update booted macs
-                    self._booted_macs |= set(evts[mask].mac)
-                    # update logline column
-                    evts.logline[mask] += " is booted"
-                    # unblock any related "walt node wait" command.
-                    for node_info in evts[mask]:
-                        self._nodes.wait_info.node_bootup_event(node_info)
-                        self._nodes.powersave.node_bootup_event(node_info)
-                if not evts.booted.all():  # "down" events
-                    mask = ~(evts.booted.astype(bool))
-                    macs = evts[mask].mac
-                    # update booted macs
-                    self._booted_macs -= set(macs)
-                    # update logline column
-                    evts.logline[mask] += " is down"
-                    details_mask = mask & (evts.ll_details != "")
-                    ll_details = " (" + evts.ll_details[details_mask] + ")"
-                    evts.logline[details_mask] += ll_details
-                    # note: if this node went down unexpectedly, we have no idea
-                    # when it started to reboot, so set boot_start_time to now
-                    # (i.e., the time when we detect it is down).
-                    # if it was expected, then boot_start_time will be updated
-                    # again shortly (e.g., in the case of a hard-reboot, when PoE
-                    # is re-enabled).
-                    update_mask = np.isin(self._boot_info_table.mac, macs)
-                    self._boot_info_table.boot_start_time[update_mask] = now
-                    retries = self._boot_info_table.retries[update_mask]
-                    self._boot_info_table.remaining_retries[update_mask] = retries
-                    if len(set(evts[mask].cause)) == 1:
+                evts.logline[mask_evt_up] += " is booted"
+                evts_down = evts[mask_evt_down]
+                if evts_down.size > 0:
+                    evts.logline[mask_evt_down] += " is down"
+                    mask_details = mask_evt_down & (evts.ll_details != "")
+                    ll_details = " (" + evts.ll_details[mask_details] + ")"
+                    evts.logline[mask_details] += ll_details
+                self._logs.platform_log("nodes", lines=evts.logline)
+                # Update self._boot_info_table timestamp and cause.
+                # If a node went down unexpectedly, we have no idea
+                # when it started to reboot, so set boot_start_time to now
+                # (i.e., the time when we detect it is down).
+                # If it was expected, then boot_start_time will be updated
+                # again shortly (e.g., in the case of a hard-reboot, when PoE
+                # is re-enabled).
+                if evts_down.size > 0:
+                    now = time()
+                    mask = np.isin(self._boot_info_table.mac, evts_down.mac)
+                    self._boot_info_table.boot_start_time[mask] = now
+                    retries = self._boot_info_table.retries[mask]
+                    self._boot_info_table.remaining_retries[mask] = retries
+                    if np.unique(evts_down.cause).size == 1:
                         # same cause for all events (likely), fast path
-                        self._boot_info_table.cause[update_mask] = evts[mask].cause[0]
+                        self._boot_info_table.cause[mask] = evts_down.cause[0]
                     else:
                         # generic case
-                        cause_per_mac = dict(evts[mask][["mac", "cause"]])
-                        update_macs = self._boot_info_table.mac[update_mask]
-                        update_causes = np_apply_mapping(update_macs, cause_per_mac)
-                        self._boot_info_table.cause[update_mask] = update_causes
-                # emit log lines
-                self._logs.platform_log("nodes", lines=evts.logline)
+                        cause_per_mac = dict(evts_down[["mac", "cause"]])
+                        macs = self._boot_info_table.mac[mask]
+                        causes = np_apply_mapping(macs, cause_per_mac)
+                        self._boot_info_table.cause[mask] = causes
+                # For next updates, ignore events not changing current status
+                mask_changed = np.bitwise_xor(mask_evt_up, mask_already_up)
+                mask_changed = mask_changed.astype(bool)
+                if mask_changed.any():
+                    evts = evts[mask_changed]
+                    mask_evt_up = mask_evt_up[mask_changed]
+                    mask_evt_down = ~mask_evt_up
+                    evts_up = evts[mask_evt_up]
+                    evts_down = evts[mask_evt_down]
+                    # update self._booted_macs
+                    self._booted_macs |= set(evts_up.mac)
+                    self._booted_macs -= set(evts_down.mac)
+                    # unblock any related "walt node wait" command,
+                    # notify the powersave module
+                    for node_info in evts_up:
+                        self._nodes.wait_info.node_bootup_event(node_info)
+                        self._nodes.powersave.node_bootup_event(node_info)
         self._plan_bg_process()
 
     def _bg_boot_check(self):
