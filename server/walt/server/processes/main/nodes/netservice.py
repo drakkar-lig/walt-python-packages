@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import operator
+import itertools
 import numpy as np
 from collections import defaultdict
 from time import time
@@ -28,8 +29,11 @@ NODE_MIN_BOOT_TIMEOUT = 60
 np_extract_cause = np.vectorize(operator.methodcaller("get", "cause", None), otypes="O")
 
 
-def np_apply_mapping(column, mapping):
-    return np.vectorize(mapping.get, otypes="O")(column)
+def np_lookup(column, mapping, default=None):
+    """vectorized dict lookup with a default value for missing keys"""
+    # mapping.get is a C builtin (no python frame to trace), and the scalar
+    # 'default' is broadcast as its second argument.
+    return np.vectorize(mapping.get, otypes="O")(column, default)
 
 
 class NodeNetServiceListener:
@@ -46,6 +50,12 @@ class NodeNetServiceListener:
         listeners_per_ip[self.node_ip] = self
         self.set_keepalive()
         self._status = "IDLE"
+        # global-monotonic connection serial number, used by the batch
+        # processor to reason about which connection superseded which
+        # (and thus which connections are obsolete at any point in time).
+        self.conn_serial = next(self.manager._conn_serial_seq)
+        # note: the connection is registered synchronously when it is
+        # accepted, so the event timestamp is just time() here.
         self._add_booted_evt(True)
 
     def set_keepalive(self):
@@ -57,8 +67,15 @@ class NodeNetServiceListener:
             return None
         return self.sock_file.fileno()
 
-    def _add_booted_evt(self, booted, **details):
-        self.manager.add_booted_event(self.node_ip, booted, details)
+    def _add_booted_evt(self, booted, event_ts=None, **details):
+        # 'event_ts' must be the event-loop detection time when available
+        # (i.e. the 'ts' parameter of handle_event()): it is not subject to
+        # reentrancy issues (calling time() here could reorder events).  When
+        # not provided (i.e., a new connection), fall back to now.
+        if event_ts is None:
+            event_ts = time()
+        self.manager.add_booted_event(
+                self.node_ip, event_ts, self.conn_serial, booted, details)
 
     def _return_node_response(self, response):
         req, cb, env = self._request_info
@@ -92,20 +109,18 @@ class NodeNetServiceListener:
         # the connection was lost.
         if self._status == "REQUESTING":
             self._return_node_response(f"KO {err}")
-        # Detecting a lost connection might take time and actually happen after
-        # the node has rebooted and established a new connection.
-        # Thus before registering the node is down we verify that we are managing
-        # the latest connection of this node.
-        if (
-                self._status != "BROKEN" and
-                self.sock_files_per_ip.get(self.node_ip) is self.sock_file
-           ):
-            # note: self._add_booted_evt() will not print a message if the node
-            # was already down (e.g., because it was explicitely rebooted, or
-            # because the powersave module turned it off).
-            self._add_booted_evt(False,
-                                 cause=f"unknown ({err})",
-                                 note="server-detected disconnection")
+        # A lost connection is always recorded here.  Whether this event is
+        # significant or merely the (expected) consequence of a previous
+        # explicit down (e.g. reboot / powersave) or of a reconnection is
+        # decided later, in the (single-threaded, event_ts-ordered) batch
+        # processor: a redundant disconnection -- node already down, or an
+        # obsolete connection -- is ignored there.  Doing the decision here
+        # would be subject to event-loop reentrancy issues, so we simply queue
+        # the raw event with its detection timestamp and let the batch
+        # processor be the single source of truth.
+        self._add_booted_evt(False, event_ts=ts,
+                             cause=f"unknown ({err})",
+                             note="server-detected disconnection")
         self._status = "BROKEN"
         return False  # we should be removed from the event loop
 
@@ -145,6 +160,14 @@ class NodeNetServiceManager(object):
         self._logs = nodes_manager.logs
         self._devices = nodes_manager.devices
         self._booted_macs = set()
+        # monotonic sequence used to number net-service (TCP) connections.
+        # It lets the batch processor order connections and tell which
+        # connection superseded which.
+        self._conn_serial_seq = itertools.count(1)
+        # per-mac maximum 'conn_serial' seen among 'booted' events (i.e. the
+        # most recent connection registered for that node).  Used to discard
+        # disconnections detected on connections that have been superseded.
+        self._booted_conn_serial = {}
         self._boot_info = {}
         self._boot_info_table = None
         self._next_bg_process = None
@@ -167,6 +190,7 @@ class NodeNetServiceManager(object):
 
     def forget_device(self, mac):
         self._booted_macs.discard(mac)  # if ever it was inside
+        self._booted_conn_serial.pop(mac, None)
         if mac in self._boot_info:
             del self._boot_info[mac]
         mask = (self._boot_info_table.mac != mac)
@@ -209,6 +233,7 @@ class NodeNetServiceManager(object):
         self._record_boot_info(boot_info)
 
     def add_booted_event(self, *evt):
+        # each event is (ip, event_ts, conn_serial, booted, details)
         self._booted_events.append(evt)
         self._plan_bg_process()
 
@@ -248,7 +273,13 @@ class NodeNetServiceManager(object):
         self._boot_info_table.remaining_retries[update_mask] = retries
 
     def change_nodes_bootup_status(self, nodes, booted=True, **details):
-        self._booted_events += [(node.ip, booted, details) for node in nodes]
+        now = time()
+        # explicit up/down requests (reboot / powersave ...) are not tied to a
+        # specific net-service connection, so conn_serial is 0 (it is only
+        # meaningful for the connection-related events; these explicit events
+        # are never discarded by the batch processor anyway).
+        self._booted_events += [(node.ip, now, 0, booted, details)
+                                for node in nodes]
         self._plan_bg_process()
 
     def _mask_valid_boot_timeout(self):
@@ -312,86 +343,173 @@ class NodeNetServiceManager(object):
 
     def _bg_process_booted_events(self):
         if len(self._booted_events) > 0:
-            dt = [("ip", "O"), ("booted", "?"), ("details", "O")]
-            booted_evts = np.array(self._booted_events, dtype=dt)
-            self._booted_events = []    # reset
-            # if we have several events for one ip, consider the last one only
-            if booted_evts.size > 1:
-                booted_evts = np.flip(booted_evts)
-                _, uniq_idx = np.unique(booted_evts["ip"], return_index=True)
-                booted_evts = booted_evts[uniq_idx]
-            # analyse content of details
-            dt = [("ip", "O"), ("booted", "?"), ("cause", "O"), ("ll_details", "O")]
-            processed_evts = np.empty(booted_evts.size, dtype=dt)
-            processed_evts[["ip", "booted"]] = booted_evts[["ip", "booted"]]
-            # extract cause
-            processed_evts["cause"] = np_extract_cause(booted_evts["details"])
-            # compute logline details
-            logline_details = np.vectorize(repr)(booted_evts["details"])
-            logline_details = np.char.replace(logline_details, "'", '')
-            processed_evts["ll_details"] = np.char.strip(logline_details, "{}")
-            # note: if a virtual node was just removed or a node was forgotten,
-            # ip is missing from db, and the event is just ignored.
-            values_holder = ("%s," * processed_evts.size)[:-1]
-            sql = f"""WITH events(ip, booted, cause, ll_details) AS (
-                        VALUES {values_holder}
-                    )
-                    SELECT d.name, d.mac, e.booted, e.cause, e.ll_details,
-                           NULL as old_booted, NULL as logline
-                    FROM events e
-                    LEFT JOIN devices d ON e.ip = d.ip
-                    WHERE d.ip IS NOT NULL"""
-            evts = self._db.execute(sql, processed_evts.tolist())
-            evts.old_booted = np.isin(evts.mac, list(self._booted_macs))
-            # ignore events not changing current status
-            mask = np.bitwise_xor(evts.booted, evts.old_booted).astype(bool)
-            if mask.any():
-                evts = evts[mask]
-                now = time()
-                # prepare logline column
-                evts.logline = "node " + evts.name
-                if evts.booted.any():   # "booted" events
-                    mask = evts.booted.astype(bool)
-                    # update booted macs
-                    self._booted_macs |= set(evts[mask].mac)
-                    # update logline column
-                    evts.logline[mask] += " is booted"
-                    # unblock any related "walt node wait" command.
-                    for node_info in evts[mask]:
-                        self._nodes.wait_info.node_bootup_event(node_info)
-                        self._nodes.powersave.node_bootup_event(node_info)
-                if not evts.booted.all():  # "down" events
-                    mask = ~(evts.booted.astype(bool))
-                    macs = evts[mask].mac
-                    # update booted macs
-                    self._booted_macs -= set(macs)
-                    # update logline column
-                    evts.logline[mask] += " is down"
-                    details_mask = mask & (evts.ll_details != "")
-                    ll_details = " (" + evts.ll_details[details_mask] + ")"
-                    evts.logline[details_mask] += ll_details
-                    # note: if this node went down unexpectedly, we have no idea
-                    # when it started to reboot, so set boot_start_time to now
-                    # (i.e., the time when we detect it is down).
-                    # if it was expected, then boot_start_time will be updated
-                    # again shortly (e.g., in the case of a hard-reboot, when PoE
-                    # is re-enabled).
-                    update_mask = np.isin(self._boot_info_table.mac, macs)
-                    self._boot_info_table.boot_start_time[update_mask] = now
-                    retries = self._boot_info_table.retries[update_mask]
-                    self._boot_info_table.remaining_retries[update_mask] = retries
-                    if len(set(evts[mask].cause)) == 1:
-                        # same cause for all events (likely), fast path
-                        self._boot_info_table.cause[update_mask] = evts[mask].cause[0]
-                    else:
-                        # generic case
-                        cause_per_mac = dict(evts[mask][["mac", "cause"]])
-                        update_macs = self._boot_info_table.mac[update_mask]
-                        update_causes = np_apply_mapping(update_macs, cause_per_mac)
-                        self._boot_info_table.cause[update_mask] = update_causes
-                # emit log lines
-                self._logs.platform_log("nodes", lines=evts.logline)
+            evts = self._fetch_booted_events()
+            self._apply_booted_events(evts)
         self._plan_bg_process()
+
+    def _fetch_booted_events(self):
+        """Consume self._booted_events and return them as a recarray
+           with node names and macs (as returned by the database)."""
+        dt = [("ip", "O"), ("event_ts", "f8"), ("conn_serial", "i8"),
+              ("booted", "?"), ("details", "O")]
+        booted_evts = np.array(self._booted_events, dtype=dt)
+        self._booted_events = []    # reset
+        # analyse content of details
+        dt = [("ip", "O"), ("event_ts", "f8"), ("conn_serial", "i8"),
+              ("booted", "?"), ("cause", "O"), ("ll_details", "O")]
+        processed_evts = np.empty(booted_evts.size, dtype=dt)
+        processed_evts[["ip", "event_ts", "conn_serial", "booted"]] = \
+                booted_evts[["ip", "event_ts", "conn_serial", "booted"]]
+        # extract cause
+        processed_evts["cause"] = np_extract_cause(booted_evts["details"])
+        # compute logline details
+        logline_details = np.vectorize(repr)(booted_evts["details"])
+        logline_details = np.char.replace(logline_details, "'", '')
+        processed_evts["ll_details"] = np.char.strip(logline_details, "{}")
+        # note: if a virtual node was just removed or a node was forgotten,
+        # ip is missing from db, and the event is just ignored.
+        values_holder = ("%s," * processed_evts.size)[:-1]
+        sql = f"""WITH events(ip, event_ts, conn_serial, booted, cause, ll_details) AS (
+                    VALUES {values_holder}
+                )
+                SELECT d.name, d.mac, e.ip, e.event_ts, e.conn_serial, e.booted,
+                       e.cause, e.ll_details,
+                       NULL as logline, 0 as priority
+                FROM events e
+                LEFT JOIN devices d ON e.ip = d.ip
+                WHERE d.ip IS NOT NULL"""
+        return self._db.execute(sql, processed_evts.tolist())
+
+    def _apply_booted_events(self, next_evts):
+        """Process a batch of events, as returned by
+           _fetch_booted_events(), and update the bootup status of nodes."""
+        # Events may be queued out of order (event loop reentrancy), so
+        # sort them by timestamp.
+        next_evts = next_evts[
+                np.argsort(next_evts.event_ts.astype(float), kind="stable")]
+        while next_evts.size > 0:
+            # In some rare cases we may have a batch of two events or
+            # more from the same node.
+            # Let's compute the first event of each distinct mac address,
+            # and the remaining events will be processed at next
+            # loop step.
+            # The state (self._booted_macs, self._booted_conn_serial) always
+            # reflects the node's timeline at the point of the event being
+            # processed.
+            _, uniq_idx = np.unique(next_evts["mac"], return_index=True)
+            if uniq_idx.size < next_evts.size:  # unlikely
+                # slow path
+                evts = next_evts[uniq_idx]
+                # Note: 'uniq_idx' is an array of indices, we have
+                # to compute the corresponding negative mask.
+                mask_next_step = np.ones(next_evts.size, dtype=bool)
+                mask_next_step[uniq_idx] = False
+                next_evts = next_evts[mask_next_step]
+            else:
+                # fast path
+                evts = next_evts
+                next_evts = next_evts[:0]  # empty
+            # Ignore "server-detected disconnection" down events that are
+            # redundant at this point of the node's timeline:
+            #  A. the node is already down (e.g. an explicit reboot or
+            #     powersave down was just processed, and the resulting
+            #     loss of the TCP connection is detected afterwards),
+            #  B. a newer connection of the node has already been
+            #     registered (the node reconnected before the death of the
+            #     old connection was detected): the connection is obsolete.
+            # Other events (ups, explicit downs such as powersave) are
+            # always fully processed.
+            mask_evt_up = evts.booted.astype(bool)
+            mask_evt_down = ~mask_evt_up
+            mask_already_up = np.isin(evts.mac, list(self._booted_macs))
+            mask_disconn = mask_evt_down & (np.char.find(
+                    evts.ll_details.astype(str),
+                    "server-detected disconnection") >= 0)
+            if mask_disconn.any():
+                known_conn_serial = np_lookup(
+                        evts.mac, self._booted_conn_serial, -1).astype(int)
+                mask_obsolete = (
+                        known_conn_serial > evts.conn_serial.astype(int))
+                mask_ignore = mask_disconn & (
+                        ~mask_already_up | mask_obsolete)
+                if mask_ignore.any():
+                    if mask_ignore.all():
+                        continue
+                    mask_keep = ~mask_ignore
+                    evts = evts[mask_keep]
+                    mask_evt_up = mask_evt_up[mask_keep]
+                    mask_evt_down = ~mask_evt_up
+                    mask_already_up = mask_already_up[mask_keep]
+            # remember the latest connection of nodes that are booting
+            if mask_evt_up.any():
+                up_macs = evts.mac[mask_evt_up]
+                up_conn_serial = evts.conn_serial[mask_evt_up].astype(int)
+                old = np_lookup(up_macs, self._booted_conn_serial, -1)
+                self._booted_conn_serial.update(zip(
+                        up_macs,
+                        np.maximum(old.astype(int), up_conn_serial)))
+            # compute and emit a logline for each event
+            evts.logline = "node " + evts.name
+            evts.logline[mask_evt_up] += " is booted"
+            evts_down = evts[mask_evt_down]
+            if evts_down.size > 0:
+                evts.logline[mask_evt_down] += " is down"
+                mask_details = mask_evt_down & (evts.ll_details != "")
+                ll_details = " (" + evts.ll_details[mask_details] + ")"
+                evts.logline[mask_details] += ll_details
+            self._logs.platform_log("nodes", lines=evts.logline)
+            # Update self._boot_info_table timestamp and cause.
+            # If a node went down unexpectedly, we have no idea
+            # when it started to reboot, so set boot_start_time to now
+            # (i.e., the time when we detect it is down).
+            # If it was expected, then boot_start_time will be updated
+            # again shortly (e.g., in the case of a hard-reboot, when PoE
+            # is re-enabled).
+            # Boot retries are reset only when a booted node goes down:
+            # a down event about a node which was not booted (e.g., the
+            # hard-reboot triggered by a boot timeout) must not reset
+            # them, otherwise the number of retries would never decrease.
+            # (Explicit reboot requests reset them in reboot.py.)
+            if evts_down.size > 0:
+                now = time()
+                mask = np.isin(self._boot_info_table.mac, evts_down.mac)
+                self._boot_info_table.boot_start_time[mask] = now
+                was_up_macs = evts.mac[mask_evt_down & mask_already_up]
+                if was_up_macs.size > 0:
+                    mask_reset = np.isin(
+                            self._boot_info_table.mac, was_up_macs)
+                    retries = self._boot_info_table.retries[mask_reset]
+                    self._boot_info_table.remaining_retries[mask_reset] = \
+                            retries
+                if np.unique(evts_down.cause).size == 1:
+                    # same cause for all events (likely), fast path
+                    self._boot_info_table.cause[mask] = evts_down.cause[0]
+                else:
+                    # generic case
+                    cause_per_mac = dict(evts_down[["mac", "cause"]])
+                    macs = self._boot_info_table.mac[mask]
+                    causes = np_lookup(macs, cause_per_mac)
+                    self._boot_info_table.cause[mask] = causes
+            # For next updates, ignore events not changing current status
+            mask_changed = np.bitwise_xor(mask_evt_up, mask_already_up)
+            mask_changed = mask_changed.astype(bool)
+            if mask_changed.any():
+                evts = evts[mask_changed]
+                mask_evt_up = mask_evt_up[mask_changed]
+                mask_evt_down = ~mask_evt_up
+                evts_up = evts[mask_evt_up]
+                evts_down = evts[mask_evt_down]
+                # update self._booted_macs
+                self._booted_macs |= set(evts_up.mac)
+                self._booted_macs -= set(evts_down.mac)
+                # unblock any related "walt node wait" command,
+                # notify the powersave module
+                for node_info in evts_up:
+                    self._nodes.wait_info.node_bootup_event(node_info)
+                    self._nodes.powersave.node_bootup_event(node_info)
+        # forget connection serials of nodes that are down
+        stale = set(self._booted_conn_serial) - self._booted_macs
+        list(map(self._booted_conn_serial.pop, stale))
 
     def _bg_boot_check(self):
         mask = self._mask_valid_boot_timeout()
@@ -412,7 +530,7 @@ class NodeNetServiceManager(object):
                 failing_nodes = self._devices.get_multiple_device_info(
                                     where_sql, (list(boot_info.mac),))
                 name_per_mac = dict(failing_nodes[["mac", "name"]])
-                names = np_apply_mapping(boot_info.mac, name_per_mac)
+                names = np_lookup(boot_info.mac, name_per_mac)
                 loglines = names + ": boot timeout reached, trying hard-reboot "
                 mask_more_tries = (boot_info.remaining_retries > 0)
                 num_retries = boot_info.remaining_retries[mask_more_tries]
