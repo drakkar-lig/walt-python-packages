@@ -17,6 +17,9 @@ from walt.server.processes.main.nodes.manager import (
     NODE_DEFAULT_BOOT_TIMEOUT,
     NODE_MIN_BOOT_TIMEOUT,
 )
+from walt.server.processes.main.nodes.powersave import (
+    NODE_DEFAULT_POWERSAVE_TIMEOUT,
+)
 from walt.server.tools import ip_in_walt_network, np_record_to_dict, get_server_ip
 
 PPRINT_NONE = "<unspecified>"
@@ -25,6 +28,13 @@ BOOT_MODES = ("network-volatile",
               "network-persistent",
               "hybrid-volatile",
               "hybrid-persistent")
+MSG_POWERSAVE_TIMEOUT_HELP = """\
+Use for example:
+* '180' for disabling PoE on the switch 3 minutes after the node is released.
+* '0' for disabling PoE on the switch immediately after the node is released.
+* 'none' for disabling power saving on this node.
+See 'walt help show powersave'.
+"""
 
 
 def uncapitalize(s):
@@ -166,6 +176,12 @@ class SettingsManager:
                 "category": "walt-net-devices",
                 "value-check": self.correct_expose_value,
                 "default": "none",
+            },
+            "powersave.timeout": {
+                "category": "nodes",
+                "value-check": self.correct_powersave_timeout_value,
+                "default": NODE_DEFAULT_POWERSAVE_TIMEOUT,
+                "pretty_print": lambda s: ("none" if s is None else str(s)),
             },
         }
         self.category_info = {
@@ -383,6 +399,29 @@ class SettingsManager:
                 "for some OS images.\n"
                 f"        Only \"none\" and values higher than {NODE_MIN_BOOT_TIMEOUT}"
                 " are allowed for this setting.\n"
+            )
+            return False
+        return True
+
+    def correct_powersave_timeout_value(
+        self, requester, device_infos, setting_name, setting_value, all_settings
+    ):
+        if setting_value == "none":
+            return True
+        if not positive_int(setting_value):
+            requester.stderr.write(
+                f"Failed: '{setting_value}' is not a valid value for option "
+                "'powersave.timeout'.\n" +
+                MSG_POWERSAVE_TIMEOUT_HELP
+            )
+            return False
+        if (int(setting_value) > 0 and
+            int(setting_value) < NODE_MIN_BOOT_TIMEOUT):
+            requester.stderr.write(
+                f"Failed: A powersave timeout of {setting_value}s may "
+                "sometimes be too short\n" +
+                "to allow the node to boot an OS.\n" +
+                MSG_POWERSAVE_TIMEOUT_HELP
             )
             return False
         return True
@@ -700,6 +739,16 @@ class SettingsManager:
                 db_settings[setting_name] = setting_value
                 should_reboot_devices = True
                 should_update_exports = True
+            elif setting_name == "powersave.timeout":
+                timeout = setting_value
+                if timeout == "none":
+                    timeout = None
+                else:
+                    timeout = int(timeout)
+                db_settings["powersave.timeout"] = timeout
+                for node_info in device_infos:
+                    self.server.nodes.powersave.update_node_timeout(
+                            node_info.mac, timeout)
 
         # save in db
         for di in device_infos:

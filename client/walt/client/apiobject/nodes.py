@@ -179,7 +179,9 @@ class APINodeFactory:
                 """Reboot this node"""
                 self._check_owned_or_force(force)
                 with silent_server_link() as server:
-                    server.reboot_nodes(self.name, hard_only=hard_only)
+                    server.reboot_nodes(self.name,
+                                        hard_only=hard_only,
+                                        check_usable=True)
 
             def wait(self, timeout=-1):
                 """Wait until node is booted"""
@@ -274,7 +276,8 @@ class APISetOfNodesFactory:
                     n._check_owned_or_force(force)
                 with silent_server_link() as server:
                     server.reboot_nodes(Tools.get_comma_nodeset(self),
-                                        hard_only=hard_only)
+                                        hard_only=hard_only,
+                                        check_usable=True)
 
             def wait(self, timeout=-1):
                 """Wait until all nodes of this set are booted"""

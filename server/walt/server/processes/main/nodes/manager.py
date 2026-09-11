@@ -322,12 +322,17 @@ class NodesManager(object):
     def get_node_models_using_image(self, image_fullname):
         return set(node.model for node in self.db.select("nodes", image=image_fullname))
 
-    def reboot_node_set(self, requester, task, node_set, hard_only, reboot_cause):
+    def reboot_node_set(self, requester, task, node_set,
+                        hard_only, reboot_cause, check_usable):
         nodes = self.parse_node_set(requester, node_set)
         if nodes is None:
             return None  # error already reported
+        if check_usable is True:
+            if not self.powersave.check_usable(requester, nodes):
+                return None  # issue already reported
         task.set_async()
-        self.reboot_nodes(requester, task.return_result, nodes, hard_only, reboot_cause)
+        self.reboot_nodes(requester, task.return_result, nodes,
+                          hard_only, reboot_cause)
 
     def reboot_nodes(self, requester, task_callback, nodes, hard_only, reboot_cause,
                      reset_boot_retries=True):
@@ -515,15 +520,17 @@ class NodesManager(object):
             msg = MSG_NODE_CMD_PERSISTENT
         return msg.replace("{boot_mode}", boot_mode)
 
-    def wait_for_nodes(self, api, requester, task, node_set):
+    def wait_for_node_set(self, api, requester, task, node_set):
         nodes = self.parse_node_set(requester, node_set)
         if nodes is None:
+            return False  # issue already reported
+        if not self.powersave.check_usable(requester, nodes):
             return False  # issue already reported
         session = ContinuousUseSession(self.powersave, nodes)
         api.register_session_object(session)
         return self.wait(requester, task, nodes)
 
-    def record_continuous_use(self, api, requester, node_set):
+    def record_continuous_use_of_node_set(self, api, requester, node_set):
         nodes = self.parse_node_set(requester, node_set)
         if nodes is None:
             return False  # issue already reported

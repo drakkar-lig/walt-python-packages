@@ -101,9 +101,11 @@ class CSAPI(APISession):
 
     @api_expose_method
     def reboot_nodes(self, context, node_set,
-                     hard_only=False, cause="reboot requested"):
+                     hard_only=False, cause="reboot requested",
+                     check_usable=False):
         return context.nodes.reboot_node_set(
-            context.requester, context.task, node_set, hard_only, cause
+            context.requester, context.task, node_set,
+            hard_only, cause, check_usable
         )
 
     @api_expose_method
@@ -119,12 +121,12 @@ class CSAPI(APISession):
 
     @api_expose_method
     def wait_for_nodes(self, context, node_set):
-        return context.nodes.wait_for_nodes(
+        return context.nodes.wait_for_node_set(
                 self, context.requester, context.task, node_set)
 
     @api_expose_method
     def record_continuous_use(self, context, node_set):
-        return context.nodes.record_continuous_use(
+        return context.nodes.record_continuous_use_of_node_set(
                 self, context.requester, node_set)
 
     @api_expose_method

@@ -34,9 +34,9 @@ class WalTNode(WalTCategoryApplication):
         try:
             server.set_busy_label(busy_label)
             with timeout_context(timeout):
-                server.wait_for_nodes(node_set)
+                res = server.wait_for_nodes(node_set)
             server.set_default_busy_label()
-            return True
+            return res
         except KeyboardInterrupt:
             print()
             server.set_default_busy_label()
@@ -266,7 +266,9 @@ class WalTNodeReboot(WalTApplication):
         with ClientToServerLink() as server:
             if not check_nodes_ownership(server, node_set):
                 return
-            server.reboot_nodes(node_set, hard_only=self._hard_only)
+            server.reboot_nodes(node_set,
+                                hard_only=self._hard_only,
+                                check_usable=True)
 
     @cli.autoswitch(help="allow PoE-reboots only (power-cycle)")
     def hard(self):

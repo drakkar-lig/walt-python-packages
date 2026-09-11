@@ -1,26 +1,52 @@
 from collections import defaultdict
+from heapq import heappush, heappop
 from time import time
 
 from walt.common.formatting import format_sentence_about_nodes
 from walt.server.workflow import Workflow
 
-#POWERSAVE_TIMEOUT = 2 * 60 * 60  # 2 hours
-POWERSAVE_TIMEOUT = 3 * 60
+NODE_DEFAULT_POWERSAVE_TIMEOUT = 5 * 60  # 5 minutes
+SQL_GET_POWERSAVE_TIMEOUT = f"""\
+NULLIF(COALESCE(d.conf->'powersave.timeout',
+                '{NODE_DEFAULT_POWERSAVE_TIMEOUT}'::jsonb),
+       'null'::jsonb)::int AS timeout"""
 
 
 class PowersaveManager:
     def __init__(self, server):
         self.server = server
-        self._poweroff_timeouts_per_mac = {}
+        # Indicate at which time we should poweroff a node
+        self._poweroff_ts_per_mac = {}
+        # Indicate the set of free nodes
         self._mac_of_free_nodes = set()
-        self._next_check = None
+        # Indicate if there is already a periodic check procedure running
+        self._check_in_progress = False
+        # Heap queue indicating time and mac of next poweroffs,
+        # as tuples (ts, mac).
+        # Some of the entries may be obsolete and will be ignored when
+        # reading this queue.
+        # There are two cases marking an entry obsolete:
+        # - the mac is not longer a key of self._poweroff_ts_per_mac
+        # - self._poweroff_ts_per_mac[mac] != ts
+        self._pending_poweroffs = []
+        # Timestamps of the self._check() calls already registered on
+        # the event loop
+        self._planned_checks = set()
+        # Some nodes may be in continuous use so powersave is disabled
+        # until this continuous use ends (e.g., `walt node shell`).
+        # This dictionary indicates the number of continuous uses
+        # per mac. If this number would be 0, then there is no entry
+        # for this mac.
         self._continuous_uses_per_mac = {}
+        # Indicate the configured delay after which the node should
+        # be powered off if still free and idle.
+        self._powersave_timeout_per_mac = {}
         # note: for the list of devices powered off at a given time
         # we rather rely on the database.
 
     def record_start_use(self, node_mac):
         """Record start of a countinuous use of this node (e.g. shell)"""
-        self._poweroff_timeouts_per_mac.pop(node_mac, None)
+        self._poweroff_ts_per_mac.pop(node_mac, None)
         self._continuous_uses_per_mac[node_mac] = (
             self._continuous_uses_per_mac.get(node_mac, 0) +1
         )
@@ -34,15 +60,48 @@ class PowersaveManager:
                 self._reset_node_mac_poweroff_timeout(node_mac)
                 self._plan_check()
 
+    def _get_powersave_timeout(self, node_mac):
+        if node_mac in self._powersave_timeout_per_mac:
+            return self._powersave_timeout_per_mac[node_mac]
+        powersave_timeout = self.db.execute(f"""
+            SELECT {SQL_GET_POWERSAVE_TIMEOUT}
+            FROM devices d
+            WHERE d.mac = %s""", (node_mac,))
+        self._powersave_timeout_per_mac[node_mac] = (
+                powersave_timeout
+        )
+        return powersave_timeout
+
     def _reset_node_mac_poweroff_timeout(self, node_mac):
         if node_mac in self._continuous_uses_per_mac:
             return
-        # we take care preserving the order of dictionary entries,
-        # the first one having the earliest timeout, etc.
-        # so here we cannot just update the entry, we remove it
-        # and reinsert it so that it becomes the last entry.
-        self._poweroff_timeouts_per_mac.pop(node_mac, None)
-        self._poweroff_timeouts_per_mac[node_mac] = time() + POWERSAVE_TIMEOUT
+        powersave_timeout = self._get_powersave_timeout(node_mac)
+        if powersave_timeout is None:
+            # someone disabled powersave on this node
+            # (walt node config <node> powersave.timeout=none)
+            self._poweroff_ts_per_mac.pop(node_mac, None)
+            return
+        # plan powering off this node
+        ts = time() + powersave_timeout
+        self._poweroff_ts_per_mac[node_mac] = ts
+        heappush(self._pending_poweroffs, (ts, node_mac))
+
+    def check_usable(self, requester, nodes):
+        off_macs = self.server.db.get_poe_off_macs(reason="powersave")
+        unusable_node_names = []
+        for node in nodes:
+            if node.mac in off_macs:
+                powersave_timeout = self._get_powersave_timeout(node.mac)
+                if powersave_timeout == 0:
+                    unusable_node_names.append(node.name)
+        if len(unusable_node_names) > 0:
+            sentence = ("%s: currently in permanent powersave mode, "
+                        "and therefore unusable(unusables).\n"
+                        "See 'walt help show powersave'.\n")
+            msg = format_sentence_about_nodes(sentence, unusable_node_names)
+            requester.stderr.write(msg)
+            return False
+        return True
 
     def _record_node_use(self, node_mac):
         # if a free node is in use,
@@ -50,30 +109,53 @@ class PowersaveManager:
         if node_mac in self._mac_of_free_nodes:
             self._reset_node_mac_poweroff_timeout(node_mac)
 
-    def _plan_check(self):
-        if self._next_check is None and len(self._poweroff_timeouts_per_mac) > 0:
-            self._next_check = next(iter(self._poweroff_timeouts_per_mac.values()))
-            self.server.ev_loop.plan_event(ts=self._next_check, callback=self._check)
+    def _peak_next_check(self):
+        while len(self._pending_poweroffs) > 0:
+            ts, mac = self._pending_poweroffs[0]
+            if self._poweroff_ts_per_mac.get(mac) != ts:
+                # obsolete check
+                heappop(self._pending_poweroffs)
+                continue
+            return ts, mac
+        return None, None
 
-    def _check(self):
+    def _plan_check(self):
+        if self._check_in_progress is True:
+            return
+        ts, mac = self._peak_next_check()
+        if ts is None:
+            return
+        if ts not in self._planned_checks:
+            self._planned_checks.add(ts)
+            self.server.ev_loop.plan_event(
+                   ts=ts, callback=self._check, check_ts=ts)
+
+    def _check(self, check_ts):
+        self._check_in_progress = True
+        self._planned_checks.discard(check_ts)
         off_macs = self.server.db.get_poe_off_macs()
         now = time()
-        # print(
-        #     f"_check off_macs={off_macs}",
-        #     f"poweroff_timeouts={self._poweroff_timeouts_per_mac}",
-        # )
         macs_to_be_turned_off = []
-        for mac, ts in self._poweroff_timeouts_per_mac.copy().items():
+        while True:
+            ts, mac = self._peak_next_check()
+            if ts is None:
+                break
             if mac in off_macs:
                 # we managed to turn the port off at previous step,
                 # so we no longer need this timeout entry
-                self._poweroff_timeouts_per_mac.pop(mac, None)
-            elif ts <= now:
-                # otherwise, we will try to set this PoE port off below
+                self._poweroff_ts_per_mac.pop(mac, None)
+                continue
+            if ts <= now:
+                # remove this item from the priority queue
+                heappop(self._pending_poweroffs)
+                # we will process this mac below
                 macs_to_be_turned_off.append(mac)
+            else:
+                break  # this element and next ones are in the future
         if len(macs_to_be_turned_off) == 0:
-            self._next_check = None  # notify concurrent code that this check is done
-            self._plan_check()  # plan next one
+            # notify concurrent code this check is done, plan next one
+            self._check_in_progress = False
+            self._plan_check()
         else:
             to_be_turned_off = (
                     self.server.devices.get_multiple_device_info_for_macs(
@@ -83,7 +165,7 @@ class PowersaveManager:
                 [
                     self._wf_toggle_power_on_nodes,
                     self._wf_after_toggle_power_on_nodes,
-                    self._wf_recurse_check,
+                    self._wf_end_check,
                 ],
                 requester=None,
                 poe_toggle_nodes=to_be_turned_off,
@@ -91,18 +173,10 @@ class PowersaveManager:
             )
             wf.run()
 
-    def _wf_recurse_check(self, wf, nodes_ok, **env):
-        # Things may have changed during the SNMP communication delay,
-        # so we will recheck.
-        # However, in case of communication issue we would get an
-        # infinite recursion loop, so let's check we managed to power off
-        # at least one more node.
-        if len(nodes_ok) > 0:
-            self._check()
-        else:
-            # notify concurrent code this check is done, plan next one
-            self._next_check = None
-            self._plan_check()
+    def _wf_end_check(self, wf, **env):
+        # notify concurrent code this check is done, plan next one
+        self._check_in_progress = False
+        self._plan_check()
         wf.next()
 
     def _wf_plan_check(self, wf, **env):
@@ -165,13 +239,20 @@ class PowersaveManager:
 
     def restore(self):
         # detect free nodes by the fact they boot their '*-free' image
-        for row in self.server.db.execute("""
-                SELECT mac
-                FROM nodes
-                WHERE image = 'waltplatform/' || model || '-free:latest';
+        for row in self.server.db.execute(f"""
+                SELECT d.mac, {SQL_GET_POWERSAVE_TIMEOUT}
+                FROM devices d, nodes n
+                WHERE d.mac = n.mac
+                  AND n.image = 'waltplatform/' || n.model || '-free:latest';
                 """):
             self._mac_of_free_nodes.add(row.mac)
+            self._powersave_timeout_per_mac[row.mac] = row.timeout
             self._reset_node_mac_poweroff_timeout(row.mac)
+        self._plan_check()
+
+    def update_node_timeout(self, node_mac, timeout):
+        self._powersave_timeout_per_mac[node_mac] = timeout
+        self._reset_node_mac_poweroff_timeout(node_mac)
         self._plan_check()
 
     def handle_event(self, ev_name, *args, **kwargs):
@@ -187,7 +268,7 @@ class PowersaveManager:
         else:
             # no longer a free node
             self._mac_of_free_nodes.discard(node_mac)
-            self._poweroff_timeouts_per_mac.pop(node_mac, None)
+            self._poweroff_ts_per_mac.pop(node_mac, None)
             # the node may currently be in powersave mode, but we do not
             # power it back yet, this will be done later by the reboot_nodes()
             # procedure.
@@ -200,7 +281,7 @@ class PowersaveManager:
     def rescan_restore_poe_event(self):
         off_macs = self.server.db.get_poe_off_macs()
         for mac in self._mac_of_free_nodes:
-            if mac not in off_macs and mac not in self._poweroff_timeouts_per_mac:
+            if mac not in off_macs and mac not in self._poweroff_ts_per_mac:
                 # PoE was temporarily restored for the node having this mac,
                 # so restart the corresponding poweroff timeout.
                 self._reset_node_mac_poweroff_timeout(mac)
@@ -233,8 +314,10 @@ class PowersaveManager:
             self._plan_check()
 
     def _wf_forget_node_mac(self, wf, obsolete_node_mac, **env):
-        self._poweroff_timeouts_per_mac.pop(obsolete_node_mac, None)
+        self._poweroff_ts_per_mac.pop(obsolete_node_mac, None)
         self._continuous_uses_per_mac.pop(obsolete_node_mac, None)
+        self._mac_of_free_nodes.discard(obsolete_node_mac)
+        self._powersave_timeout_per_mac.pop(obsolete_node_mac, None)
         wf.next()
 
     def wf_forget_device(self, wf, requester, device, **env):
