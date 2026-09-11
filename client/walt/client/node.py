@@ -235,6 +235,8 @@ class WalTNodeSave(WalTApplication):
         with ClientToServerLink() as server:
             if not check_nodes_ownership(server, node_name):
                 return
+            if not WalTNode.wait_for_nodes(server, node_name):
+                return False
             info = dict(mode="node-diff",
                         node_name=node_name,
                         image_name=image_name)
