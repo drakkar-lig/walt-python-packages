@@ -88,6 +88,8 @@ class LogsHub(object):
         if lines is None:
             assert line is not None
             lines = np.array([line])
+        elif lines.size == 0:
+            return
         if secondary_file is not None:
             block = np.add.reduce(lines.astype("O") + "\n")
             secondary_file.write(block)
