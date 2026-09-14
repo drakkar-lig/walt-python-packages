@@ -29,24 +29,25 @@ $ walt device config unknown-a2f2d3 type=switch
 
 Here is the set of settings currently allowed:
 
-| Name           | possible values         | Applies to:         | Notes |
-|----------------|-------------------------|---------------------|-------|
-| boot.delay     | e.g. 2 or 'random'      | virtual nodes       | (9)   |
-| boot.mode      | e.g. 'network-volatile' | nodes               | (10)  |
-| boot.retries   | e.g. 0 or 9             | virtual nodes       | (8)   |
-| boot.timeout   | e.g. 'none' or 180      | nodes               | (8)   |
-| cpu.cores      | e.g. 1 or 4             | virtual nodes       |       |
-| disks          | e.g. '8G' or '32G,1T'   | virtual nodes       | (4)   |
-| expose         | e.g. '80:8080,443:8443' | devices of walt-net | (7)   |
-| kexec.allow    | true or false           | nodes               | (6)   |
-| lldp.explore   | true or false           | switches            | (1)   |
-| netsetup       | 'NAT' or 'LAN'          | devices of walt-net | (3)   |
-| networks       | e.g. 'walt-net,ext-net' | virtual nodes       | (5)   |
-| poe.reboots    | true or false           | switches            | (1)   |
-| ram            | e.g. '384M' or '1G'     | virtual nodes       |       |
-| snmp.community | e.g. 'private'          | switches            | (1)   |
-| snmp.version   | 1 or 2                  | switches            | (1)   |
-| type           | 'switch'                | 'unknown' devices   | (2)   |
+| Name              | possible values         | Applies to:         | Notes |
+|-------------------|-------------------------|---------------------|-------|
+| boot.delay        | e.g. 2 or 'random'      | virtual nodes       | (9)   |
+| boot.mode         | e.g. 'network-volatile' | nodes               | (10)  |
+| boot.retries      | e.g. 0 or 9             | virtual nodes       | (8)   |
+| boot.timeout      | e.g. 'none' or 180      | nodes               | (8)   |
+| cpu.cores         | e.g. 1 or 4             | virtual nodes       |       |
+| disks             | e.g. '8G' or '32G,1T'   | virtual nodes       | (4)   |
+| expose            | e.g. '80:8080,443:8443' | devices of walt-net | (7)   |
+| kexec.allow       | true or false           | nodes               | (6)   |
+| lldp.explore      | true or false           | switches            | (1)   |
+| netsetup          | 'NAT' or 'LAN'          | devices of walt-net | (3)   |
+| networks          | e.g. 'walt-net,ext-net' | virtual nodes       | (5)   |
+| poe.reboots       | true or false           | switches            | (1)   |
+| posersave.timeout | e.g. 'none', 0 or 180   | nodes               | (11)  |
+| ram               | e.g. '384M' or '1G'     | virtual nodes       |       |
+| snmp.community    | e.g. 'private'          | switches            | (1)   |
+| snmp.version      | 1 or 2                  | switches            | (1)   |
+| type              | 'switch'                | 'unknown' devices   | (2)   |
 
 Notes:
 1. See [`walt help show switch-install`](switch-install.md)
@@ -59,3 +60,4 @@ Notes:
 8. Settings allowing WalT to detect and automatically hard-reboot nodes failing to boot.
 9. Default is 'random', to better share CPU resources when all virtual nodes are started at the same time (server bootup).
 10. See [`walt help show boot-modes`](boot-modes.md)
+11. See [`walt help show powersave`](powersave.md)
