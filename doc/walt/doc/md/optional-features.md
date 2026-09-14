@@ -47,7 +47,7 @@ Note: the switch must support PoE (obviously), SNMP (for remote requests) and LL
 
 ### PoE power saving
 
-When a PoE-powered WalT node has not been used for 2 hours, WalT will automatically disable PoE on the corresponding switch port to save power.
+When a PoE-powered WalT node has not been used for some time, WalT will automatically disable PoE on the corresponding switch port to save power.
 See [`walt help show powersave`](powersave.md) for more info.
 
 Again, this requires that the switch supports PoE (obviously), SNMP (for remote requests) and LLDP (to know on which port the node is connected).
