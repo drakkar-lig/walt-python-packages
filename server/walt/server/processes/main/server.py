@@ -216,65 +216,42 @@ class Server(object):
             status = "new"
         else:
             status = db_info.type
-        # New nodes for which a default OS image is not available yet are
-        # first recorded as simple devices of unknown type because
+        # New nodes are first recorded as simple devices of unknown type because
         # downloading their default image may fail. We allocate a temporary
         # ip to them, different from their final ip, to handle the boot loop
         # correctly until the OS is ready to be booted and the board restarts
         # booting with a new DHCP DISCOVER request.
+        # Another important note: we may get there after walt-server-dhcpd
+        # called SSAPI.register_device(). It is important to return early,
+        # at least before calling dhcpd.update() or wf_register_node(),
+        # because these functions will try to send a RELOAD_CONF
+        # request to walt-server-dhcpd on its unix socket, which would
+        # result in a deadlock.
         if status in ("new", "unknown") and type == "node":
-            # prepare the task for workflow mode
+            # reply early with temporary IP
             if task:
                 assert tmp_ip is not None
                 task.set_async()
-            def wf_reply_task(wf, task, reply_ip, **env):
-                if task:
-                    task.return_result(reply_ip)
-                wf.next()
-            # check if we have everything ready to expose a default OS for
-            # this new node, or if we should direct it to the boot-loop files
-            # with a temporary IP address.
-            fullname = self.images.store.get_free_image_fullname(model)
-            os_ready = (fullname in self.images.store and
-                        self.images.store[fullname].in_use())
-            if os_ready:
+                task.return_result(tmp_ip)
+            # record the device as unknown for now (if not already the case)
+            if status == "new":
                 self.devices.add_or_update(ip = ip,
                                            mac = mac,
-                                           type = "node",
-                                           image = fullname,
-                                           model = model,
+                                           type = "unknown",
                                            name = name)
-                wf_steps = [
-                    self.nodes.wf_register_node,  # short, OS is ready
-                    wf_reply_task,                # reply with final ip
-                ]
-                reply_ip = ip
-            else:
-                # the OS image is not ready, we'll first record the node as
-                # an unknown device, let the node enter a boot-loop mode by
-                # returning a temporary IP, and we will set up the OS image
-                # asynchronously.
-                assert tmp_ip is not None
-                if status == "new":
-                    self.devices.add_or_update(ip = ip,
-                                               mac = mac,
-                                               type = "unknown",
-                                               name = name)
-                wf_steps = [
-                    wf_reply_task,                # reply early with tmp IP
-                    self.nodes.wf_register_node,  # long operation
-                ]
-                reply_ip = tmp_ip
-            # run the workflow
-            wf = Workflow(wf_steps,
-                          task = task,
+            # run the node registration workflow
+            wf = Workflow([self.nodes.wf_register_node],
                           mac = mac,
                           model = model,
-                          reply_ip = reply_ip,
             )
             wf.run()
         else:
-            # not a new node
+            # reply early with IP
+            if task:
+                task.set_async()
+                task.return_result(ip)
+            # not a new node, but perhaps a new device or other information
+            # may have changed (ip updated, etc.)
             modified = self.devices.add_or_update(
                 ip = ip,
                 mac = mac,
@@ -282,9 +259,8 @@ class Server(object):
                 model = model,
                 name = name)
             if modified:
-                self.dhcpd.update()
                 self.named.update()
-            return ip
+                self.dhcpd.update()
 
     def rename_device(self, requester, old_name, new_name):
         device = self.devices.rename(requester, old_name, new_name)
