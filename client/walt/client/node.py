@@ -34,9 +34,9 @@ class WalTNode(WalTCategoryApplication):
         try:
             server.set_busy_label(busy_label)
             with timeout_context(timeout):
-                server.wait_for_nodes(node_set)
+                res = server.wait_for_nodes(node_set)
             server.set_default_busy_label()
-            return True
+            return res
         except KeyboardInterrupt:
             print()
             server.set_default_busy_label()
