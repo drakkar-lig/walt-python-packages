@@ -119,7 +119,7 @@ class CSAPI(APISession):
 
     @api_expose_method
     def wait_for_nodes(self, context, node_set):
-        return context.nodes.wait_for_nodes(
+        return context.nodes.wait_for_node_set(
                 self, context.requester, context.task, node_set)
 
     @api_expose_method

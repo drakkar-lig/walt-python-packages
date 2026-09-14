@@ -515,7 +515,7 @@ class NodesManager(object):
             msg = MSG_NODE_CMD_PERSISTENT
         return msg.replace("{boot_mode}", boot_mode)
 
-    def wait_for_nodes(self, api, requester, task, node_set):
+    def wait_for_node_set(self, api, requester, task, node_set):
         nodes = self.parse_node_set(requester, node_set)
         if nodes is None:
             return False  # issue already reported
