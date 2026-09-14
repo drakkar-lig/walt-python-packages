@@ -62,8 +62,8 @@ class DHCPServer(object):
                     return True, resp[2:].decode().lstrip()
                 if resp.startswith(b"FAILED"):
                     return False, resp[6:].decode().lstrip()
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"Sending command to dhcpd: {str(e)}")
             finally:
                 dhcpd_ctl_sock.close()
         return False, "walt-server-dhcpd seems down"
