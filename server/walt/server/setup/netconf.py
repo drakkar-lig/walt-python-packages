@@ -17,6 +17,7 @@ from walt.common.term import (
         clear_screen,
         wait_for_large_enough_terminal,
 )
+from walt.common.tools import get_mac_address
 from walt.server.tools import wait_message_read
 
 EDITOR_TOP_MESSAGE = """\
@@ -84,10 +85,6 @@ def iter_wired_physical_interfaces():
         if (intf_dir / "wireless").exists():
             continue
         yield intf_dir.name
-
-
-def get_mac_address(intf):
-    return Path(f"/sys/class/net/{intf}/address").read_text().strip()
 
 
 def sanitize_netconf(netconf):
