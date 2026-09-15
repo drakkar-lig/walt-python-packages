@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import ClassVar
 
 from plumbum import cli
-from walt.common import busybox_init, systemd
+from walt.common import systemd
 from walt.common.systemd import SYSTEMD_DEFAULT_DIR
 
 
@@ -65,14 +65,6 @@ class WaltGenericSetup(cli.Application):
 
     def systemd_unit_exists(self, unit_name):
         return systemd.unit_exists(unit_name, install_prefix=self._install_prefix)
-
-    def setup_busybox_init_services(self, busybox_services):
-        self._assert_init_is({"BUSYBOX", None})
-        for service in busybox_services:
-            service_file_content = resource_stream(self.package, service)
-            busybox_init.install_service(
-                service, service_file_content, self._install_prefix
-            )
 
     def start_systemd_services(self, systemd_services):
         self._assert_init_is({"SYSTEMD", None})
