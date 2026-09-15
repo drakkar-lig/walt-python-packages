@@ -38,7 +38,7 @@ deb-src http://deb.D.org/D/ R-updates C
 """.replace(
     "D", "debian"
 ).replace(
-    "R", "bookworm"
+    "R", "trixie"
 ).replace(
     "C", "main contrib non-free non-free-firmware")
 
@@ -55,7 +55,7 @@ Suites: RELEASE-security
 Components: COMPONENTS
 Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
 """.replace(
-    "RELEASE", "bookworm"
+    "RELEASE", "trixie"
 ).replace(
     "COMPONENTS", "main contrib non-free non-free-firmware")
 
@@ -81,7 +81,7 @@ APT_WALT_DEPENDENCIES_PACKAGES = """
         software-properties-common binfmt-support qemu-user-static
         lldpd snmp snmpd openssh-server snmp-mibs-downloader iputils-ping
         libsmi2-dev isc-dhcp-server bind9 nfs-kernel-server postgresql
-        ntpdate ntp lockfile-progs ptpd tftpd-hpa ebtables bridge-utils
+        ntpsec lockfile-progs ptpd tftpd-hpa ebtables bridge-utils
         ifupdown gcc python3-dev git make sudo expect libjson-perl
         docker.io podman buildah skopeo bash-completion dropbear-bin
         ksmtuned fdisk e2fsprogs dosfstools containernetworking-plugins
@@ -368,7 +368,7 @@ def undivert(path):
 # 'conmon' binary distributed in bullseye had a serious issue
 # causing possibly truncated stdout in podman [run|exec]).
 # We used dpkg-divert to replace it with a statically compiled
-# binary. Now with bookworm, we can revert to the distribution-
+# binary. Now, from bookworm, we can revert to the distribution-
 # provided binary.
 def fix_conmon():
     if has_diversion("/usr/bin/conmon"):
