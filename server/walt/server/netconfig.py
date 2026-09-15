@@ -3,7 +3,10 @@ import os.path
 import sys
 import time
 
-from walt.common.tools import do, failsafe_makedirs, get_persistent_random_mac, succeeds
+from walt.common.tools import (
+        do, failsafe_makedirs, get_persistent_random_mac, succeeds,
+        get_mac_address
+)
 from walt.server import conf
 
 WALT_STATUS_DIR = "/var/lib/walt"
@@ -125,6 +128,14 @@ def up(iface, iface_conf):
         # generated randomly. So instead of creating a useless bridge,
         # we just add an alternate name to the interface.
         if iface == "walt-net":
+            # If we are testing walt server installation on a virtual walt
+            # node, then the virtual interface of this node was tagged 'walt-net'
+            # by walt-init. It will conflict with this server network setup
+            # which tries to create a "walt-net" bridge interface.
+            # So we remove the altname previously configured.
+            if get_mac_address("walt-net") is not None:
+                do("ip link property del altname walt-net dev walt-net")
+            # create "walt-net" bridge
             create_bridge_iface(iface, (base_iface,), state_file)
             # isc-dhcp-server reads packets in raw mode on its interface
             # thus it detects 8021q (VLAN-tagged) packets it should not see.
