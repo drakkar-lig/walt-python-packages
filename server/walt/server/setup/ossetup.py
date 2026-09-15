@@ -126,6 +126,25 @@ def get_os_codename():
     raise Exception("File /etc/os-release has no VERSION_CODENAME specified.")
 
 
+def move(src, dst):
+    # note: this could be replaced by Path.move() but this method
+    # is only available from python 3.14 (= trixie) and we must
+    # provide an upgrade path for older systems.
+    try:
+        src.rename(dst)
+        return
+    except OSError:
+        # probably a cross-device link error, src & dst may
+        # not be on the same filesystem: continue below.
+        pass
+    if src.is_dir():
+        shutil.copytree(src, dst, dirs_exist_ok=True)
+        shutil.rmtree(str(src))
+    else:
+        shutil.copyfile(src, dst)
+        src.unlink()
+
+
 def fix_apt_sources(silent_override=False):
     # prepare backup dir
     timestamp_str = datetime.datetime.now().strftime("%m%d%y%H%M%S")
@@ -154,7 +173,7 @@ def fix_apt_sources(silent_override=False):
             sources_list_backup = apt_backup_dir / "sources.list"
             print(f"Updating {sources_list} (backup at {sources_list_backup})")
             apt_backup_dir.mkdir(parents=True, exist_ok=True)
-            sources_list.rename(sources_list_backup)
+            move(sources_list, sources_list_backup)
         sources_list.write_text(APT_SOURCES_LIST_CONTENT)
     # update /etc/apt/sources.list.d
     if update_apt_sources_list_d:
@@ -162,7 +181,7 @@ def fix_apt_sources(silent_override=False):
             sources_list_d_backup = apt_backup_dir / "sources.list.d"
             print(f"Replacing {sources_list_d} (backup at {sources_list_d_backup})")
             sources_list_d_backup.mkdir(parents=True, exist_ok=True)
-            sources_list_d.rename(sources_list_d_backup)
+            move(sources_list_d, sources_list_d_backup)
             sources_list_d.mkdir()
         if obsolete_docker_list.exists():
             obsolete_docker_list.unlink()
