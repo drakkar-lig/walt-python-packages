@@ -153,7 +153,6 @@ PACKAGE_SPECIFIC_INFO = {
             description="WalT components related to virtualization.",
             entry_points={
                 "console_scripts": [
-                    "walt-virtual-setup-node = walt.virtual.setup.node:run",
                     "walt-virtual-node = walt.virtual.node:run",
                 ]
             },

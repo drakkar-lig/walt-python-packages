@@ -18,12 +18,7 @@ setup_info = {
     "license": "3-Clause BSD",
     "url": "https://walt-project.liglab.fr",
     "description": "WalT components related to virtualization.",
-    "entry_points": {
-        "console_scripts": [
-            "walt-virtual-setup-node = walt.virtual.setup.node:run",
-            "walt-virtual-node = walt.virtual.node:run",
-        ]
-    },
+    "entry_points": {"console_scripts": ["walt-virtual-node = walt.virtual.node:run"]},
     "include_package_data": True,
 }
 setup_info.update(packages=find_packages())
