@@ -7,8 +7,14 @@ from functools import lru_cache   # note: python3.7 has no functools.cache decor
 from pathlib import Path
 
 
-def get_mac_address(interface):
-    return Path("/sys/class/net/" + interface + "/address").read_text().strip()
+def get_mac_address(intf_name):
+    import json, subprocess
+    proc = subprocess.run(["ip", "-j", "link"], capture_output=True)
+    for intf in json.loads(proc.stdout):
+        names = [intf["ifname"]] + intf.get("altnames", [])
+        if intf_name in names:
+            return intf["address"]
+    return None
 
 
 def do(cmd: str | [str], shell=False, stdout=None, stderr=None, text=True):
