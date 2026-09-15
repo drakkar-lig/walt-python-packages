@@ -424,7 +424,9 @@ def cleanup_old_walt_install():
     os.environ["PATH"] = saved_path
     # clear old /opt/walt-<version> directories
     for opt_entry in Path('/opt').iterdir():
-        if opt_entry.name.startswith('walt-') and opt_entry != Path(sys.prefix):
+        if (opt_entry.name.startswith('walt-') and
+            opt_entry != Path(sys.prefix) and
+            opt_entry.name != 'walt-node'):
             print(f"Removing obsolete {opt_entry}... ", end="")
             sys.stdout.flush()
             shutil.rmtree(str(opt_entry))
