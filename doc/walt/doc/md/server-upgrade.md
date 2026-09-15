@@ -8,7 +8,7 @@ When a new version of WalT is available, you can follow these steps to update it
 ## Preliminary check
 
 This procedure works for upgrading your debian-based WalT server installation,
-considering your OS is at least Debian Bullseye (Debian 11).
+considering your OS is at least Debian Bookworm (Debian 12).
 You can verify it using:
 ```
 $ grep VERSION /etc/os-release

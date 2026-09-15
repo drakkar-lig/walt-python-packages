@@ -92,7 +92,7 @@ WALT_MAIN_SERVICE = "walt-server.service"
 #   to be free, so "stop_services" should have been called already.
 OS_ACTIONS = {
     "image-install": {
-        "bookworm": (
+        "trixie": (
             "setup_vpn",
             "define_server_conf",
             "install_os_on_image",
@@ -106,7 +106,7 @@ OS_ACTIONS = {
         ),
     },
     "install": {
-        "bookworm": (
+        "trixie": (
             "stop_services",
             "setup_vpn",
             "define_server_conf",
@@ -124,7 +124,7 @@ OS_ACTIONS = {
         ),
     },
     "upgrade": {
-        "bullseye": (
+        "bookworm": (
             "record_start_os_upgrade",
             "stop_services",
             "setup_vpn",
@@ -142,7 +142,7 @@ OS_ACTIONS = {
             "record_end_os_upgrade",
             "msg_reboot",
         ),
-        "bookworm": (
+        "trixie": (
             "stop_services",
             "setup_vpn",
             "define_server_conf",
