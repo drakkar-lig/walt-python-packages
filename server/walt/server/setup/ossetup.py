@@ -239,38 +239,37 @@ def fix_packets(upgrade_dist=False, upgrade_packets=False):
 
 
 def upgrade_db():
-    clusters_info = json.loads(
-        subprocess.run(
-            "pg_lsclusters -j".split(), check=True, stdout=subprocess.PIPE
-        ).stdout
-    )
-    num_clusters = len(clusters_info)
-    if num_clusters != 2:
-        raise Exception(
-            "Expected 2 db clusters after os upgrade, but pg_lsclusters lists"
-            f" {num_clusters} cluster(s)!"
-        )
-    for c_info in clusters_info:
-        if int(c_info["port"]) == 5432:  # default postgresql port => walt
-            # database cluster
-            old_version = c_info["version"]
-        else:
-            new_version = c_info["version"]
     print(
         f"Upgrading postgresql database version {old_version} to {new_version}... ",
         end="",
     )
     sys.stdout.flush()
-    subprocess.run(
-        f"pg_dropcluster --stop {new_version} main".split(),
-        check=True,
-        stdout=subprocess.PIPE,
+    clusters_info = json.loads(
+        subprocess.run(
+            "pg_lsclusters -j".split(), check=True, stdout=subprocess.PIPE
+        ).stdout
     )
+    new_version = None
+    for c_info in clusters_info:
+        if int(c_info["port"]) == 5432:  # default postgresql port => walt
+            # database cluster
+            old_version = c_info["version"]
+        else:
+            # a default cluster for the new version was automatically
+            # created by the package upgrade, drop it
+            new_version = c_info["version"]
+            subprocess.run(
+                f"pg_dropcluster --stop {new_version} main".split(),
+                check=True,
+                stdout=subprocess.PIPE,
+            )
+    # upgrade the cluster
     subprocess.run(
         f"pg_upgradecluster {old_version} main".split(),
         check=True,
         stdout=subprocess.PIPE,
     )
+    # drop the old cluster
     subprocess.run(
         f"pg_dropcluster {old_version} main".split(), check=True, stdout=subprocess.PIPE
     )
