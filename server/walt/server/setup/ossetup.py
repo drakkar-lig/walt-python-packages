@@ -93,6 +93,8 @@ APT_WALT_DEPENDENCIES_PACKAGES = """
 
 UPGRADE_STATUS_FILE = Path("/var/lib/walt/.upgrade")
 
+WALT_PG_PORT = 5432
+
 
 def record_start_os_upgrade():
     # if the upgrade fails, the file /var/lib/walt/.upgrade will
@@ -239,42 +241,58 @@ def fix_packets(upgrade_dist=False, upgrade_packets=False):
 
 
 def upgrade_db():
+    versions = set()
+    for entry in Path("/usr/lib/postgresql/").iterdir():
+        if entry.name.isdigit():
+            versions.add(int(entry.name))
+    new_version = max(versions)
     clusters_info = json.loads(
         subprocess.run(
             "pg_lsclusters -j".split(), check=True, stdout=subprocess.PIPE
         ).stdout
     )
-    num_clusters = len(clusters_info)
-    if num_clusters != 2:
-        raise Exception(
-            "Expected 2 db clusters after os upgrade, but pg_lsclusters lists"
-            f" {num_clusters} cluster(s)!"
-        )
+    port_per_version = {}
     for c_info in clusters_info:
-        if int(c_info["port"]) == 5432:  # default postgresql port => walt
-            # database cluster
-            old_version = c_info["version"]
-        else:
-            new_version = c_info["version"]
-    print(
-        f"Upgrading postgresql database version {old_version} to {new_version}... ",
-        end="",
-    )
-    sys.stdout.flush()
-    subprocess.run(
-        f"pg_dropcluster --stop {new_version} main".split(),
-        check=True,
-        stdout=subprocess.PIPE,
-    )
-    subprocess.run(
-        f"pg_upgradecluster {old_version} main".split(),
-        check=True,
-        stdout=subprocess.PIPE,
-    )
-    subprocess.run(
-        f"pg_dropcluster {old_version} main".split(), check=True, stdout=subprocess.PIPE
-    )
-    print("done")
+        port = int(c_info["port"])
+        version = int(c_info["version"])
+        port_per_version[version] = port
+    if port_per_version.get(new_version) not in (None, WALT_PG_PORT):
+        # a default empty cluster for the new version was automatically
+        # created by the package upgrade, drop it
+        subprocess.run(
+            f"pg_dropcluster --stop {new_version} main".split(),
+            check=True,
+            stdout=subprocess.PIPE,
+        )
+        del port_per_version[new_version]
+    # drop or upgrade clusters with old versions
+    for version, port in port_per_version.copy().items():
+        if version == new_version:
+            continue
+        if port == WALT_PG_PORT:
+            # upgrade the cluster to the new version
+            print(f"Upgrading postgresql database server... ", end="")
+            sys.stdout.flush()
+            # after this operation:
+            # - the upgraded cluster will still use WALT_PG_PORT = 5432
+            # - the old version of the cluster will remain but use
+            #   a different port (it will be dropped below)
+            subprocess.run(
+                f"pg_upgradecluster {version} main".split(),
+                check=True,
+                stdout=subprocess.PIPE,
+            )
+            print("done")
+            port_per_version[new_version] = WALT_PG_PORT
+        # drop the old cluster
+        subprocess.run(
+            f"pg_dropcluster {version} main".split(),
+            check=True, stdout=subprocess.PIPE
+        )
+        del port_per_version[version]
+    # at this point we should have only one cluster,
+    # with the new version, and listening on tcp port WALT_PG_PORT
+    assert tuple(port_per_version.items()) == ((new_version, WALT_PG_PORT),)
 
 
 def upgrade_os():
