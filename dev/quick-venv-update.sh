@@ -6,7 +6,10 @@ cd "$git_root"
 # activate the virtual env if not done yet
 [ -z "$VIRTUAL_ENV" ] && . .venv/bin/activate
 venv_root=$(python3 -c 'import sys; print(sys.prefix)')
-venv_packages="$(ls -d "${venv_root}/lib/python"*"/site-packages")"
+venv_py_version="$(python3 -c \
+    'import sys; v=sys.version_info; print(f"{v.major}.{v.minor}")')"
+venv_packages="$(ls -d \
+    "${venv_root}/lib/python${venv_py_version}/site-packages")"
 
 file_changes="$({
     git diff-index --name-status HEAD~10
