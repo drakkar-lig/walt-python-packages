@@ -1,7 +1,8 @@
+import json
 import numpy as np
 import shlex
 import uuid
-from subprocess import PIPE, Popen
+from subprocess import run
 from sys import stderr
 
 import psycopg2
@@ -17,11 +18,12 @@ class PostgresDB:
         self.schema_cache = {}
 
     def prepare(self):
+        self._fix_db_collations()
         try:
             # Do catch exception here to create DB and users if there does not exist
             self.conn = psycopg2.connect(database=WALT_DBNAME, user=WALT_DBUSER)
         except psycopg2.OperationalError:
-            self.create_db_and_user()
+            self._create_db_and_user()
             # Do not catch any exception here to let the user know if something
             # happens bad
             self.conn = psycopg2.connect(database=WALT_DBNAME, user=WALT_DBUSER)
@@ -35,17 +37,58 @@ class PostgresDB:
             self.conn.close()
             self.conn, self.c = None, None
 
-    def create_db_and_user(self):
-        # we must use the postgres admin user for this
-        args = shlex.split("su -c psql -l postgres")
-        popen = Popen(args, stdin=PIPE, stdout=None, stderr=stderr)
-        popen.stdin.write(("""
-                CREATE USER %(user)s;
-                ALTER ROLE %(user)s WITH CREATEDB;
-                CREATE DATABASE %(db)s OWNER %(user)s;
-                """ % dict(user=WALT_DBUSER, db=WALT_DBNAME)).encode("ascii"))
-        popen.stdin.close()
-        popen.wait()
+    def _run_sql_as_postgres(self, sql, db="postgres"):
+        "Connect as 'postgres' admin user and run SQL code"
+        # root cannot directly connect as 'postgres', we have to
+        # use 'su' to switch to the 'postgres' user of the OS first.
+        cmd = shlex.join(["psql", "-At", "-c", sql, db])
+        args = ["su", "-c", cmd, "-l", "postgres"]
+        proc = run(args, check=True, text=True, capture_output=True)
+        return proc.stdout
+
+    def _fix_db_collations(self):
+        "Fix databases created with outdated collation version"
+        # Check for databases with outdated collation version.
+        # (Can occur after an OS upgrade.)
+        sql = ("SELECT COALESCE(json_agg(datname), '[]') "
+               "FROM pg_database "
+               "WHERE datcollversion IS NOT NULL "
+                 "AND datcollversion != "
+                     "pg_database_collation_actual_version(oid);")
+        outdated_dbs = json.loads(self._run_sql_as_postgres(sql))
+        # Reindexing 'walt' database could be long, especially if the
+        # 'logs' table is large. The upgrade procedure in db.py will
+        # take care of reindexing only the set of indexes that have
+        # a chance to be corrupted (see _fix_collations() in db.py).
+        # Here we just reindex the other databases (should be 'postgres'
+        # and 'template1').
+        # Then we update the collation version of each database
+        # (including 'walt', since the upgrade procedure will complete
+        # the fix very soon), so that we no longer get warnings.
+        if len(outdated_dbs) > 0:
+            for db in outdated_dbs:
+                if db != WALT_DBNAME:
+                    self._run_sql_as_postgres("REINDEX DATABASE", db)
+                self._run_sql_as_postgres(
+                    f"ALTER DATABASE {db} REFRESH COLLATION VERSION"
+                )
+
+    def _create_db_and_user(self):
+        # The locale settings applied below are not absolutely needed
+        # because we will specify 'COLLATE "C"' in the definition
+        # of each text column anyway. But using the builtin/C
+        # locale makes us independent from libc, at least for
+        # the collation algorithm used in our indexes.
+        # This improvement will only apply to new WALT server
+        # installations though (it needs to be applied when the
+        # database is created).
+        sql = (f"CREATE USER {WALT_DBUSER}; "
+               f"ALTER ROLE {WALT_DBUSER} WITH CREATEDB; "
+               f"CREATE DATABASE {WALT_DBNAME} "
+                 f'TEMPLATE template0 OWNER {WALT_DBUSER} '
+                  'LOCALE_PROVIDER builtin BUILTIN_LOCALE "C" '
+                  'LOCALE "C";')
+        self._run_sql_as_postgres(sql)
 
     def commit(self):
         self.conn.commit()

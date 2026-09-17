@@ -1,3 +1,4 @@
+import locale
 import numpy as np
 import psycopg2.extras
 import re
@@ -45,49 +46,49 @@ class ServerDB(PostgresDB):
 
     def _create_tables(self):
         self.execute("""CREATE TABLE alldevices (
-            mac TEXT PRIMARY KEY,
-            ip TEXT,
-            name TEXT,
-            type TEXT,
+            mac TEXT COLLATE "C" PRIMARY KEY,
+            ip TEXT COLLATE "C",
+            name TEXT COLLATE "C",
+            type TEXT COLLATE "C",
             virtual BOOLEAN DEFAULT FALSE,
             conf JSONB DEFAULT '{}');""")
         self.execute("""CREATE TABLE topology (
-            mac1 TEXT REFERENCES alldevices(mac),
+            mac1 TEXT COLLATE "C" REFERENCES alldevices(mac),
             port1 INTEGER,
-            mac2 TEXT REFERENCES alldevices(mac),
+            mac2 TEXT COLLATE "C" REFERENCES alldevices(mac),
             port2 INTEGER,
             confirmed BOOLEAN,
             last_seen TIMESTAMP WITH TIME ZONE);""")
         self.execute("""CREATE TABLE images (
-            fullname TEXT PRIMARY KEY);""")
+            fullname TEXT COLLATE "C" PRIMARY KEY);""")
         self.execute("""CREATE TABLE nodes (
-            mac TEXT REFERENCES alldevices(mac),
-            image TEXT REFERENCES images(fullname),
-            model TEXT);""")
+            mac TEXT COLLATE "C" REFERENCES alldevices(mac),
+            image TEXT COLLATE "C" REFERENCES images(fullname),
+            model TEXT COLLATE "C");""")
         self.execute("""CREATE TABLE switches (
-            mac TEXT REFERENCES alldevices(mac),
-            model TEXT);""")
+            mac TEXT COLLATE "C" REFERENCES alldevices(mac),
+            model TEXT COLLATE "C");""")
         self.execute("""CREATE TABLE switchports (
-            mac TEXT REFERENCES alldevices(mac),
+            mac TEXT COLLATE "C" REFERENCES alldevices(mac),
             port INTEGER,
-            name TEXT,
+            name TEXT COLLATE "C",
             PRIMARY KEY (mac, port));""")
         self.execute("""CREATE TABLE alllogstreams (
             id SERIAL PRIMARY KEY,
-            issuer_mac TEXT REFERENCES alldevices(mac),
-            name TEXT);""")
+            issuer_mac TEXT COLLATE "C" REFERENCES alldevices(mac),
+            name TEXT COLLATE "C");""")
         self.execute("""CREATE TABLE alllogs (
             stream_id INTEGER REFERENCES logstreams(id),
             timestamp TIMESTAMP WITH TIME ZONE,
-            line TEXT);""")
+            line TEXT COLLATE "C");""")
         self.execute("""CREATE TABLE checkpoints (
-            username TEXT,
+            username TEXT COLLATE "C",
             timestamp TIMESTAMP,
-            name TEXT);""")
+            name TEXT COLLATE "C");""")
         self.execute("""CREATE TABLE poeoff (
-            mac TEXT REFERENCES alldevices(mac),
+            mac TEXT COLLATE "C" REFERENCES alldevices(mac),
             port INTEGER,
-            reason TEXT);""")
+            reason TEXT COLLATE "C");""")
         # We have two different tables "vpnnodes" and "vpnauth"
         # because in the case of "walt device forget" we may want
         # to forget a vpn node, but still keep track of the auth data
@@ -96,14 +97,14 @@ class ServerDB(PostgresDB):
         # table vpnnodes or a non-NULL device_label value,
         # depending on whether the device was forgotten or not.
         self.execute("""CREATE TABLE vpnauth (
-            vpnmac TEXT PRIMARY KEY,
-            pubkeycert TEXT,
-            certid TEXT,
-            device_label TEXT,
+            vpnmac TEXT COLLATE "C" PRIMARY KEY,
+            pubkeycert TEXT COLLATE "C",
+            certid TEXT COLLATE "C",
+            device_label TEXT COLLATE "C",
             revoked BOOLEAN DEFAULT FALSE);""")
         self.execute("""CREATE TABLE vpnnodes (
-            mac TEXT REFERENCES alldevices(mac),
-            vpnmac TEXT REFERENCES vpnauth(vpnmac));""")
+            mac TEXT COLLATE "C" REFERENCES alldevices(mac),
+            vpnmac TEXT COLLATE "C" REFERENCES vpnauth(vpnmac));""")
 
     def _migrate_v10_to_v11(self):
         # migration v10 -> v11
@@ -120,6 +121,7 @@ class ServerDB(PostgresDB):
         for view in ("devices", "logstreams", "logs"):
             tbl = f"all{view}"
             self.execute(f"ALTER TABLE {view} RENAME TO {tbl}")
+        self._fix_collations()
         self._create_views()
 
     def _init_new_db(self):
@@ -166,6 +168,65 @@ class ServerDB(PostgresDB):
         self._cleanup_removed_devices()
         # commit
         self.commit()
+
+    def _fix_collations(self):
+        # In older versions we were using the collation of the default locale
+        # e.g., fr_FR.UTF8, so text comparison in postgresql worked as a human
+        # would expect; for example: 'é' < 'f'. But this collation algorithm
+        # is managed by libc and depends on the unicode standard, which
+        # evolves, so in specific cases an OS upgrade could break our indexes.
+        # We now specify COLLATE "C" on TEXT columns when creating the
+        # database, in order to just compare text strings using their
+        # underlying byte values.
+        # In order to fix older WALT installations and converge to the new
+        # schema, we will alter TEXT columns using the default collation
+        # to use the "C" collation instead,  and rebuild the corresponding
+        # indexes.
+        sql_table_columns = """
+            SELECT table_name, column_name
+            FROM information_schema.columns
+            WHERE data_type = 'text'
+              AND collation_name IS NULL
+              AND table_schema = 'public'
+        """
+        db_indexes = self.execute(f"""
+            WITH text_cols AS ({sql_table_columns})
+            SELECT DISTINCT i.relname AS index_name
+            FROM pg_index    ix
+            JOIN pg_class    t ON t.oid        = ix.indrelid
+            JOIN pg_class    i ON i.oid        = ix.indexrelid
+            JOIN pg_attribute a ON a.attrelid = t.oid
+                                AND a.attnum  = ANY (ix.indkey)
+            JOIN text_cols  c ON c.table_name = t.relname
+                              AND c.column_name = a.attname
+        """)
+        db_columns = self.execute(sql_table_columns)
+        # fix TEXT columns with default collation to use "C" collation
+        for col in db_columns:
+            self.execute(f'''ALTER TABLE {col.table_name}
+                             ALTER COLUMN {col.column_name}
+                                 TYPE text COLLATE "C"''')
+        # rebuild corresponding indexes
+        for idx in db_indexes:
+            self.execute(f'''REINDEX INDEX {idx.index_name}''')
+        # also define a collation corresponding to the OS default,
+        # for use in queries which need to print a result sorted
+        # in the way the user would expect.
+        os_lc_collate = self._detect_os_lc_collate()
+        if "." in os_lc_collate:
+            # pg_collation table has for instance "fr_FR.utf8",
+            # not "fr_FR.UTF-8"
+            base, codeset = os_lc_collate.split(".")
+            codeset = codeset.lower().replace("-", "").replace("_", "")
+            os_lc_collate = base + "." + codeset
+        self.execute('CREATE COLLATION IF NOT EXISTS "os-default" '
+                    f'FROM "{os_lc_collate}";')
+
+    def _detect_os_lc_collate(self):
+        saved_py_lc_collate = locale.setlocale(locale.LC_COLLATE)
+        os_lc_collate = locale.setlocale(locale.LC_COLLATE, '')
+        locale.setlocale(locale.LC_COLLATE, saved_py_lc_collate)
+        return os_lc_collate
 
     def _cleanup_removed_devices(self):
         # cleanup the database from devices previously deleted
