@@ -18,13 +18,27 @@ register_adapter(np.float64, AsIs)
 
 EV_AUTO_COMMIT = 0
 EV_AUTO_COMMIT_PERIOD = 2
+EV_CLEANUP_DELETED = 1
+# gradual removal of logs of deleted devices is performed in small
+# bounded steps, so that the (single-threaded) db process keeps some
+# time to handle other requests in between.
+CLEANUP_DELETED_BATCH = 500      # max logs deleted per batch
+CLEANUP_DELETED_BUDGET = 0.01    # max time spent per cleanup step
+CLEANUP_DELETED_DELAY = 0.01     # delay before the next cleanup step
 LOGS_AGGREGATION_THRESHOLD_SECS = 0.002
 
 
 class ServerDB(PostgresDB):
-    def __init__(self):
+    def __init__(self, ev_loop):
         # parent constructor
         PostgresDB.__init__(self)
+        # the ev_loop of the server-db process, used to schedule
+        # step-by-step cleanup operations without blocking it.
+        self.ev_loop = ev_loop
+        # even if we remove several devices in a short time,
+        # only one progressive cleanup process is needed,
+        # so let's track whether it is already running or not.
+        self._cleaning_up_removed_devices = False
 
     def _create_views(self):
         self.execute("""CREATE VIEW devices AS
@@ -115,9 +129,8 @@ class ServerDB(PostgresDB):
         # but those rows are excluded from the view.
         # Views 'logs' and 'logstreams' also exclude logging data
         # issued by devices with 'type' = 'deleted'.
-        # This allows to postpone de deletion of logging data
-        # to next daemon restart when forgetting a device or
-        # removing a virtual node.
+        # This allows to handle deletion of logging data gradually
+        # when forgetting a device or removing a virtual node.
         for view in ("devices", "logstreams", "logs"):
             tbl = f"all{view}"
             self.execute(f"ALTER TABLE {view} RENAME TO {tbl}")
@@ -164,8 +177,9 @@ class ServerDB(PostgresDB):
             self.execute("""UPDATE topology SET last_seen = now();""")
         # fix server entry
         self.fix_server_device_entry()
-        # cleanup db about devices removed at previous run
-        self._cleanup_removed_devices()
+        # in case the cleanup of removed devices was not fully completed
+        # when the service last stopped, resume this process.
+        self.plan_cleanup_deleted()
         # commit
         self.commit()
 
@@ -228,22 +242,75 @@ class ServerDB(PostgresDB):
         locale.setlocale(locale.LC_COLLATE, saved_py_lc_collate)
         return os_lc_collate
 
-    def _cleanup_removed_devices(self):
-        # cleanup the database from devices previously deleted
+    def plan_cleanup_deleted(self):
+        # schedule the progressive removal of devices previously deleted
         # (i.e., "forgotten" physical devices and removed virtual nodes).
-        if len(self.select("deleted_macs")) > 0:
-            print("removing references to devices previously deleted...")
-            self.execute(
-                """
-                DELETE FROM alllogs l USING alllogstreams s, alldevices d
-                    WHERE s.issuer_mac = d.mac
-                      AND d.type = 'deleted'
-                      AND l.stream_id = s.id;
-                DELETE FROM alllogstreams s USING alldevices d
-                    WHERE s.issuer_mac = d.mac
-                      AND d.type = 'deleted';
-                DELETE FROM alldevices d WHERE d.type = 'deleted';
-            """)
+        if self._cleaning_up_removed_devices:
+            # A cleanup operation is still running after another device
+            # was removed.
+            # This existing process will handle both devices so there
+            # is not need to plan anything here.
+            return
+        self._cleaning_up_removed_devices = True
+        self.ev_loop.plan_event(ts=time(), target=self,
+                                ev_type=EV_CLEANUP_DELETED)
+
+    def _cleanup_deleted_step(self):
+        # perform a bounded amount of work; if some work remains, plan
+        # the next step a bit later so that the db process can handle
+        # other requests in the meantime.
+        work_remains = self._cleanup_deleted_chunk()
+        if work_remains:
+            self.ev_loop.plan_event(
+                ts=time() + CLEANUP_DELETED_DELAY,
+                target=self, ev_type=EV_CLEANUP_DELETED)
+        else:
+            self._cleaning_up_removed_devices = False
+
+    def _cleanup_deleted_chunk(self):
+        # return True if some work may still remain after this chunk,
+        # False otherwise. Each deletion is committed right away, so
+        # the whole cleanup procedure is resumable (it can be restarted
+        # at any time, e.g. after a restart of the postgresql server).
+        start = time()
+        while time() - start < CLEANUP_DELETED_BUDGET:
+            # find a deleted device which still has log streams
+            rows = self.execute("""
+                SELECT d.mac
+                FROM alldevices d
+                JOIN alllogstreams s ON s.issuer_mac = d.mac
+                WHERE d.type = 'deleted'
+                GROUP BY d.mac
+                LIMIT 1""")
+            if len(rows) == 0:
+                # no deleted device with streams left: just remove the
+                # remaining 'deleted' rows (devices without any logs)
+                self.execute(
+                    "DELETE FROM alldevices d WHERE d.type = 'deleted';")
+                self.commit()
+                return False
+            # remove a bounded batch of logs for this device
+            mac = rows[0].mac
+            self.execute("""
+                DELETE FROM alllogs
+                WHERE ctid IN (
+                    SELECT l.ctid
+                    FROM alllogs l
+                    JOIN alllogstreams s ON s.id = l.stream_id
+                    WHERE s.issuer_mac = %s
+                    LIMIT %s)""", (mac, CLEANUP_DELETED_BATCH))
+            deleted_rows = self.c.rowcount
+            if deleted_rows < CLEANUP_DELETED_BATCH:
+                # this device has no more logs, remove its
+                # streams and its device entry
+                self.execute(
+                    "DELETE FROM alllogstreams s WHERE s.issuer_mac = %s",
+                    (mac,))
+                self.execute(
+                    "DELETE FROM alldevices d WHERE d.mac = %s", (mac,))
+            self.commit()
+        # we spent the whole time budget, more work may remain
+        return True
 
     def fix_server_device_entry(self):
         server_ip = get_server_ip()
@@ -330,8 +397,12 @@ class ServerDB(PostgresDB):
         )
 
     def handle_planned_event(self, ev_type):
-        assert ev_type == EV_AUTO_COMMIT
-        self.commit()
+        if ev_type == EV_AUTO_COMMIT:
+            self.commit()
+        elif ev_type == EV_CLEANUP_DELETED:
+            self._cleanup_deleted_step()
+        else:
+            raise Exception(f"Unexpected planned event type: {ev_type}")
 
     LOGS_SQL_PROJ = (
             "EXTRACT(EPOCH FROM l.timestamp)::float8 as timestamp, " +
@@ -451,8 +522,8 @@ class ServerDB(PostgresDB):
         # too long.
         # Instead, we just update the device type to 'deleted'
         # so that it is excluded from database views (devices,
-        # logstreams, and logs) and db cleanup will occur when the
-        # server daemon is restarted.
+        # logstreams, and logs) and the full db cleanup will be handled
+        # gradually (see self.plan_cleanup_deleted() below).
         sql += "UPDATE alldevices SET type='deleted' WHERE mac = %s;"
         # For other tables it should be fast so we can proceed
         # right away.
@@ -466,6 +537,10 @@ class ServerDB(PostgresDB):
         """
         self.execute(sql, (mac,) * sql.count("%s"))
         self.commit()
+        # schedule the gradual cleanup of this device's logs
+        # (doing it all at once could block the process for a
+        # long time).
+        self.plan_cleanup_deleted()
 
     def get_vpn_auth_keys(self):
         return self.execute("""
