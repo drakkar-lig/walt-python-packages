@@ -15,7 +15,7 @@ class ServerDBProcess(EvProcess):
 
     def prepare(self):
         from walt.server.processes.db.db import ServerDB
-        self.db = ServerDB()
+        self.db = ServerDB(self.ev_loop)
         # self.db is the local service we provide
         # to main and blocking processes
         self.main.configure(self.db)
