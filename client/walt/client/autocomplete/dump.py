@@ -391,8 +391,9 @@ def get_arg_types(app):
             positional += [None]
             arg_positions[m.varargs] = len(positional) - 1
         for argname, argclass in m.annotations.items():
-            argpos = arg_positions[argname]
-            positional[argpos] = argclass
+            argpos = arg_positions.get(argname)
+            if argpos is not None:
+                positional[argpos] = argclass
     else:
         num_args = len(positional)
     return num_args, [getattr(argclass, "__name__", None) for argclass in positional]
