@@ -46,8 +46,6 @@ zone "walt" IN {
 };
 
 %(rev_zones)s
-
-include "/etc/bind/named.conf.default-zones";
 """
 
 # if we have more than a /24, we will get several
