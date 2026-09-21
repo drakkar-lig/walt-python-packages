@@ -69,6 +69,7 @@ UNCOMPATIBLE_OS_SERVICES = [
     "tftpd-hpa.service",
     "isc-dhcp-server.service",
     "named.service",
+    "nbd-server.service",
     "snmpd.service",
     "lldpd.service",
     "ptpd.service",
@@ -297,7 +298,11 @@ class WalTServerSetup(WaltGenericSetup):
             )
             if dhcp_service_symlink.is_symlink():
                 dhcp_service_symlink.unlink()
-        self.disable_systemd_services(UNCOMPATIBLE_OS_SERVICES)
+        to_be_disabled = []
+        for service_unit in UNCOMPATIBLE_OS_SERVICES:
+            if self.systemd_unit_exists(service_unit):
+                to_be_disabled.append(service_unit)
+        self.disable_systemd_services(to_be_disabled)
         print("done")
 
     def remove_obsolete_services(self):
