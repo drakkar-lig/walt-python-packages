@@ -78,7 +78,7 @@ conmon podman-plugins slirp4netns crun isc-dhcp-server tftpd-hpa ptpd lldpd snmp
 
 APT_WALT_DEPENDENCIES_PACKAGES = """
         apt-transport-https ca-certificates gnupg2 curl gnupg-agent
-        software-properties-common binfmt-support qemu-user-static
+        binfmt-support qemu-user-static
         lldpd snmp snmpd openssh-server snmp-mibs-downloader iputils-ping
         libsmi2-dev isc-dhcp-server bind9 nfs-kernel-server postgresql
         ntpsec lockfile-progs ptpd tftpd-hpa ebtables bridge-utils
