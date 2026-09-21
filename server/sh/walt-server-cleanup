@@ -7,8 +7,11 @@
 # not be touched by this cleanup script.
 
 # ensure the NFS server is not locking image mounts
-echo > /etc/exports.d/walt.exports
-systemctl restart nfs-kernel-server
+if [ -e /etc/exports.d/walt.exports ]
+then
+    echo > /etc/exports.d/walt.exports
+    systemctl restart nfs-kernel-server
+fi
 # same for NBFSD if the service exists
 if systemctl cat nbfsd >/dev/null 2>&1
 then
