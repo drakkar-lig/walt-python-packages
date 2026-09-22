@@ -22,7 +22,6 @@ from walt.server.mount.tools import (
         long_image_id,
         save_image_size,
         serialized_mounts,
-        set_node_rw_fsid,
 )
 from walt.server.mount.setup import setup
 
@@ -111,8 +110,6 @@ def node_rw_mount(log_print, node_mac, image_id, image_fullname):
         with serialized_mounts():
             buildah.tag(src_image_name, image_name)
             buildah("from", "--pull-never", "--name", cont_name, image_name)
-        # generate a random fsid for this new container
-        set_node_rw_fsid(mount_path, random.randbytes(16).hex())
         # we've just created the container
         new_container = True
     # mount the container content in a directory

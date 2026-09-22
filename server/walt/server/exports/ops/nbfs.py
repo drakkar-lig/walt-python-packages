@@ -28,16 +28,8 @@ FILE_TEMPLATE = f"""\
 [image-build-exports]
 """
 
-IMAGE_EXPORT_PATTERN = np_str_pattern(f"""\
+EXPORT_PATTERN = np_str_pattern(f"""\
 %(path)s {WALT_SUBNET}(fsid=%(fsid)s)\
-""")
-
-NODE_RW_EXPORT_PATTERN = np_str_pattern(f"""\
-%(path)s {WALT_SUBNET}(fsid=%(fsid)s)\
-""")
-
-IMAGE_BUILD_EXPORT_PATTERN = np_str_pattern(f"""\
-%(path)s {WALT_SUBNET}\
 """)
 
 
@@ -59,18 +51,17 @@ def wf_cleanup_nbfs(wf, **env):
 def compute_nbfs_conf(image_exports, node_rw_exports, image_build_exports):
     if len(image_exports) > 0:
         image_exports_str = "\n".join(
-            np_apply_str_pattern(IMAGE_EXPORT_PATTERN, image_exports))
+            np_apply_str_pattern(EXPORT_PATTERN, image_exports))
     else:
         image_exports_str = '# (none)'
     if len(node_rw_exports) > 0:
         node_rw_exports_str = "\n".join(
-            np_apply_str_pattern(NODE_RW_EXPORT_PATTERN, node_rw_exports))
+            np_apply_str_pattern(EXPORT_PATTERN, node_rw_exports))
     else:
         node_rw_exports_str = '# (none)'
     if len(image_build_exports) > 0:
         image_build_exports_str = "\n".join(
-            np_apply_str_pattern(IMAGE_BUILD_EXPORT_PATTERN,
-                                 image_build_exports))
+            np_apply_str_pattern(EXPORT_PATTERN, image_build_exports))
     else:
         image_build_exports_str = '# (none)'
     nbfs_conf = FILE_TEMPLATE.replace("[image-exports]", image_exports_str)
