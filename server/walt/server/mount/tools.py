@@ -1,6 +1,5 @@
 import hashlib
 import logging
-import operator
 import pickle
 import numpy as np
 from contextlib import contextmanager
@@ -28,20 +27,6 @@ def get_node_rw_relative_mount_path(image_id, image_fullname):
 def get_node_rw_mount_path(node_mac, image_id, image_fullname):
     return ("/var/lib/walt/nodes/" + node_mac + "/" +
             get_node_rw_relative_mount_path(image_id, image_fullname))
-
-
-_np_path_object = np.vectorize(Path)
-_np_read_text = np.vectorize(operator.methodcaller("read_text"))
-
-def get_node_rw_fsid(mount_path):
-    if isinstance(mount_path, np.ndarray):
-        return _np_read_text(_np_path_object(mount_path + '.fsid'))
-    else:
-        return Path(str(mount_path) + ".fsid").read_text()
-
-
-def set_node_rw_fsid(mount_path, fsid):
-    Path(str(mount_path) + ".fsid").write_text(fsid)
 
 
 def long_image_id(image_id):
