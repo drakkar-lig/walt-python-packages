@@ -7,7 +7,8 @@ class WalTApplication(cli.Application):
     pass
 
 
-WalTApplication.unbind_switches("-v", "--version", "--help-all")
+WalTApplication.unbind_switches("-v", "--version", "--help-all",
+                                "--completions")
 
 
 class WalTToolboxApplication(WalTApplication):
