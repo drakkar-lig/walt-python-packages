@@ -1,4 +1,4 @@
-#!dev/python.sh
+#!/usr/bin/env walt-python3
 import atexit
 import sys
 from pathlib import Path
