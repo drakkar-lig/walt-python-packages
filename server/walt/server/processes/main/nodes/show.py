@@ -74,6 +74,8 @@ def show(manager, username, show_all, names_only):
             res_user, res_free, res_other = user_subsets(res, username)
             names = res_user.name
         return "\n".join(names)
+    if res.size == 0:
+        return MSG_NO_NODES
     # compute res.type (the db query initialized to "physical" by default)
     mask_virt_mac = np.char.startswith(res.mac.astype(str), "52:54:00")
     mask_virt = res.virtual.astype(bool)
@@ -99,8 +101,6 @@ def show(manager, username, show_all, names_only):
     footnotes = ()
     if len(res_user) == 0 and not show_all:
         footnotes += (MSG_USING_NO_NODES, MSG_RERUN_WITH_ALL)
-    elif len(res_other) + len(res_user) + len(res_free) == 0:
-        footnotes += (MSG_NO_NODES,)
     else:
         if len(res_user) > 0:
             # display nodes of requester
