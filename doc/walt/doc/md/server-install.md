@@ -3,35 +3,10 @@
 
 ## Overview
 
-We provide instructions to setup walt server software and dependencies on a fresh (and minimal)
-installation of debian 13 (trixie) operating system.
+We provide instructions to setup walt server software on a fresh (and minimal)
+installation of the Debian 13 (trixie) operating system.
 
-Note that walt server software starts various network daemons (lldpd, snmpd, dhcpd, ptpd, ntpd,
-tftpd, nfsd), thus you should not run other software related to network management on this walt
-server machine.
-You should also avoid installing a desktop environment (e.g. Gnome) on this machine, as this
-will probably try to "setup" network interfaces when loading and interfere with WALT.
-Use SSH instead.
-
-
-## Hardware requirements
-
-The WalT server must be installed on a 64bits (intel / amd64 CPU) machine, equipped with the following:
-* A 64 bits (intel or amd) CPU (recent core i5 or better is recommended).
-* A 250Go (or more) disk.
-* 16 Go RAM or more is recommended (RAM is mainly needed for the "virtual nodes" feature).
-* 2 wired LAN interfaces (recommended).
-
-Note: one may use a USB-ethernet dongle as an alternative to the second LAN interface.
-See [`walt help show networking`](networking.md) and [`walt help show server-network-config`](server-network-config.md).
-
-WalT is often used in one of the following scenarios:
-* Standard deployment in a building
-* Mobile setup (for demos)
-
-In the first case, you could install WalT on a server in the datacenter of the building.
-In the second case, you could choose a small-form-factor PC.
-Contact us (walt-contact at univ-grenoble-alpes.fr) for more advice.
+For more information about what exactly means "minimal" in this context, what are the hardware requirements, or if you plan to use a virtual machine instead, continue scrolling.
 
 
 ## 1- Install and configure walt software
@@ -82,3 +57,40 @@ Then, connect a switch, physical nodes and check that you can reach them (see [`
 Caution: do not connect a node directly to the server (with no intermediate switch). It will NOT work.
 (See [`walt help show networking`](networking.md) and [`walt help show switch-install`](switch-install.md).)
 
+
+## What "minimal" Debian OS means
+
+The walt server software starts various network daemons (lldpd, snmpd, dhcpd, ptpd, ntpd,
+tftpd, nfsd), thus you should not run other software related to network management on this walt
+server machine.
+You should also avoid installing a desktop environment (e.g. Gnome) on this machine, as this
+will probably try to "setup" network interfaces when loading and interfere with WALT.
+Use a remote SSH access instead.
+
+
+## Hardware requirements
+
+The WalT server must be installed on a 64bits (intel / amd64 CPU) machine, equipped with the following:
+* A 64 bits (intel or amd) CPU (recent core i5 or better is recommended).
+* A 250Go (or more) disk.
+* 16 Go RAM or more is recommended (RAM is mainly needed for the "virtual nodes" feature).
+* 2 wired LAN interfaces (recommended).
+
+Note: one may use a USB-ethernet dongle as an alternative to the second LAN interface.
+See [`walt help show networking`](networking.md) and [`walt help show server-network-config`](server-network-config.md).
+
+WalT is often used in one of the following scenarios:
+* Standard deployment in a building
+* Mobile setup (for demos)
+
+In the first case, you could install WalT on a server in the datacenter of the building.
+In the second case, you could choose a small-form-factor PC.
+Contact us (walt-contact at univ-grenoble-alpes.fr) for more advice.
+
+
+## Notes about installing in a VM
+
+It is possible to install the WALT server in a virtual machine.
+However, keep the following key points in mind:
+* For proper communication with WALT nodes and other physical devices, there must be no filtering (at the ethernet level) between the physical network of the WALT platform and the corresponding network interface of the virtual machine.
+* For creating WALT virtual nodes, nested virtualization must be enabled on the virtual machine, since virtual nodes are virtual machines too.
