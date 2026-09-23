@@ -1,0 +1,77 @@
+#!/bin/bash
+set -e
+
+_usage_and_exit() {
+    echo "Usage: $0 <venv-dir> [upgrade|cleanup]"
+    exit 1
+}
+
+if [ -z "$2" -o ! -d "$1" ]
+then
+    _usage_and_exit
+fi
+
+case "$2" in
+    upgrade|cleanup)
+        ;;
+    *)
+        _usage_and_exit
+        ;;
+esac
+
+venv="$1"
+task="$2"
+
+upgrade() {
+    # at first call (we might be called several times
+    # if the first walt-server-setup call failed), save
+    # the current packages dir as the one of the "old"
+    # python version.
+    if [ ! -e "$venv/.old_dir_packages" ]
+    then
+        ls -d "${venv}"/lib/python*/*-packages > "$venv/.old_dir_packages"
+    fi
+
+    # upgrade the venv symlinks for the new python version
+    python3 -m venv --upgrade "$venv"
+
+    # upgrade pip in the venv
+    pip="$venv/bin/pip"
+    "$pip" install --upgrade pip
+
+    # check if walt packages are already installed in the venv
+    # for current python version
+    if "$pip" show walt-server >/dev/null 2>&1
+    then
+        # walt packages already installed, no upgrade needed.
+        exit 0
+    fi
+
+    # find the site-packages directory of the previous python version
+    # (the one where walt had been installed)
+    old_dir_packages="$(cat "$venv/.old_dir_packages")"
+
+    # reinstall walt packages and their dependencies in the directory
+    # of the new python version
+    # (should be <venv>/lib/python<new-version>/site-packages/)
+    "$pip" install -r <(
+        "$pip" freeze --path "$old_dir_packages" | grep "^walt-"
+    )
+}
+
+cleanup() {
+    # now that the venv is upgraded to the new python version
+    # and that walt-server-setup is ending (it might still be run
+    # by the old python version if all went well, or by the new
+    # one if an error occured and it was restarted), we can
+    # remove the files related to the old python version.
+    old_dir_packages="$(cat "$venv/.old_dir_packages")"
+    old_dir_python="$(dirname "$old_dir_packages")"
+    old_python="$(basename "$old_dir_python")"
+    find "$venv" -name "$old_python" -print0 | xargs -0 rm -rf
+    # remove the temporary info file
+    rm "$venv/.old_dir_packages"
+}
+
+# run the requested task
+$task
