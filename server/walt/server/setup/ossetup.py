@@ -295,6 +295,17 @@ def upgrade_db():
     assert tuple(port_per_version.items()) == ((new_version, WALT_PG_PORT),)
 
 
+def _update_venv(task):
+    subprocess.run(
+        [f"{sys.prefix}/bin/walt-server-update-venv",
+         sys.prefix,
+         task],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=True,
+    )
+
+
 def upgrade_os():
     try:
         fix_apt_sources()
@@ -303,41 +314,26 @@ def upgrade_os():
         fix_packets(upgrade_dist=True, upgrade_packets=True)
     finally:
         # The virtualenv was built from an older version of python3,
-        # upgrade it, and reinstall the packages in lib/python3.<new>/site-packages/.
-        # Even if the apt package upgrades failed (unfortunately, a rather common
-        # issue), the python3 package may still have been updated, so enclose this
-        # in the finally block because if walt-server-setup is called again,
+        # upgrade it, and reinstall the packages in
+        # lib/python3.<new>/site-packages/.
+        # Even if the apt package upgrades failed, the python3 packages
+        # may still have been updated, so enclose this in the finally
+        # block because if walt-server-setup is called again,
         # it will require a working venv.
-        print("Upgrading virtual env (python was updated by OS upgrade)... ", end="")
+        print("Upgrading virtual env "
+              "(python was updated by OS upgrade)... ", end="")
         sys.stdout.flush()
-        subprocess.run(
-            f"python3 -m venv --upgrade {sys.prefix}".split(),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            check=True,
-        )
-        pip_install = f"{sys.prefix}/bin/pip install"
-        subprocess.run(
-            f"{pip_install} --upgrade pip".split(),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            check=True,
-        )
-        if __version__.startswith("0."):
-            # dev version, published on testpypi
-            repo_opts = ("--index-url https://pypi.org/simple"
-                         " --extra-index-url https://test.pypi.org/simple")
-        else:
-            repo_opts = ""
-        subprocess.run(
-            (f"{pip_install} {repo_opts}"
-             f" walt-server=={__version__} walt-client=={__version__}").split(),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            check=True,
-        )
+        _update_venv("upgrade")
         print("done")
     upgrade_db()
+
+
+def cleanup_venv():
+    print("Cleaning up virtual env (about previous python version)... ",
+          end="")
+    sys.stdout.flush()
+    _update_venv("cleanup")
+    print("done")
 
 
 def fix_os():
