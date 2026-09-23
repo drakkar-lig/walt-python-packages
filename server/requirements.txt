@@ -41,10 +41,10 @@ six==1.17.0
 snimpy==1.1.2
 typing-extensions==4.16.0
 urllib3==2.7.0
-walt-client==10.0
-walt-common==10.0
-walt-doc==10.0
-walt-virtual==10.0
+walt-client==11.0
+walt-common==11.0
+walt-doc==11.0
+walt-virtual==11.0
 yarl==1.24.5
 zope.event==6.2
 zope.interface==8.6

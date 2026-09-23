@@ -10,7 +10,7 @@ if sys.version_info[0] == 2:
 
 setup_info = {
     "name": "walt-server",
-    "version": "10.0",
+    "version": "11.0",
     "install_requires": [
         "aiohappyeyeballs==2.7.1",
         "aiohttp==3.14.3",
@@ -54,10 +54,10 @@ setup_info = {
         "snimpy==1.1.2",
         "typing-extensions==4.16.0",
         "urllib3==2.7.0",
-        "walt-client==10.0",
-        "walt-common==10.0",
-        "walt-doc==10.0",
-        "walt-virtual==10.0",
+        "walt-client==11.0",
+        "walt-common==11.0",
+        "walt-doc==11.0",
+        "walt-virtual==11.0",
         "yarl==1.24.5",
         "zope.event==6.2",
         "zope.interface==8.6",
