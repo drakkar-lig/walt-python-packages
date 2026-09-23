@@ -23,10 +23,10 @@ Run this as `root` user:
 
 ```text
 ~# apt update; apt install -y python3-venv debian-archive-keyring
-~# python3 -m venv /opt/walt-10.0
-~# /opt/walt-10.0/bin/pip install --upgrade pip
-~# /opt/walt-10.0/bin/pip install walt-server walt-client
-~# /opt/walt-10.0/bin/walt-server-setup
+~# python3 -m venv /opt/walt-11.0
+~# /opt/walt-11.0/bin/pip install --upgrade pip
+~# /opt/walt-11.0/bin/pip install walt-server walt-client
+~# /opt/walt-11.0/bin/walt-server-setup
 ```
 
 Your server is now upgraded to current version.
