@@ -109,6 +109,7 @@ setup_info = {
         "sh/walt-device-ssh",
         "sh/walt-run-container",
         "sh/walt-server-vpn-test-ssh-entrypoint",
+        "sh/walt-server-upgrade-venv",
         "sh/walt-update-mac-vendors",
     ],
     "setup_requires": ["cffi>=1.16.0"],

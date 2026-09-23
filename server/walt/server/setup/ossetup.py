@@ -311,27 +311,7 @@ def upgrade_os():
         print("Upgrading virtual env (python was updated by OS upgrade)... ", end="")
         sys.stdout.flush()
         subprocess.run(
-            f"python3 -m venv --upgrade {sys.prefix}".split(),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            check=True,
-        )
-        pip_install = f"{sys.prefix}/bin/pip install"
-        subprocess.run(
-            f"{pip_install} --upgrade pip".split(),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            check=True,
-        )
-        if __version__.startswith("0."):
-            # dev version, published on testpypi
-            repo_opts = ("--index-url https://pypi.org/simple"
-                         " --extra-index-url https://test.pypi.org/simple")
-        else:
-            repo_opts = ""
-        subprocess.run(
-            (f"{pip_install} {repo_opts}"
-             f" walt-server=={__version__} walt-client=={__version__}").split(),
+            f"{sys.prefix}/bin/walt-server-upgrade-venv {sys.prefix}".split(),
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             check=True,

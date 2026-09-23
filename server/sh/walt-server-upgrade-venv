@@ -1,0 +1,43 @@
+#!/bin/bash
+set -e
+
+if [ -z "$1" ]
+then
+    echo "Usage: $0 <venv-dir>"
+    exit 1
+fi
+venv="$1"
+
+# upgrade the venv symlinks for the new python version
+python3 -m venv --upgrade "$venv"
+
+# upgrade pip in the venv
+pip="$venv/bin/pip"
+"$pip" install --upgrade pip
+
+# check if walt packages are already installed in the venv
+# for current python version
+if "$pip" show walt-server >/dev/null 2>&1
+then
+    echo "walt packages already installed, no upgrade needed."
+    exit 0
+fi
+
+# find the site-packages directory of the previous python version
+# (the one where walt had been installed)
+old_dir_packages_walt=$(
+    ls -td "${venv}"/lib/python*/*-packages/walt | head -n1
+)
+old_dir_packages="$(dirname "$old_dir_packages_walt")"
+
+# reinstall walt packages and their dependencies in the directory
+# of the new python version
+# (should be <venv>/lib/python<new-version>/site-packages/)
+"$pip" install -r <(
+    "$pip" freeze --path "$old_dir_packages" | grep "^walt-"
+)
+
+# cleanup files of previous python version
+old_dir_python="$(dirname "$old_dir_packages")"
+old_python="$(basename "$old_dir_python")"
+find "$venv" -name "$old_python" -print0 | xargs -0 rm -rf
