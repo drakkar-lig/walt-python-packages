@@ -40,10 +40,10 @@ Run this as `root` user:
 
 ```text
 ~# apt update; apt install -y gcc python3-venv python3-dev libsmi2-dev
-~# python3 -m venv /opt/walt-10.0
-~# /opt/walt-10.0/bin/pip install --upgrade pip
-~# /opt/walt-10.0/bin/pip install walt-server walt-client
-~# /opt/walt-10.0/bin/walt-server-setup
+~# python3 -m venv /opt/walt-11.0
+~# /opt/walt-11.0/bin/pip install --upgrade pip
+~# /opt/walt-11.0/bin/pip install walt-server walt-client
+~# /opt/walt-11.0/bin/walt-server-setup
 ```
 
 Note: `walt-server-setup` will display interactive configuration interfaces for network, image registries, and VPN.
