@@ -24,6 +24,7 @@ from walt.server.setup.ossetup import (
     record_start_os_upgrade,
     record_end_os_upgrade,
     upgrade_os,
+    cleanup_venv,
 )
 from walt.server.setup.vpn import setup_vpn
 
@@ -140,6 +141,7 @@ OS_ACTIONS = {
             "fix_other_conf_files",
             "update_server_conf",
             "update_completion",
+            "cleanup_venv",
             "record_end_os_upgrade",
             "msg_reboot",
         ),
@@ -381,6 +383,9 @@ class WalTServerSetup(WaltGenericSetup):
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(p.stdout)
         print("done")
+
+    def cleanup_venv(self):
+        cleanup_venv()
 
 
 def run():
