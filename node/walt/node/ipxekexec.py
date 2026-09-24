@@ -14,10 +14,14 @@ PRODUCT_NAME_FILE = "/sys/devices/virtual/dmi/id/product_name"
 MANUFACTURER_FILE = "/sys/devices/virtual/dmi/id/sys_vendor"
 
 
+def error(msg):
+    print(msg, file=sys.stderr)
+
+
 def read_system_file(file_path):
     path = Path(file_path)
     if not path.exists():
-        print('Error: "' + file_path + '" does not exist!')
+        error('Error: "' + file_path + '" does not exist!')
         sys.exit(1)
     return path.read_text().strip()
 
@@ -28,7 +32,7 @@ def get_cmdline_value(name, err_exit=True):
         if s.startswith(name):
             return s.split("=")[1]
     if err_exit:
-        print("Error: no " + name + " definition in /proc/cmdline.")
+        error("Error: no " + name + " definition in /proc/cmdline.")
         sys.exit(1)
     return None
 
@@ -40,7 +44,7 @@ def get_mac():
     bootif = get_cmdline_value("BOOTIF", err_exit=False)
     if bootif is not None:
         return ":".join(bootif.split("-")[1:])
-    print("Error: no walt.node.mac nor BOOTIF definition in /proc/cmdline.")
+    error("Error: no walt.node.mac nor BOOTIF definition in /proc/cmdline.")
     sys.exit(1)
 
 
@@ -57,14 +61,14 @@ def add_network_info(env):
                 raise Exception  # forgotten node?
             # check if kexec has been disabled for this node
             if not info["conf"].get("kexec.allow", True):
-                print("Kexec is not allowed for this node (cf. walt node config)")
+                error("Kexec is not allowed for this node (cf. walt node config)")
                 sys.exit(3)
             env.update(ip=info["ip"],
                        netmask=info["netmask"],
                        gateway=info["gateway"],
                        hostname=info["name"])
     except Exception:
-        print("Issue while trying to get node info from server.")
+        error("Issue while trying to get node info from server.")
         sys.exit(2)
 
 
@@ -112,7 +116,7 @@ def kexec_reboot(env):
 
 def run():
     if which("kexec") is None:
-        print("Sorry, no kexec binary was found.")
+        error("Sorry, no kexec binary was found.")
         sys.exit(1)
     try:
         env = get_env_start()
@@ -122,4 +126,4 @@ def run():
             if env["should-boot-kernel"]:
                 kexec_reboot(env)
     except NotImplementedError as e:
-        print((str(e)))
+        error((str(e)))
