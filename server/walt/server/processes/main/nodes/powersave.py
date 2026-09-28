@@ -53,6 +53,8 @@ class PowersaveManager:
 
     def record_end_use(self, node_mac):
         """Record end of a countinuous use of this node (e.g. shell)"""
+        if node_mac not in self._continuous_uses_per_mac:
+            return  # probably just removed / forgotten
         self._continuous_uses_per_mac[node_mac] -= 1
         if self._continuous_uses_per_mac[node_mac] == 0:
             del self._continuous_uses_per_mac[node_mac]

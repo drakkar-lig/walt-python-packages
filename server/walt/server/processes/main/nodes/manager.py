@@ -251,7 +251,8 @@ class NodesManager(object):
         popen.stdin.write(b'KILL_VM\n')
 
     def vnode_console_input(self, node_mac, buf):
-        if self._cleaning_up:
+        # ignore if cleaning up or the vnode was just removed
+        if self._cleaning_up or node_mac not in self.vnodes:
             return
         # qemu has escape sequences starting with <ctrl-a>. we do not want
         # to let them accessible to the user.
