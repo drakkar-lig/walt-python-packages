@@ -23,11 +23,11 @@ EOF
 }
 
 call_image_bootup_script() {
-    if exists_on_finalfs /bin/on-bootup
+    if exists_on_mirrorfs /bin/on-bootup
     then
-        if executable_on_finalfs /bin/on-bootup
+        if executable_on_mirrorfs /bin/on-bootup
         then
-            do_on_finalfs /bin/on-bootup
+            do_on_mirrorfs /bin/on-bootup
         else
             echo "WARNING: cannot run /bin/on-bootup (execute permission missing)." >&2
         fi
@@ -35,14 +35,14 @@ call_image_bootup_script() {
 }
 
 remove_nologin() {
-    busybox rm -f /mnt/finalfs/run/nologin
+    busybox rm -f /mnt/mirrorfs/run/nologin
 }
 
 handle_blink() {
     # start /bin/blink [0|1] when we receive BLINK [0|1]
     shift  # ignore 1st arg "BLINK"
-    if executable_on_finalfs /bin/blink; then
-        if do_on_finalfs /bin/blink "$@" >&8; then
+    if executable_on_mirrorfs /bin/blink; then
+        if do_on_mirrorfs /bin/blink "$@" >&8; then
             # all is fine
             echo OK
         else
@@ -61,7 +61,7 @@ handle_reboot() {
     if [ ! -z "$custom_script" ]
     then
         # try to run it
-        if executable_on_finalfs "custom_script"; then
+        if executable_on_mirrorfs "custom_script"; then
             echo OK
             trigger_walt_reboot walt-custom-reboot $custom_script >&8
         else
@@ -85,18 +85,18 @@ get_custom_walt_reboot_script() {
          "${walt_boot_mode}" = "image-build-run-on-node" ]
     then
         # /bin/walt-network-reboot (new image)
-        if exists_on_finalfs /bin/walt-network-reboot; then
+        if exists_on_mirrorfs /bin/walt-network-reboot; then
             echo "/bin/walt-network-reboot"
             return
         fi
         # legacy /bin/walt-reboot (old image)
-        if exists_on_finalfs /bin/walt-reboot; then
+        if exists_on_mirrorfs /bin/walt-reboot; then
             echo "/bin/walt-reboot"
             return
         fi
     else    # hybrid boot
         # /bin/walt-hybrid-reboot (new image)
-        if exists_on_finalfs /bin/walt-hybrid-reboot; then
+        if exists_on_mirrorfs /bin/walt-hybrid-reboot; then
             echo "/bin/walt-hybrid-reboot"
             return
         fi

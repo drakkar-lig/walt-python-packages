@@ -1,23 +1,23 @@
 #!/bin/sh
+. walt-init-common
+. walt-init-logging
 
 start_background_processes()
 {
     # start bg processes
     # notes:
-    # - We run them in /run/walt/rootfs (filesystem in RAM) in order
+    # - We run them in /run/walt/mnt/memfs (filesystem in RAM) in order
     #   to make them resist NFS share disconnections.
     # - Using pivot_root changes the root filesystem of all processes
     #   in the mount namespace, so we could not start them as part
-    #   of walt-init-rootfs: their root would have changed when
+    #   of walt-init-memfs: their root would have changed when
     #   transitioning to finalfs. Instead, we start them only now,
     #   when in finalfs, but use chroot to have their root in
-    #   /run/walt/rootfs.
-    cd "/run/walt/rootfs"
-    # bg scripts may need to access the final filesystem in the rootfs
-    walt_mount -o bind / mnt/finalfs
-    busybox chroot . bin/walt-log-script bg walt-net-service
-    busybox chroot . bin/walt-log-script bg walt-fs-watchdog
-    busybox chroot . bin/walt-log-script bg walt-clock-sync
+    #   /run/walt/memfs.
+    cd "/run/walt/mnt/memfs"
+    walt_log_bg_script walt-net-service &
+    walt_log_bg_script walt-fs-watchdog &
+    walt_log_bg_script walt-clock-sync &
     cd /
 }
 
@@ -27,8 +27,6 @@ run_real_init()
     exec /sbin/init "$@"
 }
 
-# complete transition to finalfs
-. walt-init-common
 export walt_init_done=1
 
 # start bg processes

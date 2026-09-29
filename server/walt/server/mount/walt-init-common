@@ -122,7 +122,7 @@ _do_reboot() {
         # we have booted on a local disk, or with a read-write NFS overlay,
         # let the init system follow its shutdown procedure.
         echo "Calling 'reboot' command." >&2
-        if do_on_finalfs walt-timeout $REBOOT_CMD_TIMEOUT reboot
+        if do_on_mirrorfs walt-timeout $REBOOT_CMD_TIMEOUT reboot
         then
             # the OS should now be shutting down its services
             _wait_for_os_shutdown
@@ -138,8 +138,7 @@ _do_walt_reboot() {
     # walt-reboot has to download a kernel, initrd, etc.
     WALT_REBOOT_CMD_TIMEOUT=60
     echo "Calling $script"
-    if nostdout nostderr do_on_finalfs \
-            walt-timeout $WALT_REBOOT_CMD_TIMEOUT $script
+    if do_on_mirrorfs walt-timeout $WALT_REBOOT_CMD_TIMEOUT $script
     then
         # the OS should now be shutting down its services
         _wait_for_os_shutdown
@@ -165,33 +164,22 @@ dump_walt_env() {
     echo "$walt_env"
 }
 
-do_on_finalfs() {
-    cd /mnt/finalfs
-    # take into account the fact several calls to do_on_finalfs()
-    # may occur (e.g., for blink), and umounting may have failed
-    # on a previous call.
-    [ -e dev/null ] || walt_mount -o bind /dev dev
-    [ -e proc/self ] || walt_mount -o bind /proc proc
-    [ -e run/walt ] || walt_mount -o bind /run run
-    [ -e sys/module ] || walt_mount -o bind /sys sys
+do_on_mirrorfs() {
+    cd /mnt/mirrorfs
     busybox chroot . "$@" || retcode=$?
-    [ ! -e dev/null ] || nostderr walt_umount dev || true
-    [ ! -e proc/self ] || nostderr walt_umount proc || true
-    [ ! -e run/walt ] || nostderr walt_umount run || true
-    [ ! -e sys/module ] || nostderr walt_umount sys || true
     nostdout cd -
     return $retcode
 }
 
 # note: simpler alternatives to the two following functions,
-# such as '[ -e "/mnt/finalfs$1" ]', could be wrong
+# such as '[ -e "/mnt/mirrorfs$1" ]', could be wrong
 # in case of relative symlinks.
-exists_on_finalfs() {
-    do_on_finalfs [ -e "$1" ]
+exists_on_mirrorfs() {
+    do_on_mirrorfs [ -e "$1" ]
 }
 
-executable_on_finalfs() {
-    do_on_finalfs [ -x "$1" ]
+executable_on_mirrorfs() {
+    do_on_mirrorfs [ -x "$1" ]
 }
 
 allow_script_exit() {
@@ -217,8 +205,10 @@ boot_step_label_cr() {
     busybox printf "*** %-60s ***\n" "$*"
 }
 
-copy_exec_to_rootfs()
+copy_exec_to_memfs()
 {
+    # remove existing symlink of busybox applet if any
+    [ ! -e "bin/$1" ] || rm "bin/$1"
     exec_path="$(busybox which "$1")"
     # copy binary
     mkdir -p bin
@@ -303,7 +293,7 @@ walt_switch_root_fs() {
     exec busybox chroot . "$@"
 }
 
-walt_populate_rootfs_custom() {
+walt_populate_memfs_custom() {
     # by default, nothing more to do
     true
 }
@@ -314,7 +304,7 @@ walt_preinit() {
 }
 
 walt_set_console() {
-    [ -e "dev/console" ] && exec <"dev/console" >"dev/console" 2>&1
+    [ -e "dev/console" ] && exec <"dev/console" >"dev/console" 2>&1 || true
 }
 
 # Mounting /persist, for storing persistent data even across reboots.
@@ -354,9 +344,15 @@ walt_mount_union()
 }
 
 walt_set_network_names() {
-    if [ ! -d "/sys/class/net" -o -z "$(ls "/sys/class/net")" ]
+    if [ -d "/sys/class/net" ]
     then
-        echo "Bypassed, /sys/class/net not found or empty."
+        if [ -z "$(ls "/sys/class/net")" ]
+        then
+            echo "Bypassed, /sys/class/net is empty."
+            return
+        fi
+    else
+        echo "Bypassed, /sys/class/net not found."
         return
     fi
     set -- $(echo "$walt_network_names" | busybox tr "@" " ")
@@ -396,7 +392,7 @@ fi
 
 # apply initializations if not done yet
 # -------------------------------------
-# if we lose nfsroot we will not be able to reach /dev/null
-# because /dev is a symlink to mnt/nfsroot/dev in the rootfs.
+# if we lose networkfs we will not be able to reach /dev/null
+# because /dev is a symlink to mnt/networkfs/dev in the memfs.
 # so let's open the file in advance, as soon as we can.
 open_null_if_not_done_yet || true
