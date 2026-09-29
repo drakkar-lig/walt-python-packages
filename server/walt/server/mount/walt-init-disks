@@ -6,6 +6,11 @@ detect_partition_devices() {
     # For each disk we have:
     # - an entry /sys/class/block/<disk>/device/
     # - one entry /sys/class/block/<disk>/<partition>/ for each partition
+    if [ ! -d /sys/class/block/ ]
+    then
+        echo "Bypassed, /sys/class/block directory is missing." >&2
+        return 1
+    fi
     cd /sys/class/block/
     nostderr ls -1 */*/dev | {
         IFS="/"

@@ -1,0 +1,99 @@
+#!/bin/busybox sh
+
+# preparation work
+. walt-init-common
+. walt-init-disks
+. walt-boot-modes
+. walt-init-nbd
+
+# helper functions
+enable_zswap() {
+    # enable zswap if the kernel supports it, for more optimized RAM usage
+    # (or limited NBD swap usage if NBD mounting succeeds)
+    [ -e /sys/module/zswap/parameters/enabled ] && \
+        echo 1 > /sys/module/zswap/parameters/enabled || true
+}
+
+mount_others() {
+    boot_step_label_cr \
+        "Preparing OS init and background processes..."
+    # Regarding <finalfs>:/<sub-mounts>, we try to make finalfs look
+    # like what we got when walt-init was called.
+    for fs in $initial_mounts
+    do
+        walt_mount -o bind /$fs /mnt/finalfs/$fs
+    done
+    # Prepare mirrorfs, a mirror of finalfs for use by bg processes:
+    # they will run in the memfs but may need to access a mirror of
+    # the final filesystem and even chroot into it. We prefer to
+    # use a mirror and not the real finalfs because in the first times
+    # after the OS init is started, some of the <finalfs>:/[proc|sys|dev|run]
+    # filesystems may not be mounted yet.
+    busybox mkdir /mnt/mirrorfs
+    walt_mount -o bind /mnt/finalfs /mnt/mirrorfs
+    for fs in $real_mounts   # probably proc sys run and dev
+    do
+        walt_mount -o move /mnt/networkfs/$fs /mnt/mirrorfs/$fs
+        ln -sf mnt/mirrorfs/$fs /   # update memfs symlink
+    done
+    # if /run was not provided by the initramfs when walt-init was
+    # started, create a tmpfs and make it accessible from memfs,
+    # mirrorfs and finalfs.
+    if [ ! -L /run ]
+    then
+        walt_mount -t tmpfs tmpfs /mnt/mirrorfs/run
+        ln -sf mnt/mirrorfs/run /
+        walt_mount -o bind /mnt/mirrorfs/run /mnt/finalfs/run
+    fi
+    # If for some reason there's already a file or directory at
+    # <finalfs>:/persist, remove it.
+    [ ! -e "/mnt/finalfs/persist" ] || rm -rf /mnt/finalfs/persist
+    # /persist may be disabled by using "walt node config", in this case
+    # the directory was not created in the memfs.
+    if [ -d "/mnt/persist" ]
+    then
+        # finalfs:/persist will be a symlink to current memfs mount
+        busybox ln -sf /run/walt/mnt/memfs/mnt/persist /mnt/finalfs/persist
+    fi
+}
+
+walt_init_memfs_main() {
+    # mounting local swap partitions
+    if [ "$(possibly_vpn_node)" = "1" ]
+    then
+        boot_step_label_cr \
+            "Activating local swap... disabled (VPN security measure)"
+        has_local_swap=0
+    else
+        boot_step_label_cr \
+            "Activating local swap..."
+        if activate_local_swap
+        then
+            has_local_swap=1
+        else
+            has_local_swap=0
+        fi
+    fi
+    # boot mode detection
+    boot_step_label_cr "Verifying boot-mode..."
+    verify_boot_mode
+    # enable zswap
+    enable_zswap
+    # mount remote NBD swap
+    if [ "$has_local_swap" -eq 0 ]
+    then
+        boot_step_label_cr "Mounting remote swap space on server..."
+        mount_nbd_swap
+    else
+        boot_step_label_cr "Mounting remote swap space on server... skipped"
+        echo "Note: Preferring local swap."
+    fi
+    # mount the final root (at /mnt/finalfs for now) (depends on boot mode)
+    mount_finalfs
+    # mount secondary filesystems (depends on boot mode)
+    mount_secondaryfs
+    # mount other filesystems (generic)
+    mount_others
+    # dump updated walt-env file
+    dump_walt_env > /mnt/finalfs/bin/walt-env
+}

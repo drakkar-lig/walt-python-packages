@@ -1,0 +1,21 @@
+#!/bin/busybox sh
+. walt-init-common
+. walt-init-logging
+. walt-init-memfs-main
+
+switch_to_finalfs() {
+    cd /mnt/finalfs/
+    mkdir -p run/walt/mnt/memfs
+    walt_switch_root_fs run/walt/mnt/memfs \
+        bin/_walt_internal_/walt-init-finalfs "$@"
+}
+
+
+# cleanup
+walt_umount /mnt/networkfs/mnt
+# run various things in the memfs
+logname="walt-init-memfs-main"
+walt_log_function "$logname" walt_init_memfs_main
+# switch to finalfs
+boot_step_label_cr          "Switching to finalfs..."
+switch_to_finalfs "$@"

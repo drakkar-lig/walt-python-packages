@@ -1,46 +1,62 @@
 #!/bin/busybox sh
 
-ROOTFS='/run/walt/rootfs'
+ROOTFS='/mnt/memfs'
 ROOTFS_EXECUTABLES="
     basename cat chroot cp date grep ln ls mkdir mkfifo mktemp
     mount mv nc reboot rm sed sh sleep timeout umount uname
 "
 
-. bin/_walt_internal_/walt-boot-modes  # needed for need_rw_nfsroot()
+. bin/_walt_internal_/walt-boot-modes  # needed for need_rw_networkfs()
 
-_run_is_mounted() {
-    walt_mount | nostdout busybox grep " /run "
+_fs_is_mounted() {
+    walt_mount | nostdout busybox grep " /$1 "
 }
 
 do_mounts()
 {
-    # mount /proc and /sys if missing, and if that is the case,
-    # record that for cleanup up before running the final init.
+    initial_mounts=""
+    real_mounts=""
+    # mount /proc, /sys, /run and /dev if missing, record what were
+    # the initial mounts and what we have after that.
+    # 1. /proc
+    # We mount /proc first because _fs_is_mounted() needs it to work.
     if [ -e "/proc/self" ]
     then
-        export had_procfs=1
+        initial_mounts="$initial_mounts proc"
     else
         walt_mount -t proc proc /proc
-        export had_procfs=0
+        real_mounts="$real_mounts proc"
     fi
-    if [ -d "/sys/class" ]
+    # 2. /sys
+    if _fs_is_mounted sys
     then
-        export had_sysfs=1
+        initial_mounts="$initial_mounts sys"
     else
         walt_mount -t sysfs sysfs /sys
-        export had_sysfs=0
+        real_mounts="$real_mounts sys"
     fi
-    # mount /dev and /run if missing.
-    # in any case, we will not umount them before running the final init
-    # because walt bg processes need them.
-    if [ ! -e "/dev/null" ]
+    # 3. /run
+    # We will only need /run later, so don't mount it yet
+    # if it was not already mounted by an initramfs.
+    if _fs_is_mounted run
+    then
+        initial_mounts="$initial_mounts run"
+    fi
+    # 4. /dev
+    # Some minimal operating systems may manage device files
+    # statically in /dev, without using a filesystem.
+    if _fs_is_mounted dev
+    then
+        initial_mounts="$initial_mounts dev"
+    elif [ ! -e "/dev/null" ]
     then
         walt_mount -t devtmpfs udev /dev
+        real_mounts="$real_mounts dev"
     fi
-    if ! _run_is_mounted
-    then
-        walt_mount -t tmpfs tmpfs /run
-    fi
+    # add initial mounts to the list of real mounts
+    # and export those variables for later use.
+    export initial_mounts
+    export real_mounts="${initial_mounts} ${real_mounts}"
 }
 
 preinit() {
@@ -54,17 +70,19 @@ preinit() {
     walt_preinit
 }
 
-prepare_rootfs()
+prepare_memfs()
 {
+    walt_mount -t tmpfs tmpfs /mnt
     busybox mkdir -p $ROOTFS
-    # $ROOTFS must be a mountpoint for pivot_root() to work later
+    # create another mount for memfs because we will have to
+    # move it later.
     walt_mount -t tmpfs tmpfs $ROOTFS
     cd $ROOTFS
-    busybox mkdir -p tmp bin mnt/nfsroot
-    copy_exec_to_rootfs busybox
+    busybox mkdir -p tmp bin mnt/networkfs
+    copy_exec_to_memfs busybox
     if nostdout busybox which nbd-client
     then
-        copy_exec_to_rootfs nbd-client
+        copy_exec_to_memfs nbd-client
     fi
     for image_script in /bin/walt-* /bin/_walt_internal_/*
     do
@@ -78,21 +96,21 @@ prepare_rootfs()
             then
                 ln -s busybox bin/$c
             else
-                copy_exec_to_rootfs $c
+                copy_exec_to_memfs $c
             fi
         fi
     done
-    for fs_dir in proc sys dev run
+    for fs in $real_mounts
     do
-        ln -s mnt/nfsroot/$fs_dir $fs_dir
+        ln -s mnt/networkfs/$fs .
     done
     dump_walt_env > bin/walt-env
-    walt_populate_rootfs_custom
+    walt_populate_memfs_custom
 }
 
-remount_nfsroot_if_needed()
+remount_networkfs_if_needed()
 {
-    if need_rw_nfsroot
+    if need_rw_networkfs
     then
         boot_step_label_cr "Ensuring the remote filesystem" \
                            "is read-write..."
@@ -106,26 +124,33 @@ mount_persistent() {
         echo "/persist was not mounted (cf. walt node config)"
         return
     fi
-    mkdir $ROOTFS/persist
-    walt_mount_persistent "$walt_persist_path" $ROOTFS/persist
+    mkdir -p $ROOTFS/mnt/persist
+    walt_mount_persistent "$walt_persist_path" $ROOTFS/mnt/persist
     # check if walt-init logs are enabled
-    walt_init_log_dir="$ROOTFS/persist/logs/walt-init"
+    walt_init_log_dir="$ROOTFS/mnt/persist/logs/walt-init"
     if [ -d "$walt_init_log_dir" ]
     then
         # avoid NFS buffers by remounting with 'sync' option.
         # note: "mount -o remount,sync" fails on some systems,
         # so we umount + mount again.
-        walt_umount $ROOTFS/persist
-        walt_mount_persistent --sync "$walt_persist_path" $ROOTFS/persist
+        walt_umount $ROOTFS/mnt/persist
+        walt_mount_persistent --sync "$walt_persist_path" $ROOTFS/mnt/persist
     fi
 }
 
-switch_to_rootfs() {
+switch_to_memfs() {
     cd $ROOTFS
-    walt_switch_root_fs mnt/nfsroot \
-        bin/walt-init-rootfs "$@"
+    walt_switch_root_fs mnt/networkfs \
+        bin/walt-init-memfs "$@"
 }
 
+# Check we are PID 1.
+if [ "$$" -ne 1 ]
+then
+    echo "This is the init script of walt nodes." >&2
+    echo "It is only useful when the node is booting. Exiting." >&2
+    exit 1
+fi
 # let's go
 export PATH="$PATH:/bin/_walt_internal_"
 export walt_init_done=0
@@ -141,25 +166,17 @@ eval "$walt_env"
 cd /; walt_set_console
 # run image's preinit code if any
 preinit
-# Check we are PID 1.
-if [ "$$" -ne 1 ]
-then
-    echo "This is the init script of walt nodes." >&2
-    echo "It is only useful when the node is booting. Exiting." >&2
-    exit 1
-fi
 # real start
 walt-log-echo "walt-init" "Starting up."
 boot_step_label_cr          "Initializing..."
 do_mounts
 walt_set_console  # in case do_mounts() just mounted /dev
 walt_load_kernel_modules
-prepare_rootfs
+prepare_memfs
 boot_step_label_cr          "Mounting /persist..."
 mount_persistent
-remount_nfsroot_if_needed
+remount_networkfs_if_needed
 boot_step_label_cr          "Updating network interface altname(s)..."
 walt_set_network_names
-boot_step_label_cr          "Switching to rootfs..."
-switch_to_rootfs "$@"
-# the process continues in bin/_walt_internal_/walt-init-rootfs
+boot_step_label_cr          "Switching to memfs..."
+switch_to_memfs "$@"        # see bin/_walt_internal_/walt-init-memfs
