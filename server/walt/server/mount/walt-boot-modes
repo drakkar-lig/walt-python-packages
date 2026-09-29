@@ -103,7 +103,7 @@ detect_hybrid_boot_partition() {
                    return 1  # failed
                fi
             fi
-	    mkdir /mnt/hm_part/walt_hybrid
+            mkdir -p /mnt/hm_part/walt_hybrid
             [ "$created_dev" = "0" ] || rm /dev/$dev  # no longer needed
             break  # we found the partition
         else
@@ -152,6 +152,40 @@ verify_boot_mode() {
     fi
 }
 
+is_real_mount() {
+    case "$real_mounts" in
+        *"$1"*)
+            return 0  # yes
+            ;;
+        *)
+            return 1  # no
+            ;;
+    esac
+}
+
+copy_image_content() {
+    src_dir="$1"
+    dst_dir="$2"
+    # note: we exclude mount dirs from the tar-based copy,
+    # and just create an empty dir for each of them on $dst_dir
+    # instead.
+    cd "$dst_dir"
+    mkdir -p $real_mounts
+    cd "$src_dir"
+    copyable=""
+    for d in $(ls)
+    do
+        if ! is_real_mount "$d"
+        then
+            copyable="$copyable $d"
+        fi
+    done
+    tar cf - $copyable | {
+        cd "$dst_dir"
+        tar xf -
+    }
+}
+
 mount_hybrid_mode() {
     echo "image_id: ${walt_image_id}"
     image_dir="/mnt/hm_part/walt_hybrid/${walt_image_id}/image"
@@ -161,9 +195,12 @@ mount_hybrid_mode() {
                       "locally (this may be long)."
         boot_step_label_cr "Copying image to local disk..."
         mkdir -p "$image_dir.part"
-        { cd /mnt/nfsroot; tar cf - . ; } | \
-            { cd "$image_dir.part"; tar xf -; }
-        mv "$image_dir.part" "$image_dir"
+        if copy_image_content /mnt/networkfs "$image_dir.part"
+        then
+            mv "$image_dir.part" "$image_dir"
+        else
+            return 1
+        fi
     fi
     boot_step_label_cr "Mounting local image copy..."
     diff_dir="/mnt/hm_part/walt_hybrid/${walt_image_id}/diff"
@@ -183,11 +220,11 @@ mount_hybrid_mode() {
     # even if the <image_id> directory was downloaded at a
     # previous run, a server code update may have changed the
     # scripts contained in "/bin/_walt_internal_/".
-    cp -rp /mnt/nfsroot/bin/_walt_internal_/* \
+    cp -rp /mnt/networkfs/bin/_walt_internal_/* \
            /mnt/finalfs/bin/_walt_internal_/
 }
 
-need_rw_nfsroot()
+need_rw_networkfs()
 {
     [ "$walt_boot_mode" = "network-persistent" -o \
       "$walt_boot_mode" = "image-build-run-on-node" ]
@@ -201,18 +238,18 @@ mount_network_mode()
         boot_step_label_cr "Mounting a RAM overlay on top of remote image..."
         mkdir -p fs_rw fs_work finalfs
         # creating the union
-        # lowerdir=/mnt/nfsroot: the nfs mount (that should remain read-only)
+        # lowerdir=/mnt/networkfs: the nfs mount (that should remain read-only)
         # upperdir=fs_rw: the place to hold the filesystem changes
         # workdir=fs_work: a workdir for the overlay filesystem
         # uniondir=finalfs: the mount point of the union
-        walt_mount_union /mnt/nfsroot fs_rw fs_work finalfs
+        walt_mount_union /mnt/networkfs fs_rw fs_work finalfs
     else
         # walt_boot_mode: network-persistent or image-build-run-on-node
         # in this case the NFS share should already have been
         # exported read-write on the server and re-mounted read-write
         # by the node, nothing more to to here.
         mkdir -p finalfs
-        walt_mount -o bind /mnt/nfsroot finalfs
+        walt_mount -o bind /mnt/networkfs finalfs
     fi
     cd /
 }

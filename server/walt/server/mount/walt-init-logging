@@ -1,0 +1,108 @@
+#!/bin/busybox sh
+# vim: ft=sh
+
+# When logs are enabled, we want to monitor our shell scripts
+# by running them with 'sh -x' and redirecting stderr to a file
+# in /persist. (In this case, we log stderr but do not print it
+# because of the "-x" option which is very verbose. Details are
+# only in the log file.)
+
+# However, if the walt server restarts, /persist will be lost
+# which, together with the '-x' setting, will prevent any single
+# shell command to run properly, including within a EXIT handler.
+# Thus such a script is not even able to trigger a reboot.
+
+# Consequently, we run this thin wrapper function, responsible
+# for setting up logging and then running the requested command;
+# and this wrapper is run without the -x option. It will handle
+# any unexpected exit of the requested command.
+
+_log_banner() {
+    # We concatenate to possibly existing content
+    # from previous bootups, so we add a header with a date.
+    echo
+    echo "-----"
+    busybox date
+}
+
+_failsafe_append() {
+    local log_file="$1"
+    local line
+    while read line
+    do
+        # if we lose nfs connection on /persist, logging will start
+        # failing -- we ignore that, otherwise it would interrupt
+        # walt-net-service and walt-fs-watchdog and prevent them
+        # from triggering an emergency reboot.
+        echo "$line" >> $log_file || true
+    done
+}
+
+_walt_log() {
+    local log_dir="$1"
+    local procedure="$2"
+    local log_enabling_func="$3"
+    local log_file
+    shift 3
+    local result=0
+    if [ -d "$log_dir" ]
+    then
+        boot_step_label_cr  "Logging ${procedure}" \
+                            "at /persist/logs/walt-init" >&2
+        log_file="$log_dir/$procedure.log"
+        _log_banner >>$log_file
+        {
+            $log_enabling_func true "$@" 2>&1 || result=$?
+        } | nostderr _failsafe_append $log_file
+        if [ "$result" != 0 ]
+        then
+            echo "Error dectected, see ${procedure}.log file." >&2
+        fi
+    else
+        $log_enabling_func false "$@" || result=$?
+    fi
+    if [ "$result" -ne 0 ]
+    then
+        echo "$log_file_name returned with exit failure." >&2
+    fi
+    return $result
+}
+
+_temp_set_x() {
+    local log_enabled="$1"; shift
+    local result=0
+    if $log_enabled
+    then
+        set -x
+        "$@" || result=$?
+        set +x
+    else
+        "$@" || result=$?
+    fi
+    return $result
+}
+
+walt_log_function() {
+    local procedure="$1"
+    shift
+    _walt_log "/mnt/persist/logs/walt-init" $procedure _temp_set_x "$@"
+}
+
+_bbox_chroot_sh_x() {
+    local log_enabled="$1"; shift
+    if $log_enabled
+    then
+        busybox chroot . sh -x "$@"
+    else
+        busybox chroot . sh "$@"
+    fi
+}
+
+walt_log_bg_script() {
+    local script_name="$1"
+    shift
+    local script_path="bin/$script_name"
+    _walt_log "mnt/persist/logs/walt-init" "$script_name" \
+        _bbox_chroot_sh_x "$script_path" "$@"
+}
+
