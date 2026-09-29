@@ -45,7 +45,7 @@ mount_nbd_swap() {
     # 2- activate the swap on it
     nostdout busybox mkswap /dev/nbd0
     busybox swapon /dev/nbd0
-    # 3- extend the size of rootfs (= root tmpfs mount)
+    # 3- extend the size of memfs (= root tmpfs mount)
     #    (this with allow /mnt/fs_rw to grow much more)
     walt_mount -o remount,size=${TMPFS_SIZE_IF_SWAP} /
 }
