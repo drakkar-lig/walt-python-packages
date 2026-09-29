@@ -129,8 +129,8 @@ add_hidden_whiteouts() {
 }
 
 dump_archive_network_v_boot() {
-    tmp_dir="/run/walt/rootfs/tmp/d$$"
-    cd /run/walt/rootfs/mnt/fs_rw
+    tmp_dir="/run/walt/mnt/memfs/tmp/d$$"
+    cd /run/walt/mnt/memfs/mnt/fs_rw
     list_files "." | hard_link_files
     add_hidden_whiteouts "."
     cd "${tmp_dir}"
@@ -139,11 +139,11 @@ dump_archive_network_v_boot() {
 }
 
 dump_archive_hybrid_v_boot() {
-    tmp_dir="/run/walt/rootfs/mnt/hm_part/walt_hybrid/tmp/d$$"
-    cd "/run/walt/rootfs/mnt/hm_part/walt_hybrid/${walt_image_id}/diff"
+    tmp_dir="/run/walt/mnt/memfs/mnt/hm_part/walt_hybrid/tmp/d$$"
+    cd "/run/walt/mnt/memfs/mnt/hm_part/walt_hybrid/${walt_image_id}/diff"
     list_files "." | hard_link_files
     add_hidden_whiteouts "."
-    cd "/run/walt/rootfs/mnt/hm_part/walt_hybrid/${walt_image_id}/"
+    cd "/run/walt/mnt/memfs/mnt/hm_part/walt_hybrid/${walt_image_id}/"
     list_files "./local" | hard_link_files
     cd "${tmp_dir}"
     busybox tar cf - .
@@ -151,11 +151,11 @@ dump_archive_hybrid_v_boot() {
 }
 
 dump_archive_hybrid_p_boot() {
-    tmp_dir="/run/walt/rootfs/mnt/hm_part/walt_hybrid/tmp/d$$"
-    cd "/run/walt/rootfs/mnt/hm_part/walt_hybrid/${walt_image_id}/diff"
+    tmp_dir="/run/walt/mnt/memfs/mnt/hm_part/walt_hybrid/tmp/d$$"
+    cd "/run/walt/mnt/memfs/mnt/hm_part/walt_hybrid/${walt_image_id}/diff"
     list_files "." | hard_link_files
     add_hidden_whiteouts "."
-    cd "/run/walt/rootfs/mnt/hm_part/walt_hybrid/${walt_image_id}/"
+    cd "/run/walt/mnt/memfs/mnt/hm_part/walt_hybrid/${walt_image_id}/"
     list_files "./local" | hard_link_files
     cd "${tmp_dir}"
     busybox tar cf - .

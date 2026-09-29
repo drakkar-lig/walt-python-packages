@@ -18,7 +18,7 @@ do
     # If the connection to the server is lost, the FUSE NBFS process is no
     # longer alive, so the "ls" command will error out (with message
     # "Transport endpoint is not connected").
-    nostdout nostderr walt-timeout 20 ls /mnt/nfsroot/ || {
+    nostdout nostderr walt-timeout 20 ls /mnt/networkfs/ || {
         echo "[walt:bg] Network filesystem share was lost! Will reboot."
         busybox sleep 5
         trigger_walt_reboot reboot
