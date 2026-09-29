@@ -56,7 +56,6 @@ def add_network_info(env):
     try:
         with ServerAPILink(env["server_ip"], "VSAPI") as server:
             info = server.get_device_info(env["mac"])
-            print(info)
             if info is None:
                 raise Exception  # forgotten node?
             # check if kexec has been disabled for this node
