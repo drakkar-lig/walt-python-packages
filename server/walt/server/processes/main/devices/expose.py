@@ -45,7 +45,15 @@ class SocketForwarder:
 
     def close(self):
         self.sock_src.close()
-        self.sock_dst.close()
+        # Do not close sock_dst right away: some data read from sock_src
+        # may still be buffered and not sent yet (see sendall() /
+        # on_write_ready() of DeviceToClientForwarder below). This
+        # happens for instance with a QoS-0 MQTT publish, where the
+        # client sends its PUBLISH message and disconnects immediately,
+        # without waiting for any acknowledgement. Closing sock_dst
+        # immediately in this case would silently drop that buffered
+        # data instead of forwarding it to the device.
+        self.sock_dst.close_when_flushed()
 
 
 # nodes are sometimes hard-rebooted, so TCP connections may not be
@@ -58,6 +66,7 @@ class DeviceToClientForwarder(NonBlockingSocket):
         self._ev_loop = ev_loop
         self._s_to_client = s_to_client
         self._send_buffer = b""
+        self._close_pending = False
         self._label = f"Connection forwarder to {device_ip}:{device_port}"
         NonBlockingSocket.__init__(self, ev_loop,
                     device_ip, device_port, SOCKET_TO_DEVICE_TIMEOUT,
@@ -95,10 +104,21 @@ class DeviceToClientForwarder(NonBlockingSocket):
                 self.start_wait_write()
             else:
                 self._send_buffer = b""
+                if self._close_pending:
+                    return False  # all pending data was flushed, close now
                 self.start_wait_read()
         except Exception as e:
             print(f"{self._label}:", e)
             return False  # issue, close
+
+    # called when the client closed its side of the connection: close our
+    # connection to the device too, but only once any data already read
+    # from the client has actually been sent to the device.
+    def close_when_flushed(self):
+        if len(self._send_buffer) == 0:
+            self._ev_loop.remove_listener(self)
+        else:
+            self._close_pending = True
 
     # nothing to do on timeout, close() is enough
     def on_connect_timeout(self):
