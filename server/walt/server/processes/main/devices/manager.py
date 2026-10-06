@@ -3,7 +3,7 @@ import re
 
 from walt.common.formatting import format_paragraph
 from walt.common.netsetup import NetSetup
-from walt.common.tools import do, get_mac_address
+from walt.common.tools import do, get_mac_address, succeeds
 from walt.server import const
 from walt.server.tools import (
     get_server_ip,
@@ -24,6 +24,34 @@ The name must be at least 2-chars long.
 # "walt device show" should not print the netsetup status for the server
 # or devices outside walt-net
 WALT_SUBNET = str(get_walt_subnet())
+
+# Since Debian Trixie, there is a compatibility issue when podman and docker
+# are both installed on the same machine. Without the following update,
+# podman containers (e.g., the one behind 'walt image shell') had no internet
+# connectivity.
+# Podman uses the netavark network stack. Since trixie, netavark writes its
+# firewall rules (forward accept + masquerade) into a dedicated nftables table
+# instead of the iptables FORWARD chain. Docker (which is installed on walt
+# servers as a user-facing runtime) sets the FORWARD chain policy to DROP,
+# which shadows netavark's rules and prevents podman containers from reaching
+# the outside. We work around this by whitelisting the podman default bridge
+# subnet in Docker's DOCKER-USER chain (the chain Docker evaluates before its
+# own rules and which survives Docker restarts), and by NAT-ing it.
+# Note: this depends on the netavark default pool, i.e. the default "podman"
+# network that walt uses internally for its OS images repository.
+PODMAN_SUBNET = "10.88.0.0/16"
+PODMAN_DOCKER_USER_RULES = [
+    f"iptables --insert DOCKER-USER --source {PODMAN_SUBNET} --jump ACCEPT",
+    (
+        f"iptables --insert DOCKER-USER --destination {PODMAN_SUBNET} "
+        "--match conntrack --ctstate RELATED,ESTABLISHED --jump ACCEPT"
+    ),
+]
+PODMAN_MASQ_RULE = (
+    "iptables -m addrtype --table nat --insert POSTROUTING "
+    f"--source {PODMAN_SUBNET} ! --destination {PODMAN_SUBNET} "
+    "! --dst-type LOCAL --jump MASQUERADE"
+)
 DEVICES_QUERY = f"""\
 WITH infodev AS (SELECT name, ip, mac,
        CASE WHEN type = 'node' AND virtual THEN 'node (virtual)'
@@ -108,8 +136,10 @@ class DevicesManager(object):
     def prepare(self):
         # prepare the network setup for NAT support
         self.prepare_netsetup()
+        self.prepare_podman_netsetup()
 
     def cleanup(self):
+        self.undo_podman_netsetup()
         self.cleanup_netsetup()
 
     def get_server_mac(self):
@@ -544,3 +574,25 @@ class DevicesManager(object):
     def cleanup_netsetup(self):
         for rule in reversed(self._fw_rules):
             do(self._invert_fw_rule(rule))
+
+    def prepare_podman_netsetup(self):
+        # See the comment near PODMAN_SUBNET. Docker only installs its
+        # DOCKER-USER chain while it is running, so ensure the chain (and the
+        # FORWARD jump to it) exist first; this also makes the addendum apply
+        # even if docker starts after the walt server daemon.
+        do("iptables --new-chain DOCKER-USER")
+        if not succeeds("iptables --check FORWARD --jump DOCKER-USER"):
+            do("iptables --insert FORWARD 1 --jump DOCKER-USER")
+        for rule in PODMAN_DOCKER_USER_RULES:
+            if not succeeds(rule.replace(
+                    "--insert DOCKER-USER", "--check DOCKER-USER", 1)):
+                do(rule)
+        if not succeeds(PODMAN_MASQ_RULE.replace(
+                "--insert POSTROUTING", "--check POSTROUTING", 1)):
+            do(PODMAN_MASQ_RULE)
+
+    def undo_podman_netsetup(self):
+        for rule in PODMAN_DOCKER_USER_RULES + [PODMAN_MASQ_RULE]:
+            do(rule.replace("--insert", "--delete", 1))
+        # leave the DOCKER-USER chain and its FORWARD jump untouched (docker
+        # owns them)
