@@ -21,6 +21,7 @@ from walt.doc.color import (
     get_transition_esc_sequence,
     optimize_and_reset_default_colors
 )
+from walt.doc import mermaid
 from walt.doc.mdtable import detect_table, render_table
 from walt.common.term import TTYSettings
 
@@ -34,10 +35,19 @@ FG_COLOR_HEADING = FG_COLOR_DARK_RED
 
 RE_WORD_SPACING = re.compile(r"[ \n]+")
 
+# if we have something larger than current window size to display,
+# we may ask the user to resize it.
+# however, if our text width is really large, don't block usage
+# because the user may just have a small screen.
+REASONABLE_MIN_SCREEN_WIDTH = 100
+
 
 class MarkdownRenderer:
 
-    def render(self, ast, selected_link_num):
+    def render(self, ast, selected_link_num, topic=None):
+        # topic: name of the help topic (i.e., name of the md file without
+        # extension) being rendered, if known.
+        self.topic = topic
         self.list_numbering = []
         # initialize context with current terminal setup
         # (default for all attrs)
@@ -306,14 +316,61 @@ class MarkdownRenderer:
         return [self.add_line_prefix(n+1, line, breakpoints, line_number_width)
                 for n, line in enumerate(lines)]
 
+    def mermaid_diagram_text(self, source):
+        # Render a mermaid diagram as text, or return None if this is
+        # not possible or if the result would be too wide for a screen.
+        # Note: we use REASONABLE_MIN_SCREEN_WIDTH, not the current terminal
+        # width, so that the document is displayed the same whatever the
+        # terminal size. If the terminal is a bit too small, the pager
+        # will ask the user to resize it (see pager.py).
+        # (a code block needs 1 more column on its right)
+        lines = mermaid.render(source, max_width=self.target_width - 1)
+        if lines is None:
+            return None
+        # a code block needs 1 more column on its right, and the whole
+        # document has a margin of 1 column on each side.
+        needed_width = max(len(line) for line in lines) + 1 + 2
+        if needed_width > REASONABLE_MIN_SCREEN_WIDTH:
+            return None
+        return "\n".join(lines)
+
+    def web_doc_url(self):
+        # URL of the current topic in the web documentation served by the server
+        # (or of the documentation index if the topic is not known).
+        url = f"http://{socket.gethostname()}/doc/"
+        if self.topic is not None:
+            # note: the help-intro topic is the index page (see sphinx/conf.py)
+            page = "index" if self.topic == "help-intro" else self.topic
+            url += f"{page}.html"
+        return url
+
+    def mermaid_diagram_not_displayed(self):
+        msg = (
+            "[ This diagram cannot be displayed in the terminal. "
+            f"Please see the web documentation: {self.web_doc_url()} ]"
+        )
+        self.stack_context(dim=True)
+        self.lit(textwrap.fill(msg, width=self.target_width))
+        self.pop_context()
+        self.cr()
+        self.cr()
+
     def code_block(self, node, entering):
-        code_text = self.pre_format_code_block(node.literal)
+        info, literal = node.info, node.literal
+        if info.split()[:1] == ["mermaid"]:
+            diagram_text = self.mermaid_diagram_text(literal)
+            if diagram_text is None:
+                self.mermaid_diagram_not_displayed()
+                return
+            # display the rendered diagram as a regular code block
+            info, literal = "", diagram_text
+        code_text = self.pre_format_code_block(literal)
         colored_text = code_text  # if we cannot perform syntax highlighting
         params = {}
         enable_linenos = False
-        if node.info != '':
+        if info != '':
             language = None
-            for spec in node.info.split():
+            for spec in info.split():
                 if '=' in spec:
                     param, value = spec.split("=")
                     params[param] = value

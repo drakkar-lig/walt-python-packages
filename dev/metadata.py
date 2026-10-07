@@ -13,6 +13,7 @@ PACKAGE_SPECIFIC_INFO = {
         requires=[
             "commonmark>=0.7.5",
             "pygments>=2.2.0",
+            "termaid>=0.9.0",   # renders mermaid diagrams in the terminal
             "setuptools>=70.0.0",   # includes pkg_resources, for finding md files
             "walt-common==%(walt_version)s",
         ],
