@@ -121,3 +121,6 @@ Even if "enforced" mode was selected, it is always possible to
 reinitialize the EEPROM of a board, by using an SD card and the
 archive called `rpi-5-sd-recovery.tar.gz`.
 See [`walt help show node-install`](node-install.md).
+
+See [`walt help show vpn-boot`](vpn-boot.md) for more
+technical details about the VPN boot.
