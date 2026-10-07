@@ -40,6 +40,9 @@ for md_file in tuple(md_dir.glob("*.md")):
         # rst = reStructuredText; gfm = GitHub Flavored Markdown
         rst_content = pypandoc.convert_file(md_file, "rst", format="gfm")
         rst_content = re.sub(r"help-intro\.md", r"index.md", rst_content)
+        # pandoc converts ```mermaid code blocks to "code:: mermaid" directives,
+        # but sphinxcontrib-mermaid provides a "mermaid" directive for rendering them.
+        rst_content = rst_content.replace(".. code:: mermaid", ".. mermaid::")
         rst_content = re.sub(
             r"```([a-z0-9 -]*)`` <([a-z0-9-]*)\.md>`__", r":doc:`\1 <\2>`", rst_content
         )
@@ -78,7 +81,11 @@ release = get_version()
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
-extensions = []
+extensions = ["sphinxcontrib.mermaid"]
+
+# By default, the height of diagrams is limited to 500px, which makes
+# large diagrams unreadable. Let it follow the aspect ratio instead.
+mermaid_height = "auto"
 
 templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
@@ -97,3 +104,24 @@ html_theme_options = {
 }
 html_show_sourcelink = False
 html_favicon = "logo-walt.png"
+
+
+def add_wide_diagrams_css(app, pagename, templatename, context, doctree):
+    # Adapt pages containing diagrams.
+    if 'class="mermaid"' in context.get("body", ""):
+        # Enlarge the content column.
+        # (A css file is added to these pages only, since a wider column is
+        # less comfortable for reading the other pages.)
+        css_url = context["pathto"]("_static/wide-diagrams.css", 1)
+        head = f'<link rel="stylesheet" href="{css_url}" type="text/css" />\n'
+        # The mermaid extension draws diagrams with a dark theme when the
+        # browser prefers dark colors, and also uses a dark background for its
+        # fullscreen view. But the sphinx_rtd_theme only has a light mode, so
+        # the diagrams would be written with light colors on a light page.
+        # Declare the page as light, this is a hint the extension looks for.
+        head += '<script>document.documentElement.dataset.theme = "light";</script>\n'
+        context["metatags"] = context.get("metatags", "") + head
+
+
+def setup(app):
+    app.connect("html-page-context", add_wide_diagrams_css)
