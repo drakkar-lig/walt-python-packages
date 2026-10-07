@@ -350,7 +350,9 @@ class MarkdownRenderer:
             f"Please see the web documentation: {self.web_doc_url()} ]"
         )
         self.stack_context(dim=True)
-        self.lit(textwrap.fill(msg, width=self.target_width))
+        # do not break the URL (e.g., at hyphens), the user may copy it
+        self.lit(textwrap.fill(msg, width=self.target_width,
+                               break_on_hyphens=False, break_long_words=False))
         self.pop_context()
         self.cr()
         self.cr()
