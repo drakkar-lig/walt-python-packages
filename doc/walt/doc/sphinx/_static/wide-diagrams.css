@@ -1,0 +1,38 @@
+/*
+ * Loaded only on pages containing mermaid diagrams (see conf.py).
+ *
+ * Note: this file is loaded before the css of the theme and the one injected by
+ * the mermaid extension, so selectors are prefixed with "body" to get
+ * priority over theirs.
+ *
+ * The content column of the sphinx_rtd_theme is limited to 800px, which is
+ * too narrow for diagrams (large sequence diagrams are then displayed with
+ * a tiny font size). So we enlarge the column, but we keep a readable line
+ * length for the text. Wide elements (diagrams, tables, code) can use the
+ * whole column.
+ */
+body .wy-nav-content {
+    max-width: 1400px;
+}
+
+body .rst-content section > p,
+body .rst-content section > ul,
+body .rst-content section > ol,
+body .rst-content section > blockquote {
+    max-width: 800px;
+}
+
+/*
+ * By default, diagrams are scaled up to the width of the column. This is
+ * fine for sequence diagrams (which are wide), but small diagrams such as
+ * flowcharts would look huge, so we limit their width.
+ */
+body pre.mermaid > svg {
+    display: block;
+    margin: 0 auto;
+    max-width: min(100%, 700px) !important;
+}
+
+body pre.mermaid > svg[aria-roledescription="sequence"] {
+    max-width: 100% !important;
+}
