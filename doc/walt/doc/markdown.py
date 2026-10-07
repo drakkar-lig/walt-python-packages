@@ -209,8 +209,10 @@ class MarkdownRenderer:
             length += sum(int(m[2:-1]) - len(m) for m in right_moves)
         return length
 
-    def wrap_escaped(self, text):
+    def wrap_escaped(self, text, width=None, justify=True):
         # textwrap.fill does not work well because of the escape sequences
+        if width is None:
+            width = self.target_width
         wrapped_lines = []
         curr_words = []
         curr_words_no_color = []
@@ -218,11 +220,14 @@ class MarkdownRenderer:
             word_no_color = "".join(RE_ESC_COLOR.split(word))
             min_line_no_color = " ".join(curr_words_no_color + [word_no_color])
             min_len = len(min_line_no_color)
-            if min_len > self.target_width:
+            if min_len > width and len(curr_words) > 0:
                 # cannot include the new word, format previous ones into a line
-                len_no_space = len("".join(curr_words_no_color))
-                num_spaces = self.target_width - len_no_space
-                curr_line = self.justify(curr_words, num_spaces)
+                if justify:
+                    len_no_space = len("".join(curr_words_no_color))
+                    num_spaces = width - len_no_space
+                    curr_line = self.justify(curr_words, num_spaces)
+                else:
+                    curr_line = " ".join(curr_words)
                 wrapped_lines.append(curr_line)
                 # the new word will be included into next line
                 curr_words = [word]
