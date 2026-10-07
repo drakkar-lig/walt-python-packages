@@ -6,7 +6,7 @@ import sys
 import commonmark
 from walt.doc.color import RE_ESC_COLOR
 from walt.doc.color import BOLD_ON, FG_COLOR_DARK_RED, BG_COLOR_WHITE
-from walt.doc.markdown import MarkdownRenderer
+from walt.doc.markdown import MarkdownRenderer, REASONABLE_MIN_SCREEN_WIDTH
 from walt.common.term import (
         TTYSettings,
         alternate_screen_buffer,
@@ -20,12 +20,6 @@ TOPICS_HELP = "<tab>/<shift-tab>, <enter>/<backspace>: browse related topics"
 Q_HELP = "<q>: quit"
 
 RE_LINKTAGS = re.compile(r"<L+>")
-
-# if we have something larger than current window size to display,
-# we may ask the user to resize it.
-# however, if our text width is really large, don't block usage
-# because the user may just have a small screen.
-REASONABLE_MIN_SCREEN_WIDTH = 100
 
 
 class Pager:
@@ -63,7 +57,7 @@ class Pager:
     def set_scroll_index(self, value):
         self._scroll_index = value
 
-    def parse_topic_links(self, ast):
+    def parse_topic_links(self, ast, topic=None):
         # in order to handle <tab> / <shift>-<tab> navigation we have to
         # know the line number of each link. We do that in 4 steps.
         # 1. replace link literals in the AST, by a tag <LLLL...> of the
@@ -85,7 +79,7 @@ class Pager:
                 target_topics.append(node.destination[:-3])
             event = walker.nxt()
         # 2. render this AST with modified link literals
-        text, max_width = self.renderer.render(ast, 0)
+        text, max_width = self.renderer.render(ast, 0, topic=topic)
         # 3. look for the position of our tags in the rendered output
         topic_links = []
         for line_number, line in enumerate(text.splitlines()):
@@ -223,15 +217,16 @@ class Pager:
                 content, self._scroll_index = self.get_md_content(
                         rows=self.tty.rows, **env)
                 ast = self.parser.parse(content)
-                topic_links = self.parse_topic_links(ast)
+                topic_links = self.parse_topic_links(ast, topic=env.get("topic"))
                 should_load_topic = False
             if should_render_markdown:
-                text, max_width = self.renderer.render(ast, selected_link_num)
+                text, max_width = self.renderer.render(
+                        ast, selected_link_num, topic=env.get("topic"))
                 if max_width <= REASONABLE_MIN_SCREEN_WIDTH:
                     if wait_for_large_enough_terminal(max_width):
                         # terminal resized, render again
                         text, max_width = self.renderer.render(
-                                ast, selected_link_num)
+                                ast, selected_link_num, topic=env.get("topic"))
                 lines = text.split("\n")
                 # we have to behave the same wether the document ends with an empty line
                 # (color escape codes excluded) or not
