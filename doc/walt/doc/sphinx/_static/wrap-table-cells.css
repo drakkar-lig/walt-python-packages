@@ -1,0 +1,10 @@
+/*
+ * The sphinx_rtd_theme forbids line breaks inside table cells, so tables
+ * with long cells overflow the content column and have to be scrolled
+ * horizontally. Allow the content of cells to wrap instead.
+ */
+.wy-table-responsive table td,
+.wy-table-responsive table th,
+.rst-content table.docutils thead {
+    white-space: normal;
+}
