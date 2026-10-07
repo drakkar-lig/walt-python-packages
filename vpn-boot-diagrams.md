@@ -77,7 +77,7 @@ sequenceDiagram
     participant N as "WALT node (RPi5)"
 
     U->>D: trigger image mount<br/>(e.g. walt node boot <node> <image>)
-    Note over D: mount the OS image, run image setup<br/>(other steps: walt scripts, ssh keys,<br/>symlinks, timezone, ...)
+    Note over D: mount the OS image, run image setup<br/>(install walt-init scripts, ssh keys,<br/>symlinks, timezone, ...)
     Note over D: check image boot dir: manage boot.img + boot.sig<br/>(boot.img is expected to be already in the image)
     D->>D: generate_boot_sig(): sign boot.img with the<br/>HTTP boot private key, write boot.sig accordingly
     D->>H: expose the image boot dir to serve (<id>/path)
@@ -167,6 +167,7 @@ sequenceDiagram
     autonumber
     participant R as "RPi5 firmware"
     participant IM as "initramfs<br/>(from boot.img)"
+    participant OS as "OS image<br/>(runs /bin/walt-init,<br/>then the auto-enroll service)"
     participant EPHTTP as "HTTP entrypoint"
     participant EPSSH as "SSH entrypoint"
     participant S as "WALT server<br/>(daemon + httpd, on walt-net)"
@@ -182,10 +183,12 @@ sequenceDiagram
     IM->>EPSSH: SSH tunnel into walt-net<br/>(auth: node SSH certificate,<br/>verify: entrypoint host keys)
     EPSSH->>S: (SSH tunnel endpoint)
     Note over IM,S: the node is bridged into the walt-net<br/>through the SSH tunnel
-    IM->>S: WalT network boot continues:<br/>mount NFS root over the tunnel
-    S-->>IM: root filesystem
-    IM->>IM: /bin/walt-init (normal WalT boot)
-    Note over IM: the node now runs the WalT OS image
+    IM->>S: WalT network boot continues:<br/>NFS mount the root filesystem (over the tunnel)
+    IM->>OS: /bin/walt-init (normal WalT boot)
+    OS->>OS: OS boots normally
+
+    Note over OS: the image provides a systemd service,<br/>walt-vpn-auto-enroll, started at OS boot
+    OS->>OS: walt-vpn-auto-enroll: verifies the EEPROM is up-to-date<br/>regarding server-side parameters, updates it otherwise<br/>(most of the time: nothing to do)
 ```
 
 ### The initramfs boot script
