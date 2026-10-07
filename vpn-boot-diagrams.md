@@ -20,69 +20,43 @@ maintenance) is covered in the `walt-images` build tree (section 6).
 
 ## 1. Deployment context
 
-A WalT server runs on the local "walt-net" LAN. A VPN-capable RPi5 node may be
-located in that same LAN, or physically moved to a distant site and connected
-through the Internet / a corporate network. In the latter case the node does
-not reach the WalT server directly: it goes through small, hardened
-**entrypoints** (HTTP and SSH), which forward traffic into the walt-net.
-
-Read from left to right: node → entrypoints → server.
+A WalT server runs on the local **walt-net** LAN. WALT nodes can be located
+inside that LAN, or physically moved to distant sites and connected through the
+Internet / a corporate network. In the latter case a node does not reach the
+WalT server directly: it goes through small, hardened **entrypoints** (an HTTP
+and an SSH entrypoint) which bridge it into the walt-net.
 
 ```mermaid
 flowchart LR
-    subgraph NODES["WalT nodes"]
-        Nlocal["RPi5 on local walt-net<br/>(VPN-capable or not)"]
-        Nvpn["RPi5 VPN node<br/>in a distant / moved site"]
+    subgraph WT["walt-net — the local WALT LAN"]
+        SRV["WalT server"]
+        NLOCAL["WalT nodes"]
     end
-
-    subgraph EP["Entrypoints (optional, for distant nodes)<br/>HTTP and SSH entrypoints may be the<br/>same machine or different machines"]
-        EP_HTTP["HTTP entrypoint<br/>exposes / proxies the boot files"]
-        EP_SSH["SSH entrypoint<br/>SSH tunnel endpoint into walt-net"]
-    end
-
-    subgraph SRV["WalT server (on walt-net)"]
-        SRV_BOX["WalT server<br/>walt-server-daemon / httpd<br/>DHCP / TFTP / NFS<br/>VPN CA + HTTP boot RSA-2048 keys"]
-    end
-
-    Nvpn -->|"HTTP 80: firmware HTTP boot<br/>(fetch boot.img + boot.sig)"| EP_HTTP
-    Nvpn -->|"SSH 22: VPN tunnel<br/>(for the WalT network boot)"| EP_SSH
-    EP_HTTP -->|"HTTP"| SRV_BOX
-    EP_SSH -->|"SSH (tunnel)"| SRV_BOX
-    Nlocal -.->|"direct, inside walt-net<br/>(TFTP / NFS, and HTTP / SSH)"| SRV_BOX
+    NDIST["Distant RPi5 VPN node"]
+    EP["Entrypoints<br/>(HTTP and SSH)"]
+    NDIST -->|"connects through the entrypoints"| EP
+    EP -->|"bridges into the walt-net"| SRV
+    NLOCAL --> SRV
 ```
 
-### Only the *start* of the boot differs
+### Where can an RPi5 node boot and how?
 
-Whether the node is a VPN node or not, once its OS is running the boot
-procedure is identical (NFS root, `/bin/walt-init`). Only the very beginning —
-how the kernel and initramfs are fetched and how the node reaches the walt-net —
-differs:
+An RPi5 always boots to a WalT OS image served by the server, and its root
+filesystem is mounted over NFS. What differs between cases is only **how the
+node fetches its kernel/initramfs and how it reaches the walt-net** in the
+first place; once the root filesystem is mounted, the rest of the boot is
+identical for all cases.
 
-```mermaid
-flowchart LR
-    A["Classical (non-VPN) node or<br/>not-yet-enrolled RPi5"] -->|"TFTP boot<br/>(firmware)"| C["WalT network boot<br/>(NFS root, /bin/walt-init)"]
-    B["Enrolled VPN node"] -->|"HTTP boot of boot.img + boot.sig,<br/>then SSH tunnel to walt-net"| C
-```
+| Node & context | What happens |
+|----------------|--------------|
+| Not VPN-enabled / not yet enrolled (must be on the walt-net) | classical TFTP boot from the walt-net; if the image provides the enrollment service, the node enrolls (section 3). |
+| VPN node, physically on the walt-net | boots directly from the server, **no tunnel** (it is already in the walt-net: permissive mode may use classical TFTP, enforced mode uses HTTP boot); the walt-net identity is verified first. |
+| VPN node, outside the walt-net | HTTP-boots, then opens an **SSH tunnel** through the entrypoints to reach the walt-net and mount its rootfs. |
 
-### Raspberry Pi firmware boot methods — no ipxe
-
-We make no use of ipxe here (ipxe is only used by pc-x86-64 WalT nodes). For the
-RPi5 we simply rely on the boot methods built into the Raspberry Pi firmware
-(publicly documented):
-
-- **SD-card boot** — used to recover a board;
-- **TFTP boot** — used for the classical, non-VPN WalT boot procedure of an RPi5
-  on the walt-net;
-- **HTTP boot** — used once the RPi5 is enrolled as a VPN node.
-
-HTTP boot requires the server to serve two files, `boot.img` and `boot.sig`:
-
-- `boot.img` is a **FAT-formatted file archive** that contains the same kind of
-  files a Raspberry Pi finds on its SD card (kernel, initramfs, config, ...).
-  Because it is only fetched over HTTP, it **must contain no secret**.
-- `boot.sig` is the RSA signature of `boot.img`, produced by the WalT server
-  with the private HTTP boot key. The board verifies it with the corresponding
-  public key stored in its EEPROM.
+Details of the TFTP/HTTP start and of the tunnel setup are given in
+sections 3 and 4. The distinction between "VPN boot mode" (a global WALT server
+setting) and the board "boot order" (a standard Raspberry Pi firmware setting)
+is clarified in section 5.
 
 ---
 
@@ -104,8 +78,8 @@ sequenceDiagram
 
     U->>D: trigger image mount<br/>(e.g. walt node boot <node> <image>)
     Note over D: mount the OS image, run image setup<br/>(other steps: walt scripts, ssh keys,<br/>symlinks, timezone, ...)
-    Note over D: check image boot dir: manage boot.img + boot.sig<br/>(boot.img is expected to be in the image, boot.sig<br/>is produced by the server if missing)
-    D->>D: generate_boot_sig(): sign boot.img with the<br/>HTTP boot private key, write boot.sig
+    Note over D: check image boot dir: manage boot.img + boot.sig<br/>(boot.img is expected to be already in the image)
+    D->>D: generate_boot_sig(): sign boot.img with the<br/>HTTP boot private key, write boot.sig accordingly
     D->>H: expose the image boot dir to serve (<id>/path)
     Note over N: later, at node boot time: the RPi5 firmware<br/>HTTP-boots and fetches boot.img + boot.sig
     N->>H: GET /walt-vpn/per-ip/<ip>/boot.img
@@ -115,9 +89,13 @@ sequenceDiagram
 
 Notes:
 
-- The signature is computed **once when the image is mounted** and stored as a
-  static `boot.sig` next to `boot.img` (`generate_boot_sig()`,
-  `mount/setup.py`). The firmware does not re-sign; it only verifies.
+- `boot.img` is a FAT-formatted file archive containing the same kind of files
+  a Raspberry Pi finds on its SD card (kernel, initramfs, config, ...). As it
+  is fetched over HTTP, it **must contain no secret**.
+- `boot.sig` is the RSA signature of `boot.img`. The signature is computed
+  **once when the image is mounted** and stored as a static `boot.sig` next to
+  `boot.img` (`generate_boot_sig()`, `mount/setup.py`). The firmware does not
+  re-sign; it only verifies.
 - The HTTP boot keys are an RSA-2048 key pair at
   `/var/lib/walt/http-boot/private.pem` + `public.pem` (generated by the
   server; see `const.py`). `public.pem` is what the board ultimately stores in
@@ -159,14 +137,15 @@ sequenceDiagram
     OS->>OS: OS boots normally
 
     Note over OS: the image provides a systemd service,<br/>walt-vpn-auto-enroll, started at OS boot
-    OS->>OS: read current EEPROM values (entrypoint, boot mode, vpn mac)
+    OS->>OS: read current EEPROM values (entrypoint, boot mode, vpn mac)<br/>if already VPN-enabled (in this case: no)
     OS->>S: GET node-conf (ssh/http entrypoint,<br/>boot mode, vpn mac) over http://server.walt
     OS->>OS: generate an SSH keypair
     OS->>S: POST /walt-vpn/enroll (ssh-pubkey)
     S->>S: sign the node SSH pubkey with the VPN CA,<br/>allocate the node vpn MAC
     S-->>OS: ok
     OS->>S: GET node-conf/ssh-pubkey-cert, ssh-entrypoint-host-keys,<br/>public.pem, http-path
-    Note over OS: build a new EEPROM image:<br/>BOOT_ORDER (HTTP boot) + WALT_VPN_* variables<br/>(ssh and http entrypoints, boot mode, vpn mac, creds)
+
+    OS->>OS: build a new EEPROM image:<br/>BOOT_ORDER (HTTP boot) + WALT_VPN_* variables<br/>(ssh and http entrypoints, boot mode, vpn mac, creds)
     OS->>BOARD: flash the EEPROM
     BOARD->>BOARD: reboot
     Note over BOARD: the node is now a VPN-capable node,<br/>next boot uses HTTP boot (see section 4)
@@ -181,17 +160,16 @@ two distinct host names — they may be the same machine or different machines.
 
 Once enrolled, at every boot the RPi5 *HTTP-boots* `boot.img` + `boot.sig`,
 and then opens an SSH tunnel through the SSH entrypoint so that the regular
-WalT network boot (NFS root) can continue over the walt-net. The HTTP and SSH
-entrypoints may be the same or different machines, as shown below.
+WalT network boot (NFS root) can continue over the walt-net.
 
 ```mermaid
 sequenceDiagram
     autonumber
     participant R as "RPi5 firmware"
-    participant EPHTTP as "HTTP entrypoint<br/>(may be a different machine<br/>from the SSH entrypoint)"
-    participant EPSSH as "SSH entrypoint<br/>(may be a different machine<br/>from the HTTP entrypoint)"
-    participant S as "WALT server<br/>(daemon + httpd, on walt-net)"
     participant IM as "initramfs<br/>(from boot.img)"
+    participant EPHTTP as "HTTP entrypoint"
+    participant EPSSH as "SSH entrypoint"
+    participant S as "WALT server<br/>(daemon + httpd, on walt-net)"
 
     R->>R: power on, follow EEPROM boot order<br/>(HTTP boot enabled)
     R->>EPHTTP: firmware HTTP boot: GET boot.img + boot.sig
@@ -210,43 +188,54 @@ sequenceDiagram
     Note over IM: the node now runs the WalT OS image
 ```
 
+### The initramfs boot script
+
+Deciding what to do at boot is handled *inside* the initramfs, which is part of
+the OS image. The kernel command line carries `boot=walt`, so the initramfs
+uses the WalT boot script (provided by the image, `scripts/walt` +
+`scripts/walt-premount` under `overlays/debian/`). The script:
+
+1. configures networking (DHCP);
+2. decides whether to use the VPN, only if the image ships a VPN client
+   (`scripts/walt-vpn-client`, i.e. the image is VPN-capable) **and** the board
+   is VPN-enabled (EEPROM contains a `WALT_VPN_MAC`):
+   - if the local network is detected as a walt-net (DHCP DNS domain `walt`)
+     *and* the boot mode is **permissive**, the node simply boots classically,
+     without the tunnel;
+   - otherwise (VPN enabled), if it is already on a walt-net it first verifies
+     securely that it really is the WalT network (`walt-vpn-client
+     --check-server`), then bypasses the tunnel but reconfigures its interface
+     with the VPN MAC; if it is *not* on a walt-net, it establishes the SSH
+     tunnel via `walt-vpn-client`;
+3. then mounts the root filesystem (NFS) and runs `/bin/walt-init`.
+
+Whether the firmware may fall back to a classical TFTP boot when the HTTP boot
+fails is governed by the EEPROM boot order, which derives from the global VPN
+boot mode (section 5).
+
 ---
 
 ## 5. VPN boot mode versus board boot order
 
 These two notions are related but distinct:
 
-- **VPN boot mode** (`enforced` / `permissive`) is a **WALT-specific notion**,
-  a per-node setting managed on the WalT server.
+- **VPN boot mode** (`enforced` / `permissive`) is a **WALT server setting,
+  global** (i.e. the same for all VPN-capable nodes), managed server-side by
+  `walt-server-setup`.
 - **Boot order** is a **standard Raspberry Pi firmware setting**, stored in the
   EEPROM, that lists the boot methods the firmware is allowed to try (SD card,
   TFTP, HTTP boot, ...).
 
-They are connected through the EEPROM programming: when an RPi5 enrolls or when
-its VPN settings change, the node (via the auto-enroll service) translates the
-WALT *VPN boot mode* into a standard firmware *boot order* and flashes it.
+They are connected through the EEPROM programming: the global VPN boot mode is
+translated into a **global boot-order configuration** that is flashed into the
+EEPROM of every VPN-capable RPi5 node:
 
-```mermaid
-flowchart LR
-    subgraph MODE["WALT 'VPN boot mode' (WALT-specific concept)"]
-        E["enforced"]
-        P["permissive"]
-    end
-    subgraph BOOT["Board 'boot order' (standard Raspberry Pi firmware<br/>setting, stored in the EEPROM: BOOT_ORDER = list of<br/>allowed boot methods: HTTP boot / TFTP / SD card / ...)"]
-        O["BOOT_ORDER value"]
-    end
-    E -->|"signed HTTP boot only<br/>(0xf7)"| O
-    P -->|"HTTP boot, then TFTP,<br/>then SD card (0xf127)"| O
-```
+- **enforced** → signed HTTP boot only (`BOOT_ORDER = 0xf7`), no fallback;
+- **permissive** → HTTP boot, then TFTP, then SD card (`BOOT_ORDER = 0xf127`).
 
-When do these settings get (re)flashed?
-
-- At **enrollment** (section 3): a first EEPROM image is written.
-- Later, when the **VPN settings change on the server** (entrypoints, boot
-  mode), on the next classical boot of the node the auto-enroll service
-  compares the server's `node-conf` with the current EEPROM values and, if they
-  differ, flashes a new EEPROM image to apply the new entrypoints / boot mode.
-- The firmware then uses the boot order at each power-on.
+The EEPROM is (re)flashed at enrollment (section 3) and again whenever VPN
+settings change on the server; the firmware then uses the boot order at each
+power-on.
 
 ---
 
@@ -277,13 +266,21 @@ The default WalT OS images for RPi5 nodes (`rpi64-debian`) are built from the
     the mechanism. When such an updated image is later mounted, the server
     (re)signs it (section 2).
 - **Boot files** under `<image>:/boot/rpi-5-b/` (kernel, initramfs, firmware
-  config, `cmdline`...), gathered into `boot.img`.
+  config, `cmdline`...), gathered into `boot.img`. These boot files are not
+  specific to VPN boot: they are also needed for the classical (non-VPN) TFTP
+  boot procedure. The same kind of files are found in the boot directory of
+  non-VPN-capable models, e.g. `<image>:/boot/rpi-3-b-plus/`.
+- **Initramfs boot scripts** selected by `boot=walt` in `cmdline.txt`:
+  `scripts/walt` (+ `scripts/walt-premount`) and, on the RPi5, the VPN client
+  scripts `scripts/walt-vpn-client` / `scripts/walt-vpn-tools` (decision logic
+  described in section 4).
 
-### Third-party images may not support RPi5 VPN boot
+### Third-party or more minimalistic images may not support RPi5 VPN boot
 
 Because an important part of the mechanism lives inside the OS image, some
-third-party WALT images may **not** support RPi5 VPN booting. Such an image can
-usually still be booted **only from the walt-net** (classical TFTP boot); it
-just cannot provide the HTTP boot / enrollment / tunnel pieces described above.
+third-party or more minimalistic WALT images may **not** support RPi5 VPN
+booting. Such an image can usually still be booted **only from the walt-net**
+(classical TFTP boot); it just cannot provide the HTTP boot / enrollment /
+tunnel pieces described above.
 
 ---
