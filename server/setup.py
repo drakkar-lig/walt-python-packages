@@ -52,6 +52,7 @@ setup_info = {
         "setuptools==84.0.0",
         "six==1.17.0",
         "snimpy==1.1.2",
+        "termaid==0.9.0",
         "typing-extensions==4.16.0",
         "urllib3==2.8.0",
         "walt-client==11.0",
