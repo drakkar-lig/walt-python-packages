@@ -1,5 +1,6 @@
 # WalT VPN Security notes
 
+
 ## HTTP protocol usage
 
 The early bootup steps of a WalT VPN node rely on the
@@ -14,6 +15,9 @@ this signature thanks to the server public key stored in its EEPROM.
 
 The FAT image does not contain any secrets, so the fact HTTP is
 a clear-text protocol is not a problem.
+
+See [`walt help show vpn-boot`](vpn-boot.md) for more
+technical details.
 
 
 ## SSH protocol usage
@@ -31,6 +35,9 @@ EEPROM.
 This SSH connection then serves as a tunnel, with one virtual
 network interface at each end, and the node continues with the
 usual WalT network boot procedure through this tunnel.
+
+See [`walt help show vpn-boot`](vpn-boot.md) for more
+technical details.
 
 
 ## VPN Boot modes
@@ -67,6 +74,9 @@ See [`walt help show node-install`](node-install.md).
 After such a reinitialization, the EEPROM is obviously free of any
 VPN secrets, and the board is ready to register again as a WalT VPN
 node.
+
+See [`walt help show vpn-boot`](vpn-boot.md) for more
+technical details.
 
 
 ## Revoking an SSH certificate
