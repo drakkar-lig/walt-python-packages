@@ -14,6 +14,7 @@ setup_info = {
     "install_requires": [
         "commonmark>=0.7.5",
         "pygments>=2.2.0",
+        "termaid>=0.9.0",
         "setuptools>=70.0.0",
         "walt-common==11.0",
     ],
