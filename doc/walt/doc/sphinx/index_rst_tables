@@ -122,6 +122,7 @@ Full table of Contents
 
    node-bootup
    boot-modes
+   vpn-boot
 
 
 .. toctree::
