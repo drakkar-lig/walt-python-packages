@@ -66,6 +66,9 @@ run_busybox_or_not() {
 possibly_vpn_node() {
     if [ -d /sys/class/net/ ]
     then
+        # If the OS provides the /sys/class/net/ file hierarchy,
+        # we can verify if the node created a network interface
+        # called walt-net.
         if [ -d /sys/class/net/walt-vpn ]
         then
             echo 1  # yes, it is a VPN node
@@ -73,10 +76,12 @@ possibly_vpn_node() {
             echo 0  # no, not a VPN node
         fi
     else
-        # At this step of the boot procedure
-        # /sys/class/net/ does not exist so
-        # we cannot tell.
-        # So we return 1 ("possibly" a VPN node).
-        echo 1
+        # If not, we just mirror the value of the walt_vpn_node
+        # variable specified by the server in /bin/walt-env.
+        # There's no way to detect if the node is VPN-capable
+        # but did not activate the VPN because it just booted inside
+        # the WALT network. In this case, we return 1 too, i.e.,
+        # this is *possibly* a VPN node.
+        echo "$walt_vpn_node"
     fi
 }
