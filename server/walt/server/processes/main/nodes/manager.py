@@ -57,6 +57,8 @@ FETCH_NODE_CONFIG_PATTERN = f"""\
 export walt_boot_mode=%(boot_mode)s
 export walt_persist_path=%(persist_path)s
 export walt_vnode_mode=%(is_vnode)d
+export walt_vpn_node=%(is_vpn_node)d
+export walt_node_model=%(node_model)s
 export walt_network_names='%(network_names)s'
 """
 
@@ -454,8 +456,9 @@ class NodesManager(object):
                     as networks,
                 d.virtual::int
                     as is_vnode,
-                d.name, d.mac, vn.vpnmac
+                d.name, d.mac, vn.vpnmac, n.model
             FROM devices d
+            LEFT JOIN nodes n ON d.mac = n.mac
             LEFT JOIN vpnnodes vn ON d.mac = vn.mac
             WHERE d.ip = '{node_ip}'
               AND d.type = 'node';
@@ -478,6 +481,9 @@ class NodesManager(object):
         if node_info.vpnmac:
             # VPN nodes may reach the walt network with or without the VPN
             network_names[node_info.vpnmac] = "walt-net"
+            is_vpn_node = True
+        else:
+            is_vpn_node = False
         for net_info in node_info.networks.split(','):
             net_name = net_info.split('[')[0]
             if net_name == 'walt-net':
@@ -494,6 +500,8 @@ class NodesManager(object):
         return dict(
             boot_mode = boot_mode,
             is_vnode = node_info.is_vnode,
+            is_vpn_node = is_vpn_node,
+            node_model = node_info.model,
             persist_path = persist_path,
             network_names = network_names,
         )
