@@ -5,6 +5,18 @@ SWAP_SETUP_COMMANDS="nbd-client mkswap swapon"
 SWAP_SIZE="16G"
 TMPFS_SIZE_IF_SWAP="8G"
 
+get_nbd_client() {
+    # prefer the OS command over the busybox applet because
+    # it usually provides option "-swap"
+    if nostdout busybox which nbd-client
+    then
+        echo "nbd-client"
+    elif busybox_has_applet nbd-client
+    then
+        echo "busybox nbd-client"
+    fi
+}
+
 mount_nbd_swap() {
     # network boot implies storing file modifications in RAM, which can be
     # quickly exhausted if the user does large modifications on the node
@@ -13,6 +25,7 @@ mount_nbd_swap() {
     # size accordingly.
     # Note: for the sake of simplicity, we try to mount this swap whatever
     # the boot mode.
+    nbdc="$(get_nbd_client)"
     if [ ! -d /sys/module/nbd ]
     then
         echo "skipped, this feature needs missing kernel module 'nbd'."
@@ -29,14 +42,6 @@ mount_nbd_swap() {
     # 1- connect to a NBD device on the server
     expname="swap-${SWAP_SIZE}"
     options="-N $expname ${walt_server_ip} /dev/nbd0 -swap"
-    # prefer the OS command over the busybox applet because
-    # it usually provides option "-swap"
-    if nostdout busybox which nbd-client
-    then
-        nbdc="nbd-client"
-    else
-        nbdc="busybox nbd-client"
-    fi
     if ! nostdout nostderr $nbdc $options
     then
         echo "skipped, nbd-client failed or miss '-swap' option."
