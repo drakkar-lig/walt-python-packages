@@ -129,6 +129,23 @@ def encode_domain_search(domains: list) -> bytes:
     return result
 
 
+def checksum(data: bytes) -> int:
+    """Compute the RFC 1071 internet checksum of a byte string."""
+    if len(data) % 2:
+        data += b"\x00"
+    s = 0
+    for i in range(0, len(data), 2):
+        s += (data[i] << 8) + data[i + 1]
+    while s >> 16:
+        s = (s & 0xffff) + (s >> 16)
+    return (~s) & 0xffff
+
+
+def mac_to_bytes(mac: str) -> bytes:
+    """Convert an 'aa:bb:cc:dd:ee:ff' string to raw bytes."""
+    return bytes(int(octet, 16) for octet in mac.split(":"))
+
+
 def encode_pxe_vendor_options(boot_menu: list = None) -> bytes:
     """
     Encode PXE vendor encapsulated options (content of option 43).
@@ -306,6 +323,23 @@ class DHCPPacket:
         return (self.vendor_class_id or "").startswith("PXEClient")
 
     @property
+    def is_pxe_freebsd(self) -> bool:
+        """True for the chainloaded FreeBSD pxeboot (its 2nd DHCP pass).
+
+        The first netboot bootloader (BIOS/UEFI option ROM) signals itself as
+        a plain PXE client ('PXEClient' VCI, no FreeBSD user class). Only the
+        bootloader chainloaded from it (FreeBSD pxeboot) sends a DHCP user
+        class (option 77) that mentions FreeBSD. By that time the network
+        switch has already learned the machine's MAC address from the first
+        bootloader, so it is safe to send our reply as an L2-unicast frame to
+        this client."""
+
+        if not self.is_pxe:
+            return False
+        uci = self.user_class_id or ""
+        return "FreeBSD" in uci
+
+    @property
     def is_rpi(self) -> bool:
         return self.mac_address[:8] in self.RPI_OUIS
 
@@ -451,6 +485,7 @@ class DHCPServer:
         self.interface = interface
         self.server_ip = server_ip
         self._sock = None
+        self._raw_sock = None
 
     def init_socket(self):
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -465,6 +500,51 @@ class DHCPServer:
         self._sock.bind(("", DHCP_SERVER_PORT))
         print(f"WALT DHCP server now listening on {self.interface}")
 
+    def _iface_mac(self):
+        # MAC address of the interface we bound to, used as the Ethernet
+        # source address for L2-unicast DHCP replies.
+        with open(f"/sys/class/net/{self.interface}/address") as f:
+            return f.read().strip()
+
+    def _init_raw_socket(self):
+        # Raw AF_PACKET socket, used to send DHCP replies as L2-unicast
+        # frames directed at a single client's MAC address.
+        self._raw_sock = socket.socket(
+            socket.AF_PACKET, socket.SOCK_RAW, socket.htons(0x0800)
+        )
+        self._raw_sock.bind((self.interface, 0))
+
+    def _build_ip_udp(self, payload: bytes, dest_ip: str) -> bytes:
+        """Wrap a DHCP payload in a UDP + IPv4 datagram (checksums filled)."""
+        src_ip = socket.inet_aton(self.server_ip)
+        dst_ip = socket.inet_aton(dest_ip)
+        udp_len = 8 + len(payload)
+        udp_header = struct.pack(
+            "!HHHH", DHCP_SERVER_PORT, DHCP_CLIENT_PORT, udp_len, 0
+        )
+        udp = udp_header + payload
+        ip_header = struct.pack(
+            "!BBHHHBBH4s4s",
+            0x45, 0, 20 + len(udp), 0, 0, 64, socket.IPPROTO_UDP, 0,
+            src_ip, dst_ip,
+        )
+        csum = checksum(ip_header)
+        ip_header = ip_header[:10] + struct.pack("!H", csum) + ip_header[12:]
+        return ip_header + udp
+
+    def _unicast_to_client(self, reply: DHCPPacket, data: bytes):
+        """Send a reply as an L2-unicast frame to the requesting client's
+        MAC address (RFC 2131 section 4.1). This avoids broadcasting the
+        OFFER/ACK to every node on the segment, which some faulty PXE ROMs
+        misinterpret as their own offer."""
+        if self._raw_sock is None:
+            self._init_raw_socket()
+        dst_mac = reply.chaddr[:reply.hlen].ljust(6, b"\x00")
+        eth_header = (dst_mac + mac_to_bytes(self._iface_mac()) +
+                      struct.pack("!H", 0x0800))
+        ip_packet = self._build_ip_udp(data, decode_ip(reply.yiaddr))
+        self._raw_sock.send(eth_header + ip_packet)
+
     def fileno(self):
         return self._sock.fileno()
 
@@ -476,7 +556,7 @@ class DHCPServer:
     def close(self):
         self._sock.close()
 
-    def send(self, reply: DHCPPacket):
+    def send(self, reply: DHCPPacket, request: DHCPPacket = None):
         """
         Send a reply packet, respecting relay agent and broadcast rules
         per RFC 2131 section 4.1.
@@ -486,7 +566,19 @@ class DHCPServer:
             # Relay agent present: unicast back to the relay on server port
             dest = (decode_ip(reply.giaddr), DHCP_SERVER_PORT)
         elif reply.is_broadcast_requested or reply.ciaddr == b"\x00" * 4:
-            # Client has no IP yet, or explicitly requested broadcast
+            # Client has no IP yet, or explicitly requested broadcast.
+            # Workaround for a buggy FreeBSD pxeboot that misinterprets a
+            # broadcast OFFER that was intended for another node and tries to
+            # reuse the offered IP. We only send an L2-unicast reply (instead
+            # of broadcasting) for this specific chainloaded FreeBSD client,
+            # because its MAC is already known to the network switch (learnt
+            # during the first bootloader's DHCP), so unicasting is safe here.
+            # We keep broadcasting for all other clients, notably physical
+            # nodes at power-on, where the switch may not have learnt the MAC
+            # yet.
+            if request is not None and request.is_pxe_freebsd:
+                self._unicast_to_client(reply, data)
+                return
             dest = (BROADCAST_ADDR, DHCP_CLIENT_PORT)
         else:
             dest = (decode_ip(reply.ciaddr), DHCP_CLIENT_PORT)
@@ -554,7 +646,7 @@ class WaltDHCPServer(DHCPServer):
         name = self._engine.get_name_for_ip(ip)
         if name:
             reply.set_hostname(pkt, name)
-        self.send(reply)
+        self.send(reply, pkt)
         return reply
 
     def _offer(self, pkt: DHCPPacket, ip: str):
