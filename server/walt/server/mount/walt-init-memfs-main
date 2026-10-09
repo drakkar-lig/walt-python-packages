@@ -82,10 +82,18 @@ walt_init_memfs_main() {
     # mount remote NBD swap
     if [ "$has_local_swap" -eq 0 ]
     then
-        boot_step_label_cr "Mounting remote swap space on server..."
-        mount_nbd_swap
+        if [ -z "$(get_nbd_client)" ]
+        then
+            boot_step_label_cr "Mounting remote swap space on server..." \
+                               "skipped"
+            echo "Note: Image provides no nbd-client."
+        else
+            boot_step_label_cr "Mounting remote swap space on server..."
+            mount_nbd_swap
+        fi
     else
-        boot_step_label_cr "Mounting remote swap space on server... skipped"
+        boot_step_label_cr "Mounting remote swap space on server..." \
+                           "skipped"
         echo "Note: Preferring local swap."
     fi
     # mount the final root (at /mnt/finalfs for now) (depends on boot mode)
