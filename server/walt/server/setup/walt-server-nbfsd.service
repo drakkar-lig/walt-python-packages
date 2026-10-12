@@ -1,0 +1,19 @@
+# nbfsd - nbfs daemon
+#
+# nbfs is the Network Boot FileSystem, a read-only network
+# filesystem using speculation to provide a high performance
+# network boot.
+
+[Unit]
+Description=NBFS network filesystem daemon
+
+[Service]
+# After the initialization phase, we will notify systemd
+# that we are started successfully.
+Type=notify
+NotifyAccess=all
+ExecStart=/usr/sbin/nbfsd
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
