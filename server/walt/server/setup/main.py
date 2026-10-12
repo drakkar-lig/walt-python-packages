@@ -16,7 +16,6 @@ from walt.server.setup.conf import (
 )
 from walt.server.setup.ossetup import (
     cleanup_old_walt_install,
-    fix_conmon,
     fix_os,
     get_os_codename,
     install_os,
@@ -98,7 +97,6 @@ OS_ACTIONS = {
             "setup_vpn",
             "define_server_conf",
             "install_os_on_image",
-            "fix_conmon",
             "disable_os_services",
             "setup_command_symlinks",
             "setup_walt_services",
@@ -113,7 +111,6 @@ OS_ACTIONS = {
             "setup_vpn",
             "define_server_conf",
             "install_os",
-            "fix_conmon",
             "disable_os_services",
             "setup_command_symlinks",
             "setup_walt_services",
@@ -132,7 +129,6 @@ OS_ACTIONS = {
             "setup_vpn",
             "define_server_conf",
             "upgrade_os",
-            "fix_conmon",
             "disable_os_services",
             "remove_obsolete_services",
             "cleanup_old_walt_install",
@@ -150,7 +146,6 @@ OS_ACTIONS = {
             "setup_vpn",
             "define_server_conf",
             "fix_os",
-            "fix_conmon",
             "disable_os_services",
             "remove_obsolete_services",
             "cleanup_old_walt_install",
@@ -326,9 +321,6 @@ class WalTServerSetup(WaltGenericSetup):
 
     def fix_os(self):
         fix_os()
-
-    def fix_conmon(self):
-        fix_conmon()
 
     def install_os_on_image(self):
         install_os_on_image()
