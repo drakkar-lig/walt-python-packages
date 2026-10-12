@@ -1,0 +1,21 @@
+# nbfsd socket - nbfs daemon listening socket
+#
+# nbfs is the Network Boot FileSystem, a read-only network
+# filesystem using speculation to provide a high performance
+# network boot.
+
+[Unit]
+Description=NBFS daemon listening socket
+
+[Socket]
+# this setup with 2 sockets (and ipv6-only set) is more robust
+# than a single IPv6 socket (and ipv6-only unset) because
+# it allows an IPv4-only fallback to be triggered on a machine
+# where IPv6 is disabled.
+ListenStream=0.0.0.0:5959
+ListenStream=[::]:5959
+BindIPv6Only=ipv6-only
+ListenDatagram=/run/nbfsd/ctl.sock
+
+[Install]
+WantedBy=sockets.target
