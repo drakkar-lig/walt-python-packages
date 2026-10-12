@@ -241,14 +241,23 @@ def get_dns_servers() -> [Union[str, IPv4Address]]:
     return dns_list
 
 
-def ensure_text_file_content(path, content):
+def ensure_bin_file_content(path, content):
     update_file = True
     if path.exists():
-        if path.read_text() == content:
+        if path.read_bytes() == content:
             update_file = False
     if update_file:
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(content)
+        path.write_bytes(content)
+
+
+def ensure_text_file_content(path, content):
+    ensure_bin_file_content(path, content.encode())
+
+
+def ensure_file_mode(path, mode):
+    if path.stat().st_mode != mode:
+        path.chmod(mode)
 
 
 def add_image_repo(fullname):
