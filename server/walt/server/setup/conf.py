@@ -16,6 +16,7 @@ from walt.server.setup.netconf import (
 )
 from walt.server.setup.regconf import edit_regconf_interactive, get_default_regconf
 from walt.server.setup.vpn import edit_vpnconf_interactive, get_default_vpnconf
+from walt.server.tools import ensure_text_file_content
 
 YAML_INDENT = 4
 
@@ -50,7 +51,7 @@ WALT_SERVER_SPEC_CONTENT = """\
 {
     # optional features implemented
     # -----------------------------
-    "features": [ "ptp" ]
+    "features": [ "ptp", "nbfs-121026" ]
 }
 """
 
@@ -257,7 +258,6 @@ def fix_other_conf_files():
         ROOT_LEGACY_WALTRC_PATH.rename(str(ROOT_WALT_CONFIG_PATH))
         print("done")
     for path, content in (
-        (WALT_SERVER_SPEC_PATH, WALT_SERVER_SPEC_CONTENT),
         (ROOT_WALT_CONFIG_PATH, LOCAL_WALT_CONFIG_CONTENT),
         (SKEL_WALT_CONFIG_PATH, LOCAL_WALT_CONFIG_CONTENT),
     ):
@@ -267,3 +267,5 @@ def fix_other_conf_files():
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(content)
             print("done")
+    ensure_text_file_content(WALT_SERVER_SPEC_PATH,
+                             WALT_SERVER_SPEC_CONTENT)

@@ -1,3 +1,4 @@
+import gzip
 import shlex
 import subprocess
 import sys
@@ -8,7 +9,11 @@ from plumbum import cli
 from walt.common import systemd
 from walt.common.setup import WaltGenericSetup
 from walt.common.tools import verify_root_login_shell
-from walt.server.tools import ensure_text_file_content
+from walt.server.tools import (
+    ensure_text_file_content,
+    ensure_bin_file_content,
+    ensure_file_mode,
+)
 from walt.server.setup.conf import (
     define_server_conf,
     fix_other_conf_files,
@@ -43,6 +48,8 @@ STOPPABLE_WALT_SERVICES = [
     "walt-server-podman.socket",
     "walt-server-vpn.service",
     "walt-server-vpn.socket",
+    "walt-server-nbfsd.service",
+    "walt-server-nbfsd.socket",
 ]
 
 # The user may have configured the interface providing internet access
@@ -73,11 +80,14 @@ UNCOMPATIBLE_OS_SERVICES = [
     "snmpd.service",
     "lldpd.service",
     "ptpd.service",
+    "nbfsd.service",
+    "nbfsd.socket",
 ]
 
 WALT_SOCKET_SERVICES = ["walt-server-podman.socket",
                         "walt-server-nbd.socket",
-                        "walt-server-vpn.socket"]
+                        "walt-server-vpn.socket",
+                        "walt-server-nbfsd.socket"]
 WALT_MAIN_SERVICE = "walt-server.service"
 
 # Notes:
@@ -188,6 +198,9 @@ udp=y
 # mismatches.
 manage-gids=n
 """
+
+NBFSD_BIN_FILE = Path("/usr/sbin/nbfsd")
+NBFSD_BIN_FILE_MODE = 0o700
 
 
 class WalTServerSetup(WaltGenericSetup):
@@ -331,6 +344,7 @@ class WalTServerSetup(WaltGenericSetup):
         self.setup_systemd_services(ALL_WALT_SERVICES)
         self.setup_apparmor_profiles()
         self.fix_os_services_conf()
+        self.install_nbfsd()
         print("done")
 
     def setup_apparmor_profiles(self):
@@ -345,6 +359,12 @@ class WalTServerSetup(WaltGenericSetup):
     def fix_os_services_conf(self):
         ensure_text_file_content(WALT_NFS_CONF_FILE,
                                  WALT_NFS_CONF)
+
+    def install_nbfsd(self):
+        with gzip.open(self.package / "nbfsd.gz", 'rb') as f:
+            bin_content = f.read()
+        ensure_bin_file_content(NBFSD_BIN_FILE, bin_content)
+        ensure_file_mode(NBFSD_BIN_FILE, NBFSD_BIN_FILE_MODE)
 
     def cleanup_old_walt_install(self):
         cleanup_old_walt_install()
