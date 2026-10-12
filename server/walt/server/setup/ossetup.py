@@ -379,21 +379,6 @@ def undivert(path):
     )
 
 
-# 'conmon' binary distributed in bullseye had a serious issue
-# causing possibly truncated stdout in podman [run|exec]).
-# We used dpkg-divert to replace it with a statically compiled
-# binary. Now, from bookworm, we can revert to the distribution-
-# provided binary.
-def fix_conmon():
-    if has_diversion("/usr/bin/conmon"):
-        print("Restoring conmon tool previously diverted... ", end="")
-        sys.stdout.flush()
-        Path("/usr/bin/conmon").unlink()
-        Path("/usr/bin/conmon.fixed").unlink()
-        undivert("/usr/bin/conmon")
-        print("done")
-
-
 # We now install walt python packages in a virtual environment
 # (at least for the server).
 # Previously they were installed in the base python environment of the OS.
