@@ -5,7 +5,6 @@ include walt/server/exports/tftp-static.tar.gz
 include walt/server/vpn/vpn-ssh-ep-setup.sh
 include walt/server/setup/*.service
 include walt/server/setup/*.socket
-include walt/server/setup/conmon.gz
 include walt/server/snmp/mibs/*.mib
 include walt/server/services/httpd/*.html
 include walt/server/services/httpd/*.css
