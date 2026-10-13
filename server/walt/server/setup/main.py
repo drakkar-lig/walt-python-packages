@@ -19,6 +19,7 @@ from walt.server.setup.conf import (
     fix_other_conf_files,
     update_server_conf,
 )
+from walt.server.setup.exceptions import RetryLaterException
 from walt.server.setup.ossetup import (
     cleanup_old_walt_install,
     fix_os,
@@ -401,4 +402,10 @@ class WalTServerSetup(WaltGenericSetup):
 
 
 def run():
-    WalTServerSetup.run()
+    try:
+        WalTServerSetup.run()
+    except RetryLaterException:
+        print()
+        print("This may be a temporary error.")
+        print("Try to restart the tool in a few minutes.")
+        sys.exit(1)
