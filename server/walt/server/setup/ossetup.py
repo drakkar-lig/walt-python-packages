@@ -277,12 +277,24 @@ def upgrade_db():
             # - the upgraded cluster will still use WALT_PG_PORT = 5432
             # - the old version of the cluster will remain but use
             #   a different port (it will be dropped below)
-            subprocess.run(
+            upgrade_proc = subprocess.run(
                 f"pg_upgradecluster {version} main".split(),
-                check=True,
                 stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
             )
-            print("done")
+            if upgrade_proc.returncode == 0:
+                print("done")
+            else:
+                print("failed!")
+                # ignore warnings about collations, print other
+                # error text.
+                # (collation problems are handled appropriately
+                #  when walt-server.service is restarted)
+                print("\n".join(
+                    line for line in upgrade_proc.stderr.splitlines()
+                    if "collation" not in line), file=sys.stderr)
+                sys.exit(1)
             port_per_version[new_version] = WALT_PG_PORT
         # drop the old cluster
         subprocess.run(
