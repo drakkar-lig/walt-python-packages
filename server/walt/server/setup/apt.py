@@ -2,9 +2,12 @@ import datetime
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
+from walt.server.setup.exceptions import RetryLaterException
 
 import apt
+import apt.cache
 import apt.progress.base
 
 """
@@ -167,9 +170,22 @@ def upgrade_and_install_packages(label, packages, upgrade_packets=False):
     cache = get_apt_cache()
     print(f"{label}: Reloading package cache... ", end="")
     sys.stdout.flush()
-    cache.update()
-    cache.open()
-    print("done")
+    tries=0
+    while True:
+        tries += 1
+        try:
+            cache.update()
+            cache.open()
+        except apt.cache.FetchFailedException:
+            if tries == 3:
+                print('failed')
+                raise RetryLaterException()
+            else:
+                print('failed, will retry')
+                time.sleep(1)
+                continue
+        print("done")
+        break
     modified = False
     for pname in packages:
         package = cache.get(pname)
