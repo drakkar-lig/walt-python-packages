@@ -6,8 +6,20 @@
 
 [Unit]
 Description=WalT server daemon
+# Note: the order specified by "After" is reversed when the
+# OS is shutting down, so for instance we ensure postgresql
+# will not be stopped before walt-server.
 Requires=walt-server-netconfig.service
 After=walt-server-netconfig.service
+Requires=postgresql.service
+After=postgresql.service
+After=walt-server-dhcpd.service
+After=walt-server-lldpd.service
+After=nfs-server.service
+After=walt-server-nbfsd.service
+# We need a proper /etc/resolv.conf
+# to populate the forwarders in named.conf
+After=network-online.target
 # needs lldp
 Wants=walt-server-lldpd.service
 # we need a configuration file
