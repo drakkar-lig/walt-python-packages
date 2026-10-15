@@ -8,6 +8,7 @@
 
 import os
 import re
+import shutil
 from pathlib import Path
 
 import pypandoc
@@ -124,5 +125,29 @@ def add_wide_diagrams_css(app, pagename, templatename, context, doctree):
         context["metatags"] = context.get("metatags", "") + head
 
 
+def prune_unused_fonts(app, exception):
+    # The sphinx_rtd_theme bundles Lato/RobotoSlab fonts twice: once under
+    # _static/fonts (never referenced by any css) and once under
+    # _static/css/fonts (the ones actually loaded). Drop the unused tree and
+    # the legacy fontawesome formats (eot/svg/ttf) that only old browsers
+    # need, to keep the walt-doc wheel small.
+    if exception is not None:
+        return
+    static_dir = Path(app.outdir) / "_static"
+    unused_fonts = static_dir / "fonts"
+    if unused_fonts.exists():
+        shutil.rmtree(unused_fonts)
+    legacy_fonts = static_dir / "css" / "fonts"
+    for legacy in (
+        "fontawesome-webfont.eot",
+        "fontawesome-webfont.svg",
+        "fontawesome-webfont.ttf",
+    ):
+        f = legacy_fonts / legacy
+        if f.exists():
+            f.unlink()
+
+
 def setup(app):
     app.connect("html-page-context", add_wide_diagrams_css)
+    app.connect("build-finished", prune_unused_fonts)
