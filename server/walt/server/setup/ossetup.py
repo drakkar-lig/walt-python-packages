@@ -59,21 +59,12 @@ Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
 ).replace(
     "COMPONENTS", "main contrib non-free non-free-firmware")
 
-# in case of distribution upgrade, remove old versions of packages (including their
-# configuration files)
+# in case of distribution upgrade, remove old versions of packages
+# (including their configuration files)
 # this includes:
-# - old versions of docker packages
-# - old versions of buildah, podman and their dependencies which were provided through
-#   a different apt repo on buster
-# - network services for which walt installation changed their configuration files
-#   (walt now uses its own conf files for these services, stored in
-#   /var/lib/walt/services, and does not need anymore to touch the default
-#   configuration files of these services)
-# up-to-date versions of these packages will be reinstalled in a next step.
-APT_OLD_DIST_PACKAGES = """
-docker docker-engine docker-ce docker-ce-cli containerd containerd.io docker.io
-runc containers-image containers-common buildah podman containernetworking-plugins
-conmon podman-plugins slirp4netns crun isc-dhcp-server tftpd-hpa ptpd lldpd snmpd
+# - isc-dhcp-server, since WALT v11 now implements its own DHCP server
+APT_PURGE_OLD_DIST_PACKAGES = """
+        isc-dhcp-server
 """.split()
 
 APT_WALT_DEPENDENCIES_PACKAGES = """
@@ -229,7 +220,7 @@ def fix_packets(upgrade_dist=False, upgrade_packets=False):
     # from the new repo, then install packages walt needs.
     # Doing it as a single step may cause dependency problems.
     if upgrade_dist:
-        remove_packages(APT_OLD_DIST_PACKAGES, purge=True)
+        remove_packages(APT_PURGE_OLD_DIST_PACKAGES, purge=True)
         upgrade_and_install_packages("OS upgrade", [], upgrade_packets=True)
     upgrade_and_install_packages(
         "WalT dependencies",
