@@ -23,7 +23,7 @@ Since a given image may be compatible with several node models, the `<node-model
 
 Use this command with caution: it applies to all current and future free nodes of the specified model, whoever releases a node.
 
-For instance, `walt advanced set-free-nodes-image rpi-3-b-plus rpi-standby` clones my image `rpi-standby` under the name `waltplatform/<node-model>-free` and the reboots all rpi 3B+ nodes currently free. Moreover, from now on, each time a user releases a rpi 3B+ node it will also boot this image.
+For instance, `walt advanced set-free-nodes-image rpi-3-b-plus rpi-standby` clones my image `rpi-standby` under the name `waltplatform/<node-model>-free` and then reboots all rpi 3B+ nodes currently free. Moreover, from now on, each time a user releases a rpi 3B+ node it will also boot this image.
 
 The `set-free-nodes-image` command is often used to enable free nodes to host a discovery service—such as the detection of connected USB devices—so that users know which nodes to acquire for a specific experiment.
 

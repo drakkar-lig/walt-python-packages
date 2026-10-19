@@ -75,7 +75,7 @@ def get_version():
 
 
 project = "WalT"
-copyright = "2012-2023, Members of the WALT project"
+copyright = "2012-2026, Members of the WALT project"
 author = "Etienne Dublé"
 release = get_version()
 
