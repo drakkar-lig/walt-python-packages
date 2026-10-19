@@ -1,12 +1,12 @@
 
-# WalT server installation
+# WALT server installation
 
 ## Overview
 
-We provide instructions to setup walt server software on a fresh (and minimal)
+We provide instructions to setup walt server software on a fresh and **minimal**
 installation of the Debian 13 (trixie) operating system.
 
-For more information about what exactly means "minimal" in this context, what are the hardware requirements, or if you plan to use a virtual machine instead, continue scrolling.
+For more information about what exactly means "minimal" in this context, what are the hardware requirements, or if you plan to use a virtual machine instead of a real one, continue scrolling.
 
 
 ## 1- Install and configure walt software
@@ -24,9 +24,9 @@ Run this as `root` user:
 Note: `walt-server-setup` will display interactive configuration interfaces for network, image registries, and VPN.
 
 For more information:
-* About WalT network concepts and configuration, see [`walt help show networking`](networking.md).
-* About WalT image registries, see [`walt help show registries`](registries.md).
-* About WalT VPN and distant nodes, see [`walt help show vpn`](vpn.md).
+* About WALT network concepts and configuration, see [`walt help show networking`](networking.md).
+* About WALT image registries, see [`walt help show registries`](registries.md).
+* About WALT VPN and distant nodes, see [`walt help show vpn`](vpn.md).
 
 
 ## 2- Log in as a different user
@@ -49,7 +49,7 @@ $ walt node create vnode1
 $ walt node shell vnode1
 ```
 
-Note: WalT will detect that you are a new user and ask you for some configuration settings.
+Note: WALT will detect that you are a new user and ask you for some configuration settings.
 
 After a few minutes (download of the default image + node bootup) you should be connected on the virtual node.
 
@@ -70,7 +70,7 @@ Use a remote SSH access instead.
 
 ## Hardware requirements
 
-The WalT server must be installed on a 64bits (intel / amd64 CPU) machine, equipped with the following:
+The WALT server must be installed on a 64bits (intel / amd64 CPU) machine, equipped with the following:
 * A 64 bits (intel or amd) CPU (recent core i5 or better is recommended).
 * A 250Go (or more) disk.
 * 16 Go RAM or more is recommended (RAM is mainly needed for the "virtual nodes" feature).
@@ -79,11 +79,11 @@ The WalT server must be installed on a 64bits (intel / amd64 CPU) machine, equip
 Note: one may use a USB-ethernet dongle as an alternative to the second LAN interface.
 See [`walt help show networking`](networking.md) and [`walt help show server-network-config`](server-network-config.md).
 
-WalT is often used in one of the following scenarios:
+WALT is often used in one of the following scenarios:
 * Standard deployment in a building
 * Mobile setup (for demos)
 
-In the first case, you could install WalT on a server in the datacenter of the building.
+In the first case, you could install WALT on a server in the datacenter of the building.
 In the second case, you could choose a small-form-factor PC.
 Contact us (walt-contact at univ-grenoble-alpes.fr) for more advice.
 
