@@ -1,7 +1,7 @@
 
 # Powersave feature: turning unused nodes off
 
-When a PoE-powered WalT node has not been used for some time, WalT can automatically disable PoE (Power-over-Ethernet) on the corresponding switch port to save power.
+When a PoE-powered WALT node has not been used for some time, WALT can automatically disable PoE (Power-over-Ethernet) on the corresponding switch port to save power.
 For more info about PoE (Power-over-Ethernet) and the other optional features it allows, see [`walt help show optional-features`](optional-features.md).
 
 When a user starts to interact with the node again (e.g, using `walt node shell` or `walt node wait`), WALT temporarily restores the PoE supply.
@@ -11,7 +11,7 @@ The concept of "unused node" is rather conservative:
 * A free node is considered unused only after its `powersave.timeout` config value is reached.
 
 
-# Requirements
+## Requirements
 
 The powersave feature requires that the switch supports PoE (obviously), SNMP (for remote requests) and LLDP (to know on which port the node is connected).
 Then the `poe.reboots` config option of the switch must be explicitely enabled by using [``walt device config``](device-config.md).

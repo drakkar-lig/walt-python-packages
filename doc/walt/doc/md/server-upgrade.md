@@ -7,8 +7,8 @@ When a new version of WalT is available, you can follow these steps to update it
 
 ## Preliminary check
 
-This procedure works for upgrading your debian-based WalT server installation,
-considering your OS is at least Debian Bookworm (Debian 12).
+This procedure works for upgrading your debian-based WALT server installation,
+considering your OS is Debian Bookworm (Debian 12), or Debian Trixie (Debian 13).
 You can verify it using:
 ```
 $ grep VERSION /etc/os-release
@@ -18,6 +18,9 @@ For upgrading an older installation, contact us at `walt-contact at univ-grenobl
 
 
 ## Upgrade procedure
+
+Important note: if the server OS is Debian Bookworm (Debian 12),
+these upgrade steps will automatically update it to Debian Trixie (Debian 13).
 
 Run this as `root` user:
 
@@ -29,4 +32,4 @@ Run this as `root` user:
 ~# /opt/walt-11.0/bin/walt-server-setup
 ```
 
-Your server is now upgraded to current version.
+Your server is now running the newest WALT software!
