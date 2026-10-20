@@ -13,7 +13,7 @@ setup_info = {
     "version": "10.0",
     "install_requires": [
         "aiohappyeyeballs==2.6.1",
-        "aiohttp==3.14.3",
+        "aiohttp==3.14.4",
         "aiosignal==1.4.0",
         "aiostream==0.5.2",
         "attrs==23.2.0",
@@ -62,7 +62,7 @@ setup_info = {
         "walt-common==10.0",
         "walt-doc==10.0",
         "walt-virtual==10.0",
-        "yarl==1.17.2",
+        "yarl==1.25.1",
         "zope.event==5.0",
         "zope.interface==6.3",
     ],
