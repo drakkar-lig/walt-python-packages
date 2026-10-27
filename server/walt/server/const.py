@@ -11,7 +11,7 @@ SSH_NODE_COMMAND = (
     "ssh -o PreferredAuthentications=publickey "
         "-o UserKnownHostsFile=/var/lib/walt/ssh/known_hosts.nodes "
         "-o HostKeyAlias=walt.node "
-        "-o ConnectTimeout=10 "
+        "-o ConnectTimeout=20 "
         "-o ServerAliveInterval=5 "
 )
 SSH_DEVICE_COMMAND = "walt-device-ssh"
