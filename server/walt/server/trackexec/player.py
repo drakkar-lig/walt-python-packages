@@ -268,7 +268,7 @@ class TrackExecPlayer(Pager):
         code_flags = "linenos breakpoints=" + ",".join(breakpoints)
         scroll_index = self._scroll_index   # by default, keep scrolling position
         if self._display_file_id == self._exec_file_id:
-            lineno = self._exec_point.lineno
+            lineno = int(self._exec_point.lineno)
             code_flags += f" highlight-line={lineno}"
             if self._update_scrolling:
                 # by default, we compute the index (scrolling position) to have
