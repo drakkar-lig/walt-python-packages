@@ -125,19 +125,17 @@ class ServerSocketListener:
         self._ev_loop = ev_loop
         self._serv_s = serv_s
 
-    def fileno(self):
-        return self._serv_s.fileno()
-
     def handle_event(self, ts):
         s = self._serv_s.accept()[0]
         set_tcp_nodelay(s)
         set_tcp_keepalive(s)
         listener = CommSocketListener(s)
         listener.start_handshake()
-        self._ev_loop.register_listener(listener)
+        self._ev_loop.register_listener(listener._netbuf, listener)
 
     def close(self):
-        self._serv_s.close()
+        # self._serv_s is owned and closed by the event loop
+        pass
 
 
 class COMM_STATE:
@@ -156,9 +154,6 @@ class CommSocketListener:
     def start_handshake(self):
         SERVER_HANDSHAKE.write(self._netbuf)
         self._step = COMM_STATE.WAIT_CLIENT_FLAGS
-
-    def fileno(self):
-        return self._netbuf.fileno()
 
     def handle_event(self, ts):
         try:
@@ -188,14 +183,14 @@ class CommSocketListener:
     def close(self):
         if self._swap_file is not None:
             self._swap_file.close()
-        self._netbuf.close()
+        # self._netbuf is owned and closed by the event loop
 
 
 def run():
     ev_loop = EventLoop()
     for serv_s in get_server_sockets():
         listener = ServerSocketListener(ev_loop, serv_s)
-        ev_loop.register_listener(listener)
+        ev_loop.register_listener(serv_s, listener)
     ev_loop.loop()
 
 

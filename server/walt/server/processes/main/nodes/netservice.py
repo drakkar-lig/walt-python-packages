@@ -61,12 +61,6 @@ class NodeNetServiceListener:
     def set_keepalive(self):
         self.sock_file.set_keepalive()
 
-    # let the event loop know what we are reading on
-    def fileno(self):
-        if self.sock_file.closed:
-            return None
-        return self.sock_file.fileno()
-
     def _add_booted_evt(self, booted, event_ts=None, **details):
         # 'event_ts' must be the event-loop detection time when available
         # (i.e. the 'ts' parameter of handle_event()): it is not subject to

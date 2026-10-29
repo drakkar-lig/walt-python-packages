@@ -15,10 +15,6 @@ class ForkPtyProcessListener(object):
         self.slave_pid = slave_pid
         self.env = env
 
-    # let the event loop know what we are reading on
-    def fileno(self):
-        return self.env.slave_r.fileno()
-
     # when the event loop detects an event for us, this means
     # the slave proces wrote something on its output
     # we just have to copy this to the user socket
@@ -86,7 +82,7 @@ class ParallelProcessSocketListener(object):
         # create a new listener on the event loop for reading
         # what the slave process outputs
         process_listener = ForkPtyProcessListener(slave_pid, self)
-        self.ev_loop.register_listener(process_listener)
+        self.ev_loop.register_listener(process_listener.env.slave_r, process_listener)
 
     def start_popen(self, cmd_args, env):
         # For efficiency, we fork a child process which will read & write directly
@@ -106,12 +102,6 @@ class ParallelProcessSocketListener(object):
         # at the end.
         self.ev_loop.auto_waitpid(pid)
         return False
-
-    # let the event loop know what we are reading on
-    def fileno(self):
-        if self.client_sock_file.closed:
-            return None
-        return self.client_sock_file.fileno()
 
     # handle_event() will be called when the event loop detects
     # new input data for us.

@@ -153,7 +153,7 @@ class EvProcess(Process):
                     f.close()
         # run
         self.ev_loop = _instanciate_ev_loop()
-        self.ev_loop.register_listener(self)
+        self.ev_loop.register_listener(self.pipe_process, self)
         try:
             self.prepare()
             # if the admin created directory /var/log/walt/trackexec,
@@ -171,9 +171,6 @@ class EvProcess(Process):
             self.pipe_process.send("START_EXIT")
             # cleanup
             self.failsafe_cleanup()
-
-    def fileno(self):
-        return self.pipe_process.fileno()
 
     def handle_event(self, ts):
         msg = self.pipe_process.recv()

@@ -125,10 +125,6 @@ class LogsStreamListener(object):
         issuer_ip, issuer_port = self.sock_file.getpeername()
         return self.manager.get_stream_id(issuer_ip, name)
 
-    # let the event loop know what we are reading on
-    def fileno(self):
-        return self.sock_file.fileno()
-
     # when the event loop detects an event for us, we
     # know a log line should be read.
     def handle_event(self, ts):
@@ -185,9 +181,6 @@ class FileListener:
         self.file = fileobj
         self.stream_id = stream_id
 
-    def fileno(self):
-        return self.file.fileno()
-
     def handle_event(self, ts):
         try:
             chunk = self.file.read(4096)
@@ -201,7 +194,8 @@ class FileListener:
         return True
 
     def close(self):
-        self.file.close()
+        # self.file is owned and closed by the event loop
+        pass
 
 
 class NetconsoleListener(object):
@@ -216,11 +210,7 @@ class NetconsoleListener(object):
 
     def join_event_loop(self, ev_loop):
         self.ev_loop = ev_loop
-        ev_loop.register_listener(self)
-
-    # let the event loop know what we are reading on
-    def fileno(self):
-        return self.s.fileno()
+        ev_loop.register_listener(self.s, self)
 
     def handle_event(self, ts):
         # TODO: we should decode the extended format and handle continuation messages.
@@ -381,10 +371,6 @@ class LogsToSocketHandler(object):
             print("client log connection closing")
             # notify the hub that we should be removed.
             return False
-
-    # let the event loop know what we are reading on
-    def fileno(self):
-        return self.sock_file.fileno()
 
     # this is what we will do depending on the client request params
     def handle_params(self, history, realtime,
@@ -558,7 +544,7 @@ class LogsManager(object):
     def monitor_file(self, fileobj, issuer_ip, stream_name):
         stream_id = self.get_stream_id(issuer_ip, stream_name, "chunk")
         listener = FileListener(self.hub, fileobj, stream_id)
-        self.ev_loop.register_listener(listener)
+        self.ev_loop.register_listener(fileobj, listener)
         return listener
 
     def catch_std_streams(self):

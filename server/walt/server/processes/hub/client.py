@@ -32,9 +32,6 @@ class APISessionManager(object):
             self.session_id, self.target_api, self.remote_ip, attr, args, kwargs
         ).then(self.return_result)
 
-    def fileno(self):
-        return self.api_channel.fileno()
-
     def handle_event(self, ts):
         if not self.target_api:
             return self.init_session()

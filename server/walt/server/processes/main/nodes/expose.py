@@ -7,10 +7,6 @@ class NodeExposeFeedbackListener:
     def __init__(self, env):
         self.env = env
 
-    # let the event loop know what we are reading on
-    def fileno(self):
-        return self.env.node_sock_file.fileno()
-
     def handle_event(self, ts):
         if self.env.ready:
             # when the event loop detects an event for us, this means
@@ -31,7 +27,6 @@ class NodeExposeSocketListener:
         self.ev_loop = ev_loop
         self.node_ip_and_port = None
         self.client_sock_file = sock_file
-        self._fileno = sock_file.fileno()
         self.node_sock_file = None
 
     def open_channel_to_node(self):
@@ -55,12 +50,9 @@ class NodeExposeSocketListener:
         # create a new listener on the event loop for reading
         # what the node outputs
         feedback_listener = NodeExposeFeedbackListener(self)
-        self.ev_loop.register_listener(feedback_listener)
+        self.ev_loop.register_listener(
+            feedback_listener.env.node_sock_file, feedback_listener)
         self.client_sock_file.write(b"OK\n")
-
-    # let the event loop know what we are reading on
-    def fileno(self):
-        return self._fileno
 
     # handle_event() will be called when the event loop detects
     # new input data for us.

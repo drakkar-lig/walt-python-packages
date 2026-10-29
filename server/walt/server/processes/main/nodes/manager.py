@@ -82,8 +82,6 @@ class FetchNodeConfigHandler:
             sock_file.write(content.encode())
     # We responded immediately in __init__(), so after that
     # let's get removed from the event loop.
-    def fileno(self):
-        return self._sock_file.fileno()
     def handle_event(self, ts):
         return False
     def close(self):
