@@ -153,7 +153,7 @@ class EvProcess(Process):
                     f.close()
         # run
         self.ev_loop = _instanciate_ev_loop()
-        self.ev_loop.register_listener(self)
+        self.ev_loop.register_listener(self.pipe_process, self)
         try:
             self.prepare()
             # if the admin created directory /var/log/walt/trackexec,

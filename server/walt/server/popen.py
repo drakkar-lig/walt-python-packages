@@ -45,17 +45,19 @@ class BetterPopen:
             os.close(stdin_r)
             os.close(stdout_w)
             self.child_pid = pid
-            self.child_pidfd = os.pidfd_open(pid, 0)
+            # wrap the (int) pidfd into a file object so it can be handled by
+            # the event loop exactly like any other watched file.
+            self.child_pidfd_file = os.fdopen(os.pidfd_open(pid, 0), 'rb', buffering=0)
             self.child_stopped = False
             self.stdin = os.fdopen(stdin_w, mode="wb", buffering=0)
             self.stdout = os.fdopen(stdout_r, mode="rb", buffering=0)
             self._closing = False
             self._closing_callbacks = []
-            ev_loop.register_listener(self)
+            ev_loop.register_listener(self.child_pidfd_file, self)
             BetterPopen._instances[id(self)] = self
 
     def fileno(self):
-        return self.child_pidfd
+        return self.child_pidfd_file.fileno()
 
     def is_alive(self):
         return not self.child_stopped
@@ -98,16 +100,17 @@ class BetterPopen:
         self.plan_terminate(TERMINATE_EVENTS)
 
     def real_end(self):
-        for f in self.stdin, self.stdout:
-            if f is not None:
-                try:
-                    f.close()
-                except Exception as e:
-                    print("popen.close() -- ignored exception:", e)
+        # self.stdin is owned by BetterPopen (never handed to the event loop),
+        # so close it here.  self.stdout is always handed to the event loop
+        # (by Filesystem or by a FileListener), so the event loop is the one
+        # responsible for closing it -- do not close it here.
+        if self.stdin is not None:
+            try:
+                self.stdin.close()
+            except Exception as e:
+                print("popen.close() -- ignored exception:", e)
         self.stdin, self.stdout = None, None
-        if self.child_pidfd is not None:
-            os.close(self.child_pidfd)
-            self.child_pidfd = None
+        # self.child_pidfd_file is owned and closed by the event loop
         self.call_closing_callbacks()
         if id(self) in BetterPopen._instances:
             del BetterPopen._instances[id(self)]

@@ -26,11 +26,9 @@ class GenericServer:
 
     def join_event_loop(self, ev_loop):
         self.ev_loop = ev_loop
-        ev_loop.register_listener(self)
-
-    # let the event loop know what we are reading on
-    def fileno(self):
-        return self.s.fileno()
+        # give the listening socket to the event loop; from now on the loop
+        # is the sole responsible for closing it.
+        ev_loop.register_listener(self.s, self)
 
     def register_listener_class(self, req_id, cls, **ctor_args):
         self.listener_classes[req_id] = dict(cls=cls, ctor_args=ctor_args)
@@ -59,6 +57,8 @@ class GenericServer:
             self._shutting_down = True
 
     def close(self):
-        if self.s is not None:
-            self.s.close()
-            self.s = None
+        # NOTE: the listening socket is owned and closed by the event loop;
+        # when this server was registered with the loop, remove_listener()
+        # takes care of closing self.s.  We only reset our own reference here
+        # (this also covers the case where the server was never registered).
+        self.s = None

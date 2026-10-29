@@ -555,7 +555,8 @@ class DHCPServer:
         self.handle_packet(pkt)
 
     def close(self):
-        self._sock.close()
+        # self._sock is owned and closed by the event loop
+        pass
 
     def send(self, reply: DHCPPacket, request: DHCPPacket = None):
         """
@@ -751,7 +752,7 @@ class WalTDHCPdEngine:
             # create UDP management service and add it to the event loop
             udp_server = WaltDHCPServer(self)
             udp_server.init_socket()
-            self._ev_loop.register_listener(udp_server)
+            self._ev_loop.register_listener(udp_server._sock, udp_server)
         else:
             self._update_conf(new_devices)
             print(f"** Reloaded {DHCPD_DEVICES_FILE}")

@@ -15,5 +15,5 @@ class ServerBlockingProcess(EvProcess):
         service.db = self.db
         self.main.configure(service)
         self.db.configure()
-        self.ev_loop.register_listener(self.main)
-        self.ev_loop.register_listener(self.db)
+        self.ev_loop.register_listener(self.main.pipe, self.main)
+        self.ev_loop.register_listener(self.db.pipe, self.db)
