@@ -447,7 +447,7 @@ class NonBlockingSocket:
         # and let the event loop recall us when we can *write* on the socket
         non_blocking_connect(self.sock, self.ip, self.port)
         self.status = NonBlockingSocket.STATUS.CONNECTING
-        self.ev_loop.register_listener(self, POLL_OPS_WRITE)
+        self.ev_loop.register_listener(self.sock, self, events=POLL_OPS_WRITE)
         if self.timeout_on_connect:
             self.start_timeout()
 
@@ -505,9 +505,9 @@ class NonBlockingSocket:
         return self.sock.fileno()
 
     def close(self):
-        if self.sock is not None:
-            self.sock.close()
-            self.sock = None
+        # self.sock is owned and closed by the event loop; we only drop our
+        # own reference and update our state.
+        self.sock = None
         self.status = NonBlockingSocket.STATUS.CLOSED
 
     def on_connect_timeout(self):
