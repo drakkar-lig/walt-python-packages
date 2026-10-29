@@ -10,6 +10,7 @@ from select import POLLIN, POLLOUT, POLLPRI, poll, select
 from subprocess import PIPE, Popen, DEVNULL
 from time import time
 from collections import defaultdict
+from weakref import WeakKeyDictionary
 
 
 class BreakLoopRequested(Exception):
@@ -25,6 +26,103 @@ def is_event_ok(ev):
     return ev & (POLL_OPS_READ | POLL_OPS_WRITE) > 0
 
 
+# ---------------------------------------------------------------------------
+# Ownership of the file descriptors watched by the event loop.
+#
+# The event loop is the *only* component allowed to close the file objects it
+# watches.  To guarantee this even when unrelated code (or a listener) calls
+# <file>.close() directly, we intercept close() on the file objects handed to
+# the loop.  Any such call is routed back to the owning event loop, which then
+# performs a normal remove_listener() (releasing the fd through the loop).
+#
+# The loop must therefore never hold a registration for a fd that could be
+# closed behind its back -- which is exactly what used to cause subtle bugs
+# when a fd integer got reused after an external close().
+# ---------------------------------------------------------------------------
+
+# file object -> (EventLoop, listener) for every file under loop ownership
+_owned_files = WeakKeyDictionary()
+# classes whose close() was already patched at the class level
+_patched_classes = set()
+
+
+def _listener_initiated_close(file_):
+    """Called when somebody invokes close() on a loop-owned file directly.
+
+    Route the request back to the owning event loop so it can release the
+    fd through the normal remove_listener() machinery.
+    """
+    owner = _owned_files.get(file_)
+    if owner is None:
+        # should not happen (the patched close only routes owned files here),
+        # but stay safe: fall back to a plain close.
+        try:
+            file_.close()
+        except Exception:
+            pass
+        return None
+    ev_loop, listener = owner
+    ev_loop.remove_listener(listener)
+    return None
+
+
+def _watch_file(f):
+    """Ensure close() on file object ``f`` routes through the event loop.
+
+    Returns the *real* bound close() method, to be used when the loop itself
+    wants to release the fd (so that release is not re-intercepted).
+
+    Two strategies are used:
+      * class-level patching when the type allows it (uniform, done once per
+        class -- works for classes like socket, and even some with __slots__),
+      * instance-level patching otherwise (immutable types such as
+        ``_io.BufferedReader``, or wrapper objects exposing close() through
+        ``__getattr__`` rather than as a real class attribute).
+    """
+    cls = type(f)
+    # make sure the watched file's close() is intercepted (done once per
+    # class, or per instance for immutable types / __getattr__ wrappers).
+    if cls not in _patched_classes:
+        try:
+            unbound = cls.__dict__.get('close')
+        except Exception:
+            unbound = None
+        if unbound is not None:
+            # class-level patch (done once per class)
+            def close_wrapper(self, *a, **kw):
+                if _owned_files.get(self) is not None:
+                    return _listener_initiated_close(self)
+                # not a loop-owned file: behave like the original close()
+                return cls._evloop_orig_close.__get__(self, cls)(*a, **kw)
+            try:
+                cls._evloop_orig_close = unbound
+                cls.close = close_wrapper
+                _patched_classes.add(cls)
+            except Exception:
+                # immutable class -> fall back to instance-level patch
+                unbound = None
+        if unbound is None and not getattr(f, '_evloop_instance_patched', False):
+            # instance-level patch (immutable class, or no class-level close).
+            # NB: an instance attribute is *not* bound, so we capture the
+            # specific instance ``f`` in the closure (the file object is not
+            # passed to us when f.close() is invoked).
+            original = f.close
+            def close_wrapper(*a, **kw):
+                if _owned_files.get(f) is not None:
+                    return _listener_initiated_close(f)
+                return original(*a, **kw)
+            f.close = close_wrapper
+            f._evloop_instance_patched = True
+            f._evloop_instance_orig_close = original
+    # resolve the real (unpatched) close() bound to this specific file, so
+    # that when the loop itself releases the fd it never hits a wrapper.
+    if getattr(cls, '_evloop_orig_close', None) is not None:
+        return cls._evloop_orig_close.__get__(f, cls)
+    if getattr(f, '_evloop_instance_patched', False):
+        return f._evloop_instance_orig_close
+    return f.close
+
+
 # This object allows to implement ev_loop.auto_waitpid(<pid>, <wait_cb>=None)
 class PIDListener:
     def __init__(self, pid, wait_cb=None):
@@ -33,17 +131,16 @@ class PIDListener:
         self._wait_cb = wait_cb
 
     def start(self):
-        self._pidfd = os.pidfd_open(self._pid, 0)
-
-    def fileno(self):
-        return self._pidfd
+        # wrap the (int) pidfd into a file object so it can be handled by the
+        # event loop exactly like any other watched file.
+        self._pidfd = os.fdopen(os.pidfd_open(self._pid, 0), 'rb', buffering=0)
 
     def handle_event(self, ts):
         # the event loop calls this when the child is stopped
         return False  # let the event loop remove us and call close()
 
     def close(self):
-        os.close(self._pidfd)
+        # the file (the wrapped pidfd) is closed by the event loop itself
         if self._wait_cb is None:
             os.waitpid(self._pid, 0)
         else:
@@ -55,17 +152,14 @@ class StreamListener:
         self._popen_stream = popen_stream
         self._stream_handler = stream_handler
 
-    def fileno(self):
-        return self._popen_stream.fileno()
-
     def handle_event(self, ts):
         chunk = self._popen_stream.read(4096)
         if len(chunk) == 0:
-            self._popen_stream.close()
-            return False
+            return False   # let the event loop remove us and close the stream
         self._stream_handler.write(chunk)
 
     def close(self):
+        # the stream is closed by the event loop itself
         pass
 
 
@@ -118,23 +212,22 @@ class ProcessListener:
             self._add_stream_listener(self._popen.stdout, self._pipe_stdout)
         if self._pipe_stderr is not None:
             self._add_stream_listener(self._popen.stderr, self._pipe_stderr)
-        self._pidfd = os.pidfd_open(self._popen.pid, 0)
+        # wrap the (int) pidfd into a file object so it can be handled by the
+        # event loop exactly like any other watched file.
+        self._pidfd = os.fdopen(os.pidfd_open(self._popen.pid, 0), 'rb', buffering=0)
         self.pid = self._popen.pid
         self.stdin = self._popen.stdin
 
     def _add_stream_listener(self, popen_stream, stream_handler):
         listener = StreamListener(popen_stream, stream_handler)
-        self._ev_loop.register_listener(listener)
-
-    def fileno(self):
-        return self._pidfd
+        self._ev_loop.register_listener(popen_stream, listener)
 
     def handle_event(self, ts):
         # the event loop calls this when the child is stopped
         return False  # let the event loop remove us and call close()
 
     def close(self):
-        os.close(self._pidfd)
+        # the wrapped pidfd file is closed by the event loop itself
         retcode = self._popen.wait()
         ProcessListener._num_processes -= 1
         if self._callback is not None:
@@ -266,31 +359,59 @@ class EventLoop(object):
         if fd in self.pending_events:
             del self.pending_events[fd]
 
-    def register_listener(self, listener, events=POLL_OPS_READ):
-        fd = listener.fileno()
+    def register_listener(self, f, listener, /, *, events=POLL_OPS_READ):
+        """Register ``listener`` for the file object ``f``.
+
+        ``f`` and ``listener`` must be passed positionally; ``events`` is
+        keyword-only.  The event loop takes ownership of ``f``: it is the only
+        component allowed to close it, and any direct call to ``f.close()`` is
+        intercepted and routed back through the loop (see _watch_file()).
+        """
+        if not hasattr(f, 'fileno'):
+            raise TypeError(
+                f"register_listener expected a file object as first argument, got {f!r}")
+        fd = f.fileno()
         assert isinstance(fd, int) and fd >= 0
-        # save fd for future reference, we may need this later,
-        # even after the listener is closed and listener.fileno()
-        # would no longer work.
+        # take ownership of the file: intercept direct close() calls; remember
+        # the real close() so the loop itself can release the fd.
+        real_close = _watch_file(f)
         listener._ev_loop_fd = fd
+        listener._evloop_file = f
+        listener._evloop_real_close = real_close
+        # record ownership so that _listener_initiated_close() can find us back
+        _owned_files[f] = (self, listener)
         self._pollers.register_fd(fd, events)
         self.listeners_per_fd[fd] = listener
         # print 'new listener:', listener
 
-    def remove_listener(self, listener, should_close=True):
+    def remove_listener(self, listener):
         if not hasattr(listener, "_ev_loop_fd"):
             return False  # listener was already removed previously
         fd = listener._ev_loop_fd
+        f = getattr(listener, "_evloop_file", None)
+        real_close = getattr(listener, "_evloop_real_close", None)
         delattr(listener, "_ev_loop_fd")
+        if hasattr(listener, "_evloop_file"):
+            delattr(listener, "_evloop_file")
+        if hasattr(listener, "_evloop_real_close"):
+            delattr(listener, "_evloop_real_close")
         self._pollers.remove_fd(fd)
         del self.listeners_per_fd[fd]
         if fd in self.pending_events:
             del self.pending_events[fd]
-        if should_close:
+        # release our ownership of the file first, so that a close() performed
+        # by listener.close() below (if any) is not re-intercepted by the loop.
+        if f is not None:
+            _owned_files.pop(f, None)
+        try:
+            listener.close()
+        except Exception as e:
+            print(f"Warning, closing {listener} failed: {e}")
+        if f is not None and real_close is not None:
             try:
-                listener.close()
+                real_close()
             except Exception as e:
-                print(f"Warning, closing {listener} failed: {e}")
+                print(f"Warning, closing {listener}'s file failed: {e}")
         return True  # done
 
     def should_continue(self, loop_condition):
@@ -421,7 +542,7 @@ class EventLoop(object):
         )
         p = ProcessListener(**kwargs)
         p.start()
-        self.register_listener(p)
+        self.register_listener(p._pidfd, p)
         return p
 
     def _check_retcode(self, cmd, retcode):
@@ -447,4 +568,4 @@ class EventLoop(object):
     def auto_waitpid(self, pid, wait_cb=None):
         p = PIDListener(pid, wait_cb)
         p.start()
-        self.register_listener(p)
+        self.register_listener(p._pidfd, p)

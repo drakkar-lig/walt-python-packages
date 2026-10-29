@@ -15,12 +15,8 @@ class LogsFifoListener(object):
         self.conn_cache = LogsConnCache()
 
     def join_event_loop(self, ev_loop):
-        ev_loop.register_listener(self)
+        ev_loop.register_listener(self.fifo, self)
         self.conn_cache.join_event_loop(ev_loop)
-
-    # let the event loop know what we are reading on
-    def fileno(self):
-        return self.fifo.fileno()
 
     # when the event loop detects an event for us,
     # read the request and process it
@@ -46,4 +42,5 @@ class LogsFifoListener(object):
             self.conn_cache.get(stream_name).log(line=line.strip(), timestamp=ts)
 
     def close(self):
-        self.fifo.close()
+        # the fifo is owned and closed by the event loop
+        pass

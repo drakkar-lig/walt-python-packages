@@ -311,9 +311,12 @@ class StdinListener:
     def __init__(self, vm):
         self._vm = vm
         self._stdin_buffer = b''
+        # wrap stdin (fd 0) into a file object so the event loop can own it
+        import os
+        self._stdin = os.fdopen(0, 'rb', buffering=0)
 
     def fileno(self):
-        return 0  # stdin
+        return self._stdin.fileno()
 
     def handle_event(self, ts):
         chunk = os.read(0, 256)
@@ -379,7 +382,7 @@ class VirtualMachine:
                 pass
     def run(self):
         stdin_listener = StdinListener(self)
-        self._ev_loop.register_listener(stdin_listener)
+        self._ev_loop.register_listener(stdin_listener._stdin, stdin_listener)
         # plan first step of start procedure asap
         self._ev_loop.plan_event(ts=time.time(),
                                  callback=self.run_next_step)
