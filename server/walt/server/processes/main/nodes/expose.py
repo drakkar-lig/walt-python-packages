@@ -55,7 +55,8 @@ class NodeExposeSocketListener:
         # create a new listener on the event loop for reading
         # what the node outputs
         feedback_listener = NodeExposeFeedbackListener(self)
-        self.ev_loop.register_listener(feedback_listener)
+        self.ev_loop.register_listener(
+            feedback_listener.env.node_sock_file, feedback_listener)
         self.client_sock_file.write(b"OK\n")
 
     # let the event loop know what we are reading on

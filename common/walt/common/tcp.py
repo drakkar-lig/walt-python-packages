@@ -276,7 +276,7 @@ class TCPServer(GenericServer):
             sock_file.close()  # failed
         else:
             sock_file.set_keepalive()
-            self.ev_loop.register_listener(listener)
+            self.ev_loop.register_listener(sock_file, listener)
         # even if there was an issue when starting this listener,
         # the server itself should continue running
         return True

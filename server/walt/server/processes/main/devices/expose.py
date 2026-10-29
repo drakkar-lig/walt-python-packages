@@ -44,7 +44,7 @@ class SocketForwarder:
             return False  # issue, close
 
     def close(self):
-        self.sock_src.close()
+        # self.sock_src is owned and closed by the event loop
         # Do not close sock_dst right away: some data read from sock_src
         # may still be buffered and not sent yet (see sendall() /
         # on_write_ready() of DeviceToClientForwarder below). This
@@ -77,7 +77,8 @@ class DeviceToClientForwarder(NonBlockingSocket):
         self.start_wait_read()
         # add a SocketForwarder to the event loop to handle the other way
         client_to_device_forwarder = SocketForwarder(self._s_to_client, self)
-        self._ev_loop.register_listener(client_to_device_forwarder)
+        self._ev_loop.register_listener(
+            client_to_device_forwarder.sock_src, client_to_device_forwarder)
 
     def on_read_ready(self):
         try:
@@ -145,7 +146,7 @@ class ExposeRedirect:
 
     def start(self):
         self._s = server_socket(self.server_port)
-        self._ev_loop.register_listener(self)
+        self._ev_loop.register_listener(self._s, self)
 
     def fileno(self):
         return self._s.fileno()

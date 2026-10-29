@@ -123,7 +123,7 @@ class SensorLogsMonitor(object):
 
     def close(self):
         self.walt_logs.close()
-        self.f.close()
+        # self.f is owned and closed by the event loop
         self.in_dbg_log.close()
         self.out_dbg_log.close()
 
@@ -138,7 +138,7 @@ def run():
         sys.exit()
     sensor_logs_monitor = SensorLogsMonitor(serial_dev_path)
     ev_loop = EventLoop()
-    ev_loop.register_listener(sensor_logs_monitor)
+    ev_loop.register_listener(sensor_logs_monitor.f, sensor_logs_monitor)
     ev_loop.loop()
 
 

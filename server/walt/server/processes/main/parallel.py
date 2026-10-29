@@ -86,7 +86,7 @@ class ParallelProcessSocketListener(object):
         # create a new listener on the event loop for reading
         # what the slave process outputs
         process_listener = ForkPtyProcessListener(slave_pid, self)
-        self.ev_loop.register_listener(process_listener)
+        self.ev_loop.register_listener(process_listener.env.slave_r, process_listener)
 
     def start_popen(self, cmd_args, env):
         # For efficiency, we fork a child process which will read & write directly

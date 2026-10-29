@@ -13,7 +13,11 @@ class Filesystem:
         self.wf_response_handler = None
 
     def fileno(self):
-        return self.popen.stdout.fileno()
+        # vestigial: the loop now registers self.popen.stdout directly, so this
+        # is no longer called by the event loop.  Keep it defensive anyway.
+        if self.popen is not None:
+            return self.popen.stdout.fileno()
+        return -1
 
     def wrap_cmd(self, cmd):
         return f"{cmd} 2>/dev/null || true\n"
@@ -22,8 +26,10 @@ class Filesystem:
         # check if the running background process is still alive
         if self.popen is not None:
             if not self.popen.is_alive():
+                # note: popen.stdout is a file owned by the event loop, so
+                # removing the listener makes the loop close it.
                 self.popen = None
-                self.ev_loop.remove_listener(self, should_close=False)
+                self.ev_loop.remove_listener(self)
         # open or reopen background process if needed
         if self.popen is None:
             self.popen = BetterPopen(
@@ -31,7 +37,7 @@ class Filesystem:
                 self.cmd_interpreter,
                 self.kill_function,
             )
-            self.ev_loop.register_listener(self)
+            self.ev_loop.register_listener(self.popen.stdout, self)
         self.popen.stdin.write(self.wrap_cmd(cmd).encode("utf-8"))
 
     def handle_event(self, ts):
@@ -55,8 +61,10 @@ class Filesystem:
             if self.popen is not None:
                 if self.popen.is_alive():
                     self.popen.close()
+                # note: popen.stdout is a file owned by the event loop, so
+                # removing the listener makes the loop close it.
                 self.popen = None
-                self.ev_loop.remove_listener(self, should_close=False)
+                self.ev_loop.remove_listener(self)
             if retries > 0:
                 wf.update_env(retries=retries-1)
                 wf.insert_steps([self.wf_ping])
@@ -130,8 +138,11 @@ class Filesystem:
 
     def full_close(self):
         if self.popen is not None:
-            self.ev_loop.remove_listener(self, should_close=False)
-        self.close()
+            # close() closes the background process (and stdin); popen.stdout
+            # is a file owned by the event loop, so removing the listener lets
+            # the loop close it exactly once.
+            self.close()
+            self.ev_loop.remove_listener(self)
 
 
 class FilesystemsCache:

@@ -20,7 +20,7 @@ class ServerDBProcess(EvProcess):
         # to main and blocking processes
         self.main.configure(self.db)
         self.blocking.configure(self.db)
-        self.ev_loop.register_listener(self.main)
-        self.ev_loop.register_listener(self.blocking)
+        self.ev_loop.register_listener(self.main.pipe, self.main)
+        self.ev_loop.register_listener(self.blocking.pipe, self.blocking)
         self.db.prepare()
         self.db.plan_auto_commit(self.ev_loop)

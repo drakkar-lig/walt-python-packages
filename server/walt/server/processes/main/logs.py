@@ -201,7 +201,8 @@ class FileListener:
         return True
 
     def close(self):
-        self.file.close()
+        # self.file is owned and closed by the event loop
+        pass
 
 
 class NetconsoleListener(object):
@@ -216,7 +217,7 @@ class NetconsoleListener(object):
 
     def join_event_loop(self, ev_loop):
         self.ev_loop = ev_loop
-        ev_loop.register_listener(self)
+        ev_loop.register_listener(self.s, self)
 
     # let the event loop know what we are reading on
     def fileno(self):
@@ -558,7 +559,7 @@ class LogsManager(object):
     def monitor_file(self, fileobj, issuer_ip, stream_name):
         stream_id = self.get_stream_id(issuer_ip, stream_name, "chunk")
         listener = FileListener(self.hub, fileobj, stream_id)
-        self.ev_loop.register_listener(listener)
+        self.ev_loop.register_listener(fileobj, listener)
         return listener
 
     def catch_std_streams(self):
