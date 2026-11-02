@@ -8,20 +8,27 @@ class WalTUpdatedException(Exception):
 def check_update(server):
     remote_version = str(server.get_remote_version())
     if remote_version != str(__version__):
+        import os
+        import sys
         print()
         print("WALT version is different on client and on server.")
+        if not os.access(sys.prefix, os.W_OK):
+            print("And we're not allowed to auto-update "
+                  "this python installation.")
+            print("Exiting.")
+            sys.exit(1)
         try:
             wheels_info = server.get_client_install_wheels()
         except Exception:
-            print("And server code is too old to support client auto-upgrade, sorry.")
+            print("And server code is too old to support client "
+                  "auto-upgrade, sorry.")
             print("Exiting.")
             sys.exit(1)
-        print("Auto-upgrading this client code to match the server version...")
+        print("Auto-upgrading this client code to "
+              "match the server version...")
         print()
         import importlib
-        import os
         import subprocess
-        import sys
         import tempfile
         from pathlib import Path
         pip_install = f"{sys.prefix}/bin/pip install"
