@@ -23,7 +23,7 @@ setup_info = {
         "charset-normalizer==3.3.2",
         "commonmark==0.9.1",
         "cryptography==50.0.0",
-        "dnspython==2.7.0",
+        "dnspython==2.9.0",
         "frozenlist==1.4.1",
         "gevent==24.2.1",
         "greenlet==3.0.3",
