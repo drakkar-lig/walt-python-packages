@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 """Interactive terminal pager displaying markdown content.
 
-Subclass `Pager` and implement `get_page()`; optionally override
+Subclass `Pager` and implement `get_page()`, returning a `Page` with either
+markdown content (requires the commonmark module) or text already formatted
+for the terminal (with ANSI escape codes). Optionally override
 `on_key()`, `resolve_link()`, `get_help_keys()`, `format_url()` and
 `diagram_fallback_message()`. Then call `run(location)`.
 
@@ -17,10 +19,8 @@ from dataclasses import dataclass
 from enum import Enum, auto
 from typing import Optional
 
-import commonmark
 from walt.doc.color import RE_ESC_COLOR
 from walt.doc.color import BOLD_ON, FG_COLOR_DARK_RED, BG_COLOR_WHITE
-from walt.doc.markdown import MarkdownRenderer, REASONABLE_MIN_SCREEN_WIDTH
 from walt.common.term import (
         TTYSettings,
         alternate_screen_buffer,
@@ -33,7 +33,14 @@ SCROLL_HELP = "<up>/<down>, <page-up>/<page-down>: scroll"
 LINKS_HELP = "<tab>/<shift-tab>, <enter>/<backspace>: browse links"
 Q_HELP = "<q>: quit"
 
-RE_LINKTAGS = re.compile(r"<L+>")
+# escape sequences which do not occupy screen space
+RE_ESC_CSI = re.compile("\x1b" + r"\[[0-9;?]*[A-Za-z]")
+
+# if we have something larger than current window size to display,
+# we may ask the user to resize it.
+# however, if our text width is really large, don't block usage
+# because the user may just have a small screen.
+REASONABLE_MIN_SCREEN_WIDTH = 100
 
 # max delay between the bytes of an escape sequence
 ESC_SEQ_TIMEOUT = 0.05
@@ -96,9 +103,34 @@ DEFAULT_BINDINGS = {
 
 @dataclass
 class Page:
-    markdown: str
+    # content: either markdown, or text formatted for the terminal
+    markdown: Optional[str] = None
+    text: Optional[str] = None
     header: str = ""                # displayed above the content
     scroll: Optional[int] = None    # None: keep the current scroll position
+
+    def __post_init__(self):
+        if (self.markdown is None) == (self.text is None):
+            raise ValueError("Page needs either markdown or text content.")
+
+
+class TextContent:
+    """Text already formatted for the terminal; it has no links."""
+    links = ()
+
+    def __init__(self, text):
+        # clear each screen line ("\x1b[K") before writing it: unlike
+        # markdown rendering, the text may not span the whole terminal width.
+        # (clearing at the start, not at the end, allows a line to end with
+        # its own "\x1b[K" to fill the rest of the line with a background
+        # color, as render_code() does.)
+        self.text = "\n".join("\x1b[K" + line for line in text.split("\n"))
+        self.max_width = max(
+            (len(RE_ESC_CSI.sub("", line)) for line in text.split("\n")),
+            default=0)
+
+    def render(self, selected_link_num):
+        return self.text, self.max_width
 
 
 @dataclass
@@ -158,13 +190,7 @@ class Pager:
         # (and not wider than min_width), ask the user to resize it.
         self.tty = TTYSettings()
         self.min_width = min_width
-        self.parser = commonmark.Parser()
-        self.renderer = MarkdownRenderer(
-                min_width=min_width,
-                is_nav_link=self._is_nav_link,
-                format_url=self.format_url,
-                diagram_fallback=self.diagram_fallback_message,
-        )
+        self._md_renderer = None
         self._error_message = None
         self._stack = []
         self.real_footer_height = 0
@@ -262,37 +288,20 @@ class Pager:
     def _is_nav_link(self, destination):
         return self.resolve_link(destination) is not None
 
-    def _find_links(self, ast):
-        # in order to handle <tab> / <shift>-<tab> navigation we have to
-        # know the line number of each link. We do that in 4 steps.
-        # 1. replace link literals in the AST, by a tag <LLLL...> of the
-        #    same length that we can easily detect later
-        walker = ast.walker()
-        event = walker.nxt()
-        targets = []
-        saved_info = []
-        while event is not None:
-            node = event["node"]
-            if node.t == "link" and event["entering"]:
-                target = self.resolve_link(node.destination)
-                if target is not None:
-                    saved_info.append((node, node.first_child.literal))
-                    new_literal = "<" + ("L" * (len(node.first_child.literal) - 2)) + ">"
-                    node.first_child.literal = new_literal
-                    targets.append(target)
-            event = walker.nxt()
-        # 2. render this AST with modified link literals
-        text, max_width = self.renderer.render(ast, 0, location=self.location)
-        # 3. look for the position of our tags in the rendered output
-        links = []
-        for line_number, line in enumerate(text.splitlines()):
-            for link_tag in RE_LINKTAGS.findall(line):
-                target, targets = targets[0], targets[1:]
-                links.append((target, line_number))
-        # 4. restore the previous link literals for later reuse of the AST
-        for node, literal in saved_info:
-            node.first_child.literal = literal
-        return links
+    def _get_content(self, page, location):
+        if page.text is not None:
+            return TextContent(page.text)
+        # markdown modules are only loaded when needed
+        from walt.doc.markdown import MarkdownContent, MarkdownRenderer
+        if self._md_renderer is None:
+            self._md_renderer = MarkdownRenderer(
+                    min_width=self.min_width,
+                    is_nav_link=self._is_nav_link,
+                    format_url=self.format_url,
+                    diagram_fallback=self.diagram_fallback_message,
+            )
+        return MarkdownContent(self._md_renderer, page.markdown,
+                               self.resolve_link, location)
 
     def _advanced_input(self, prompt, prefill_text=None, completer=None):
         hook_enabled = False
@@ -425,20 +434,18 @@ class Pager:
                     entry.selected_link_num = 0
                     if page.scroll is not None:
                         entry.scroll_index = page.scroll
-                ast = self.parser.parse(page.markdown)
-                links = self._find_links(ast)
+                content = self._get_content(page, entry.location)
+                links = content.links
                 if entry.selected_link_num >= len(links):
                     entry.selected_link_num = 0
                 should_load = False
             if should_render:
-                text, max_width = self.renderer.render(
-                        ast, entry.selected_link_num, location=entry.location)
+                text, max_width = content.render(entry.selected_link_num)
                 if max_width <= self.min_width:
                     if wait_for_large_enough_terminal(max_width):
                         # terminal resized, render again
-                        text, max_width = self.renderer.render(
-                                ast, entry.selected_link_num,
-                                location=entry.location)
+                        text, max_width = content.render(
+                                entry.selected_link_num)
                 lines = text.split("\n")
                 # we have to behave the same wether the document ends with an empty line
                 # (color escape codes excluded) or not

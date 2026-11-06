@@ -3,12 +3,9 @@ import re
 import termios
 import textwrap
 
-from pygments import highlight
-from pygments.formatters import Terminal256Formatter
-from pygments.lexers import get_lexer_by_name
+import commonmark
 from walt.doc.color import (
     BG_COLOR_DEFAULT,
-    BG_COLOR_LIGHT_GREY,
     BG_COLOR_WHITE,
     FG_COLOR_BLACK,
     FG_COLOR_BLUE,
@@ -21,24 +18,22 @@ from walt.doc.color import (
     optimize_and_reset_default_colors
 )
 from walt.doc import mermaid
+from walt.doc.code import (
+    BG_COLOR_SOURCE_CODE,
+    FG_COLOR_SOURCE_CODE,
+    render_code_lines,
+)
 from walt.doc.mdtable import detect_table, render_table
+from walt.doc.pager import REASONABLE_MIN_SCREEN_WIDTH
 from walt.common.term import TTYSettings
 
 FG_COLOR_MARKDOWN = FG_COLOR_BLACK
 BG_COLOR_MARKDOWN = BG_COLOR_WHITE
-FG_COLOR_SOURCE_CODE = FG_COLOR_BLACK
-BG_COLOR_SOURCE_CODE = BG_COLOR_LIGHT_GREY
-BG_COLOR_SOURCE_CODE_HIGHLIGHT = "103"
 FG_COLOR_URL = FG_COLOR_BLUE
 FG_COLOR_HEADING = FG_COLOR_DARK_RED
 
 RE_WORD_SPACING = re.compile(r"[ \n]+")
 
-# if we have something larger than current window size to display,
-# we may ask the user to resize it.
-# however, if our text width is really large, don't block usage
-# because the user may just have a small screen.
-REASONABLE_MIN_SCREEN_WIDTH = 100
 
 
 def _no_nav_link(destination):
@@ -320,21 +315,6 @@ class MarkdownRenderer:
         text = "\n".join(line.rstrip() for line in text.rstrip("\n").split("\n"))
         return text
 
-    def add_line_prefix(self, lineno, line, breakpoints, line_number_width):
-        elements = ()
-        if breakpoints is not None:
-            elements += ("\u2BC3" if lineno in breakpoints else " ",)
-        if line_number_width is not None:
-            elements += (f"{lineno:>{line_number_width}}",)
-        if len(elements) > 0:
-            elements += ("|",)
-        elements += (line,)
-        return " ".join(elements)
-
-    def add_line_prefixes(self, lines, breakpoints, line_number_width):
-        return [self.add_line_prefix(n+1, line, breakpoints, line_number_width)
-                for n, line in enumerate(lines)]
-
     def mermaid_diagram_text(self, source):
         # Render a mermaid diagram as text, or return None if this is
         # not possible or if the result would be too wide for a screen.
@@ -376,85 +356,42 @@ class MarkdownRenderer:
             # display the rendered diagram as a regular code block
             info, literal = "", diagram_text
         code_text = self.pre_format_code_block(literal)
-        colored_text = code_text  # if we cannot perform syntax highlighting
-        params = {}
-        enable_linenos = False
-        if info != '':
-            language = None
-            for spec in info.split():
-                if '=' in spec:
-                    param, value = spec.split("=")
-                    params[param] = value
-                elif spec == "linenos":
-                    enable_linenos = True
-                else:
-                    language = spec
-            if language is not None:
-                try:
-                    lexer = get_lexer_by_name(language)
-                    colored_text = highlight(code_text, lexer, Terminal256Formatter())
-                    colored_text = colored_text.rstrip("\n")
-                except Exception:  # syntax highlighting failed: just use the raw code
-                    colored_text = code_text
+        language, params, enable_linenos = None, {}, False
+        for spec in info.split():
+            if '=' in spec:
+                param, value = spec.split("=")
+                params[param] = value
+            elif spec == "linenos":
+                enable_linenos = True
+            else:
+                language = spec
         highlight_line = params.get("highlight-line", None)
+        if highlight_line is not None:
+            highlight_line = int(highlight_line)
         breakpoints = params.get("breakpoints", None)
         if breakpoints is not None:
             if breakpoints == '':
-                breakpoints = ()
+                breakpoints = set()
             else:
                 breakpoints = set(int(line) for line in breakpoints.split(","))
-        code_lines = code_text.split("\n")
-        if enable_linenos:
-            line_number_width = len(str(len(code_lines)))
-        else:
-            line_number_width = None
-        code_lines = self.add_line_prefixes(
-                code_lines, breakpoints, line_number_width)
-        colored_lines = colored_text.split("\n")
-        colored_lines = self.add_line_prefixes(
-                colored_lines, breakpoints, line_number_width)
-        if highlight_line is not None:
-            highlight_line = int(highlight_line) - 1  # 1-indexing -> 0-indexing
-            sections = (
-                (0, highlight_line, BG_COLOR_SOURCE_CODE),
-                (highlight_line, highlight_line+1, BG_COLOR_SOURCE_CODE_HIGHLIGHT),
-                (highlight_line+1, len(code_lines), BG_COLOR_SOURCE_CODE),
-            )
-        else:
-            sections = (
-                (0, len(code_lines), BG_COLOR_SOURCE_CODE),
-            )
-        code_width = max(len(line) for line in code_text.split("\n")) + 1
+        code_lines = render_code_lines(
+                code_text, language=language, linenos=enable_linenos,
+                breakpoints=breakpoints, highlight_line=highlight_line)
+        code_width = max(len(line.plain) for line in code_lines) + 1
         code_width = max(code_width, self.target_width)
-        for section_start, section_end, bg_color in sections:
-            section_code_lines = code_lines[section_start:section_end]
-            section_colored_lines = colored_lines[section_start:section_end]
-            if len(section_code_lines) == 0:
-                continue  # empty section, e.g., when highlighting 1st line
-            # pygments output includes escape codes to reset the foreground
-            # or background color, we have to make a pass to revert those escape
-            # codes and get the default colors we want.
-            section_colored_text = optimize_and_reset_default_colors(
-                "\n".join(section_colored_lines),
-                FG_COLOR_SOURCE_CODE,
-                bg_color
+        for line in code_lines:
+            self.stack_context(
+                fg_color=FG_COLOR_SOURCE_CODE, bg_color=line.bg_color
             )
-            section_code_text = "\n".join(section_code_lines)
-            for code_line, colored_line in zip(
-                section_code_text.split("\n"), section_colored_text.split("\n")
-            ):
-                self.stack_context(
-                    fg_color=FG_COLOR_SOURCE_CODE, bg_color=bg_color
-                )
-                # paste the colored line, then kill ('\e[K') in order to paint the
-                # rest with background color of source code, then move to the right
-                # ('\e[<N>C') up to the edge of code block
-                self.lit(colored_line + "\x1b[K\x1b[%dC" %
-                         (code_width - len(code_line)))
-                # this will restore markdown background color
-                self.pop_context()
-                # line feed
-                self.cr()
+            # paste the colored line, then kill ('\e[K') in order to paint the
+            # rest with background color of source code, then move to the right
+            # ('\e[<N>C') up to the edge of code block
+            self.lit(line.colored + "\x1b[K\x1b[%dC" %
+                     (code_width - len(line.plain)))
+            # this will restore markdown background color
+            self.pop_context()
+            # line feed
+            self.cr()
         self.cr()
 
     def list(self, node, entering):
@@ -490,3 +427,58 @@ class MarkdownRenderer:
             # from 2nd line, prefix is all space
             prefix = " " * len(prefix)
         return "\n".join(out) + "\n"
+
+
+RE_LINKTAGS = re.compile(r"<L+>")
+
+
+class MarkdownContent:
+    """Markdown content of a pager page: parsed once, rendered on demand.
+
+    resolve_link(destination) returns the target of a link the pager can
+    open, or None. `links` is the list of (target, line_number) of such
+    links in the rendered output.
+    """
+
+    def __init__(self, renderer, markdown, resolve_link, location=None):
+        self.renderer = renderer
+        self.location = location
+        self.ast = commonmark.Parser().parse(markdown)
+        self.links = self._find_links(resolve_link)
+
+    def render(self, selected_link_num):
+        """Return (text, max_width)."""
+        return self.renderer.render(self.ast, selected_link_num,
+                                    location=self.location)
+
+    def _find_links(self, resolve_link):
+        # in order to handle <tab> / <shift>-<tab> navigation we have to
+        # know the line number of each link. We do that in 4 steps.
+        # 1. replace link literals in the AST, by a tag <LLLL...> of the
+        #    same length that we can easily detect later
+        walker = self.ast.walker()
+        event = walker.nxt()
+        targets = []
+        saved_info = []
+        while event is not None:
+            node = event["node"]
+            if node.t == "link" and event["entering"]:
+                target = resolve_link(node.destination)
+                if target is not None:
+                    saved_info.append((node, node.first_child.literal))
+                    new_literal = "<" + ("L" * (len(node.first_child.literal) - 2)) + ">"
+                    node.first_child.literal = new_literal
+                    targets.append(target)
+            event = walker.nxt()
+        # 2. render this AST with modified link literals
+        text, max_width = self.render(0)
+        # 3. look for the position of our tags in the rendered output
+        links = []
+        for line_number, line in enumerate(text.splitlines()):
+            for link_tag in RE_LINKTAGS.findall(line):
+                target, targets = targets[0], targets[1:]
+                links.append((target, line_number))
+        # 4. restore the previous link literals for later reuse of the AST
+        for node, literal in saved_info:
+            node.first_child.literal = literal
+        return links
