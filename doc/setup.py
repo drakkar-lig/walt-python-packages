@@ -12,9 +12,7 @@ setup_info = {
     "name": "walt-doc",
     "version": "11.0",
     "install_requires": [
-        "commonmark>=0.7.5",
-        "pygments>=2.2.0",
-        "termaid>=0.9.0",
+        "ttypage[markdown]>=0.1,<0.2",
         "setuptools>=70.0.0",
         "walt-common==11.0",
     ],
@@ -24,7 +22,6 @@ setup_info = {
     "license": "3-Clause BSD",
     "url": "https://walt-project.liglab.fr",
     "description": "WalT doc files and related code.",
-    "entry_points": {"console_scripts": ["ttypage = walt.doc.ttypage:run"]},
     "include_package_data": True,
 }
 setup_info.update(packages=find_packages())

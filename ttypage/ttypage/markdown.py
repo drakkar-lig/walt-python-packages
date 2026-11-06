@@ -4,7 +4,7 @@ import termios
 import textwrap
 
 import commonmark
-from walt.doc.color import (
+from ttypage.color import (
     BG_COLOR_DEFAULT,
     BG_COLOR_WHITE,
     FG_COLOR_BLACK,
@@ -17,15 +17,15 @@ from walt.doc.color import (
     get_transition_esc_sequence,
     optimize_and_reset_default_colors
 )
-from walt.doc import mermaid
-from walt.doc.code import (
+from ttypage import mermaid
+from ttypage.code import (
     BG_COLOR_SOURCE_CODE,
     FG_COLOR_SOURCE_CODE,
     render_code_lines,
 )
-from walt.doc.mdtable import detect_table, render_table
-from walt.doc.pager import REASONABLE_MIN_SCREEN_WIDTH
-from walt.common.term import TTYSettings
+from ttypage.mdtable import detect_table, render_table
+from ttypage.pager import REASONABLE_MIN_SCREEN_WIDTH
+from ttypage.term import TTYSettings
 
 FG_COLOR_MARKDOWN = FG_COLOR_BLACK
 BG_COLOR_MARKDOWN = BG_COLOR_WHITE

@@ -1,6 +1,6 @@
 import re
 
-from walt.doc.color import (
+from ttypage.color import (
     RE_ESC_COLOR,
     apply_esc_sequence,
     get_transition_esc_sequence,

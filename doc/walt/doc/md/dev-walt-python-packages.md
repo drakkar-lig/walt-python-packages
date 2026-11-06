@@ -20,6 +20,7 @@ python packages on pypi.org:
 | walt-node       | node       | node/walt/node             | walt.node       |
 | walt-server     | server     | server/walt/server         | walt.server     |
 | walt-virtual    | virtual    | virtual/walt/virtual       | walt.virtual    |
+| ttypage         | ttypage    | ttypage/ttypage            | ttypage         |
 
 You can find walt-server package at https://pypi.org/project/walt-server for instance
 (this is the same for others).
@@ -37,6 +38,11 @@ As can be seen in the last column, all python packages share the same parent sou
 package called `walt`. This is called a "namespace package".
 There are several ways to handle namespace packages, as can be seen [in the doc](https://packaging.python.org/en/latest/guides/packaging-namespace-packages/).
 Currently the code is using the `pkgutil` method described there.
+
+Package `ttypage` is an exception: it is a standalone terminal pager (used by
+`walt help show` and by the trackexec replay tool), which does not depend on any
+walt package and may be used by other projects. So it is not part of the `walt`
+namespace package.
 
 Note that `walt.client` is also a namespace package, which allows to manage optional
 client plugins. `walt-client-g5k` is the only such plugin at the moment (extension
@@ -95,6 +101,11 @@ to modify them directly. Modify `dev/metadata.py` instead.
 Dependencies between walt packages are simple: for instance, `walt-client` version
 `8.0` has a dependency on `walt-common==8.0` and `walt-doc==8.0`.
 We do not support dependencies between walt packages of different versions.
+
+Package `ttypage` has its own version number (`TTYPAGE_VERSION` in `dev/metadata.py`),
+and walt packages depend on a range of compatible versions (`TTYPAGE_VERSION_RANGE`).
+It is not uploaded to PyPI by `make upload`: when it changes, its version number
+must be updated, and it must be uploaded before the walt packages depending on it.
 
 The main reasons for generating `setup.py` files and `server/requirements.txt`
 dynamically are:
