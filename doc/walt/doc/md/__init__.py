@@ -1,8 +1,9 @@
 import re
+import socket
 import sys
 
 from importlib.resources import files
-from walt.doc.pager import DocPager
+from walt.doc.pager import Page, Pager
 
 
 def get_md_content(topic, err_out=False):
@@ -17,14 +18,46 @@ def get_md_content(topic, err_out=False):
         return
 
 
+class DocPager(Pager):
+    """Pager for WalT help topics (location = topic name)."""
+
+    def get_page(self, topic, rows, cols):
+        content = get_md_content(topic)
+        if content is None:
+            content = f"Sorry, no such help topic: {topic}."
+        return Page(markdown=content, scroll=0)
+
+    def resolve_link(self, destination):
+        if destination.endswith(".md"):
+            return destination[:-3]
+        return None
+
+    def format_url(self, url):
+        # prefix relative URLs with "http://<hostname>"
+        if not url.startswith("http"):
+            url = f"http://{socket.gethostname()}/{url.lstrip('/')}"
+        return url
+
+    def diagram_fallback_message(self, topic):
+        # URL of the topic in the web documentation served by the server
+        # (or of the documentation index if the topic is not known).
+        url = f"http://{socket.gethostname()}/doc/"
+        if topic is not None:
+            # note: the help-intro topic is the index page (see sphinx/conf.py)
+            page = "index" if topic == "help-intro" else topic
+            url += f"{page}.html"
+        return ("This diagram cannot be displayed in the terminal. "
+                f"Please see the web documentation: {url}")
+
+
 def display_doc(topic):
+    content = get_md_content(topic, err_out=True)
+    if content is None:
+        return
     if sys.stdout.isatty() and sys.stdin.isatty():
-        pager = DocPager(get_md_content)
-        pager.display_topic(topic)
+        DocPager().run(topic)
     else:
-        content = get_md_content(topic, err_out=True)
-        if content is not None:
-            print(content)
+        print(content)
 
 
 def get_topics():
