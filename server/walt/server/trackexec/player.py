@@ -504,7 +504,6 @@ class TrackExecPlayerCli(cli.Application):
     def main(self, trackexec_log_dir : TrackExecLogDir):
         """Replay WalT server process execution logs"""
         TrackExecPlayer.replay(trackexec_log_dir)
-        sys.exit(1)
 
 
 def run():
