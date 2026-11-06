@@ -19,8 +19,13 @@ from dataclasses import dataclass
 from enum import Enum, auto
 from typing import Optional
 
-from walt.doc.color import RE_ESC_COLOR
-from walt.doc.color import BOLD_ON, FG_COLOR_DARK_RED, BG_COLOR_WHITE
+from walt.doc.color import (
+        RE_ESC_COLOR,
+        BOLD_ON, FG_COLOR_DARK_RED, BG_COLOR_WHITE,
+        DEFAULT_FORMAT_STATE,
+        apply_esc_sequence,
+        get_transition_esc_sequence,
+)
 from walt.common.term import (
         TTYSettings,
         alternate_screen_buffer,
@@ -41,6 +46,11 @@ RE_ESC_CSI = re.compile("\x1b" + r"\[[0-9;?]*[A-Za-z]")
 # however, if our text width is really large, don't block usage
 # because the user may just have a small screen.
 REASONABLE_MIN_SCREEN_WIDTH = 100
+
+# synchronized output: terminals supporting it display the frame
+# at once, others ignore these escape sequences.
+SYNC_OUTPUT_START = "\x1b[?2026h"
+SYNC_OUTPUT_END = "\x1b[?2026l"
 
 # max delay between the bytes of an escape sequence
 ESC_SEQ_TIMEOUT = 0.05
@@ -138,6 +148,23 @@ class _StackEntry:
     location: object
     scroll_index: int = 0
     selected_link_num: int = 0
+
+
+def compute_line_start_states(lines):
+    """Return the terminal format state at the start of each line.
+
+    A formatting (e.g., a color) may be enabled on a line and still be
+    active on the following ones. This lets the pager start the display
+    at any line with the right format, without writing the previous ones.
+    The returned list has one more item: the state after the last line.
+    """
+    state = DEFAULT_FORMAT_STATE
+    states = [state]
+    for line in lines:
+        for esc_sequence in RE_ESC_COLOR.findall(line):
+            state = apply_esc_sequence(state, esc_sequence)
+        states.append(state)
+    return states
 
 
 def _read_byte(fd, timeout=None):
@@ -453,6 +480,7 @@ class Pager:
                 if len(last_line_without_color) == 0:
                     lines = lines[:-1]  # remove last line
                 num_lines = len(lines)
+                line_start_states = compute_line_start_states(lines)
                 # adapt footer help
                 header_height, header = self._format_header(page.header)
                 real_footer_height, footer_height, footer = self._format_footer(
@@ -468,25 +496,24 @@ class Pager:
                 if len(lines) < entry.scroll_index + page_height:
                     lines += [" " * self.tty.cols] * (
                             entry.scroll_index + page_height - len(lines))
-                # to avoid the terminal scrolls, we restart the drawing at
-                # the top-left corner.
-                sys.stdout.write("\x1b[H")
-                if header_height > 0:
-                    sys.stdout.write(header + '\r\n')
-                # the lines displayed are actually in range
-                # [index:index+page_height], but if one of the previous
-                # lines entered a 'bold' zone for example, (esc code '\e[1m'
-                # and no '\e[21m' code yet to revert it), we should start
-                # the first line with this context. That's why we paste the
-                # whole document up to index+page_height, including the
-                # lines before the view position.  For optimization, we
-                # print these lines on the same tty line, so one line erases
-                # the previous one.
-                hidden_lines = lines[:entry.scroll_index]
-                sys.stdout.write("\r".join(hidden_lines) + "\r")
+                # the lines displayed are in range [index:index+page_height],
+                # but if one of the previous lines entered a 'bold' zone for
+                # example (esc code '\e[1m' and no '\e[22m' code yet to revert
+                # it), we should start the first line with this context.
+                start_state = line_start_states[
+                        min(entry.scroll_index, len(line_start_states) - 1)]
                 displayed = lines[entry.scroll_index : entry.scroll_index + page_height]
-                sys.stdout.write("\r\n".join(displayed) + "\r\n\x1b[0m")
-                sys.stdout.write(footer)
+                # build the whole frame and write it at once. To avoid the
+                # terminal scrolls, we start the drawing at the top-left
+                # corner.
+                frame = SYNC_OUTPUT_START + "\x1b[H"
+                if header_height > 0:
+                    frame += header + '\r\n'
+                frame += "\x1b[0m" + get_transition_esc_sequence(
+                        DEFAULT_FORMAT_STATE, start_state)
+                frame += "\r\n".join(displayed) + "\r\n\x1b[0m"
+                frame += footer + SYNC_OUTPUT_END
+                sys.stdout.write(frame)
                 sys.stdout.flush()
                 should_redraw = False
             # get keyboard input

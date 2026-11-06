@@ -13,7 +13,7 @@ from walt.doc.color import (
     FG_COLOR_DARK_RED,
     RE_ESC_COLOR,
     RE_ESC_MOVE_RIGHT,
-    FormatState,
+    DEFAULT_FORMAT_STATE,
     get_transition_esc_sequence,
     optimize_and_reset_default_colors
 )
@@ -70,14 +70,7 @@ class MarkdownRenderer:
         self.list_numbering = []
         # initialize context with current terminal setup
         # (default for all attrs)
-        init_state = FormatState(
-            bg_color=BG_COLOR_DEFAULT,
-            fg_color=FG_COLOR_DEFAULT,
-            underline=False,
-            bold=False,
-            dim=False,
-        )
-        self.contexts = [init_state]
+        self.contexts = [DEFAULT_FORMAT_STATE]
         try:
             tty = TTYSettings()
             self.target_width = tty.cols
