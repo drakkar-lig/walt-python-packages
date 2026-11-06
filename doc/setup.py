@@ -24,6 +24,7 @@ setup_info = {
     "license": "3-Clause BSD",
     "url": "https://walt-project.liglab.fr",
     "description": "WalT doc files and related code.",
+    "entry_points": {"console_scripts": ["ttypage = walt.doc.ttypage:run"]},
     "include_package_data": True,
 }
 setup_info.update(packages=find_packages())

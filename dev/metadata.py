@@ -20,6 +20,11 @@ PACKAGE_SPECIFIC_INFO = {
         version_str="%(walt_version)s",
         setup=dict(
             description="WalT doc files and related code.",
+            entry_points={
+                "console_scripts": [
+                    "ttypage = walt.doc.ttypage:run",
+                ]
+            },
             include_package_data=True,
         ),
     ),
