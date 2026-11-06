@@ -5,6 +5,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta, date, time as midnight
 from pathlib import Path
 from plumbum import cli
+from walt.doc.code import render_code
 from walt.doc.pager import Action, Page, Pager
 from walt.server.trackexec.const import (
         SEC_AS_TS, MIN_AS_TS, HOUR_AS_TS, DAY_AS_TS
@@ -12,18 +13,22 @@ from walt.server.trackexec.const import (
 from walt.server.trackexec.reader import LogsReader
 
 
-MD_HELP_SCREEN = """
-Shortcut keys:
-* <q>: quit
-* <h>: toggle this help screen
-* <n>/<s>/<c>: next/step/continue like in a debugger
+BOLD, NORMAL = "\x1b[1m", "\x1b[0m"
 
-Scrolling in source files:
-* Use arrow keys or page-up / page-down.
+HELP_SCREEN_KEYS = f"""
+ {BOLD}Shortcut keys:{NORMAL}
+   \u2022 <q>: quit
+   \u2022 <h>: toggle this help screen
+   \u2022 <n>/<s>/<c>: next/step/continue like in a debugger
 
-Other keys start a full-line command prompt.
-Sample full-line commands:
-```bash
+ {BOLD}Scrolling in source files:{NORMAL}
+   \u2022 Use arrow keys or page-up / page-down.
+
+ Other keys start a full-line command prompt.
+ {BOLD}Sample full-line commands:{NORMAL}
+"""
+
+HELP_SCREEN_COMMANDS = """\
 > b                     # toggle breakpoint at current line
 > b 12                  # toggle breakpoint at line 12
 > j 12:00:16.552353     # jump to selected time
@@ -35,17 +40,24 @@ Sample full-line commands:
 > j -15d                # fast-rewind 15 days
 > f uniquemod.py        # display file <somewhere>/uniquemod.py
 > f /mod/submod.py      # display file <somewhere>/mod/submod.py
-```
-
-Jumps in time (`j` command) select the last instruction before the exact \
-target time.
-By default, the file displayed reflects the current execution replay
-section. But using `f` command one may display another file, set
-breakpoints on it using `b <line>`, and then press `<c>` (i.e., continue)
-to fast-forward to one of these breakpoints.
-
-Press <h> again to leave this help screen.
 """
+
+HELP_SCREEN_END = """
+ Jumps in time (j command) select the last instruction before the exact
+ target time.
+ By default, the file displayed reflects the current execution replay
+ section. But using f command one may display another file, set
+ breakpoints on it using b <line>, and then press <c> (i.e., continue)
+ to fast-forward to one of these breakpoints.
+
+ Press <h> again to leave this help screen.
+"""
+
+
+def help_screen_text():
+    return (HELP_SCREEN_KEYS +
+            render_code(HELP_SCREEN_COMMANDS, language="bash") + "\n" +
+            HELP_SCREEN_END)
 
 
 class TrackExecPlayer(Pager):
@@ -261,15 +273,15 @@ class TrackExecPlayer(Pager):
 
     def get_page(self, location, rows, cols):
         if self._help_screen:
-            return Page(markdown=MD_HELP_SCREEN, scroll=0)
-        breakpoints = tuple(
-                str(lineno) for (file_id, lineno) in self._breakpoints
+            return Page(text=help_screen_text(), scroll=0)
+        breakpoints = set(
+                lineno for (file_id, lineno) in self._breakpoints
                 if file_id == self._display_file_id)
-        code_flags = "linenos breakpoints=" + ",".join(breakpoints)
+        highlight_line = None
         scroll_index = self.scroll_index   # by default, keep scrolling position
         if self._display_file_id == self._exec_file_id:
             lineno = int(self._exec_point.lineno)
-            code_flags += f" highlight-line={lineno}"
+            highlight_line = lineno
             if self._update_scrolling:
                 # by default, we compute the index (scrolling position) to have
                 # the highlighted line at one 5th of the screen (or upper if
@@ -285,11 +297,10 @@ class TrackExecPlayer(Pager):
                     # the old scrolling position is no longer appropriate, update it
                     scroll_index = max(0, lineno - (rows//5))
         source_text = self._reader.read_source_file(self._display_file_id)
-        md_text = (f"""
-```python3 {code_flags}
-{source_text}```
-""")
-        return Page(markdown=md_text,
+        text = render_code(source_text, language="python3", linenos=True,
+                           breakpoints=breakpoints,
+                           highlight_line=highlight_line)
+        return Page(text=text,
                     header=self._get_header_text(cols),
                     scroll=scroll_index)
 
