@@ -43,7 +43,7 @@ def trackexec_analyse(trackexec_log_dir, num_items, file_id, sort_field):
         a = a[a.file_id == file_id]
         if len(a) == 0:
             print("Sorry file id not found in execution trace.")
-            sys.exit()
+            sys.exit(1)
     # convert cum_duration to seconds
     a.cum_duration /= SEC_AS_TS
     # compute avg_duration
@@ -150,7 +150,6 @@ class TrackExecAnalyseCli(cli.Application):
                           self.num_items,
                           self.file_id,
                           SORT_FIELDS[self.sort_column.lower()])
-        sys.exit(1)
 
 
 def run():
