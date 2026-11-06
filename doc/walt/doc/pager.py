@@ -1,7 +1,21 @@
 #!/usr/bin/env python
+"""Interactive terminal pager displaying markdown content.
+
+Subclass `Pager` and implement `get_page()`; optionally override
+`on_key()`, `resolve_link()`, `get_help_keys()`, `format_url()` and
+`diagram_fallback_message()`. Then call `run(location)`.
+
+A "location" is an opaque object identifying what is displayed (e.g.,
+a help topic name). The pager keeps a stack of locations: opening a
+link pushes a new one, <backspace> returns to the previous one.
+"""
 import os
 import re
+import select
 import sys
+from dataclasses import dataclass
+from enum import Enum, auto
+from typing import Optional
 
 import commonmark
 from walt.doc.color import RE_ESC_COLOR
@@ -16,37 +30,226 @@ from walt.common.term import (
 )
 
 SCROLL_HELP = "<up>/<down>, <page-up>/<page-down>: scroll"
-TOPICS_HELP = "<tab>/<shift-tab>, <enter>/<backspace>: browse related topics"
+LINKS_HELP = "<tab>/<shift-tab>, <enter>/<backspace>: browse links"
 Q_HELP = "<q>: quit"
 
 RE_LINKTAGS = re.compile(r"<L+>")
 
+# max delay between the bytes of an escape sequence
+ESC_SEQ_TIMEOUT = 0.05
+
+# escape sequences (without the leading ESC) -> key names
+ESC_SEQUENCES = {
+    "[A": "up",
+    "[B": "down",
+    "[C": "right",
+    "[D": "left",
+    "OA": "up",
+    "OB": "down",
+    "OC": "right",
+    "OD": "left",
+    "[5~": "page-up",
+    "[6~": "page-down",
+    "[H": "home",
+    "[F": "end",
+    "[1~": "home",
+    "[4~": "end",
+    "[Z": "shift-tab",
+}
+
+SINGLE_BYTE_KEYS = {
+    "\t": "tab",
+    "\r": "enter",
+    "\n": "enter",
+    "\x7f": "backspace",
+    "\x08": "backspace",
+    "\x1b": "escape",
+}
+
+
+class Action(Enum):
+    QUIT = auto()
+    SCROLL_UP = auto()
+    SCROLL_DOWN = auto()
+    PAGE_UP = auto()
+    PAGE_DOWN = auto()
+    NEXT_LINK = auto()
+    PREV_LINK = auto()
+    OPEN_LINK = auto()
+    BACK = auto()
+    RELOAD = auto()
+    IGNORE = auto()
+
+
+DEFAULT_BINDINGS = {
+    "q": Action.QUIT,
+    "up": Action.SCROLL_UP,
+    "down": Action.SCROLL_DOWN,
+    "page-up": Action.PAGE_UP,
+    "page-down": Action.PAGE_DOWN,
+    "tab": Action.NEXT_LINK,
+    "shift-tab": Action.PREV_LINK,
+    "enter": Action.OPEN_LINK,
+    "backspace": Action.BACK,
+}
+
+
+@dataclass
+class Page:
+    markdown: str
+    header: str = ""                # displayed above the content
+    scroll: Optional[int] = None    # None: keep the current scroll position
+
+
+@dataclass
+class _StackEntry:
+    location: object
+    scroll_index: int = 0
+    selected_link_num: int = 0
+
+
+def _read_byte(fd, timeout=None):
+    if timeout is not None:
+        ready, _, _ = select.select([fd], [], [], timeout)
+        if len(ready) == 0:
+            return None
+    b = os.read(fd, 1)
+    if len(b) == 0:
+        raise EOFError()
+    return b[0]
+
+
+def read_key(fd):
+    """Read one keypress from fd (in raw mode) and return its name.
+
+    Returns a name such as "up", "page-down", "tab", "enter", "backspace",
+    a single printable character, or None for an unknown escape sequence.
+    """
+    b = _read_byte(fd)
+    if b == 0x1b:
+        seq = ""
+        while True:
+            nb = _read_byte(fd, ESC_SEQ_TIMEOUT)
+            if nb is None:
+                break
+            c = chr(nb)
+            seq += c
+            if len(seq) == 1:
+                if c not in "[O":
+                    break   # not a CSI or SS3 sequence
+            elif c.isalpha() or c == "~":
+                break   # final byte
+        if seq == "":
+            return "escape"
+        return ESC_SEQUENCES.get(seq)
+    if b >= 0xc0:
+        # utf-8 multi-byte character
+        num_bytes = 2 if b < 0xe0 else 3 if b < 0xf0 else 4
+        data = bytes([b] + [_read_byte(fd) for _ in range(num_bytes - 1)])
+        return data.decode("utf-8", errors="replace")
+    c = chr(b)
+    return SINGLE_BYTE_KEYS.get(c, c)
+
 
 class Pager:
-    QUIT = 0
-    SCROLL_UP = 1
-    SCROLL_DOWN = 2
-    SCROLL_PAGE_UP = 3
-    SCROLL_PAGE_DOWN = 4
-    SELECT_NEXT_LINK = 5
-    SELECT_PREV_LINK = 6
-    OPEN_SELECTED_LINK = 7
-    RETURN_TO_PREV_MD_CONTENT = 8
-    UPDATE_MD_CONTENT_NO_RETURN = 9
 
-    def __init__(self):
+    def __init__(self, min_width=REASONABLE_MIN_SCREEN_WIDTH):
+        # min_width: if the rendered content is wider than the terminal
+        # (and not wider than min_width), ask the user to resize it.
         self.tty = TTYSettings()
+        self.min_width = min_width
         self.parser = commonmark.Parser()
-        self.renderer = MarkdownRenderer()
-        self.error_message = None
-        self._scroll_index = 0
+        self.renderer = MarkdownRenderer(
+                min_width=min_width,
+                is_nav_link=self._is_nav_link,
+                format_url=self.format_url,
+                diagram_fallback=self.diagram_fallback_message,
+        )
+        self._error_message = None
+        self._stack = []
+        self.real_footer_height = 0
 
-    def start_display(self, **env):
+    # --- hooks for subclasses -------------------------------------------
+
+    def get_page(self, location, rows, cols):
+        """Return the Page to display at `location`."""
+        raise NotImplementedError
+
+    def on_key(self, key):
+        """Handle a keypress; see read_key() for key names.
+
+        Return an Action, or None to apply the default key bindings.
+        """
+        return None
+
+    def resolve_link(self, destination):
+        """Return the location a link points to, or None if the link
+        should not be navigable from the pager (default)."""
+        return None
+
+    def get_help_keys(self, scrollable, has_links, can_go_back):
+        """Return the list of help strings displayed in the footer."""
+        help_keys = []
+        if scrollable:
+            help_keys += [SCROLL_HELP]
+        if has_links or can_go_back:
+            help_keys += [LINKS_HELP]
+        help_keys += [Q_HELP]
+        return help_keys
+
+    def format_url(self, url):
+        """Format the URL of a non-navigable link for display."""
+        return url
+
+    def diagram_fallback_message(self, location):
+        """Message displayed when a diagram cannot be rendered in the
+        terminal, or None for the default message."""
+        return None
+
+    # --- services for subclasses ----------------------------------------
+
+    @property
+    def location(self):
+        return self._stack[-1].location
+
+    @property
+    def scroll_index(self):
+        return self._stack[-1].scroll_index
+
+    @scroll_index.setter
+    def scroll_index(self, value):
+        self._stack[-1].scroll_index = value
+
+    def show_error(self, msg):
+        """Display an error message until the next keypress."""
+        self._error_message = msg
+
+    def has_error(self):
+        return self._error_message is not None
+
+    def prompt(self, prefill=None, completer=None):
+        """Prompt the user for a command line at the bottom of the screen.
+
+        completer: readline-style function completer(text, state).
+        """
+        prompt_row_num = self.tty.rows - self.real_footer_height - 1
+        sys.stdout.write(f"\x1b[H\x1b[{prompt_row_num}B\x1b[K")
+        sys.stdout.flush()
+        self.tty.restore()
+        try:
+            return self._advanced_input("> ", prefill, completer)
+        finally:
+            self.tty.set_raw_no_echo()
+
+    # --- entry point ----------------------------------------------------
+
+    def run(self, location=None):
+        self._stack = [_StackEntry(location)]
         exc = None
         try:
             self.tty.set_raw_no_echo()
             with alternate_screen_buffer(mouse_wheel_as_arrow_keys=True):
-                self.pager_main_loop(**env)
+                self._main_loop()
         except Exception as e:
             exc = e
         finally:
@@ -54,70 +257,106 @@ class Pager:
             if exc is not None:
                 raise exc
 
-    def set_scroll_index(self, value):
-        self._scroll_index = value
+    # --- internals ------------------------------------------------------
 
-    def parse_topic_links(self, ast, topic=None):
+    def _is_nav_link(self, destination):
+        return self.resolve_link(destination) is not None
+
+    def _find_links(self, ast):
         # in order to handle <tab> / <shift>-<tab> navigation we have to
         # know the line number of each link. We do that in 4 steps.
         # 1. replace link literals in the AST, by a tag <LLLL...> of the
         #    same length that we can easily detect later
         walker = ast.walker()
         event = walker.nxt()
-        target_topics = []
+        targets = []
         saved_info = []
         while event is not None:
             node = event["node"]
-            if (
-                node.t == "link"
-                and event["entering"]
-                and node.destination.endswith(".md")
-            ):
-                saved_info.append((node, node.first_child.literal))
-                new_literal = "<" + ("L" * (len(node.first_child.literal) - 2)) + ">"
-                node.first_child.literal = new_literal
-                target_topics.append(node.destination[:-3])
+            if node.t == "link" and event["entering"]:
+                target = self.resolve_link(node.destination)
+                if target is not None:
+                    saved_info.append((node, node.first_child.literal))
+                    new_literal = "<" + ("L" * (len(node.first_child.literal) - 2)) + ">"
+                    node.first_child.literal = new_literal
+                    targets.append(target)
             event = walker.nxt()
         # 2. render this AST with modified link literals
-        text, max_width = self.renderer.render(ast, 0, topic=topic)
+        text, max_width = self.renderer.render(ast, 0, location=self.location)
         # 3. look for the position of our tags in the rendered output
-        topic_links = []
+        links = []
         for line_number, line in enumerate(text.splitlines()):
             for link_tag in RE_LINKTAGS.findall(line):
-                topic, target_topics = target_topics[0], target_topics[1:]
-                topic_links.append((topic, line_number))
+                target, targets = targets[0], targets[1:]
+                links.append((target, line_number))
         # 4. restore the previous link literals for later reuse of the AST
         for node, literal in saved_info:
             node.first_child.literal = literal
-        return topic_links
+        return links
 
-    def pad_right(self, line):
+    def _advanced_input(self, prompt, prefill_text=None, completer=None):
+        hook_enabled = False
+        if prefill_text is not None:
+            try:
+                import readline
+                def hook():
+                    readline.insert_text(prefill_text)
+                    readline.redisplay()
+                readline.set_pre_input_hook(hook)
+                hook_enabled = True
+            except Exception:
+                pass
+        completion_enabled = False
+        if completer is not None:
+            try:
+                import readline
+                saved_completion = (readline.get_completer_delims(),
+                                    readline.get_completer())
+                readline.set_completer_delims('')
+                readline.set_completer(completer)
+                readline.parse_and_bind('tab: complete')
+                def no_display(*args, **kwargs):
+                    return
+                readline.set_completion_display_matches_hook(no_display)
+                completion_enabled = True
+            except Exception:
+                pass
+        try:
+            return input(prompt)
+        finally:
+            # revert
+            if hook_enabled:
+                readline.set_pre_input_hook()
+            if completion_enabled:
+                readline.set_completer_delims(saved_completion[0])
+                readline.set_completer(saved_completion[1])
+
+    def _pad_right(self, line):
         return line.ljust(self.tty.cols)
 
-    def format_header(self, **env):
-        text = self.get_header_text(cols=self.tty.cols, **env)
+    def _format_header(self, text):
         if text == '':
             return 0, ''
         else:
-            header_lines = [self.pad_right(line) for line in text.splitlines()]
-            header_lines += ["\u2501" * self.tty.cols]
+            header_lines = [self._pad_right(line) for line in text.splitlines()]
+            header_lines += ["━" * self.tty.cols]
             return len(header_lines), '\r\n'.join(header_lines)
 
-    def footer_line_format(self, footer_line_keys, pad_right=False):
-        line = " " + " \u2502 ".join(footer_line_keys)
+    def _footer_line_format(self, footer_line_keys, pad_right=False):
+        line = " " + " │ ".join(footer_line_keys)
         if pad_right:
-            line = self.pad_right(line) + '\r'
+            line = self._pad_right(line) + '\r'
         return line
 
-    def footer_line_short_enough(self, footer_line_keys):
-        return len(self.footer_line_format(footer_line_keys)) <= self.tty.cols
+    def _footer_line_short_enough(self, footer_line_keys):
+        return len(self._footer_line_format(footer_line_keys)) <= self.tty.cols
 
-    def format_footer(self, num_lines, topic_links, **env):
-        sep_line = "\u2501" * self.tty.cols + "\r"
-        if self.error_message is None:
+    def _format_footer(self, num_lines, has_links):
+        sep_line = "━" * self.tty.cols + "\r"
+        if self._error_message is None:
             footer_lines = [sep_line]
         else:
-            error_line = f"[ {self.error_message} ]".ljust(self.tty.cols)
+            error_line = f"[ {self._error_message} ]".ljust(self.tty.cols)
             esc_start = f'\x1b[{BOLD_ON};{FG_COLOR_DARK_RED};{BG_COLOR_WHITE}m'
             esc_end = '\x1b[0m'
             error_line = f'{esc_start}{error_line}{esc_end}\r'
@@ -126,10 +365,10 @@ class Pager:
         footer_lines_number = footer_static_lines_number + 1  # first estimation
         while True:
             scrollable = (num_lines > self.tty.rows - footer_lines_number)
-            help_keys = self.get_footer_help_keys(
-                    topic_links=topic_links,
+            help_keys = self.get_help_keys(
                     scrollable=scrollable,
-                    **env)
+                    has_links=has_links,
+                    can_go_back=len(self._stack) > 1)
             # sort help keys by decreasing length
             help_keys = sorted(help_keys,
                                key=(lambda k: len(k)),
@@ -140,11 +379,11 @@ class Pager:
                 footer_line_keys, help_keys = (help_keys[0],), list(help_keys[1:])
                 for i, candidate_key in tuple(enumerate(help_keys)):
                     candidate_footer_line_keys = footer_line_keys + (candidate_key,)
-                    if self.footer_line_short_enough(candidate_footer_line_keys):
+                    if self._footer_line_short_enough(candidate_footer_line_keys):
                         footer_line_keys = candidate_footer_line_keys
                         help_keys[i] = None  # preserve indices, filter out below
                 help_keys = tuple(k for k in help_keys if k is not None)
-                line = self.footer_line_format(footer_line_keys, pad_right=True)
+                line = self._footer_line_format(footer_line_keys, pad_right=True)
                 footer_lines += [line]
             footer_lines_number = len(footer_lines)
             if (
@@ -157,76 +396,49 @@ class Pager:
             else:
                 break  # ok proceed
         footer = "\n".join(footer_lines)
-        if self.error_message is None:
+        if self._error_message is None:
             real_footer_lines_number = footer_lines_number
         else:
             real_footer_lines_number = footer_lines_number -1
         return real_footer_lines_number, footer_lines_number, footer
 
-    def advanced_input(self, prompt, prefill_text=None, completer=None):
-        hook_enabled = False
-        if prefill_text is not None:
-            try:
-                import readline
-                def hook():
-                    readline.insert_text(prefill_text)
-                    readline.redisplay()
-                readline.set_pre_input_hook(hook)
-                hook_enabled = True
-            except:
-                pass
-        completion_enabled = False
-        if completer is not None:
-            try:
-                import readline
-                saved_completion = (readline.get_completer_delims(),
-                                    readline.get_completer())
-                readline.set_completer_delims('')
-                readline.set_completer(completer.complete)
-                readline.parse_and_bind('tab: complete')
-                def no_display(*args, **kwargs):
-                    return
-                readline.set_completion_display_matches_hook(no_display)
-                completion_enabled = True
-            except Exception:
-                pass
-        result = input(prompt)
-        # revert
-        if hook_enabled:
-            readline.set_pre_input_hook()
-        if completion_enabled:
-            readline.set_completer_delims(saved_completion[0])
-            readline.set_completer(saved_completion[1])
-        return result
+    def _get_action(self, key):
+        if key is None:
+            return Action.IGNORE
+        self._error_message = None
+        action = self.on_key(key)
+        if action is None:
+            action = DEFAULT_BINDINGS.get(key, Action.IGNORE)
+        return action
 
-    def prompt_command(self, **kwargs):
-        prompt_row_num = self.tty.rows - self.real_footer_height -1
-        sys.stdout.write(f"\x1b[H\x1b[{prompt_row_num}B\x1b[K")
-        sys.stdout.flush()
-        self.tty.restore()
-        cmd = self.advanced_input("> ", **kwargs)
-        self.tty.set_raw_no_echo()
-        return cmd
-
-    def pager_main_loop(self, **env):
-        # activate the pager
-        should_load_topic, should_render_markdown, should_redraw = True, True, True
+    def _main_loop(self):
+        should_load, should_render, should_redraw = True, True, True
+        restoring = False   # True when returning to a previous location
         while True:
-            if should_load_topic:
-                selected_link_num = 0
-                content, self._scroll_index = self.get_md_content(
-                        rows=self.tty.rows, **env)
-                ast = self.parser.parse(content)
-                topic_links = self.parse_topic_links(ast, topic=env.get("topic"))
-                should_load_topic = False
-            if should_render_markdown:
+            entry = self._stack[-1]
+            if should_load:
+                page = self.get_page(entry.location,
+                                     rows=self.tty.rows, cols=self.tty.cols)
+                if restoring:
+                    restoring = False   # keep saved scroll and link selection
+                else:
+                    entry.selected_link_num = 0
+                    if page.scroll is not None:
+                        entry.scroll_index = page.scroll
+                ast = self.parser.parse(page.markdown)
+                links = self._find_links(ast)
+                if entry.selected_link_num >= len(links):
+                    entry.selected_link_num = 0
+                should_load = False
+            if should_render:
                 text, max_width = self.renderer.render(
-                        ast, selected_link_num, topic=env.get("topic"))
-                if max_width <= REASONABLE_MIN_SCREEN_WIDTH:
+                        ast, entry.selected_link_num, location=entry.location)
+                if max_width <= self.min_width:
                     if wait_for_large_enough_terminal(max_width):
                         # terminal resized, render again
                         text, max_width = self.renderer.render(
-                                ast, selected_link_num, topic=env.get("topic"))
+                                ast, entry.selected_link_num,
+                                location=entry.location)
                 lines = text.split("\n")
                 # we have to behave the same wether the document ends with an empty line
                 # (color escape codes excluded) or not
@@ -235,21 +447,20 @@ class Pager:
                     lines = lines[:-1]  # remove last line
                 num_lines = len(lines)
                 # adapt footer help
-                header_height, header = self.format_header(**env)
-                real_footer_height, footer_height, footer = self.format_footer(
+                header_height, header = self._format_header(page.header)
+                real_footer_height, footer_height, footer = self._format_footer(
                     num_lines=num_lines,
-                    topic_links=topic_links,
-                    **env
+                    has_links=len(links) > 0,
                 )
                 page_height = self.tty.rows - (footer_height + header_height)
                 self.real_footer_height = real_footer_height  # save
-                should_render_markdown = False
+                should_render = False
             if should_redraw:
                 # ensure the text after the index is long enough to fill the
                 # pager screen
-                if len(lines) < self._scroll_index + page_height:
+                if len(lines) < entry.scroll_index + page_height:
                     lines += [" " * self.tty.cols] * (
-                            self._scroll_index + page_height - len(lines))
+                            entry.scroll_index + page_height - len(lines))
                 # to avoid the terminal scrolls, we restart the drawing at
                 # the top-left corner.
                 sys.stdout.write("\x1b[H")
@@ -264,146 +475,86 @@ class Pager:
                 # lines before the view position.  For optimization, we
                 # print these lines on the same tty line, so one line erases
                 # the previous one.
-                hidden_lines = lines[:self._scroll_index]
+                hidden_lines = lines[:entry.scroll_index]
                 sys.stdout.write("\r".join(hidden_lines) + "\r")
-                displayed = lines[self._scroll_index : self._scroll_index + page_height]
+                displayed = lines[entry.scroll_index : entry.scroll_index + page_height]
                 sys.stdout.write("\r\n".join(displayed) + "\r\n\x1b[0m")
                 sys.stdout.write(footer)
+                sys.stdout.flush()
                 should_redraw = False
-            # process keyboard input
-            next_index = self._scroll_index
-            next_selected_link_num = selected_link_num
             # get keyboard input
-            action = None
-            while action is None:
-                try:
-                    with on_sigwinch_raise_exception():
-                        req = sys.stdin.read(1)
-                    action = self.handle_keypress(req, **env)
-                except SIGWINCHException:
-                    # window size change, refresh
-                    action = Pager.UPDATE_MD_CONTENT_NO_RETURN
-            if action == Pager.QUIT:
-                return False  # should not continue
-            elif action == Pager.RETURN_TO_PREV_MD_CONTENT:
-                return True  # return from the recursive call
-            elif action in (Pager.SCROLL_UP, Pager.SCROLL_DOWN,
-                            Pager.SCROLL_PAGE_UP, Pager.SCROLL_PAGE_DOWN):
-                next_index = self._scroll_index + {
-                        Pager.SCROLL_UP: -1,
-                        Pager.SCROLL_DOWN: 1,
-                        Pager.SCROLL_PAGE_UP: -page_height,
-                        Pager.SCROLL_PAGE_DOWN: page_height,
-                }[action]
-            elif action in (Pager.SELECT_NEXT_LINK, Pager.SELECT_PREV_LINK):
-                if len(topic_links) == 0:
-                    continue  # ignore the keypress
-                link_inc, repositioning_offset = {
-                        Pager.SELECT_NEXT_LINK: (1, -page_height + 2),
-                        Pager.SELECT_PREV_LINK: (-1, -2),
-                }[action]
-                next_selected_link_num = (selected_link_num + link_inc) % (
-                                            len(topic_links))
-                # ensure the viewport includes the selected link
-                selected_link_line = topic_links[next_selected_link_num][1]
-                if (
-                    self._scroll_index + 2 > selected_link_line
-                    or self._scroll_index < selected_link_line - page_height + 2
-                ):
-                    # reposition the viewport to include the selected link
-                    next_index = selected_link_line + repositioning_offset
-            elif action == Pager.OPEN_SELECTED_LINK:
-                if selected_link_num >= len(topic_links):
-                    continue  # ignore the keypress
-                selected_topic, selected_link_line = topic_links[selected_link_num]
-                if (
-                    self._scroll_index > selected_link_line
-                    or self._scroll_index < selected_link_line - page_height
-                ):
-                    # link is not visible, user probably did not want to jump to it
-                    continue  # ignore the keypress
-                # recursive call
-                should_continue = self.select_topic(selected_topic, **env)
-                if should_continue:
-                    # we are returning from a recursive call to a selected topic page,
-                    # we now have to redraw the screen
-                    should_redraw = True
-                    continue
-                else:
-                    # we should quit
-                    return False
-            elif action == Pager.UPDATE_MD_CONTENT_NO_RETURN:
-                should_load_topic = True
-                should_render_markdown = True
-                should_redraw = True
+            prev_error_message = self._error_message
+            try:
+                with on_sigwinch_raise_exception():
+                    key = read_key(sys.stdin.fileno())
+                action = self._get_action(key)
+            except SIGWINCHException:
+                # window size change, refresh
+                action = Action.RELOAD
+            if action == Action.IGNORE:
+                if self._error_message != prev_error_message:
+                    should_render, should_redraw = True, True
                 continue
+            # process the action
+            next_index = entry.scroll_index
+            next_selected_link_num = entry.selected_link_num
+            if action == Action.QUIT:
+                return
+            elif action == Action.BACK:
+                if len(self._stack) > 1:
+                    self._stack.pop()
+                    should_load, should_render, should_redraw = True, True, True
+                    restoring = True
+                continue
+            elif action == Action.RELOAD:
+                should_load, should_render, should_redraw = True, True, True
+                continue
+            elif action in (Action.SCROLL_UP, Action.SCROLL_DOWN,
+                            Action.PAGE_UP, Action.PAGE_DOWN):
+                next_index = entry.scroll_index + {
+                        Action.SCROLL_UP: -1,
+                        Action.SCROLL_DOWN: 1,
+                        Action.PAGE_UP: -page_height,
+                        Action.PAGE_DOWN: page_height,
+                }[action]
+            elif action in (Action.NEXT_LINK, Action.PREV_LINK):
+                if len(links) > 0:
+                    link_inc, repositioning_offset = {
+                            Action.NEXT_LINK: (1, -page_height + 2),
+                            Action.PREV_LINK: (-1, -2),
+                    }[action]
+                    next_selected_link_num = (
+                            entry.selected_link_num + link_inc) % len(links)
+                    # ensure the viewport includes the selected link
+                    selected_link_line = links[next_selected_link_num][1]
+                    if (
+                        entry.scroll_index + 2 > selected_link_line
+                        or entry.scroll_index < selected_link_line - page_height + 2
+                    ):
+                        # reposition the viewport to include the selected link
+                        next_index = selected_link_line + repositioning_offset
+            elif action == Action.OPEN_LINK:
+                if entry.selected_link_num < len(links):
+                    target, selected_link_line = links[entry.selected_link_num]
+                    if not (
+                        entry.scroll_index > selected_link_line
+                        or entry.scroll_index < selected_link_line - page_height
+                    ):
+                        # link is visible, open it
+                        self._stack.append(_StackEntry(target))
+                        should_load, should_render, should_redraw = True, True, True
+                        continue
+                    # otherwise, the user probably did not want to jump to it
             # limit index value to fit the viewport
             next_index = min(next_index, num_lines - (page_height - 10))
             next_index = max(next_index, 0)
-            if next_selected_link_num != selected_link_num:
-                should_render_markdown = True
+            if next_selected_link_num != entry.selected_link_num:
+                should_render = True
                 should_redraw = True
-            if next_index != self._scroll_index:
+            if next_index != entry.scroll_index:
                 should_redraw = True
-            self._scroll_index = next_index
-            selected_link_num = next_selected_link_num
-
-
-class DocPager(Pager):
-    def __init__(self, get_md_content):
-        super().__init__()
-        self._get_md_content = get_md_content
-
-    def display_topic(self, topic):
-        content = self._get_md_content(topic, err_out=True)
-        if content is None:
-            return
-        if os.isatty(sys.stdout.fileno()):
-            self.start_display(
-                    topic=topic,
-                    depth=0
-            )
-        else:
-            print(content)
-            # For debugging colors with hexdump, prefer:
-            # print(MarkdownRenderer().render(content)[0])
-
-    def get_header_text(self, **env):
-        return ""  # no header
-
-    def get_footer_help_keys(self, topic_links, scrollable, depth, **env):
-        help_keys = []
-        if scrollable:
-            help_keys += [SCROLL_HELP]
-        if len(topic_links) > 0 or depth > 0:
-            help_keys += [TOPICS_HELP]
-        help_keys += [Q_HELP]
-        return help_keys
-
-    def get_md_content(self, topic, **env):
-        return self._get_md_content(topic), 0
-
-    def select_topic(self, selected_topic, depth, **env):
-        # recursive call to the pager main loop
-        return self.pager_main_loop(topic=selected_topic, depth=depth + 1)
-
-    def handle_keypress(self, req, depth, **env):
-        if req == "q":
-            return Pager.QUIT
-        elif req == "\x7f":  # backspace (return to prev topic)
-            if depth > 0:
-                return Pager.RETURN_TO_PREV_MD_CONTENT
-        elif req == "A":  # up   (we get '\e[A', but '\e' and '[' are ignored)
-            return Pager.SCROLL_UP
-        elif req == "B":  # down
-            return Pager.SCROLL_DOWN
-        elif req == "5":  # up
-            return Pager.SCROLL_PAGE_UP
-        elif req == "6":  # down
-            return Pager.SCROLL_PAGE_DOWN
-        elif req == "\t":  # tab
-            return Pager.SELECT_NEXT_LINK
-        elif req == "Z":  # shift-tab
-            return Pager.SELECT_PREV_LINK
-        elif req == "\r":  # <enter>: open selected topic
-            return Pager.OPEN_SELECTED_LINK
+            if self._error_message != prev_error_message:
+                should_render = True
+                should_redraw = True
+            entry.scroll_index = next_index
+            entry.selected_link_num = next_selected_link_num

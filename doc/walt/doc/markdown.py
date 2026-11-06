@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 import re
-import socket
 import termios
 import textwrap
 
@@ -42,12 +41,37 @@ RE_WORD_SPACING = re.compile(r"[ \n]+")
 REASONABLE_MIN_SCREEN_WIDTH = 100
 
 
+def _no_nav_link(destination):
+    return False
+
+
+def _same_url(url):
+    return url
+
+
+def _no_fallback_message(location):
+    return None
+
+
 class MarkdownRenderer:
 
-    def render(self, ast, selected_link_num, topic=None):
-        # topic: name of the help topic (i.e., name of the md file without
-        # extension) being rendered, if known.
-        self.topic = topic
+    def __init__(self, min_width=REASONABLE_MIN_SCREEN_WIDTH,
+                 is_nav_link=_no_nav_link, format_url=_same_url,
+                 diagram_fallback=_no_fallback_message):
+        # min_width: diagrams wider than this are not rendered.
+        # is_nav_link(destination): True if a link can be selected and opened
+        #     in the pager; such links are not displayed with their URL.
+        # format_url(url): how to display the URL of other links.
+        # diagram_fallback(location): message displayed instead of a diagram
+        #     which cannot be rendered in the terminal (None: default message).
+        self.min_width = min_width
+        self.is_nav_link = is_nav_link
+        self.format_url = format_url
+        self.diagram_fallback = diagram_fallback
+
+    def render(self, ast, selected_link_num, location=None):
+        # location: what is being rendered (passed to diagram_fallback).
+        self.location = location
         self.list_numbering = []
         # initialize context with current terminal setup
         # (default for all attrs)
@@ -130,7 +154,7 @@ class MarkdownRenderer:
         self.lit(node.literal)
 
     def link(self, node, entering):
-        if node.destination.endswith(".md"):
+        if self.is_nav_link(node.destination):
             if entering:
                 if self.link_num == self.selected_link_num:
                     self.stack_context(bold=True, underline=True)
@@ -140,13 +164,8 @@ class MarkdownRenderer:
                 self.link_num += 1
         else:
             if not entering:
-                # prefix <url> with "http://<hostname>" if relative
-                url = node.destination
-                if not url.startswith("http"):
-                    h = socket.gethostname()
-                    url = url.lstrip("/")
-                    url = f"http://{h}/{url}"
-                # then replace [<text>](<url>) -> <text> (<url>)
+                url = self.format_url(node.destination)
+                # replace [<text>](<url>) -> <text> (<url>)
                 self.lit(" (")
                 self.stack_context(fg_color=FG_COLOR_URL)
                 self.lit(url)
@@ -319,7 +338,7 @@ class MarkdownRenderer:
     def mermaid_diagram_text(self, source):
         # Render a mermaid diagram as text, or return None if this is
         # not possible or if the result would be too wide for a screen.
-        # Note: we use REASONABLE_MIN_SCREEN_WIDTH, not the current terminal
+        # Note: we use self.min_width, not the current terminal
         # width, so that the document is displayed the same whatever the
         # terminal size. If the terminal is a bit too small, the pager
         # will ask the user to resize it (see pager.py).
@@ -330,25 +349,15 @@ class MarkdownRenderer:
         # a code block needs 1 more column on its right, and the whole
         # document has a margin of 1 column on each side.
         needed_width = max(len(line) for line in lines) + 1 + 2
-        if needed_width > REASONABLE_MIN_SCREEN_WIDTH:
+        if needed_width > self.min_width:
             return None
         return "\n".join(lines)
 
-    def web_doc_url(self):
-        # URL of the current topic in the web documentation served by the server
-        # (or of the documentation index if the topic is not known).
-        url = f"http://{socket.gethostname()}/doc/"
-        if self.topic is not None:
-            # note: the help-intro topic is the index page (see sphinx/conf.py)
-            page = "index" if self.topic == "help-intro" else self.topic
-            url += f"{page}.html"
-        return url
-
     def mermaid_diagram_not_displayed(self):
-        msg = (
-            "[ This diagram cannot be displayed in the terminal. "
-            f"Please see the web documentation: {self.web_doc_url()} ]"
-        )
+        msg = self.diagram_fallback(self.location)
+        if msg is None:
+            msg = "This diagram cannot be displayed in the terminal."
+        msg = f"[ {msg} ]"
         self.stack_context(dim=True)
         # do not break the URL (e.g., at hyphens), the user may copy it
         self.lit(textwrap.fill(msg, width=self.target_width,
