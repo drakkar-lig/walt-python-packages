@@ -16,10 +16,13 @@
 #   so we must upload them all at once.
 
 ALL_PACKAGES=common virtual server node client client-g5k
+# ttypage is not a walt-* package: it has its own version number
+# (see dev/metadata.py), so it is not uploaded by `make upload`.
+INDEPENDENT_PACKAGES=ttypage
 # common must be installed 1st (needed by others), then virtual
-INSTALLABLE_PACKAGES_ON_SERVER=common virtual doc client server
-INSTALLABLE_PACKAGES_ON_CLIENT=common doc client
-INSTALLABLE_PACKAGES_ON_CLIENT_G5K=common client doc client-g5k
+INSTALLABLE_PACKAGES_ON_SERVER=common ttypage virtual doc client server
+INSTALLABLE_PACKAGES_ON_CLIENT=common ttypage doc client
+INSTALLABLE_PACKAGES_ON_CLIENT_G5K=common ttypage client doc client-g5k
 GNUMAKEFLAGS=--no-print-directory
 
 upper=$(shell echo '$1' | tr '[:lower:]-' '[:upper:]_')
@@ -37,10 +40,13 @@ install: server.install
 	@[ "$*" = "server" ] && $(ROOT_DIR)/.venv/bin/walt-server-setup || true
 
 doc.install:
-	@$(MAKE) PACKAGES="doc" install-packages
+	@$(MAKE) PACKAGES="ttypage doc" install-packages
+
+ttypage.install:
+	@$(MAKE) PACKAGES="ttypage" install-packages
 
 uninstall:
-	@$(MAKE) PACKAGES="$(ALL_PACKAGES)" uninstall-packages
+	@$(MAKE) PACKAGES="$(ALL_PACKAGES) $(INDEPENDENT_PACKAGES)" uninstall-packages
 
 # parallel make -j steps could fail if trying to uninstall several
 # namespace packages in parallel: so uninstall steps should be sequential.
@@ -71,6 +77,10 @@ compile-doc:
 %.build:
 	@$(MAKE) PACKAGES="$*" build-packages
 
+ttypage/setup.py: dev/metadata.py dev/setup-updater.py
+	@echo updating ttypage/setup.py
+	@dev/setup-updater.py ttypage
+
 %/setup.py: common/walt/common/version.py dev/metadata.py dev/setup-updater.py
 	@echo updating $*/setup.py
 	@dev/setup-updater.py "walt-$*"
@@ -84,6 +94,9 @@ quick-venv-update:
 
 clean:
 	find . -name \*.pyc -delete
+
+ttypage.uninstall:
+	@$(PIP) show ttypage >/dev/null 2>&1 && $(PIP) uninstall -q -y ttypage || true
 
 %.uninstall:
 	@$(PIP) show walt-$* >/dev/null 2>&1 && $(PIP) uninstall -q -y walt-$* || true

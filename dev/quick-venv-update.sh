@@ -31,6 +31,15 @@ file_changes="$({
         echo "$op" "$f" "$venv_f"
     done
 
+    # handle files of independent packages (e.g., ttypage/ttypage/)
+    echo "$file_changes" | grep "[[:space:]]ttypage/ttypage/" | \
+    while read op f
+    do
+        mod_path=$(echo "$f" | sed -e 's/^[a-z0-9-]*\///')
+        venv_f="${venv_packages}/$mod_path"
+        echo "$op" "$f" "$venv_f"
+    done
+
     # handle files in <python-package>/sh/
     echo "$file_changes" | grep "[[:space:]][a-z][a-z0-9-]*/sh/" | \
     while read op f
