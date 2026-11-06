@@ -3,7 +3,7 @@ import itertools
 import re
 from collections import namedtuple
 
-FORMAT_ATTRS = ["bg_color", "fg_color", "underline", "bold", "dim"]
+FORMAT_ATTRS = ["bg_color", "fg_color", "underline", "bold", "dim", "italic"]
 
 # values below match values of escape codes.
 # https://misc.flogisoft.com/bash/tip_colors_and_formatting
@@ -12,6 +12,8 @@ UNDERLINE_OFF = "24"
 BOLD_ON = "1"
 DIM_ON = "2"
 DIM_AND_BOLD_OFF = "22"
+ITALIC_ON = "3"
+ITALIC_OFF = "23"
 
 C256_BLACK = 0
 C256_BLUE = 4
@@ -53,6 +55,17 @@ class FormatState(namedtuple("FormatState", FORMAT_ATTRS)):
         return FormatState(**state)
 
 
+# the terminal format state after "\x1b[0m"
+DEFAULT_FORMAT_STATE = FormatState(
+    bg_color=BG_COLOR_DEFAULT,
+    fg_color=FG_COLOR_DEFAULT,
+    underline=False,
+    bold=False,
+    dim=False,
+    italic=False,
+)
+
+
 def get_transition_esc_sequence(old_format, new_format):
     transitions = set()
     codes = []
@@ -75,12 +88,17 @@ def get_transition_esc_sequence(old_format, new_format):
             codes.append(BOLD_ON)  # since bold off is treated above
         if "dim" in transitions:
             codes.append(DIM_ON)  # since dim off is treated above
-    # underline is just a simple boolean
+    # underline and italic are simple booleans
     if "underline" in transitions:
         if new_format.underline is True:
             codes.append(UNDERLINE_ON)
         else:
             codes.append(UNDERLINE_OFF)
+    if "italic" in transitions:
+        if new_format.italic is True:
+            codes.append(ITALIC_ON)
+        else:
+            codes.append(ITALIC_OFF)
     # bg and fg colors are specified as color codes
     for attr in ("bg_color", "fg_color"):
         if attr in transitions:
@@ -103,22 +121,22 @@ def apply_esc_sequence(state, esc_sequence):
         codes = codes[1:]
         c = int(code)
         if c in (38, 48):
-            # 38;5;<n> (fg color) or 48;5;<n> (bg color)
+            # 38;5;<n> (fg color) or 48;5;<n> (bg color),
+            # or 38;2;<r>;<g>;<b> / 48;2;<r>;<g>;<b> (24-bit colors)
             attr = "fg_color" if c == 38 else "bg_color"
-            state[attr] = ";".join([code] + codes[:2])
-            codes = codes[2:]
+            num_args = 4 if codes[:1] == ["2"] else 2
+            state[attr] = ";".join([code] + codes[:num_args])
+            codes = codes[num_args:]
         elif c == 0:
-            state.update(
-                bg_color=BG_COLOR_DEFAULT,
-                fg_color=FG_COLOR_DEFAULT,
-                underline=False,
-                bold=False,
-                dim=False,
-            )
+            state.update(DEFAULT_FORMAT_STATE._asdict())
         elif c == 1:
             state["bold"] = True
         elif c == 2:
             state["dim"] = True
+        elif c == 3:
+            state["italic"] = True
+        elif c == 23:
+            state["italic"] = False
         elif c == 22:
             state.update(bold=False, dim=False)
         elif c == 4:
