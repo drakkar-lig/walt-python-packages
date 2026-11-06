@@ -5,10 +5,11 @@ to select a link, <enter> to open it, <backspace> to come back).
 """
 import argparse
 import sys
+from importlib.util import find_spec
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
-from walt.doc.pager import Page, Pager
+from ttypage.pager import Page, Pager
 
 MARKDOWN_SUFFIXES = (".md", ".markdown")
 
@@ -52,6 +53,10 @@ def run(args=None):
     )
     parser.add_argument("file", help="markdown file to display")
     args = parser.parse_args(args)
+    if find_spec("commonmark") is None:
+        print("ttypage: displaying markdown requires the markdown extra:\n"
+              "  pip install 'ttypage[markdown]'", file=sys.stderr)
+        sys.exit(1)
     path = Path(args.file).resolve()
     content, error = read_markdown(path)
     if content is None:
@@ -63,6 +68,3 @@ def run(args=None):
         # not interactive (e.g., output piped to another command)
         sys.stdout.write(content)
 
-
-if __name__ == "__main__":
-    run()

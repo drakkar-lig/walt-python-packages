@@ -5,8 +5,8 @@ from collections import defaultdict
 from datetime import datetime, timedelta, date, time as midnight
 from pathlib import Path
 from plumbum import cli
-from walt.doc.code import render_code
-from walt.doc.pager import Action, Page, Pager
+from ttypage.code import render_code
+from ttypage import Action, Page, Pager
 from walt.server.trackexec.const import (
         SEC_AS_TS, MIN_AS_TS, HOUR_AS_TS, DAY_AS_TS
 )

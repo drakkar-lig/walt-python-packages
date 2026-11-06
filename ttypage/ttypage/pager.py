@@ -19,14 +19,14 @@ from dataclasses import dataclass
 from enum import Enum, auto
 from typing import Optional
 
-from walt.doc.color import (
+from ttypage.color import (
         RE_ESC_COLOR,
         BOLD_ON, FG_COLOR_DARK_RED, BG_COLOR_WHITE,
         DEFAULT_FORMAT_STATE,
         apply_esc_sequence,
         get_transition_esc_sequence,
 )
-from walt.common.term import (
+from ttypage.term import (
         TTYSettings,
         alternate_screen_buffer,
         wait_for_large_enough_terminal,
@@ -319,7 +319,7 @@ class Pager:
         if page.text is not None:
             return TextContent(page.text)
         # markdown modules are only loaded when needed
-        from walt.doc.markdown import MarkdownContent, MarkdownRenderer
+        from ttypage.markdown import MarkdownContent, MarkdownRenderer
         if self._md_renderer is None:
             self._md_renderer = MarkdownRenderer(
                     min_width=self.min_width,
