@@ -2,6 +2,7 @@
 # using metadata from dev/metadata.py
 
 import sys
+from pathlib import Path
 
 from setuptools import find_packages, setup
 
@@ -10,7 +11,7 @@ if sys.version_info[0] == 2:
 
 setup_info = {
     "name": "ttypage",
-    "version": "0.1",
+    "version": "0.1.1",
     "install_requires": ["pygments>=2.2.0"],
     "extras_require": {"markdown": ["commonmark>=0.7.5", "termaid>=0.9.0"]},
     "author": "WalT developers",
@@ -23,4 +24,8 @@ setup_info = {
     "include_package_data": True,
 }
 setup_info.update(packages=find_packages())
+setup_info.update(
+    long_description=(Path(__file__).parent / "README.md").read_text(),
+    long_description_content_type="text/markdown",
+)
 setup(**setup_info)

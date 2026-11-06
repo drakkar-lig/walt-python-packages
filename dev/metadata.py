@@ -8,7 +8,7 @@ PACKAGE_GENERIC_INFO = dict(
 )
 
 # Versions of packages not following the walt version number.
-TTYPAGE_VERSION = "0.1"
+TTYPAGE_VERSION = "0.1.1"
 TTYPAGE_VERSION_RANGE = ">=0.1,<0.2"
 
 PACKAGE_SPECIFIC_INFO = {
@@ -26,6 +26,7 @@ PACKAGE_SPECIFIC_INFO = {
             ],
         },
         version_str=TTYPAGE_VERSION,
+        readme="README.md",     # description on PyPI (must be in MANIFEST.in)
         setup=dict(
             description="Terminal pager for markdown documents and formatted text.",
             keywords="terminal pager markdown viewer",
