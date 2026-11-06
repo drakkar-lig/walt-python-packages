@@ -183,8 +183,10 @@ def choose(prompt, options, allow_ctrl_c=False):
 def on_sigwinch_call(handler):
     from signal import signal, SIGWINCH
     prev_on_sigwinch = signal(SIGWINCH, handler)
-    yield
-    signal(SIGWINCH, prev_on_sigwinch)
+    try:
+        yield
+    finally:
+        signal(SIGWINCH, prev_on_sigwinch)
 
 
 class SIGWINCHException(Exception):
