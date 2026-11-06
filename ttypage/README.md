@@ -6,6 +6,7 @@ A terminal pager for markdown documents and formatted text.
 syntax-highlighted code blocks, and mermaid diagrams as text art), lets you
 scroll through it, and follow links between markdown files.
 
+
 ## Command line
 
 ```
@@ -21,6 +22,7 @@ Keys:
 
 When the output is not a terminal (e.g., piped to another command), the file
 is printed as is.
+
 
 ## Python API
 
