@@ -3,7 +3,7 @@ import socket
 import sys
 
 from importlib.resources import files
-from walt.doc.pager import Page, Pager
+from ttypage import Page, Pager
 
 
 def get_md_content(topic, err_out=False):

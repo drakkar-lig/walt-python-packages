@@ -6,7 +6,7 @@ for code blocks, and directly by tools displaying source code in the pager.
 """
 from collections import namedtuple
 
-from walt.doc.color import (
+from ttypage.color import (
     BG_COLOR_LIGHT_GREY,
     FG_COLOR_BLACK,
     optimize_and_reset_default_colors,

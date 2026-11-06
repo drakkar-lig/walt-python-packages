@@ -7,24 +7,47 @@ PACKAGE_GENERIC_INFO = dict(
     url="https://walt-project.liglab.fr",
 )
 
+# Versions of packages not following the walt version number.
+TTYPAGE_VERSION = "0.1"
+TTYPAGE_VERSION_RANGE = ">=0.1,<0.2"
+
 PACKAGE_SPECIFIC_INFO = {
+    # ttypage is a standalone package (no dependency on walt packages),
+    # with its own version number (see TTYPAGE_VERSION above).
+    "ttypage": dict(
+        subdir="ttypage",
+        requires=[
+            "pygments>=2.2.0",
+        ],
+        extras_require={
+            "markdown": [
+                "commonmark>=0.7.5",
+                "termaid>=0.9.0",   # renders mermaid diagrams in the terminal
+            ],
+        },
+        version_str=TTYPAGE_VERSION,
+        setup=dict(
+            description="Terminal pager for markdown documents and formatted text.",
+            keywords="terminal pager markdown viewer",
+            url="https://github.com/drakkar-lig/walt-python-packages/tree/master/ttypage",
+            entry_points={
+                "console_scripts": [
+                    "ttypage = ttypage.cli:run",
+                ]
+            },
+            include_package_data=True,
+        ),
+    ),
     "walt-doc": dict(
         subdir="doc",
         requires=[
-            "commonmark>=0.7.5",
-            "pygments>=2.2.0",
-            "termaid>=0.9.0",   # renders mermaid diagrams in the terminal
+            "ttypage[markdown]" + TTYPAGE_VERSION_RANGE,
             "setuptools>=70.0.0",   # includes pkg_resources, for finding md files
             "walt-common==%(walt_version)s",
         ],
         version_str="%(walt_version)s",
         setup=dict(
             description="WalT doc files and related code.",
-            entry_points={
-                "console_scripts": [
-                    "ttypage = walt.doc.ttypage:run",
-                ]
-            },
             include_package_data=True,
         ),
     ),
@@ -99,6 +122,7 @@ PACKAGE_SPECIFIC_INFO = {
             "numba>=0.58.1",
             "cffi>=1.16.0",
             "dnspython>=2.7.0",
+            "ttypage" + TTYPAGE_VERSION_RANGE,  # trackexec replay tool
             "walt-client==%(walt_version)s",
             "walt-common==%(walt_version)s",
             "walt-doc==%(walt_version)s",
