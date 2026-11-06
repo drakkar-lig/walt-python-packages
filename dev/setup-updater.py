@@ -45,6 +45,18 @@ def format_setup_py(package_name):
     setup_info.update(sorted(PACKAGE_GENERIC_INFO.items()))
     setup_info.update(sorted(package_specific["setup"].items()))
     setup_info = dict(**setup_info)  # convert back to dict
+    # optional README file, displayed on the package page on PyPI
+    readme = package_specific.get("readme")
+    if readme is None:
+        readme_imports, readme_code = "", ""
+    else:
+        readme_imports = "from pathlib import Path\n"
+        readme_code = f"""\
+setup_info.update(
+    long_description=(Path(__file__).parent / {readme!r}).read_text(),
+    long_description_content_type="text/markdown",
+)
+"""
     # write setup.py file
     setup_py = subdir / "setup.py"
     setup_py.write_text(f"""\
@@ -52,7 +64,7 @@ def format_setup_py(package_name):
 # using metadata from dev/metadata.py
 
 import sys
-
+{readme_imports}
 from setuptools import find_packages, setup
 
 if sys.version_info[0] == 2:
@@ -62,7 +74,7 @@ setup_info = {repr(setup_info)}
 setup_info.update(
       packages=find_packages()
 )
-setup(**setup_info)
+{readme_code}setup(**setup_info)
 """)
     return setup_py
 
