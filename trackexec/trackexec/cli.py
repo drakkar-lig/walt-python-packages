@@ -30,6 +30,11 @@ def _add_record_args(parser):
                              "module (may be repeated; default: the "
                              "directory of SCRIPT, or the top-level package "
                              "of MODULE)")
+    parser.add_argument("--gap-threshold", type=float, default=1.0,
+                        metavar="MS",
+                        help="record exact timestamps around instructions "
+                             "taking longer than this (default: 1 ms; 0 to "
+                             "disable)")
     parser.add_argument("-m", dest="module", metavar="MODULE",
                         help="run library module MODULE as a script "
                              "(like python -m)")
@@ -40,7 +45,7 @@ def _add_record_args(parser):
 
 
 # options of the record subcommand which take a value
-RECORD_VALUE_OPTIONS = ("-o", "--output", "-i", "--include")
+RECORD_VALUE_OPTIONS = ("-o", "--output", "-i", "--include", "--gap-threshold")
 
 
 def _split_record_argv(argv):
@@ -110,7 +115,12 @@ def _record(parser, args):
         sys.argv = [args.script] + args.script_args
     include = args.include or [default_include]
     try:
-        trackexec.start(output, include, module_level=module_level)
+        if args.gap_threshold > 0:
+            gap_threshold = args.gap_threshold / 1000
+        else:
+            gap_threshold = None
+        trackexec.start(output, include, module_level=module_level,
+                        gap_threshold=gap_threshold)
     except ValueError as e:
         parser.error(str(e))
     exit_code = 0

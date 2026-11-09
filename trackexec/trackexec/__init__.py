@@ -16,7 +16,7 @@ from importlib.util import find_spec
 from os.path import abspath, isdir, isfile
 from pathlib import Path
 
-from trackexec.recorder import TrackExecRecorder
+from trackexec.recorder import TrackExecRecorder, DEFAULT_GAP_THRESHOLD
 
 __all__ = ["start", "stop", "recording", "precise_timestamping", "record"]
 
@@ -68,14 +68,16 @@ def _resolve_include(include):
     return dirs, files
 
 
-def _start(calling_frame, trace_dir, include, module_level):
+def _start(calling_frame, trace_dir, include, module_level, gap_threshold):
     dirs, files = _resolve_include(include)
     module_level_files = [abspath(f) for f in module_level]
     TrackExecRecorder.start_recording(
-        calling_frame, Path(trace_dir), dirs, files, module_level_files)
+        calling_frame, Path(trace_dir), dirs, files, module_level_files,
+        gap_threshold)
 
 
-def start(trace_dir, include, *, module_level=()):
+def start(trace_dir, include, *, module_level=(),
+          gap_threshold=DEFAULT_GAP_THRESHOLD):
     """Start recording the execution of the current thread into
     trace_dir.
 
@@ -86,9 +88,15 @@ def start(trace_dir, include, *, module_level=()):
     Module-level code (i.e., code executed when a module is imported)
     is not recorded, except for the source files listed in module_level.
 
+    Timestamps are only recorded from time to time, and the analysis
+    interpolates the time of instructions between them. However, when an
+    instruction takes more than gap_threshold seconds (e.g., waiting for
+    I/O or calling a slow function which is not recorded), its start and
+    end timestamps are recorded. Use None to disable this.
+
     Raises FileExistsError if trace_dir already contains a trace.
     """
-    _start(sys._getframe(1), trace_dir, include, module_level)
+    _start(sys._getframe(1), trace_dir, include, module_level, gap_threshold)
 
 
 def stop():
@@ -97,11 +105,12 @@ def stop():
 
 
 @contextmanager
-def recording(trace_dir, include, *, module_level=()):
+def recording(trace_dir, include, *, module_level=(),
+              gap_threshold=DEFAULT_GAP_THRESHOLD):
     """Context manager calling start() and stop()."""
     # sys._getframe(2) is the frame of the 'with' statement
     # (frame 1 is contextlib code)
-    _start(sys._getframe(2), trace_dir, include, module_level)
+    _start(sys._getframe(2), trace_dir, include, module_level, gap_threshold)
     try:
         yield
     finally:
@@ -116,4 +125,5 @@ def precise_timestamping():
 
 def record(mod_or_package, dir_path):
     """Former API, equivalent to start(dir_path, mod_or_package)."""
-    _start(sys._getframe(1), dir_path, mod_or_package, ())
+    _start(sys._getframe(1), dir_path, mod_or_package, (),
+           DEFAULT_GAP_THRESHOLD)

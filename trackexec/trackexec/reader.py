@@ -42,6 +42,7 @@ class LogsReader(LogAbstractManagement):
                                        dtype=index_block_dt(),
                                        mode='r')
         self._block_source_data = None
+        self._block_decoded = None
         self._map_blocks = None
         self._filenames = None
         self._src_index = None
@@ -152,6 +153,7 @@ class LogsReader(LogAbstractManagement):
             self._map_blocks = None  # will need to reload the map file
         self._block_id = block_id
         self._block_source_data = None
+        self._block_decoded = None
 
     def seek_by_timestamp(self, target_ts):
         # ts(blockN) < target_ts < ts(blockN+1) => use blockN
@@ -176,9 +178,19 @@ class LogsReader(LogAbstractManagement):
 
     @property
     def block_source_data(self):
+        """Locations (file_id, lineno, stack_depth, timestamp) of the
+        instructions executed in the current block"""
         if self._block_source_data is None:
-            self._block_source_data = self._read_block()
+            full_data = self._decoded_block[0]
+            self._block_source_data = full_data[full_data.lineno != 0]
         return self._block_source_data
+
+    @property
+    def _decoded_block(self):
+        """Result of _read_block() for the current block"""
+        if self._block_decoded is None:
+            self._block_decoded = self._read_block()
+        return self._block_decoded
 
     def at_last_block(self):
         return self._block_id == len(self._index_blocks) - 1
@@ -207,7 +219,7 @@ class LogsReader(LogAbstractManagement):
             block_ts_end = self._index_blocks[self._block_id+1]['timestamp']
         block = self._block
         (source_file_ids, source_linenos, source_stack_depths,
-         source_ts) = fast_analyse_block(
+         source_ts, last_ts, ends_with_ts) = fast_analyse_block(
                 block["stack"]["file_id"], block["bytecode"],
                 OpCodes.CALL, OpCodes.RETURN, OpCodes.END, OpCodes.TIMESTAMP,
                 block_ts_start, block_ts_end)
@@ -221,7 +233,8 @@ class LogsReader(LogAbstractManagement):
         block_source_data.lineno = source_linenos
         block_source_data.stack_depth = source_stack_depths
         block_source_data.timestamp = source_ts
-        return block_source_data
+        # note: block_source_data includes return markers (lineno 0)
+        return block_source_data, int(last_ts), bool(ends_with_ts)
 
     def _index_current_block(self):
         # note: for performance, (<file-id>, <lineno>) locations are
@@ -309,10 +322,20 @@ class LogsReader(LogAbstractManagement):
         return self._src_running
 
     def _compute_durations(self):
-        bdata = self.block_source_data
+        # note: we use the data with return markers here, for ending the
+        # last instruction of a function when it returns.
+        bdata, last_ts, ends_with_ts = self._decoded_block
         block_ts_start = self._index_blocks[self._block_id]['timestamp']
-        if self.at_last_block():
-            block_ts_end = bdata["timestamp"][-1]
+        if ends_with_ts:
+            # the recorder ended the block with a timestamp taken before
+            # writing the block: excluding the time spent writing the
+            # block from instruction durations.
+            block_ts_end = last_ts
+        elif self.at_last_block():
+            if len(bdata) > 0:
+                block_ts_end = bdata["timestamp"][-1]
+            else:
+                block_ts_end = last_ts
         else:
             block_ts_end = self._index_blocks[self._block_id+1]['timestamp']
         # we must also compute duration of the instructions of the stack,

@@ -1,4 +1,4 @@
-from numba import njit, i2, u2, u8
+from numba import njit, i2, u2, u8, b1
 from numba.types import Array
 import numpy as np
 
@@ -22,14 +22,48 @@ def _fast_decode_timestamp(last_timestamp, bytecode, pos):
     return offset + last_timestamp
 
 
-@njit((u8,u8,u8[:],u2,u2), cache=True)
+# Assign timestamps to the locations recorded between two timestamps,
+# by linear interpolation.
+# Return markers (locations with lineno 0, see fast_analyse_block())
+# are not considered in this interpolation: a return marker directly
+# following a TIMESTAMP opcode gets this timestamp, others get the
+# timestamp of the next location (or new_ts).
+@njit((u8,u8,u8[:],u2[:],b1[:],u2,u2), cache=True)
 def _fast_apply_linear_timestamps(last_ts, new_ts,
-        locations_timestamps, locations_ts_start, locations_ts_end):
-    n_steps = locations_ts_end - locations_ts_start +1
-    linear_ts_range = np.linspace(last_ts, new_ts, n_steps)[:-1].astype(np.uint64)
-    locations_timestamps[locations_ts_start:locations_ts_end] = linear_ts_range
+        locations_timestamps, locations_lineno, locations_after_ts,
+        locations_ts_start, locations_ts_end):
+    n = 0
+    for i in range(locations_ts_start, locations_ts_end):
+        if locations_lineno[i] != 0:
+            n += 1
+    if n > 0:
+        linear_ts_range = np.linspace(last_ts, new_ts, n + 1)[:-1].astype(np.uint64)
+        j = 0
+        for i in range(locations_ts_start, locations_ts_end):
+            if locations_lineno[i] != 0:
+                locations_timestamps[i] = linear_ts_range[j]
+                j += 1
+    if n < locations_ts_end - locations_ts_start:
+        # there are return markers
+        next_ts = new_ts
+        for i in range(locations_ts_end - 1, locations_ts_start - 1, -1):
+            if locations_lineno[i] != 0:
+                next_ts = locations_timestamps[i]
+            elif locations_after_ts[i]:
+                locations_timestamps[i] = last_ts
+            else:
+                locations_timestamps[i] = next_ts
 
 
+# This function decodes a block: it returns the locations (file id, line
+# number, stack depth and timestamp) found in the block, in order.
+# RETURN opcodes are also returned as locations with lineno 0
+# ("return markers"), at the stack depth of the frame which returns;
+# they allow to end the duration of the last instruction of this frame
+# when it returns.
+# It also returns the last timestamp found in the block, and whether the
+# block ends with a timestamp (the recorder ends blocks with a timestamp
+# taken before writing the block, for excluding this write from durations).
 # This function is called for each block when building the source
 # index or computing hot points stats. There may be many blocks to
 # read, depending on how long the process execution has been. For
@@ -48,8 +82,10 @@ def fast_analyse_block(startup_stack, bytecode,
     locations_file_id = np.empty(MAP_BLOCK_UINT16_SIZE, np.uint16)
     locations_stack_depths = np.empty(MAP_BLOCK_UINT16_SIZE, np.uint16)
     locations_timestamps = np.empty(MAP_BLOCK_UINT16_SIZE, np.uint64)
+    locations_after_ts = np.zeros(MAP_BLOCK_UINT16_SIZE, np.bool_)
     locations_pos = u2(0)
     locations_ts_start = i2(-1)
+    prev_is_ts = False
     while True:
         opcode = bytecode[bytecode_pos]
         bytecode_pos += 1
@@ -59,17 +95,29 @@ def fast_analyse_block(startup_stack, bytecode,
             file_ids_stack[file_ids_stack_pos] = file_id
             file_ids_stack_pos += 1
         elif opcode == op_return:
-            file_ids_stack_pos -= 1
+            if file_ids_stack_pos > 0:
+                # add a return marker
+                locations_lineno[locations_pos] = 0
+                locations_file_id[locations_pos] = file_ids_stack[file_ids_stack_pos-1]
+                locations_stack_depths[locations_pos] = file_ids_stack_pos
+                locations_after_ts[locations_pos] = prev_is_ts
+                if locations_ts_start == -1:
+                    locations_ts_start = locations_pos
+                locations_pos += 1
+                file_ids_stack_pos -= 1
         elif opcode == op_end:
             break
         elif opcode == op_timestamp:
             new_ts = _fast_decode_timestamp(last_ts, bytecode, u2(bytecode_pos))
             if locations_ts_start != -1:
                 _fast_apply_linear_timestamps(last_ts, new_ts,
-                    locations_timestamps, locations_ts_start, locations_pos)
+                    locations_timestamps, locations_lineno, locations_after_ts,
+                    locations_ts_start, locations_pos)
                 locations_ts_start = -1
             last_ts = new_ts
             bytecode_pos += 4
+            prev_is_ts = True
+            continue
         else:  # opcode is a line number
             file_id = file_ids_stack[file_ids_stack_pos-1]
             locations_lineno[locations_pos] = opcode
@@ -79,15 +127,18 @@ def fast_analyse_block(startup_stack, bytecode,
                 # first lineno after a timestamp
                 locations_ts_start = locations_pos
             locations_pos += 1
+        prev_is_ts = False
     if block_ts_end == 0:
         block_ts_end = last_ts
     if locations_ts_start != -1:
         _fast_apply_linear_timestamps(last_ts, block_ts_end,
-                locations_timestamps, locations_ts_start, locations_pos)
+                locations_timestamps, locations_lineno, locations_after_ts,
+                locations_ts_start, locations_pos)
     return (locations_file_id[:locations_pos],
             locations_lineno[:locations_pos],
             locations_stack_depths[:locations_pos],
-            locations_timestamps[:locations_pos])
+            locations_timestamps[:locations_pos],
+            last_ts, prev_is_ts)
 
 
 # compute duration of each instruction, from the time it started

@@ -26,6 +26,16 @@ OP_CALL = int(OpCodes.CALL)
 OP_RETURN = int(OpCodes.RETURN)
 OP_TIMESTAMP = int(OpCodes.TIMESTAMP)
 
+# number of codes kept free at the end of each block, for:
+# * possibly enclosing the last instruction with 2 timestamps (2 x 5 codes)
+#   when it took longer than the gap threshold (see _record_gap());
+# * ending the block with a timestamp (5 codes);
+# * at least 1 END opcode.
+BLOCK_RESERVE = 16
+
+# default gap threshold (seconds)
+DEFAULT_GAP_THRESHOLD = 0.001
+
 # dtype of the call stack saved at the start of each block
 STACK_DT = np.dtype([('file_id', np.uint16), ('lineno', np.uint16)])
 
@@ -37,12 +47,14 @@ class TrackExecRecorder(LogAbstractManagement):
     _instance = None
 
     def __init__(self, dir_path, include_dirs, include_files,
-                 module_level_files=()):
+                 module_level_files=(), gap_threshold=DEFAULT_GAP_THRESHOLD):
         """Record the execution of the code in include_dirs (absolute
         directory paths, each ending with "/") and include_files (absolute
         file paths). Module-level code (i.e., the code executed when a
         module is imported) is not recorded, except for the files in
-        module_level_files."""
+        module_level_files.
+        When an instruction takes more than gap_threshold seconds, its
+        start and end timestamps are recorded (None disables this)."""
         super().__init__(dir_path)
         if self._log_index_path.exists():
             raise FileExistsError(
@@ -69,6 +81,13 @@ class TrackExecRecorder(LogAbstractManagement):
         self._pt_section = False   # precise-timestamping sections
         self._pid = getpid()
         self._current_lineno = LINENO_UNDEFINED
+        # gap detection: time when the last event was captured, and
+        # position of the codes of this event in the current block
+        if gap_threshold is None:
+            gap_threshold = float("inf")
+        self._gap_threshold = gap_threshold
+        self._t_prev = None
+        self._last_event_pos = 0
         (dir_path / "pid").write_text(f"{self._pid}\n")
         self._write_format_version()
 
@@ -125,7 +144,8 @@ class TrackExecRecorder(LogAbstractManagement):
         # update the log_index file
         stack_size = len(self._stack_file_ids)
         # we ensure we record a monotonic suite of timestamps
-        ts = int(time() * SEC_AS_TS)
+        now = time()
+        ts = int(now * SEC_AS_TS)
         if self._last_timestamp is None or ts > self._last_timestamp:
             self._last_timestamp = ts
         self._index_block[0]['timestamp'] = self._last_timestamp
@@ -139,6 +159,10 @@ class TrackExecRecorder(LogAbstractManagement):
         bl_content['stack'] = stack
         self._max_bytecode_len = len(bl_content['bytecode'])
         self._codes = array("H")
+        # the time spent writing the previous block (if any) should not
+        # be detected as a gap
+        self._t_prev = now
+        self._last_event_pos = 0
 
     def _write_block(self, force_flush_map_file=False):
         if self._num_saved_filenames < len(self._filenames):
@@ -167,9 +191,12 @@ class TrackExecRecorder(LogAbstractManagement):
             f.write(self._index_block.tobytes())
 
     def _ensure_block_has_room(self, num_codes):
-        # note: we need room for padding at least 1 END marker
-        if len(self._codes) + num_codes + 1 > self._max_bytecode_len:
-            # not enough room, write current block
+        if len(self._codes) + num_codes + BLOCK_RESERVE > self._max_bytecode_len:
+            # not enough room, end the block with a timestamp taken
+            # before writing it (this allows the analysis to exclude
+            # the time spent writing the block), write it and start
+            # a new block.
+            self._codes.extend(self._encode_timestamp(time()))
             self._write_block()
             self._init_block()
 
@@ -210,6 +237,10 @@ class TrackExecRecorder(LogAbstractManagement):
         return file_id
 
     def _on_call(self, file_id):
+        now = time()
+        if now - self._t_prev > self._gap_threshold:
+            self._record_gap(now)
+        self._t_prev = now
         # if moving into the same file, preserve the current lineno as a
         # reference for possibly stripping out next LINE opcode; otherwise,
         # forget it.
@@ -218,14 +249,20 @@ class TrackExecRecorder(LogAbstractManagement):
             self._current_lineno = LINENO_UNDEFINED
         self._ensure_block_has_room(2)
         codes = self._codes
+        self._last_event_pos = len(codes)
         codes.append(OP_CALL)
         codes.append(file_id)
         stack_file_ids.append(file_id)
         self._stack_linenos.append(self._current_lineno)
 
     def _on_return(self):
+        now = time()
+        if now - self._t_prev > self._gap_threshold:
+            self._record_gap(now)
+        self._t_prev = now
         stack_file_ids = self._stack_file_ids
         if len(stack_file_ids) == 0:
+            self._last_event_pos = len(self._codes)
             return  # unexpected, ignore
         # optimize:
         # 1. strip out "CALL <fileid>; RETURN;" sequences
@@ -238,8 +275,10 @@ class TrackExecRecorder(LogAbstractManagement):
         if len(codes) >= 2 and codes[-2] == OP_CALL:
             # strip out CALL RETURN sequence
             del codes[-2:]
+            self._last_event_pos = len(codes)
         else:
             self._ensure_block_has_room(1)
+            self._last_event_pos = len(self._codes)
             self._codes.append(OP_RETURN)
             # if returning to some location of the same file, preserve the
             # current lineno as a reference for possibly stripping out next
@@ -255,7 +294,12 @@ class TrackExecRecorder(LogAbstractManagement):
             self._min_stack_size = len(stack_file_ids)
 
     def _on_line(self, lineno):
+        now = time()
+        if now - self._t_prev > self._gap_threshold:
+            self._record_gap(now)
+        self._t_prev = now
         if lineno == LINENO_UNDEFINED:
+            self._last_event_pos = len(self._codes)
             return
         # if traversing a precise timestamping section,
         # record the timestamp of each instruction
@@ -266,29 +310,52 @@ class TrackExecRecorder(LogAbstractManagement):
         # in which case we strip out this new LINE opcode
         if lineno != self._current_lineno:
             self._ensure_block_has_room(1)
+            self._last_event_pos = len(self._codes)
             self._codes.append(lineno)
             if len(self._stack_linenos) > 0:
                 self._stack_linenos[-1] = lineno
             self._current_lineno = lineno
+        else:
+            self._last_event_pos = len(self._codes)
+
+    def _record_gap(self, now):
+        """The last event (and the instruction it started) took more than
+        the gap threshold: enclose its codes with 2 timestamps, for the
+        analysis to know its exact duration."""
+        pos = self._last_event_pos
+        if OP_TIMESTAMP in self._codes[pos:]:
+            # safety check: we cannot insert a timestamp before another one,
+            # since timestamps are encoded as offsets from the previous one.
+            # (this should not happen: with precise timestamping, the
+            # timestamp of an instruction is recorded before its position.)
+            # note: no other code can be equal to OP_TIMESTAMP.
+            return
+        # note: the room for these 10 codes is reserved (BLOCK_RESERVE)
+        self._codes[pos:pos] = array("H", self._encode_timestamp(self._t_prev))
+        self._codes.extend(self._encode_timestamp(now))
 
     def _record_timestamp(self):
         self._ensure_block_has_room(5)
+        self._codes.extend(self._encode_timestamp(time()))
+
+    def _encode_timestamp(self, t):
+        """Return the 5 codes encoding a timestamp (t is a value returned
+        by time.time())"""
         # we ensure we record a monotonic suite of timestamps
-        ts = int(time() * SEC_AS_TS)
+        ts = int(t * SEC_AS_TS)
         if ts < self._last_timestamp:
             ts = self._last_timestamp
         # record an offset from the last timestamp, for lower values
         # and better compressability
         ts_offset = ts - self._last_timestamp
+        self._last_timestamp = ts
         # encode the timestamp ensuring none of the four uint16 values
         # could match an opcode.
-        self._codes.extend((
-            OP_TIMESTAMP,
-            (ts_offset & 0x7fff) + 1,
-            ((ts_offset >> 15) & 0x7fff) + 1,
-            ((ts_offset >> 30) & 0x7fff) + 1,
-            ((ts_offset >> 45) & 0x7fff) + 1))
-        self._last_timestamp = ts
+        return (OP_TIMESTAMP,
+                (ts_offset & 0x7fff) + 1,
+                ((ts_offset >> 15) & 0x7fff) + 1,
+                ((ts_offset >> 30) & 0x7fff) + 1,
+                ((ts_offset >> 45) & 0x7fff) + 1)
 
     def __enter__(self):
         """PT section start boundary function"""
