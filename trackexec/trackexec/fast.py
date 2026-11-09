@@ -93,6 +93,8 @@ def fast_analyse_block(startup_stack, bytecode,
 # compute duration of each instruction, from the time it started
 # to the next instruction with a lower or equal stack depth, or to
 # the end of the block.
+# also return the indices of the instructions which were still running
+# at the end of the block (by increasing stack depth).
 @njit((u2[:],u8[:],u8), cache=True)
 def fast_compute_durations(locations_stack_depths, locations_timestamps,
                            block_ts_end):
@@ -118,4 +120,4 @@ def fast_compute_durations(locations_stack_depths, locations_timestamps,
         durations[idx] = (
                 block_ts_end - locations_timestamps[idx]
         )
-    return durations
+    return durations, pending_indices[:num_pending_indices]

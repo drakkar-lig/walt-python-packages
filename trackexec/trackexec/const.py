@@ -15,6 +15,14 @@ MAP_BLOCK_ID_MASK = (NUM_BLOCKS_PER_MAP_FILE - 1)
 # no such file and are considered as version 1.
 TRACE_FORMAT_VERSION = 1
 
+# Version of the cache file "log_sources_index.gz" (computed from the
+# trace by the reader). Previous versions are ignored and recomputed.
+# Version 2 added max durations.
+SOURCES_INDEX_VERSION = 2
+
+# Line numbers start at 1, 0 means unknown.
+LINENO_UNDEFINED = 0
+
 # Durations as timestamp (1>>20 second granularity)
 SEC_AS_TS = 1048576
 MIN_AS_TS = 60 * SEC_AS_TS
