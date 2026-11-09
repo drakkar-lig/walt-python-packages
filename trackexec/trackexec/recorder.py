@@ -6,7 +6,6 @@ import tarfile
 from contextlib import nullcontext
 from os import getpid
 from os.path import dirname
-from pathlib import Path
 from time import time
 from trackexec.const import (
         OpCodes, MAP_FILE_SIZE, SEC_AS_TS, MAP_BLOCK_UINT16_SIZE
@@ -23,15 +22,18 @@ LINENO_UNDEFINED = 0  # undefined (real linenos start at 1)
 class TrackExecRecorder(LogAbstractManagement):
     _instance = None
 
-    def __init__(self, mod_or_package, dir_path):
+    def __init__(self, dir_path, include_dirs, include_files,
+                 module_level_files=()):
+        """Record the execution of the code in include_dirs (absolute
+        directory paths, each ending with "/") and include_files (absolute
+        file paths). Module-level code (i.e., the code executed when a
+        module is imported) is not recorded, except for the files in
+        module_level_files."""
         super().__init__(dir_path)
         dir_path.mkdir(parents=True, exist_ok=True)
-        if hasattr(mod_or_package, "__path__"):
-            self._prefix = mod_or_package.__path__[0] + '/'
-            self._module_file = None
-        else:
-            self._prefix = None
-            self._module_file = mod_or_package.__file__
+        self._include_dirs = tuple(include_dirs)
+        self._include_files = frozenset(include_files)
+        self._module_level_files = frozenset(module_level_files)
         self._filenames = []
         self._num_saved_filenames = 0
         self._file_id_per_code_id = {}
@@ -127,20 +129,29 @@ class TrackExecRecorder(LogAbstractManagement):
             self._write_block()
             self._init_block()
 
+    def _is_included(self, f_code):
+        filename = f_code.co_filename
+        if filename.startswith(TRACKEXEC_SRC_PREFIX):
+            return False  # do not trace this trackexec recorder code
+        if (f_code.co_name == "<module>" and
+                filename not in self._module_level_files):
+            return False  # do not trace module level loading code
+        return (filename in self._include_files or
+                filename.startswith(self._include_dirs))
+
     def _get_file_id(self, frame):
         f_code = frame.f_code
-        file_id = self._file_id_per_code_id.get(id(f_code))
-        if file_id is None:
+        # note: we keep a reference to the code object in the cache,
+        # otherwise its id could be reused by another code object
+        # after it is garbage collected.
+        cached = self._file_id_per_code_id.get(id(f_code))
+        if cached is not None and cached[0] is f_code:
+            return cached[1]
+        else:
             # 1st time we see this f_code, check if we should trace it
             filename = f_code.co_filename
-            if filename.startswith(TRACKEXEC_SRC_PREFIX):
-                file_id = -1  # do not trace this trackexec recorder code
-            elif f_code.co_name == "<module>":
-                file_id = -1  # do not trace module level loading code
-            elif self._prefix is None and filename != self._module_file:
-                file_id = -1  # module mode, and entering another module
-            elif self._prefix is not None and not filename.startswith(self._prefix):
-                file_id = -1  # package mode, and entering external code
+            if not self._is_included(f_code):
+                file_id = -1
             else:
                 # ok we will trace this code, check if we already found
                 # this filename with another f_code
@@ -151,7 +162,7 @@ class TrackExecRecorder(LogAbstractManagement):
                     self._filenames += [filename]
                     self._id_per_filename[filename] = file_id
             # in any case, record to avoid these checks next time
-            self._file_id_per_code_id[id(f_code)] = file_id
+            self._file_id_per_code_id[id(f_code)] = (f_code, file_id)
         return file_id
 
     def _trace_call_function(self, frame, event, arg):
@@ -235,7 +246,6 @@ class TrackExecRecorder(LogAbstractManagement):
         ts_offset = ts - self._last_timestamp
         # encode the timestamp ensuring none of the four uint16 values
         # could match an opcode.
-        saved_ts_offset = ts_offset
         for _ in range(4):
             self._bytecode.add((ts_offset & 0x7fff)+1)
             ts_offset >>= 15
@@ -259,11 +269,12 @@ class TrackExecRecorder(LogAbstractManagement):
         self._write_block(force_flush_map_file=True)    # flush
 
     @classmethod
-    def record(cls, *args):
-        assert cls._instance is None
-        cls._instance = cls(*args)
+    def start_recording(cls, calling_frame, *args, **kwargs):
+        if cls._instance is not None:
+            raise RuntimeError("trackexec is already recording.")
+        cls._instance = cls(*args, **kwargs)
         # initialize the stack considering the calling code
-        cls._instance.start(sys._getframe().f_back)
+        cls._instance.start(calling_frame)
 
     @classmethod
     def precise_timestamping(cls):

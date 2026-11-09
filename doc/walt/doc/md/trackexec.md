@@ -37,6 +37,8 @@ Note: execution traces are not human-readable, use `walt-server-trackexec-replay
 Note: `walt-server-trackexec-replay` and `walt-server-trackexec-analyse` are
 aliases of `trackexec replay` and `trackexec analyse`: trackexec is a standalone
 python package (`trackexec` on PyPI), also usable outside of WalT.
+For instance, `trackexec record <script.py>` records the execution of any python
+script.
 
 
 ## Replaying execution traces

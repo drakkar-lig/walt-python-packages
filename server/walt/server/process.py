@@ -103,11 +103,11 @@ def _update_trackexec_symlink_latest(target_dir):
 def _init_trackexec(name, start_time):
     if TRACKEXEC_LOG_DIR.exists():
         import walt
-        from trackexec import record
+        import trackexec
         start_time_dir = start_time.strftime("%y%m%d-%H%M%S")
         _update_trackexec_symlink_latest(start_time_dir)
         log_dir_path = TRACKEXEC_LOG_DIR / start_time_dir / name
-        record(walt, log_dir_path)
+        trackexec.start(log_dir_path, include=walt)
 
 
 def _log_dbg_exit(line):
