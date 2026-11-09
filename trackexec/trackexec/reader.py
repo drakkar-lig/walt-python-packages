@@ -7,7 +7,8 @@ from collections import defaultdict
 from functools import cache
 
 from trackexec.const import (
-        MAP_BLOCK_ID_MASK, MAP_BLOCK_ID_SHIFT, OpCodes
+        MAP_BLOCK_ID_MASK, MAP_BLOCK_ID_SHIFT, OpCodes,
+        SOURCES_INDEX_VERSION, LINENO_UNDEFINED
 )
 from trackexec.fast import fast_analyse_block
 from trackexec.fast import fast_compute_durations
@@ -39,29 +40,34 @@ class LogsReader(LogAbstractManagement):
         self._map_blocks = None
         self._filenames = None
         self._src_index = None
+        self._src_running = None
 
     @staticmethod
     def _src_index_value_init():
-        return [set(), 0, 0]
+        return [set(), 0, 0, 0]
 
     def _read_sources_index(self):
         src_index = defaultdict(LogsReader._src_index_value_init)
         if self._log_sources_index_gz_path.exists():
             try:
                 with gzip.open(str(self._log_sources_index_gz_path), 'rb') as f_r:
-                    next_block_id, saved_index = (
+                    version, next_block_id, saved_index, running = (
                             _SourcesIndexUnpickler(f_r).load())
-                src_index.update(saved_index)
-                return next_block_id, src_index
+                if version == SOURCES_INDEX_VERSION:
+                    src_index.update(saved_index)
+                    return next_block_id, src_index, running
             except Exception:
                 pass  # this is just a cache: rebuild it from the trace below
-        return 0, src_index
+        return 0, src_index, {}
 
     def _write_sources_index(self):
         # note: save a plain dict, not the defaultdict, because pickle
         # would save a reference to its factory function (with its module
         # path), making the file harder to read with other code versions.
-        cache_content = pickle.dumps((self.max_block_id+1, dict(self._src_index)))
+        cache_content = pickle.dumps((SOURCES_INDEX_VERSION,
+                                      self.max_block_id+1,
+                                      dict(self._src_index),
+                                      self._src_running))
         with gzip.open(str(self._log_sources_index_gz_path), 'wb') as f_w:
             f_w.write(cache_content)
 
@@ -69,16 +75,21 @@ class LogsReader(LogAbstractManagement):
     def src_index(self):
         # Even if the src index file exists, the trace may be longer now.
         # Let's point self._block_id to the first block not yet indexed.
-        # Note: the src index file encodes a tuple of 2 values:
-        # 1. the number of blocks encoded (= the next block_id to encode)
-        # 2. a dictionary {(<fild_id>,<lineno>) -> [
+        # Note: the src index file encodes a tuple of 4 values:
+        # 1. SOURCES_INDEX_VERSION
+        # 2. the number of blocks encoded (= the next block_id to encode)
+        # 3. a dictionary {(<fild_id>,<lineno>) -> [
         #                                set(<block_ids>),
         #                                <num-occurences>,
-        #                                <cum-duration>
+        #                                <cum-duration>,
+        #                                <max-duration>
         # ]}
+        # 4. the instructions still running at the end of the last block
+        #    encoded (see self.src_running).
         if self._src_index is None:
             saved_block_id = self._block_id
-            next_block_id, self._src_index = self._read_sources_index()
+            next_block_id, self._src_index, self._src_running = (
+                    self._read_sources_index())
             num_added_blocks = self.max_block_id +1 - next_block_id
             if num_added_blocks > 0:
                 # Analyse blocks which were added to the trace.
@@ -103,7 +114,8 @@ class LogsReader(LogAbstractManagement):
                         src_index_item[1] += cnt
                     # compute duration of each <file-id>:<lineno> instruction
                     # found in the block or not consumed from the startup stack
-                    durations = self._compute_durations()
+                    durations, pending = self._compute_durations()
+                    self._update_max_durations(durations, pending)
                     durations_f_l = durations[["file_id", "lineno"]]
                     # for each distinct <file-id>:<lineno>, sum these durations
                     arr_unq, arr_inv = np.unique(durations_f_l, return_inverse=True)
@@ -112,7 +124,7 @@ class LogsReader(LogAbstractManagement):
                     # update the src index:
                     # * add to the cumulated duration of each <file-id>:<lineno>
                     for location, duration in zip(arr_unq, cum_duration):
-                        if duration > 0:
+                        if duration > 0 and location[1] != LINENO_UNDEFINED:
                             file_id, lineno = location
                             src_index_item = self._src_index[(file_id, lineno)]
                             src_index_item[2] += duration
@@ -234,6 +246,53 @@ class LogsReader(LogAbstractManagement):
         block_source_data.timestamp = source_ts
         return block_source_data
 
+    def _update_max_durations(self, durations, pending):
+        # The first rows of durations are the instructions of the startup
+        # stack of the block (row i has stack depth i+1); they may be the
+        # continuation of instructions still running at the end of the
+        # previous block (self._src_running). Add these durations, for
+        # computing the full duration of each instruction execution.
+        stack_size = len(self._block["stack"])
+        totals = durations.duration.copy()
+        for depth, (file_id, lineno, partial) in self._src_running.items():
+            if depth <= stack_size:
+                row = durations[depth-1]
+                if (row.file_id, row.lineno) == (file_id, lineno):
+                    totals[depth-1] += partial
+        # instructions still running at the end of this block will
+        # continue in the next block
+        running = {}
+        is_pending = np.zeros(len(durations), dtype=bool)
+        is_pending[pending] = True
+        for depth, idx in enumerate(pending, start=1):
+            row = durations[idx]
+            running[depth] = (int(row.file_id), int(row.lineno),
+                              int(totals[idx]))
+        self._src_running = running
+        # update the max duration of completed instructions
+        # (as for the cumulated duration, ignore zero durations, to avoid
+        # creating index entries for instructions of the startup stack
+        # which are not actually executed in the trace)
+        done = ~is_pending & (durations.lineno != LINENO_UNDEFINED) & (totals > 0)
+        if not done.any():
+            return
+        locations = durations[["file_id", "lineno"]][done]
+        arr_unq, arr_inv = np.unique(locations, return_inverse=True)
+        max_duration = np.zeros(len(arr_unq), dtype=np.uint64)
+        np.maximum.at(max_duration, arr_inv, totals[done])
+        for location, duration in zip(arr_unq, max_duration):
+            file_id, lineno = location
+            src_index_item = self._src_index[(file_id, lineno)]
+            if duration > src_index_item[3]:
+                src_index_item[3] = int(duration)
+
+    @property
+    def src_running(self):
+        """Instructions still running at the end of the trace, as a dict
+        {<stack-depth>: (<file-id>, <lineno>, <duration-so-far>)}"""
+        self.src_index  # ensure it is up to date
+        return self._src_running
+
     def _compute_durations(self):
         bdata = self.block_source_data
         block_ts_start = self._index_blocks[self._block_id]['timestamp']
@@ -265,11 +324,13 @@ class LogsReader(LogAbstractManagement):
         bdata_fields = ["file_id", "lineno", "stack_depth", "timestamp"]
         durations_data[len(stack):][bdata_fields] = bdata
         # compute "duration" column
-        durations_data.duration = fast_compute_durations(
+        durations, pending = fast_compute_durations(
             durations_data.stack_depth, durations_data.timestamp,
             block_ts_end)
-        # return selected columns
-        return durations_data[["file_id", "lineno", "duration"]]
+        durations_data.duration = durations
+        # return selected columns, and the indices of the instructions
+        # still running at the end of the block
+        return durations_data[["file_id", "lineno", "duration"]], pending
 
     def next(self):
         self.seek(self._block_id + 1)

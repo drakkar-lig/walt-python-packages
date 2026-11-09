@@ -10,7 +10,8 @@ from os.path import dirname
 from threading import get_ident
 from time import time
 from trackexec.const import (
-        OpCodes, MAP_FILE_SIZE, SEC_AS_TS, MAP_BLOCK_UINT16_SIZE
+        OpCodes, MAP_FILE_SIZE, SEC_AS_TS, MAP_BLOCK_UINT16_SIZE,
+        LINENO_UNDEFINED
 )
 from trackexec.tools import (
         Uint16Stack, map_block_dt, index_block_dt,
@@ -18,7 +19,6 @@ from trackexec.tools import (
 )
 
 TRACKEXEC_SRC_PREFIX = dirname(__file__) + "/"
-LINENO_UNDEFINED = 0  # undefined (real linenos start at 1)
 
 
 class TrackExecRecorder(LogAbstractManagement):
