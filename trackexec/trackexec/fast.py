@@ -2,7 +2,7 @@ from numba import njit, i2, u2, u8
 from numba.types import Array
 import numpy as np
 
-from walt.server.trackexec.const import MAP_BLOCK_UINT16_SIZE
+from trackexec.const import MAP_BLOCK_UINT16_SIZE
 
 
 # Some function args such as "startup_stack" and "bytecode" of

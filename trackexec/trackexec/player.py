@@ -1,16 +1,13 @@
 import numpy as np
-import sys
 
 from collections import defaultdict
 from datetime import datetime, timedelta, date, time as midnight
-from pathlib import Path
-from plumbum import cli
 from ttypage.code import render_code
 from ttypage import Action, Page, Pager
-from walt.server.trackexec.const import (
+from trackexec.const import (
         SEC_AS_TS, MIN_AS_TS, HOUR_AS_TS, DAY_AS_TS
 )
-from walt.server.trackexec.reader import LogsReader
+from trackexec.reader import LogsReader
 
 
 BOLD, NORMAL = "\x1b[1m", "\x1b[0m"
@@ -472,7 +469,7 @@ class TrackExecPlayer(Pager):
                             f"Error: {num_matches} different file paths could match.")
                     elif num_matches == 0:
                         self.show_error(
-                            f"Error: could not find a matching file path "
+                            "Error: could not find a matching file path "
                             "in the exec trace.")
                     else:
                         # ok
@@ -495,27 +492,7 @@ class TrackExecPlayer(Pager):
         player.run()
 
 
-def _usage_error(tip):
-    print(tip)
-    sys.exit(1)
-
-
-def TrackExecLogDir(s):
-    p = Path(s)
-    if not p.exists():
-        _usage_error(f"No such directory: {s}")
-    if not p.is_dir():
-        _usage_error(f"Not a directory: {s}")
-    if not (p / "log_index").exists():
-        _usage_error('The specified directory must contain a "log_index" file.')
-    return p
-
-
-class TrackExecPlayerCli(cli.Application):
-    def main(self, trackexec_log_dir : TrackExecLogDir):
-        """Replay WalT server process execution logs"""
-        TrackExecPlayer.replay(trackexec_log_dir)
-
-
 def run():
-    TrackExecPlayerCli.run()
+    """Entry point of `trackexec replay` as a standalone command."""
+    from trackexec.cli import run_subcommand
+    run_subcommand("replay")

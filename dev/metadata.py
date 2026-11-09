@@ -10,6 +10,8 @@ PACKAGE_GENERIC_INFO = dict(
 # Versions of packages not following the walt version number.
 TTYPAGE_VERSION = "0.1.1"
 TTYPAGE_VERSION_RANGE = ">=0.1,<0.2"
+TRACKEXEC_VERSION = "0.1"
+TRACKEXEC_VERSION_RANGE = ">=0.1,<0.2"
 
 PACKAGE_SPECIFIC_INFO = {
     # ttypage is a standalone package (no dependency on walt packages),
@@ -34,6 +36,28 @@ PACKAGE_SPECIFIC_INFO = {
             entry_points={
                 "console_scripts": [
                     "ttypage = ttypage.cli:run",
+                ]
+            },
+            include_package_data=True,
+        ),
+    ),
+    # trackexec is also a standalone package with its own version number.
+    "trackexec": dict(
+        subdir="trackexec",
+        requires=[
+            "numpy>=1.24.3",
+            "numba>=0.58.1",
+            "ttypage" + TTYPAGE_VERSION_RANGE,  # replay tool
+        ],
+        version_str=TRACKEXEC_VERSION,
+        readme="README.md",     # description on PyPI (must be in MANIFEST.in)
+        setup=dict(
+            description="Record, replay and analyse the execution of python code.",
+            keywords="execution trace tracer replay debugger profiling",
+            url="https://github.com/drakkar-lig/walt-python-packages/tree/master/trackexec",
+            entry_points={
+                "console_scripts": [
+                    "trackexec = trackexec.cli:run",
                 ]
             },
             include_package_data=True,
@@ -120,10 +144,9 @@ PACKAGE_SPECIFIC_INFO = {
             "podman>=4.2.0",
             "setproctitle>=1.3.2",
             "numpy>=1.24.3",
-            "numba>=0.58.1",
             "cffi>=1.16.0",
             "dnspython>=2.7.0",
-            "ttypage" + TTYPAGE_VERSION_RANGE,  # trackexec replay tool
+            "trackexec" + TRACKEXEC_VERSION_RANGE,
             "walt-client==%(walt_version)s",
             "walt-common==%(walt_version)s",
             "walt-doc==%(walt_version)s",
@@ -143,8 +166,9 @@ PACKAGE_SPECIFIC_INFO = {
                     "walt-server-ptpd = walt.server.services.ptpd:run",
                     "walt-server-syncd = walt.server.services.syncd:run",
                     "walt-server-nbd = walt.server.services.nbd:run",
-                    "walt-server-trackexec-replay = walt.server.trackexec.player:run",
-                    "walt-server-trackexec-analyse = walt.server.trackexec.analyse:run",
+                    # aliases of `trackexec replay` and `trackexec analyse`
+                    "walt-server-trackexec-replay = trackexec.player:run",
+                    "walt-server-trackexec-analyse = trackexec.analyse:run",
                     "walt-net-config = walt.server.netconfig:run",
                     "walt-image-check = walt.server.imagecheck:run",
                     "walt-annotate-cmd = walt.server.annotatecmd:run",

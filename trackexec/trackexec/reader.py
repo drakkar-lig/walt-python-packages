@@ -6,20 +6,31 @@ import tarfile
 from collections import defaultdict
 from functools import cache
 
-from walt.server.trackexec.const import (
+from trackexec.const import (
         MAP_BLOCK_ID_MASK, MAP_BLOCK_ID_SHIFT, OpCodes
 )
-from walt.server.trackexec.fast import fast_analyse_block
-from walt.server.trackexec.fast import fast_compute_durations
-from walt.server.trackexec.tools import (
+from trackexec.fast import fast_analyse_block
+from trackexec.fast import fast_compute_durations
+from trackexec.tools import (
         map_block_dt, index_block_dt, LogAbstractManagement
 )
+
+
+class _SourcesIndexUnpickler(pickle.Unpickler):
+    # Before trackexec became a standalone package, its code was at
+    # walt.server.trackexec, and this module path was saved in the
+    # sources index file of existing traces.
+    def find_class(self, module, name):
+        if module.startswith("walt.server.trackexec."):
+            module = "trackexec." + module[len("walt.server.trackexec."):]
+        return super().find_class(module, name)
 
 
 class LogsReader(LogAbstractManagement):
 
     def __init__(self, dir_path):
         LogAbstractManagement.__init__(self, dir_path)
+        self._check_format_version()
         self._block_id = 0
         self._index_blocks = np.memmap(self._log_index_path,
                                        dtype=index_block_dt(),
@@ -34,15 +45,23 @@ class LogsReader(LogAbstractManagement):
         return [set(), 0, 0]
 
     def _read_sources_index(self):
+        src_index = defaultdict(LogsReader._src_index_value_init)
         if self._log_sources_index_gz_path.exists():
-            with gzip.open(str(self._log_sources_index_gz_path), 'rb') as f_r:
-                cache_content = f_r.read()
-            return pickle.loads(cache_content)
-        else:
-            return (0, defaultdict(LogsReader._src_index_value_init))
+            try:
+                with gzip.open(str(self._log_sources_index_gz_path), 'rb') as f_r:
+                    next_block_id, saved_index = (
+                            _SourcesIndexUnpickler(f_r).load())
+                src_index.update(saved_index)
+                return next_block_id, src_index
+            except Exception:
+                pass  # this is just a cache: rebuild it from the trace below
+        return 0, src_index
 
     def _write_sources_index(self):
-        cache_content = pickle.dumps((self.max_block_id+1, self._src_index))
+        # note: save a plain dict, not the defaultdict, because pickle
+        # would save a reference to its factory function (with its module
+        # path), making the file harder to read with other code versions.
+        cache_content = pickle.dumps((self.max_block_id+1, dict(self._src_index)))
         with gzip.open(str(self._log_sources_index_gz_path), 'wb') as f_w:
             f_w.write(cache_content)
 

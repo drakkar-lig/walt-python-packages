@@ -1,11 +1,9 @@
 import numpy as np
 import sys
 
-from pathlib import Path
-from plumbum import cli
-from walt.common.formatting import columnate, format_paragraph
-from walt.server.trackexec.const import SEC_AS_TS
-from walt.server.trackexec.reader import LogsReader
+from trackexec.formatting import columnate, format_paragraph
+from trackexec.const import SEC_AS_TS
+from trackexec.reader import LogsReader
 
 
 SORT_FIELDS = {
@@ -13,8 +11,6 @@ SORT_FIELDS = {
     "average-runtime": "avg_duration",
     "frequency": "num_occurences",
 }
-
-SORT_COLUMNS = list(SORT_FIELDS.keys())
 
 DTYPE = np.dtype([
             ("file_id", np.uint16),
@@ -94,63 +90,7 @@ def trackexec_analyse(trackexec_log_dir, num_items, file_id, sort_field):
         print(columnate(rows, headers, align=">>>><"))
 
 
-def _usage_error(tip):
-    print(tip)
-    sys.exit(1)
-
-
-def TrackExecLogDir(s):
-    p = Path(s)
-    if not p.exists():
-        _usage_error(f"No such directory: {s}")
-    if not p.is_dir():
-        _usage_error(f"Not a directory: {s}")
-    if not (p / "log_index").exists():
-        _usage_error('The specified directory must contain a "log_index" file.')
-    return p
-
-
-def sort_column(s):
-    if s not in SORT_FIELDS.keys():
-        raise ValueError("Sort column must be one of: " +
-                         ", ".join(SORT_FIELDS.keys()) + ".")
-    return s
-
-
-class TrackExecAnalyseCli(cli.Application):
-
-    num_items = cli.SwitchAttr(
-        "--num-items",
-        int,
-        argname="NUM_ITEMS",
-        default=20,
-        help="""how many of the most time-consuming hotpoints should be displayed""",
-    )
-
-    file_id = cli.SwitchAttr(
-        "--file-id",
-        int,
-        excludes=["--num-items", "--sort-column"],
-        argname="FILE_ID",
-        default=None,
-        help="""analyse a specific file""",
-    )
-
-    sort_column = cli.SwitchAttr(
-        "--sort-column",
-        cli.Set(*SORT_COLUMNS, case_sensitive=False),
-        argname="COLUMN",
-        default="cumulated-runtime",
-        help="""sort by the specified column""",
-    )
-
-    def main(self, trackexec_log_dir : TrackExecLogDir):
-        """Analyse WalT server process execution logs"""
-        trackexec_analyse(trackexec_log_dir,
-                          self.num_items,
-                          self.file_id,
-                          SORT_FIELDS[self.sort_column.lower()])
-
-
 def run():
-    TrackExecAnalyseCli.run()
+    """Entry point of `trackexec analyse` as a standalone command."""
+    from trackexec.cli import run_subcommand
+    run_subcommand("analyse")

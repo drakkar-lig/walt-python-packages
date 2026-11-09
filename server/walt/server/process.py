@@ -76,7 +76,7 @@ def fix_pdb():
 def _instanciate_ev_loop():
     ev_loop = EventLoop()
     if TRACKEXEC_LOG_DIR.exists():
-        from walt.server.trackexec import precise_timestamping
+        from trackexec import precise_timestamping
         ev_loop.idle_section_hook = precise_timestamping
     return ev_loop
 
@@ -103,7 +103,7 @@ def _update_trackexec_symlink_latest(target_dir):
 def _init_trackexec(name, start_time):
     if TRACKEXEC_LOG_DIR.exists():
         import walt
-        from walt.server.trackexec import record
+        from trackexec import record
         start_time_dir = start_time.strftime("%y%m%d-%H%M%S")
         _update_trackexec_symlink_latest(start_time_dir)
         log_dir_path = TRACKEXEC_LOG_DIR / start_time_dir / name
@@ -207,7 +207,7 @@ class EvProcess(Process):
         finally:
             # stop trackexec
             if TRACKEXEC_LOG_DIR.exists():
-                from walt.server.trackexec import stop
+                from trackexec import stop
                 stop()
 
     def readline(self):

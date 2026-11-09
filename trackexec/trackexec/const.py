@@ -10,6 +10,11 @@ MAP_FILE_SIZE = MAP_BLOCK_SIZE << MAP_BLOCK_ID_SHIFT
 NUM_BLOCKS_PER_MAP_FILE = (1 << MAP_BLOCK_ID_SHIFT)
 MAP_BLOCK_ID_MASK = (NUM_BLOCKS_PER_MAP_FILE - 1)
 
+# Version of the trace format, written to file "format_version" of the
+# trace directory. Traces recorded before this file was introduced have
+# no such file and are considered as version 1.
+TRACE_FORMAT_VERSION = 1
+
 # Durations as timestamp (1>>20 second granularity)
 SEC_AS_TS = 1048576
 MIN_AS_TS = 60 * SEC_AS_TS
