@@ -57,9 +57,7 @@ them. However, when an instruction takes longer than 1 ms (e.g., waiting
 for I/O, `time.sleep()`, or calling a slow function which is not
 recorded), the recorder detects it and records its exact start and end
 timestamps. The time trackexec spends writing the trace files is also
-excluded from the execution times. If needed, enclose code sections in
-`with trackexec.precise_timestamping():` to record a timestamp at each
-instruction (see below).
+excluded from the execution times.
 
 
 ## Recording a trace
@@ -115,8 +113,5 @@ code which is not recorded runs at almost full speed. With older python
 versions, or if no `sys.monitoring` tool id is free, it falls back to
 `sys.settrace()`. The environment variable `TRACKEXEC_BACKEND` (`auto`,
 `monitoring` or `settrace`) allows to force this choice.
-
-The program sections where precise timestamps are needed can be enclosed
-in `with trackexec.precise_timestamping():`.
 
 trackexec was written for the [WalT project](https://walt-project.liglab.fr).
