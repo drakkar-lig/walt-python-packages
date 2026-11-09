@@ -98,34 +98,10 @@ Moreover, timestamps are recorded sparsely, except around instructions which
 take more than 1 ms (e.g., waiting for I/O): trackexec detects them and records
 their exact start and end timestamps.
 
-This initialization code also installs a hook on the event loop for recording
-a precise timestamp before and after the event loop is idle.
-
 For efficient indexing, the traces are recorded as blocks.
 When a block is started, a timestamp is recorded.
 The estimated timestamp of each instruction is computed linearly based on the two
 closest timestamps recorded. The time spent writing blocks is excluded from the
 execution times computed by the analysis.
-
-For more precise timestamping on a given section of the source code, the developer
-may use the following construct:
-```
-from trackexec import precise_timestamping
-[...]
-def <function>(args):
-    [...]
-    with precise_timestamping():
-        <do-something>
-        <do-something-else>
-    [...]
-```
-
-In this case, a timestamp is recorded before and after each instruction of the
-section (including instructions of involved function calls if any).
-This can be handy for inspecting a slow function in more details. Without this,
-the delay caused by a slow function is spread linearly between the two closest
-timestamps recorded.
-
-The hook installed on the event loop actually uses this function `precise_timestamping`.
 
 The code of trackexec itself is at `trackexec/trackexec/`.
