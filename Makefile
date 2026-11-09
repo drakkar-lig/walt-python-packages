@@ -119,4 +119,8 @@ test:
 test-debug:
 	@./dev/test.sh --debug
 
-.PHONY: test test-debug
+# unit tests (they do not need a running WalT platform)
+unit-test: pytest.pip-package
+	@$(PYTHON) -m pytest -q -p no:cacheprovider server/tests
+
+.PHONY: test test-debug unit-test
