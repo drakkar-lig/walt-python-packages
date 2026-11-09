@@ -8,10 +8,10 @@ from os import getpid
 from os.path import dirname
 from pathlib import Path
 from time import time
-from walt.server.trackexec.const import (
+from trackexec.const import (
         OpCodes, MAP_FILE_SIZE, SEC_AS_TS, MAP_BLOCK_UINT16_SIZE
 )
-from walt.server.trackexec.tools import (
+from trackexec.tools import (
         Uint16Stack, map_block_dt, index_block_dt,
         LogAbstractManagement
 )
@@ -48,6 +48,7 @@ class TrackExecRecorder(LogAbstractManagement):
         self._pid = getpid()
         self._current_lineno = LINENO_UNDEFINED
         (dir_path / "pid").write_text(f"{self._pid}\n")
+        self._write_format_version()
 
     def _recursive_call_stack_init(self, frame):
         # recurse first (register bottom calls of the stack first)

@@ -16,11 +16,12 @@
 #   so we must upload them all at once.
 
 ALL_PACKAGES=common virtual server node client client-g5k
-# ttypage is not a walt-* package: it has its own version number
-# (see dev/metadata.py), so it is not uploaded by `make upload`.
-INDEPENDENT_PACKAGES=ttypage
+# ttypage and trackexec are not walt-* packages: they have their own
+# version number (see dev/metadata.py), so they are not uploaded by
+# `make upload`.
+INDEPENDENT_PACKAGES=ttypage trackexec
 # common must be installed 1st (needed by others), then virtual
-INSTALLABLE_PACKAGES_ON_SERVER=common ttypage virtual doc client server
+INSTALLABLE_PACKAGES_ON_SERVER=common ttypage trackexec virtual doc client server
 INSTALLABLE_PACKAGES_ON_CLIENT=common ttypage doc client
 INSTALLABLE_PACKAGES_ON_CLIENT_G5K=common ttypage client doc client-g5k
 GNUMAKEFLAGS=--no-print-directory
@@ -42,8 +43,8 @@ install: server.install
 doc.install:
 	@$(MAKE) PACKAGES="ttypage doc" install-packages
 
-ttypage.install:
-	@$(MAKE) PACKAGES="ttypage" install-packages
+$(INDEPENDENT_PACKAGES:%=%.install): %.install:
+	@$(MAKE) PACKAGES="$*" install-packages
 
 uninstall:
 	@$(MAKE) PACKAGES="$(ALL_PACKAGES) $(INDEPENDENT_PACKAGES)" uninstall-packages
@@ -77,9 +78,9 @@ compile-doc:
 %.build:
 	@$(MAKE) PACKAGES="$*" build-packages
 
-ttypage/setup.py: dev/metadata.py dev/setup-updater.py
-	@echo updating ttypage/setup.py
-	@dev/setup-updater.py ttypage
+$(INDEPENDENT_PACKAGES:%=%/setup.py): %/setup.py: dev/metadata.py dev/setup-updater.py
+	@echo updating $*/setup.py
+	@dev/setup-updater.py $*
 
 %/setup.py: common/walt/common/version.py dev/metadata.py dev/setup-updater.py
 	@echo updating $*/setup.py
@@ -95,8 +96,8 @@ quick-venv-update:
 clean:
 	find . -name \*.pyc -delete
 
-ttypage.uninstall:
-	@$(PIP) show ttypage >/dev/null 2>&1 && $(PIP) uninstall -q -y ttypage || true
+$(INDEPENDENT_PACKAGES:%=%.uninstall): %.uninstall:
+	@$(PIP) show $* >/dev/null 2>&1 && $(PIP) uninstall -q -y $* || true
 
 %.uninstall:
 	@$(PIP) show walt-$* >/dev/null 2>&1 && $(PIP) uninstall -q -y walt-$* || true

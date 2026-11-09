@@ -31,8 +31,8 @@ file_changes="$({
         echo "$op" "$f" "$venv_f"
     done
 
-    # handle files of independent packages (e.g., ttypage/ttypage/)
-    echo "$file_changes" | grep "[[:space:]]ttypage/ttypage/" | \
+    # handle files of independent packages (ttypage/ttypage/...)
+    echo "$file_changes" | grep "[[:space:]]\(ttypage/ttypage\|trackexec/trackexec\)/" | \
     while read op f
     do
         mod_path=$(echo "$f" | sed -e 's/^[a-z0-9-]*\///')
