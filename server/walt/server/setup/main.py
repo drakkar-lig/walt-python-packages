@@ -43,14 +43,14 @@ STOPPABLE_WALT_SERVICES = [
     "walt-server-ptpd.service",
     "walt-server-syncd.service",
     "walt-server-httpd.service",
-    "walt-server-nbd.service",
     "walt-server-nbd.socket",
-    "walt-server-podman.service",
+    "walt-server-nbd.service",
     "walt-server-podman.socket",
-    "walt-server-vpn.service",
+    "walt-server-podman.service",
     "walt-server-vpn.socket",
-    "walt-server-nbfsd.service",
+    "walt-server-vpn.service",
     "walt-server-nbfsd.socket",
+    "walt-server-nbfsd.service",
 ]
 
 # The user may have configured the interface providing internet access
