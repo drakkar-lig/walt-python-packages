@@ -34,6 +34,10 @@ hesitate to activate it, even on a production system.
 
 Note: execution traces are not human-readable, use `walt-server-trackexec-replay`.
 
+Note: `walt-server-trackexec-replay` and `walt-server-trackexec-analyse` are
+aliases of `trackexec replay` and `trackexec analyse`: trackexec is a standalone
+python package (`trackexec` on PyPI), also usable outside of WalT.
+
 
 ## Replaying execution traces
 
@@ -95,7 +99,7 @@ closest timestamps recorded.
 For more precise timestamping on a given section of the source code, the developer
 may use the following construct:
 ```
-from walt.server.trackexec import precise_timestamping
+from trackexec import precise_timestamping
 [...]
 def <function>(args):
     [...]
@@ -113,4 +117,4 @@ timestamps recorded.
 
 The hook installed on the event loop actually uses this function `precise_timestamping`.
 
-The code of trackexec itself is at `server/walt/server/trackexec/`.
+The code of trackexec itself is at `trackexec/trackexec/`.
