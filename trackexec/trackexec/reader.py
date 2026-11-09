@@ -27,6 +27,11 @@ class _SourcesIndexUnpickler(pickle.Unpickler):
         return super().find_class(module, name)
 
 
+def _location_keys(file_ids, linenos):
+    """Encode (<file-id>, <lineno>) locations as uint32 values"""
+    return (file_ids.astype(np.uint32) << 16) | linenos
+
+
 class LogsReader(LogAbstractManagement):
 
     def __init__(self, dir_path):
@@ -99,35 +104,7 @@ class LogsReader(LogAbstractManagement):
                     op_num = block_id + num_added_blocks - self.max_block_id
                     print(f"Updating source index... {op_num}/{num_added_blocks}\r",
                           end="")
-                    bdata = self.block_source_data
-                    # count number of each distinct <file-id>:<lineno> in the block
-                    block_source_f_l = bdata[["file_id", "lineno"]]
-                    arr_unq, arr_cnt = np.unique(block_source_f_l, return_counts=True)
-                    # save in the src index:
-                    # * the fact each <file-id>:<lineno> was found at least once
-                    #   in the block
-                    # * add to the total number of occurences of each <file-id>:<lineno>
-                    for location, cnt in zip(arr_unq, arr_cnt):
-                        file_id, lineno = location
-                        src_index_item = self._src_index[(file_id, lineno)]
-                        src_index_item[0].add(block_id)
-                        src_index_item[1] += cnt
-                    # compute duration of each <file-id>:<lineno> instruction
-                    # found in the block or not consumed from the startup stack
-                    durations, pending = self._compute_durations()
-                    self._update_max_durations(durations, pending)
-                    durations_f_l = durations[["file_id", "lineno"]]
-                    # for each distinct <file-id>:<lineno>, sum these durations
-                    arr_unq, arr_inv = np.unique(durations_f_l, return_inverse=True)
-                    cum_duration = np.zeros(len(arr_unq), dtype=np.uint64)
-                    np.add.at(cum_duration, arr_inv, durations.duration)
-                    # update the src index:
-                    # * add to the cumulated duration of each <file-id>:<lineno>
-                    for location, duration in zip(arr_unq, cum_duration):
-                        if duration > 0 and location[1] != LINENO_UNDEFINED:
-                            file_id, lineno = location
-                            src_index_item = self._src_index[(file_id, lineno)]
-                            src_index_item[2] += duration
+                    self._index_current_block()
                     # continue with next block if any
                     if self.at_last_block():
                         break
@@ -246,6 +223,42 @@ class LogsReader(LogAbstractManagement):
         block_source_data.timestamp = source_ts
         return block_source_data
 
+    def _index_current_block(self):
+        # note: for performance, (<file-id>, <lineno>) locations are
+        # handled as uint32 keys (<file-id> << 16 | <lineno>), and we
+        # loop over python lists instead of numpy arrays.
+        block_id = self._block_id
+        bdata = self.block_source_data
+        # count number of each distinct <file-id>:<lineno> in the block
+        keys = _location_keys(bdata.file_id, bdata.lineno)
+        arr_unq, arr_cnt = np.unique(keys, return_counts=True)
+        # save in the src index:
+        # * the fact each <file-id>:<lineno> was found at least once
+        #   in the block
+        # * add to the total number of occurences of each <file-id>:<lineno>
+        src_index = self._src_index
+        for key, cnt in zip(arr_unq.tolist(), arr_cnt.tolist()):
+            src_index_item = src_index[(key >> 16, key & 0xffff)]
+            src_index_item[0].add(block_id)
+            src_index_item[1] += cnt
+        # compute duration of each <file-id>:<lineno> instruction
+        # found in the block or not consumed from the startup stack
+        durations, pending = self._compute_durations()
+        self._update_max_durations(durations, pending)
+        # for each distinct <file-id>:<lineno>, sum these durations
+        # (ignoring zero durations and unknown line numbers)
+        selected = ((durations.duration > 0) &
+                    (durations.lineno != LINENO_UNDEFINED))
+        keys = _location_keys(durations.file_id[selected],
+                              durations.lineno[selected])
+        arr_unq, arr_inv = np.unique(keys, return_inverse=True)
+        cum_duration = np.zeros(len(arr_unq), dtype=np.uint64)
+        np.add.at(cum_duration, arr_inv, durations.duration[selected])
+        # update the src index:
+        # * add to the cumulated duration of each <file-id>:<lineno>
+        for key, duration in zip(arr_unq.tolist(), cum_duration.tolist()):
+            src_index[(key >> 16, key & 0xffff)][2] += duration
+
     def _update_max_durations(self, durations, pending):
         # The first rows of durations are the instructions of the startup
         # stack of the block (row i has stack depth i+1); they may be the
@@ -253,38 +266,40 @@ class LogsReader(LogAbstractManagement):
         # previous block (self._src_running). Add these durations, for
         # computing the full duration of each instruction execution.
         stack_size = len(self._block["stack"])
+        # (fetch recarray columns once, accessing rows is slow)
+        file_ids, linenos = durations.file_id, durations.lineno
         totals = durations.duration.copy()
         for depth, (file_id, lineno, partial) in self._src_running.items():
             if depth <= stack_size:
-                row = durations[depth-1]
-                if (row.file_id, row.lineno) == (file_id, lineno):
+                if (file_ids[depth-1] == file_id and
+                        linenos[depth-1] == lineno):
                     totals[depth-1] += partial
         # instructions still running at the end of this block will
         # continue in the next block
-        running = {}
-        is_pending = np.zeros(len(durations), dtype=bool)
-        is_pending[pending] = True
-        for depth, idx in enumerate(pending, start=1):
-            row = durations[idx]
-            running[depth] = (int(row.file_id), int(row.lineno),
-                              int(totals[idx]))
-        self._src_running = running
+        self._src_running = {
+            depth: info for depth, info in enumerate(zip(
+                file_ids[pending].tolist(),
+                linenos[pending].tolist(),
+                totals[pending].tolist()), start=1)
+        }
         # update the max duration of completed instructions
         # (as for the cumulated duration, ignore zero durations, to avoid
         # creating index entries for instructions of the startup stack
         # which are not actually executed in the trace)
-        done = ~is_pending & (durations.lineno != LINENO_UNDEFINED) & (totals > 0)
+        is_pending = np.zeros(len(durations), dtype=bool)
+        is_pending[pending] = True
+        done = ~is_pending & (linenos != LINENO_UNDEFINED) & (totals > 0)
         if not done.any():
             return
-        locations = durations[["file_id", "lineno"]][done]
-        arr_unq, arr_inv = np.unique(locations, return_inverse=True)
+        keys = _location_keys(file_ids[done], linenos[done])
+        arr_unq, arr_inv = np.unique(keys, return_inverse=True)
         max_duration = np.zeros(len(arr_unq), dtype=np.uint64)
         np.maximum.at(max_duration, arr_inv, totals[done])
-        for location, duration in zip(arr_unq, max_duration):
-            file_id, lineno = location
-            src_index_item = self._src_index[(file_id, lineno)]
+        src_index = self._src_index
+        for key, duration in zip(arr_unq.tolist(), max_duration.tolist()):
+            src_index_item = src_index[(key >> 16, key & 0xffff)]
             if duration > src_index_item[3]:
-                src_index_item[3] = int(duration)
+                src_index_item[3] = duration
 
     @property
     def src_running(self):

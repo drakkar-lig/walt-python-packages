@@ -107,7 +107,10 @@ def _init_trackexec(name, start_time):
         start_time_dir = start_time.strftime("%y%m%d-%H%M%S")
         _update_trackexec_symlink_latest(start_time_dir)
         log_dir_path = TRACKEXEC_LOG_DIR / start_time_dir / name
-        trackexec.start(log_dir_path, include=walt)
+        try:
+            trackexec.start(log_dir_path, include=walt)
+        except Exception as e:
+            print(f"WARNING: could not start trackexec: {e}")
 
 
 def _log_dbg_exit(line):

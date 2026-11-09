@@ -85,6 +85,8 @@ def start(trace_dir, include, *, module_level=()):
 
     Module-level code (i.e., code executed when a module is imported)
     is not recorded, except for the source files listed in module_level.
+
+    Raises FileExistsError if trace_dir already contains a trace.
     """
     _start(sys._getframe(1), trace_dir, include, module_level)
 
