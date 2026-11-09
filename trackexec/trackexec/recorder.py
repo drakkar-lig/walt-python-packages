@@ -35,6 +35,9 @@ class TrackExecRecorder(LogAbstractManagement):
         module is imported) is not recorded, except for the files in
         module_level_files."""
         super().__init__(dir_path)
+        if self._log_index_path.exists():
+            raise FileExistsError(
+                f"{dir_path} already contains an execution trace.")
         dir_path.mkdir(parents=True, exist_ok=True)
         self._include_dirs = tuple(include_dirs)
         self._include_files = frozenset(include_files)
