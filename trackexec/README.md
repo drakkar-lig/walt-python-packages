@@ -74,6 +74,12 @@ is listed in the `module_level` keyword argument.
 Only the thread calling `start()` is recorded, and recording stops in
 forked child processes.
 
+With python 3.12 or later, trackexec relies on `sys.monitoring`, so the
+code which is not recorded runs at almost full speed. With older python
+versions, or if no `sys.monitoring` tool id is free, it falls back to
+`sys.settrace()`. The environment variable `TRACKEXEC_BACKEND` (`auto`,
+`monitoring` or `settrace`) allows to force this choice.
+
 The program sections where precise timestamps are needed can be enclosed
 in `with trackexec.precise_timestamping():`.
 
