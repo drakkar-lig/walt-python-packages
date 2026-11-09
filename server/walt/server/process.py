@@ -73,14 +73,6 @@ def fix_pdb():
     pdb.Pdb = BetterPdb
 
 
-def _instanciate_ev_loop():
-    ev_loop = EventLoop()
-    if TRACKEXEC_LOG_DIR.exists():
-        from trackexec import precise_timestamping
-        ev_loop.idle_section_hook = precise_timestamping
-    return ev_loop
-
-
 def _update_trackexec_symlink_latest(target_dir):
     symlink_latest = TRACKEXEC_LOG_DIR / "latest"
     try:
@@ -155,7 +147,7 @@ class EvProcess(Process):
                 for f in files:
                     f.close()
         # run
-        self.ev_loop = _instanciate_ev_loop()
+        self.ev_loop = EventLoop()
         self.ev_loop.register_listener(self.pipe_process, self)
         try:
             self.prepare()

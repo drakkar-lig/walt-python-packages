@@ -302,10 +302,6 @@ class EventLoop(object):
         self.recursion_depth = 0
         self.pending_events = {}
         self._disabled_fds = set()
-        # by default self.idle_section_hook does nothing, but
-        # the caller can set this attribute with a context
-        # manager object if needed.
-        self.idle_section_hook = contextlib.nullcontext
 
     def has_bg_processes(self):
         return ProcessListener._num_processes > 0
@@ -486,8 +482,7 @@ class EventLoop(object):
                         # status may have changed.
                         if not self.should_continue(loop_condition):
                             break
-                        with self.idle_section_hook():
-                            res = poller.poll(timeout)
+                        res = poller.poll(timeout)
                 if len(res) == 0:
                     continue  # poll() was stopped because of the timeout
                 # save the time of the events

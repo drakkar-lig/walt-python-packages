@@ -5,7 +5,6 @@ import sys
 import tarfile
 
 from array import array
-from contextlib import nullcontext
 from os import getpid
 from os.path import dirname
 from threading import get_ident
@@ -77,8 +76,6 @@ class TrackExecRecorder(LogAbstractManagement):
         self._map_block = np.zeros(1, dtype=map_block_dt(0))
         self._index_block = np.zeros(1, dtype=index_block_dt())
         self._last_timestamp = None
-        self._timestamp_requested = False
-        self._pt_section = False   # precise-timestamping sections
         self._pid = getpid()
         self._current_lineno = LINENO_UNDEFINED
         # gap detection: time when the last event was captured, and
@@ -301,11 +298,6 @@ class TrackExecRecorder(LogAbstractManagement):
         if lineno == LINENO_UNDEFINED:
             self._last_event_pos = len(self._codes)
             return
-        # if traversing a precise timestamping section,
-        # record the timestamp of each instruction
-        if self._pt_section or self._timestamp_requested:
-            self._record_timestamp()
-            self._timestamp_requested = False
         # record the line number, unless we remain on the same line,
         # in which case we strip out this new LINE opcode
         if lineno != self._current_lineno:
@@ -324,10 +316,9 @@ class TrackExecRecorder(LogAbstractManagement):
         analysis to know its exact duration."""
         pos = self._last_event_pos
         if OP_TIMESTAMP in self._codes[pos:]:
-            # safety check: we cannot insert a timestamp before another one,
-            # since timestamps are encoded as offsets from the previous one.
-            # (this should not happen: with precise timestamping, the
-            # timestamp of an instruction is recorded before its position.)
+            # safety check (should not happen): we cannot insert a
+            # timestamp before another one, since timestamps are encoded
+            # as offsets from the previous one.
             # note: no other code can be equal to OP_TIMESTAMP.
             return
         # note: the room for these 10 codes is reserved (BLOCK_RESERVE)
@@ -357,16 +348,6 @@ class TrackExecRecorder(LogAbstractManagement):
                 ((ts_offset >> 30) & 0x7fff) + 1,
                 ((ts_offset >> 45) & 0x7fff) + 1)
 
-    def __enter__(self):
-        """PT section start boundary function"""
-        self._pt_section = True
-
-    def __exit__(self, *args):
-        """PT section end boundary function"""
-        # record a last timestamp to know how much time the last
-        # instruction of the context took
-        self._timestamp_requested = True
-        self._pt_section = False
 
     def _stop(self):
         """Function for stopping and flushing"""
@@ -388,14 +369,6 @@ class TrackExecRecorder(LogAbstractManagement):
             instance._disable()
             TrackExecRecorder._instance = None
             raise
-
-    @classmethod
-    def precise_timestamping(cls):
-        instance = TrackExecRecorder._instance
-        if instance is not None:
-            return instance
-        else:
-            return nullcontext()
 
     @classmethod
     def stop(cls):

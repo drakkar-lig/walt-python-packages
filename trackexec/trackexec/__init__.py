@@ -18,7 +18,7 @@ from pathlib import Path
 
 from trackexec.recorder import TrackExecRecorder, DEFAULT_GAP_THRESHOLD
 
-__all__ = ["start", "stop", "recording", "precise_timestamping", "record"]
+__all__ = ["start", "stop", "recording", "record"]
 
 
 def _dir_prefix(path):
@@ -116,11 +116,6 @@ def recording(trace_dir, include, *, module_level=(),
     finally:
         stop()
 
-
-def precise_timestamping():
-    """Return a context manager enclosing a code section where
-    a timestamp should be recorded at each line of code."""
-    return TrackExecRecorder.precise_timestamping()
 
 
 def record(mod_or_package, dir_path):
