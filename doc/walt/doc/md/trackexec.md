@@ -79,7 +79,11 @@ $ walt-server-trackexec-analyse /var/log/walt/trackexec/latest/server-main
 ```
 
 The tool will display a table indicating which python instructions consumed
-the most execution time.
+the most execution time: cumulated, average and max execution time, and
+frequency (number of executions).
+Use option `--sort-column max-runtime` to find the instructions which blocked
+the process for the longest time.
+See `walt-server-trackexec-analyse --help` for other options.
 
 
 ## Trackexec in the source code, details about timestamps

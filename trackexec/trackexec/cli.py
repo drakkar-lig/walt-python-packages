@@ -4,7 +4,8 @@ import os
 import sys
 from pathlib import Path
 
-SORT_COLUMNS = ("cumulated-runtime", "average-runtime", "frequency")
+SORT_COLUMNS = ("cumulated-runtime", "average-runtime", "max-runtime",
+                "frequency")
 
 
 def trace_dir(s):

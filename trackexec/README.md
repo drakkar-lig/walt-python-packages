@@ -29,7 +29,34 @@ trackexec analyse TRACE_DIR
 ```
 
 This displays the "hot points" of the trace, i.e., the instructions which
-consumed the most execution time.
+consumed the most execution time. For each instruction (i.e., source code
+line), the following columns are displayed:
+
+* `Cumulated`: total execution time of the instruction, over the whole trace.
+* `Average`: average execution time of the instruction.
+* `Max`: longest execution time of the instruction; this is the maximum time
+  this instruction blocked the program.
+* `Frequency`: number of times the instruction was executed (0 for an
+  instruction which was already running when the recording started).
+
+The execution time of an instruction includes the time spent in the
+functions it calls. If the program was still running at the end of the
+trace, the instructions still running are considered with their execution
+time so far.
+
+Use `--sort-column` to sort by `cumulated-runtime` (the default),
+`average-runtime`, `max-runtime` or `frequency`, and `--num-items` to
+select how many instructions are displayed (default: 20).
+With `--file-id FILE_ID`, these columns are displayed alongside each line
+of the given source file instead (file IDs are listed in the first column
+of the default view).
+
+Note that, to limit the overhead, timestamps are only recorded from time
+to time, and the execution times are interpolated between them. Thus,
+when a program waits (e.g., `time.sleep()`, or waiting for input), this
+time may be distributed over the neighbouring instructions. Enclose such
+code sections in `with trackexec.precise_timestamping():` for accurate
+results (see below).
 
 
 ## Recording a trace
