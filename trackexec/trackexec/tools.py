@@ -25,49 +25,6 @@ def index_block_dt():
                      ('min_stack_size', np.uint16)])
 
 
-class Uint16Stack:
-    def __init__(self):
-        self.array = np.empty(MAP_BLOCK_UINT16_SIZE, np.uint16)
-        self.level = 0
-
-    def add(self, v):
-        self.array[self.level] = v
-        self.level += 1
-
-    def pop(self):
-        self.level -= 1
-        return self.array[self.level]
-
-    def top(self):
-        if self.level > 0:
-            return self.array[self.level-1]
-
-    def view(self):
-        return self.array[:self.level]
-
-    def __getitem__(self, idx):
-        return self.array[:self.level][idx]
-
-    def copy_from(self, a):
-        self.level = len(a)
-        self.array[:self.level] = a
-
-    def pad(self, v, size):
-        self.array[self.level:size] = v
-        self.level = size
-
-    def reset(self):
-        self.level = 0
-
-    def __len__(self):
-        return self.level
-
-    def copy(self):
-        other = Uint16Stack()
-        other.copy_from(self.array[:self.level])
-        return other
-
-
 class TraceFormatError(Exception):
     pass
 

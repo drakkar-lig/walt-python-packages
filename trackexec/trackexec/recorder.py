@@ -4,21 +4,30 @@ import os
 import sys
 import tarfile
 
+from array import array
 from contextlib import nullcontext
 from os import getpid
 from os.path import dirname
 from threading import get_ident
 from time import time
 from trackexec.const import (
-        OpCodes, MAP_FILE_SIZE, SEC_AS_TS, MAP_BLOCK_UINT16_SIZE,
+        OpCodes, MAP_FILE_SIZE, SEC_AS_TS,
         LINENO_UNDEFINED
 )
 from trackexec.tools import (
-        Uint16Stack, map_block_dt, index_block_dt,
+        map_block_dt, index_block_dt,
         LogAbstractManagement
 )
 
 TRACKEXEC_SRC_PREFIX = dirname(__file__) + "/"
+
+# opcodes as python ints (faster than numpy scalars)
+OP_CALL = int(OpCodes.CALL)
+OP_RETURN = int(OpCodes.RETURN)
+OP_TIMESTAMP = int(OpCodes.TIMESTAMP)
+
+# dtype of the call stack saved at the start of each block
+STACK_DT = np.dtype([('file_id', np.uint16), ('lineno', np.uint16)])
 
 
 class TrackExecRecorder(LogAbstractManagement):
@@ -46,10 +55,13 @@ class TrackExecRecorder(LogAbstractManagement):
         self._num_saved_filenames = 0
         self._file_id_per_code_id = {}
         self._id_per_filename = {}
-        self._stack = np.empty(MAP_BLOCK_UINT16_SIZE,
-                np.dtype([('file_id', np.uint16), ('lineno', np.uint16)]))
-        self._stack_size = 0
-        self._bytecode = Uint16Stack()
+        # note: for performance, the recording code uses python lists
+        # and arrays, and numpy only when writing a block.
+        # call stack: file id and current line number of each frame
+        self._stack_file_ids = []
+        self._stack_linenos = []
+        # codes of the current block
+        self._codes = array("H")
         self._map_block = np.zeros(1, dtype=map_block_dt(0))
         self._index_block = np.zeros(1, dtype=index_block_dt())
         self._last_timestamp = None
@@ -87,15 +99,15 @@ class TrackExecRecorder(LogAbstractManagement):
         # and enable tracing on it
         file_id = self._get_file_id(frame.f_code)
         if file_id != -1:
-            self._stack[self._stack_size] = (file_id, frame.f_lineno)
-            self._stack_size += 1
+            self._stack_file_ids.append(file_id)
+            self._stack_linenos.append(frame.f_lineno)
             self._enable_frame(frame)
             self._current_lineno = frame.f_lineno
 
     def start(self, calling_frame):
         # when the recorder code is started, we analyse which frames of
         # the call stack match our filtering prefix; those frames are
-        # used to initialize our call stack (self._stack) and we manually
+        # used to initialize our call stack (self._stack_*) and we manually
         # enable tracing on them, in order to capture their execution
         # when this code returns to its caller.
         self._setup()
@@ -111,7 +123,7 @@ class TrackExecRecorder(LogAbstractManagement):
 
     def _init_block(self):
         # update the log_index file
-        stack_size = self._stack_size
+        stack_size = len(self._stack_file_ids)
         # we ensure we record a monotonic suite of timestamps
         ts = int(time() * SEC_AS_TS)
         if self._last_timestamp is None or ts > self._last_timestamp:
@@ -121,16 +133,21 @@ class TrackExecRecorder(LogAbstractManagement):
         self._map_block = self._map_block.view(dtype=map_block_dt(stack_size))
         bl_content = self._map_block[0]
         bl_content['stack_size'] = stack_size
-        bl_content['stack'] = self._stack[:stack_size]
+        stack = np.empty(stack_size, STACK_DT)
+        stack['file_id'] = self._stack_file_ids
+        stack['lineno'] = self._stack_linenos
+        bl_content['stack'] = stack
         self._max_bytecode_len = len(bl_content['bytecode'])
-        self._bytecode.reset()
+        self._codes = array("H")
 
     def _write_block(self, force_flush_map_file=False):
         if self._num_saved_filenames < len(self._filenames):
             self._update_log_sources_archive()
             self._num_saved_filenames = len(self._filenames)
-        self._bytecode.pad(OpCodes.END, self._max_bytecode_len)
-        self._map_block[0]['bytecode'] = self._bytecode.view()
+        # pad with END opcodes (zeros)
+        num_padding = self._max_bytecode_len - len(self._codes)
+        self._codes.frombytes(bytes(2 * num_padding))
+        self._map_block[0]['bytecode'] = np.frombuffer(self._codes, np.uint16)
         self._log_map_path.parent.mkdir(exist_ok=True)
         with self._log_map_path.open("ab") as f:
             f.write(self._map_block.tobytes())
@@ -151,7 +168,7 @@ class TrackExecRecorder(LogAbstractManagement):
 
     def _ensure_block_has_room(self, num_codes):
         # note: we need room for padding at least 1 END marker
-        if self._bytecode.level + num_codes + 1 > self._max_bytecode_len:
+        if len(self._codes) + num_codes + 1 > self._max_bytecode_len:
             # not enough room, write current block
             self._write_block()
             self._init_block()
@@ -196,18 +213,20 @@ class TrackExecRecorder(LogAbstractManagement):
         # if moving into the same file, preserve the current lineno as a
         # reference for possibly stripping out next LINE opcode; otherwise,
         # forget it.
-        if (
-                self._stack_size == 0 or
-                self._stack[self._stack_size-1]["file_id"] != file_id
-           ):
+        stack_file_ids = self._stack_file_ids
+        if len(stack_file_ids) == 0 or stack_file_ids[-1] != file_id:
             self._current_lineno = LINENO_UNDEFINED
         self._ensure_block_has_room(2)
-        self._bytecode.add(OpCodes.CALL)
-        self._bytecode.add(file_id)
-        self._stack[self._stack_size] = (file_id, self._current_lineno)
-        self._stack_size += 1
+        codes = self._codes
+        codes.append(OP_CALL)
+        codes.append(file_id)
+        stack_file_ids.append(file_id)
+        self._stack_linenos.append(self._current_lineno)
 
     def _on_return(self):
+        stack_file_ids = self._stack_file_ids
+        if len(stack_file_ids) == 0:
+            return  # unexpected, ignore
         # optimize:
         # 1. strip out "CALL <fileid>; RETURN;" sequences
         # 2. thanks to the management of _current_lineno, the fact we
@@ -215,28 +234,25 @@ class TrackExecRecorder(LogAbstractManagement):
         #    can also strip out the following pattern found with list
         #    comprehensions:
         #    [at line <F>:<N>]; CALL <F>; <N>; RETURN;
-        bytecode = self._bytecode.view()
-        if len(bytecode) >= 2 and bytecode[-2] == OpCodes.CALL:
+        codes = self._codes
+        if len(codes) >= 2 and codes[-2] == OP_CALL:
             # strip out CALL RETURN sequence
-            self._bytecode.pop()
-            self._bytecode.pop()
+            del codes[-2:]
         else:
             self._ensure_block_has_room(1)
-            self._bytecode.add(OpCodes.RETURN)
+            self._codes.append(OP_RETURN)
             # if returning to some location of the same file, preserve the
             # current lineno as a reference for possibly stripping out next
             # LINE opcode; otherwise, forget it.
-            top_of_stack = self._stack[:self._stack_size][-2:]
             if (
-                    len(top_of_stack) < 2 or
-                    top_of_stack[0]["file_id"] != top_of_stack[1]["file_id"]
+                    len(stack_file_ids) < 2 or
+                    stack_file_ids[-2] != stack_file_ids[-1]
                ):
                 self._current_lineno = LINENO_UNDEFINED
-        self._stack_size -= 1
-        self._min_stack_size = min(
-            self._min_stack_size,
-            self._stack_size
-        )
+        stack_file_ids.pop()
+        self._stack_linenos.pop()
+        if len(stack_file_ids) < self._min_stack_size:
+            self._min_stack_size = len(stack_file_ids)
 
     def _on_line(self, lineno):
         if lineno == LINENO_UNDEFINED:
@@ -250,13 +266,13 @@ class TrackExecRecorder(LogAbstractManagement):
         # in which case we strip out this new LINE opcode
         if lineno != self._current_lineno:
             self._ensure_block_has_room(1)
-            self._bytecode.add(lineno)
-            self._stack[self._stack_size-1]["lineno"] = lineno
+            self._codes.append(lineno)
+            if len(self._stack_linenos) > 0:
+                self._stack_linenos[-1] = lineno
             self._current_lineno = lineno
 
     def _record_timestamp(self):
         self._ensure_block_has_room(5)
-        self._bytecode.add(OpCodes.TIMESTAMP)
         # we ensure we record a monotonic suite of timestamps
         ts = int(time() * SEC_AS_TS)
         if ts < self._last_timestamp:
@@ -266,9 +282,12 @@ class TrackExecRecorder(LogAbstractManagement):
         ts_offset = ts - self._last_timestamp
         # encode the timestamp ensuring none of the four uint16 values
         # could match an opcode.
-        for _ in range(4):
-            self._bytecode.add((ts_offset & 0x7fff)+1)
-            ts_offset >>= 15
+        self._codes.extend((
+            OP_TIMESTAMP,
+            (ts_offset & 0x7fff) + 1,
+            ((ts_offset >> 15) & 0x7fff) + 1,
+            ((ts_offset >> 30) & 0x7fff) + 1,
+            ((ts_offset >> 45) & 0x7fff) + 1))
         self._last_timestamp = ts
 
     def __enter__(self):
