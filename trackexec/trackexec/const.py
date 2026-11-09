@@ -18,7 +18,9 @@ TRACE_FORMAT_VERSION = 1
 # Version of the cache file "log_sources_index.gz" (computed from the
 # trace by the reader). Previous versions are ignored and recomputed.
 # Version 2 added max durations.
-SOURCES_INDEX_VERSION = 2
+# Version 3: durations end when functions return, and exclude the time
+# spent writing blocks.
+SOURCES_INDEX_VERSION = 3
 
 # Line numbers start at 1, 0 means unknown.
 LINENO_UNDEFINED = 0

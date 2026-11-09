@@ -52,11 +52,14 @@ of the given source file instead (file IDs are listed in the first column
 of the default view).
 
 Note that, to limit the overhead, timestamps are only recorded from time
-to time, and the execution times are interpolated between them. Thus,
-when a program waits (e.g., `time.sleep()`, or waiting for input), this
-time may be distributed over the neighbouring instructions. Enclose such
-code sections in `with trackexec.precise_timestamping():` for accurate
-results (see below).
+to time, and the execution times of instructions are interpolated between
+them. However, when an instruction takes longer than 1 ms (e.g., waiting
+for I/O, `time.sleep()`, or calling a slow function which is not
+recorded), the recorder detects it and records its exact start and end
+timestamps. The time trackexec spends writing the trace files is also
+excluded from the execution times. If needed, enclose code sections in
+`with trackexec.precise_timestamping():` to record a timestamp at each
+instruction (see below).
 
 
 ## Recording a trace
@@ -64,8 +67,8 @@ results (see below).
 ### From the command line
 
 ```
-trackexec record [-o TRACE_DIR] [-i PATH_OR_MODULE]... SCRIPT [ARG...]
-trackexec record [-o TRACE_DIR] [-i PATH_OR_MODULE]... -m MODULE [ARG...]
+trackexec record [-o TRACE_DIR] [-i PATH_OR_MODULE]... [--gap-threshold MS] SCRIPT [ARG...]
+trackexec record [-o TRACE_DIR] [-i PATH_OR_MODULE]... [--gap-threshold MS] -m MODULE [ARG...]
 ```
 
 This runs the program (as `python SCRIPT` or `python -m MODULE` would do)
@@ -73,6 +76,8 @@ and records its execution. By default, the code recorded is the code in
 the directory of SCRIPT, or the code of the top-level package of MODULE.
 Use `-i` (repeatable) to select other files, directories or modules.
 The trace is saved in `trackexec-<YYMMDD-HHMMSS>` unless `-o` is given.
+Instructions taking longer than `--gap-threshold` (default: 1 ms) get exact
+start and end timestamps.
 
 
 ### From the code of the program
@@ -92,6 +97,10 @@ trackexec.start("/tmp/my-trace", include=[mypackage, "/path/to/script.py"])
 ...
 trackexec.stop()
 ```
+
+The keyword argument `gap_threshold` (in seconds, default 0.001) is the
+duration above which an instruction gets exact start and end timestamps
+(`None` disables this).
 
 `include` accepts modules, packages, module names, file paths and
 directory paths, or a list of them. The code executed at module level
