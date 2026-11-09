@@ -88,6 +88,8 @@ Trackexec is activated in the startup code of `walt-server-daemon` subprocesses,
 in file `server/walt/server/process.py`. For reducing the disk usage and
 preserving performance, trackexec is configured to monitor only the code of the
 `walt` package: other libraries are not monitored.
+With python 3.12 or later, trackexec relies on `sys.monitoring`, so the code of
+these other libraries runs at full speed.
 Moreover, timestamps are recorded sparsely.
 
 This initialization code also installs a hook on the event loop for recording
