@@ -21,8 +21,16 @@ class TTYSettings(object):
         self.tty_fd = sys.stdout.fileno()
         # save
         self.saved = termios.tcgetattr(self.tty_fd)
-        curses.setupterm()
-        self.num_colors = curses.tigetnum("colors")
+
+    @property
+    def num_colors(self):
+        # return the number of colors the terminal handles, or -1
+        # if $TERM is unknown in ncurses database.
+        try:
+            curses.setupterm()
+            return curses.tigetnum("colors")
+        except Exception:
+            return -1
 
     def set_raw_no_echo(self):
         # set raw mode
