@@ -1,10 +1,40 @@
 #!/usr/bin/env python
+import functools
+import inspect
+
 from plumbum import cli
 from plumbum.lib import getdoc
 
 
+def _wrap_main(main):
+    # By convention, the main() method of walt commands returns False on
+    # failure (and possibly True on success). Plumbum uses the return value
+    # of main() as the exit code, so we convert False to 1 and True to 0.
+    # Note: we cannot do this after plumbum returns, because plumbum >= 2
+    # replaces a False exit code by 0 (it returns "retcode or 0").
+    @functools.wraps(main)
+    def wrapped_main(self, *args, **kwargs):
+        res = main(self, *args, **kwargs)
+        if res is False:
+            return 1
+        if res is True:
+            return 0
+        return res
+
+    # plumbum reads the positional arguments of main() (and their
+    # validators) with inspect.getfullargspec(), which ignores the
+    # __wrapped__ attribute set by functools.wraps(), so we have to
+    # specify the signature explicitly.
+    wrapped_main.__signature__ = inspect.signature(main)
+    return wrapped_main
+
+
 class WalTApplication(cli.Application):
-    pass
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        main = cls.__dict__.get("main")
+        if main is not None:
+            cls.main = _wrap_main(main)
 
 
 WalTApplication.unbind_switches("-v", "--version", "--help-all",
