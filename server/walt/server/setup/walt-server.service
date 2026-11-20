@@ -41,6 +41,10 @@ ExecStartPre=walt-server-cleanup
 ExecStart=walt-server-daemon
 ExecReload=kill -HUP $MAINPID
 Restart=on-failure
+# wait a little before restarting: with the default start rate limit
+# (5 starts within 10s), systemd would otherwise give up after a few
+# fast failures (e.g., when the disk is full).
+RestartSec=5
 
 [Install]
 WantedBy=multi-user.target

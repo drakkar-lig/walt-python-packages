@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import sys
 from multiprocessing import set_start_method
 from walt.server.process import EvProcessesManager
 from walt.server.processes.blocking.process import ServerBlockingProcess
@@ -28,7 +29,16 @@ def run():
     try:
         tman.start()
     except KeyboardInterrupt:
-        print("Interrupted.")
+        print("Interrupted.")  # e.g., SIGTERM sent by systemd on a stop
+        return
+    # tman.start() returns without exception only if a subprocess failed
+    # (or crashed), so we exit with a non-zero status, which allows systemd
+    # to restart the service (Restart=on-failure).
+    failing_process = tman.initial_failing_process
+    failing_process_name = "a subprocess"
+    if failing_process is not None:
+        failing_process_name = failing_process.name
+    sys.exit(f"Exiting because of a failure of {failing_process_name}.")
 
 
 if __name__ == "__main__":
