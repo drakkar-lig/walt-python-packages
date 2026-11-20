@@ -38,7 +38,13 @@ class ServerMainProcess(EvProcess):
         self.ev_loop.register_listener(self.db.pipe, self.db)
         self.server.prepare()
         self.notify_systemd()
-        self.server.update()
+        # the startup ends when the (asynchronous) update ends, which
+        # includes the startup of virtual nodes.
+        self.server.update(on_startup_done=self.on_startup_done)
+
+    def on_startup_done(self):
+        # the hub held the requests of walt clients (CSAPI) until now
+        self.hub.do_async.release_csapi()
         print("Ready.")
 
     def notify_systemd(self):

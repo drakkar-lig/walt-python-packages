@@ -27,6 +27,9 @@ class APISessionManager(object):
         self.sock_file.set_nodelay()  # disable Nagle
 
     def record_task(self, attr, args, kwargs):
+        if self.target_api == "CSAPI" and self.process.holding_csapi:
+            self.process.held_csapi_requests.append((self, attr, args, kwargs))
+            return
         self.sent_tasks = True
         self.rpc_session.do_async.run_task(
             self.session_id, self.target_api, self.remote_ip, attr, args, kwargs
@@ -96,6 +99,9 @@ class APISessionManager(object):
             return False
 
     def close(self):
+        self.process.held_csapi_requests = [
+            req for req in self.process.held_csapi_requests if req[0] is not self
+        ]
         for task in reversed(self.stack_of_client_tasks):
             self.handle_requester_failed_task(task)
         if self.sent_tasks:

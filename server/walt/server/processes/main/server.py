@@ -129,12 +129,18 @@ class Server(object):
         # continue workflow
         wf.next()
 
-    def update(self):
+    def update(self, on_startup_done):
         self.images.store.resync_from_db()
         wf = Workflow([self.exports.wf_prepare,
                        self.exports.wf_update,
-                       self._wf_after_exports_update])
+                       self._wf_after_exports_update,
+                       self._wf_notify_startup_done],
+                      on_startup_done=on_startup_done)
         wf.run()
+
+    def _wf_notify_startup_done(self, wf, on_startup_done, **env):
+        on_startup_done()
+        wf.next()
 
     def cleanup(self):
         self.unix_server.shutdown()
