@@ -1,7 +1,7 @@
 from socket import error as SocketError
 
 from walt.common.apilink import APIChannel, AttrCallAggregator
-from walt.common.tcp import Requests
+from walt.common.tcp import Requests, read_first_line
 from walt.common.version import __version__
 from walt.server.process import RPCService
 
@@ -90,7 +90,10 @@ class APISessionManager(object):
 
     def init_session(self):
         try:
-            self.target_api = self.sock_file.readline().decode("UTF-8").strip()
+            # the client sends this line just after the request id, so use
+            # a timeout: a stuck client must not block server-hub.
+            self.target_api = read_first_line(self.sock_file).decode(
+                    "UTF-8").strip()
             self.session_id = APISessionManager.next_session_id
             APISessionManager.next_session_id += 1
             self.sock_file.write(b"%s\n" % str(__version__).encode("UTF-8"))

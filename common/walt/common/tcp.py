@@ -1,11 +1,21 @@
 import pickle
 import socket
+from time import time
 
 from walt.common.service import GenericServer, ServiceRequests
 from walt.common.tools import set_close_on_exec
 
 PICKLE_VERSION = 4  # from python 3.4
 LISTEN_BACKLOG = 256
+
+# A new connection must send its request id within NEW_CONN_REQ_ID_TIMEOUT
+# seconds, otherwise it is closed. And when the server reads the first line
+# of a request (e.g., the request id), the end of the line must arrive within
+# FIRST_LINE_READ_TIMEOUT seconds. This prevents a client which connects and
+# then gets stuck (e.g., a node which lost its root filesystem) from blocking
+# the server process.
+NEW_CONN_REQ_ID_TIMEOUT = 30
+FIRST_LINE_READ_TIMEOUT = 2
 
 
 # Send a keepalive probe every TCP_KEEPALIVE_IDLE_TIMEOUT seconds
@@ -255,6 +265,66 @@ def server_socket(port):
     return ServerSocketWrapper(s)
 
 
+def read_first_line(sock_file):
+    # read a line, with a timeout (see FIRST_LINE_READ_TIMEOUT).
+    # this raises an exception (e.g., TimeoutError) on failure.
+    sock = sock_file.sock
+    sock.settimeout(FIRST_LINE_READ_TIMEOUT)
+    try:
+        return sock_file.readline()
+    finally:
+        sock.settimeout(None)
+
+
+class ListenerWrapper:
+    """Event loop listener of a new TCP connection.
+
+    It first reads the request id, only when the event loop detects incoming
+    data, and with a timeout (see NEW_CONN_REQ_ID_TIMEOUT and
+    FIRST_LINE_READ_TIMEOUT). Then it creates the listener of the request,
+    and passes the next events to it.
+    """
+
+    def __init__(self, server, sock_file):
+        self.server = server
+        self.sock_file = sock_file
+        self.listener = None
+        self.closed = False
+
+    def start(self):
+        ev_loop = self.server.ev_loop
+        ev_loop.register_listener(self.sock_file, self)
+        ev_loop.plan_event(time() + NEW_CONN_REQ_ID_TIMEOUT,
+                           callback=self.on_timeout)
+
+    @property
+    def allow_reordering(self):
+        return getattr(self.listener, "allow_reordering", False)
+
+    def handle_event(self, ts):
+        if self.listener is not None:
+            return self.listener.handle_event(ts)
+        try:
+            req_id = Requests.get_id(
+                    read_first_line(self.sock_file).decode("ascii").strip())
+        except Exception:
+            req_id = None
+        self.listener = self.server.get_listener(
+                req_id, sock_file=self.sock_file)
+        # if None, the event loop will close the connection
+        return self.listener is not None
+
+    def on_timeout(self):
+        # close the connection if the request id was not received
+        if self.listener is None and not self.closed:
+            self.server.ev_loop.remove_listener(self)
+
+    def close(self):
+        self.closed = True
+        if self.listener is not None:
+            self.listener.close()
+
+
 class TCPServer(GenericServer):
     def __init__(self, port):
         GenericServer.__init__(self)
@@ -264,19 +334,14 @@ class TCPServer(GenericServer):
         return server_socket(self._port)
 
     # when the event loop detects an event for us, this is
-    # what we will do: accept the tcp connection, read
-    # the request and create the appropriate listener,
-    # and register this listener in the event loop.
+    # what we will do: accept the tcp connection, and register a
+    # ListenerWrapper in the event loop; it will read the request
+    # id when it arrives (without blocking the event loop meanwhile),
+    # and then create the appropriate listener.
     def handle_server_socket_event(self, serv_s):
         conn_s, addr = serv_s.accept()
         sock_file = RWSocketFile(conn_s)
-        req_id = Requests.read_id(sock_file)
-        listener = self.get_listener(req_id, sock_file=sock_file)
-        if listener is None:
-            sock_file.close()  # failed
-        else:
-            sock_file.set_keepalive()
-            self.ev_loop.register_listener(sock_file, listener)
-        # even if there was an issue when starting this listener,
+        sock_file.set_keepalive()
+        ListenerWrapper(self, sock_file).start()
         # the server itself should continue running
         return True
