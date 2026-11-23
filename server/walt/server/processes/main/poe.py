@@ -2,6 +2,7 @@ import functools
 import numpy as np
 import sys
 
+from walt.server.const import POE_EXIT_CODE_OTHER_DEVICE
 from walt.server.workflow import Workflow
 
 WARNING_DEVICE_RESCAN_POE_OFF = """\
@@ -67,6 +68,15 @@ class PoEManager:
         wf.next()
 
     def _wf_end_of_nodes_set_poe(self, wf, nodes, poe_results, **env):
+        # walt-set-poe refused to turn PoE off on the switch port of these
+        # nodes because another device is connected there: the topology
+        # entry about these nodes is obsolete, forget it.
+        mask_other_device = poe_results.retcode == POE_EXIT_CODE_OTHER_DEVICE
+        for node in nodes[mask_other_device]:
+            print(f"{node.name}: another device is connected to its switch "
+                  f"port ({node.sw_ip} port {node.sw_port}), "
+                  "forgetting the obsolete topology entry.")
+            self.server.db.forget_topology_entry_for_mac(node.mac)
         mask_succeeded = poe_results.retcode == 0
         nodes_ok = nodes[mask_succeeded]
         nodes_ko = nodes[~mask_succeeded]
@@ -89,11 +99,14 @@ class PoEManager:
         cb = functools.partial(self._wf_save_poe_result, wf, sw_port_info,
                                poe_result, **env)
         status_arg = "on" if poe_status is True else "off"
-        self.server.ev_loop.do(
-                f"walt-set-poe {sw_port_info.sw_ip} {sw_port_info.sw_port} "
-                f"{status_arg} "
-                f"{sw_port_info.sw_snmp_version} {sw_port_info.sw_snmp_community}",
-                cb, silent=False, catch_stderr=True)
+        cmd = (f"walt-set-poe {sw_port_info.sw_ip} {sw_port_info.sw_port} "
+               f"{status_arg} "
+               f"{sw_port_info.sw_snmp_version} {sw_port_info.sw_snmp_community}")
+        if poe_status is False and "mac" in sw_port_info.dtype.names:
+            # let walt-set-poe check that this device is still the one
+            # connected to the switch port
+            cmd += f" {sw_port_info.mac}"
+        self.server.ev_loop.do(cmd, cb, silent=False, catch_stderr=True)
 
     def _wf_save_poe_result(self, wf, sw_port_info, poe_result, retcode, stderr_msg,
                             **env):

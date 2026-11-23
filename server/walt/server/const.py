@@ -5,6 +5,9 @@ WALT_INTF = "walt-net"
 EXTERN_INTF = "walt-out"
 DEFAULT_IMAGE = "default"
 SNMP_TIMEOUT = 3
+# exit code of walt-set-poe when it refuses to turn PoE off because
+# another device than the expected one is connected to the switch port
+POE_EXIT_CODE_OTHER_DEVICE = 2
 WALT_DBNAME = "walt"
 WALT_DBUSER = "root"
 SSH_NODE_COMMAND = (
