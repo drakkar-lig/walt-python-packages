@@ -59,8 +59,12 @@ class DevicePingSocketListener(PromptSocketListener):
         # not run on a tty, e.g., when automated by
         # "make test"), even if its std streams (redirected
         # to the client socket) are closed on client side.
-        # So we add "-c 10 -w 11" to ensure it eventually ends.
-        return "ping -c 10 -w 11 %s" % params["device_ip"]
+        # So we add "-c 10 -W 1" to ensure it eventually ends (after 10s
+        # at most). We do not use a deadline (option -w) because ping
+        # would then return a failure when interrupted by ctrl-C before
+        # the 10 replies; without it, the exit status is 0 if the device
+        # replied, 1 otherwise.
+        return "ping -c 10 -W 1 %s" % params["device_ip"]
 
 
 class DeviceShellSocketListener(PromptSocketListener):

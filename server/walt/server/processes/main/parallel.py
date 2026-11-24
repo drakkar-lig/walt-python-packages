@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import os
 import pty
+import re
 import shlex
 import signal
 import sys
@@ -8,6 +9,17 @@ import sys
 from walt.common.io import read_and_copy
 from walt.common.tcp import read_pickle, MyPickle as pickle
 from walt.common.tty import set_tty_size, set_tty_size_raw
+
+
+# When the client requests it (parameter "exit_status_marker"), the command
+# is run by this shell script, which writes the marker and the exit status
+# of the command at the end of its output. The client removes this line
+# from the output and uses the exit status. (The marker is a random string
+# chosen by the client, thus it does not appear in the command output;
+# the line starts with a NUL byte, which helps the client to pass the
+# output through without delay.)
+EXIT_STATUS_WRAPPER = '"$@"; printf "\\000%s%d\\n" "$WALT_EXIT_STATUS_MARKER" $?'
+EXIT_STATUS_MARKER_PATTERN = re.compile(r"__WALT_EXIT_STATUS_[0-9a-f]{32}__")
 
 
 class ForkPtyProcessListener(object):
@@ -58,6 +70,10 @@ class ParallelProcessSocketListener(object):
         env = os.environ.copy()
         if "env" in self.params:
             env.update(self.params["env"])
+        marker = self.params.get("exit_status_marker")
+        if marker is not None and EXIT_STATUS_MARKER_PATTERN.fullmatch(marker):
+            env["WALT_EXIT_STATUS_MARKER"] = marker
+            cmd_args = ["sh", "-c", EXIT_STATUS_WRAPPER, "sh"] + cmd_args
         if "tty_mode" in self.params and self.params["tty_mode"] is True:
             return self.start_pty(cmd_args, env)
         else:

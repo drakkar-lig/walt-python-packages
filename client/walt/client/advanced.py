@@ -18,7 +18,7 @@ class WalTAdvancedSql(WalTApplication):
     ORDERING = 7
 
     def main(self):
-        run_sql_prompt()
+        return run_sql_prompt()
 
 
 @WalTAdvanced.subcommand("fix-image-owner")

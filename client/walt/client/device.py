@@ -81,7 +81,7 @@ class WalTDeviceShell(WalTApplication):
                 self.user = input("SSH user name: ")
             if len(self.user) == 0:
                 self.user = "root"
-            run_device_shell(device_info["ip"], self.user)
+            return run_device_shell(device_info["ip"], self.user)
 
 
 @WalTDevice.subcommand("expose")
@@ -155,8 +155,9 @@ class WalTDevicePing(WalTApplication):
         device_ip = None
         with ClientToServerLink() as server:
             device_ip = server.get_device_ip(device_name)
-        if device_ip:
-            run_device_ping(device_ip)
+        if not device_ip:
+            return False  # issue already reported
+        return run_device_ping(device_ip)
 
 
 MSG_FORGET_DEVICE_WITH_LOGS = """\

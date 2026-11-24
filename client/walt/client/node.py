@@ -58,21 +58,22 @@ class WalTNode(WalTCategoryApplication):
         nodes_ip, startup_msg = None, None
         if several_nodes_allowed and capture_output:
             sys.stderr.write("Error: Only one node allowed when capturing output.\n")
-            return
+            return False
         with ClientToServerLink() as server:
             if not check_nodes_ownership(server, node_set):
-                return
+                return False
             nodes_ip = server.get_nodes_ip(node_set)
             if len(nodes_ip) == 0:
-                return  # issue already reported
+                return False  # issue already reported
             elif len(nodes_ip) > 1 and not several_nodes_allowed:
                 sys.stderr.write("Error: this command must target 1 node only.\n")
-                return
+                return False
             if not WalTNode.wait_for_nodes(server, node_set):
                 return False
             if show_startup_msg:
                 assert several_nodes_allowed is False
                 startup_msg = server.get_node_cmd_startup_msg(node_set)
+            exit_status = 0
             for ip in nodes_ip:
                 if startup_msg:
                     print("\x1b[1m" + startup_msg + "\x1b[0m")
@@ -80,6 +81,9 @@ class WalTNode(WalTCategoryApplication):
                 res = run_node_cmd(ip, cmdargs, tty, capture_output)
                 if capture_output:
                     return res
+                # the exit status is the highest exit status of the commands
+                exit_status = max(exit_status, res)
+            return exit_status
 
     @staticmethod
     def run_console(node_name, realtime, replay_range):
@@ -134,7 +138,7 @@ class WalTNode(WalTCategoryApplication):
             if not server.set_image(node_set, image_name_or_keyword):
                 return False
             server.set_busy_label("Rebooting")
-            server.reboot_nodes(node_set, cause=cause)
+            return server.reboot_nodes(node_set, cause=cause) == "OK"
 
 
 @WalTNode.subcommand("show")
@@ -265,8 +269,9 @@ class WalTNodeReboot(WalTApplication):
     def main(self, node_set: SET_OF_NODES):
         with ClientToServerLink() as server:
             if not check_nodes_ownership(server, node_set):
-                return
-            server.reboot_nodes(node_set, hard_only=self._hard_only)
+                return False
+            return server.reboot_nodes(node_set,
+                                       hard_only=self._hard_only) == "OK"
 
     @cli.autoswitch(help="allow PoE-reboots only (power-cycle)")
     def hard(self):
@@ -323,9 +328,10 @@ class WalTNodePing(WalTApplication):
         node_ip = None
         with ClientToServerLink() as server:
             node_ip = server.get_node_ip(node_name)
-        if node_ip:
-            from walt.client.interactive import run_device_ping
-            run_device_ping(node_ip)
+        if not node_ip:
+            return False  # issue already reported
+        from walt.client.interactive import run_device_ping
+        return run_device_ping(node_ip)
 
 
 @WalTNode.subcommand("console")
@@ -358,8 +364,8 @@ class WalTNodeShell(WalTApplication):
     ORDERING = 5
 
     def main(self, node_name: NODE):
-        WalTNode.run_cmd(node_name, False, [],
-                         show_startup_msg=True, tty=True)
+        return WalTNode.run_cmd(node_name, False, [],
+                                show_startup_msg=True, tty=True)
 
 
 @WalTNode.subcommand("run")
@@ -370,7 +376,7 @@ class WalTNodeRun(WalTApplication):
     _term = False  # default
 
     def main(self, node_set: SET_OF_NODES, *cmdargs):
-        WalTNode.run_cmd(node_set, True, cmdargs, tty=self._term)
+        return WalTNode.run_cmd(node_set, True, cmdargs, tty=self._term)
 
     @cli.autoswitch(help="run command in a pseudo-terminal")
     def term(self):
