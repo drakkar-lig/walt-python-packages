@@ -16,8 +16,7 @@ See [`walt help show design-notes`](design-notes.md) for more info.
 WalT mainly provides the following set of features:
 * **Physical access** (see below) and/or **remote control** over nodes
 * Compatibility with various kinds of nodes:
-  - **Raspberry Pi** B/B+/2B/3B/3B+/4B/400 nodes
-  - Google **Coral Dev Boards**
+  - **Raspberry Pi** B/B+/2B/3B/3B+/4B/5B nodes
   - **PC nodes** (PXE-capable, or otherwise booted from a USB dongle)
   - **Virtual nodes**
   - Distant Raspberry Pi nodes using WALT ssh-based **VPN** (experimental feature)

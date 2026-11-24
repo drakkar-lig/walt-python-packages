@@ -128,22 +128,6 @@ The SD card is a fragile part. However, the network booting mechanism used in wa
 allows to keep the SD card readonly, which greatly improves its lifetime.
 
 
-## Google Coral Dev Boards
-
-First, follow the standard startup procedure at https://coral.ai/docs/dev-board/get-started.
-Then run the following on the board (with a proper internet access):
-```
-$ cd /tmp
-$ wget https://walt-project.liglab.fr/files/coral-devb-boot.tar.gz
-$ cd /boot
-$ mv boot.scr boot.scr.orig
-$ tar xfz /tmp/coral-devb-boot.tar.gz
-```
-
-You can now connect the board to a WALT network and it will boot as a WALT node.
-For PoE, use a PoE splitter providing USB-C connectivity.
-
-
 ## How to identify and use the new node
 
 When WALT server detects a node for the first time, a log line is emitted.

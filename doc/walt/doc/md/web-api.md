@@ -105,7 +105,6 @@ Example:
         "rpi-3-b",
         "rpi-3-b-plus",
         "rpi-4-b",
-        "rpi-400",
         "qemu-arm-32",
         "qemu-arm-64"
       ]

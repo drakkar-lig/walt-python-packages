@@ -114,10 +114,10 @@ A few images (i.e., the default images of node models present on the platform) m
   - self.values(self): Iterate over values this set contains
 
   sub-items:
-  - self['coral-dev-board-mendel']: <image coral-dev-board-mendel>
   - self['openwrt-nfs3']: <image openwrt-nfs3>
   - self['pc-image']: <image pc-image>
   - self['pc-x86-64-test-suite']: <image pc-x86-64-test-suite>
+  - self['rpi64-debian']: <image rpi64-debian>
   - self['test-suite-image']: <image test-suite-image>
 
   note: these sub-items are also accessible using self.<shortcut> for handy completion.
