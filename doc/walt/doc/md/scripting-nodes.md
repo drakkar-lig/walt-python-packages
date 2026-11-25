@@ -41,9 +41,11 @@ Use `walt node boot vn23 <other-image>` if needed.
   - self.virtual: True
 
   methods:
+  - self.acquire(self, force=False): Get ownership of this node
   - self.boot(self, image, force=False): Boot the specified WalT image
   - self.get_logs(self, realtime=False, history=None, timeout=-1): Iterate over historical or realtime logs
   - self.reboot(self, force=False, hard_only=False): Reboot this node
+  - self.release(self): Release ownership of this node
   - self.remove(self, force=False): Remove this virtual node
   - self.rename(self, new_name, force=False): Rename this virtual node
   - self.wait(self, timeout=-1): Wait until node is booted
@@ -71,6 +73,7 @@ Use api method `api.nodes.get_nodes()`:
 < -- Set of WalT nodes (2 items) --
 
   methods:
+  - self.acquire(self, force=False): Get ownership of all nodes in this set
   - self.boot(self, image, force=False): Boot the specified image on all nodes of this set
   - self.filter(self, **kwargs): Return the subset of nodes matching the given attributes
   - self.get(self, k, default=None): Return item specified or default value if missing
@@ -78,6 +81,7 @@ Use api method `api.nodes.get_nodes()`:
   - self.items(self): Iterate over key & value pairs this set contains
   - self.keys(self): Iterate over keys this set contains
   - self.reboot(self, force=False, hard_only=False): Reboot all nodes of this set
+  - self.release(self): Release ownership of all nodes in this set
   - self.values(self): Iterate over values this set contains
   - self.wait(self, timeout=-1): Wait until all nodes of this set are booted
 
@@ -126,14 +130,17 @@ One can also group individual nodes into a set by using binary-or operators:
 < -- Set of WalT nodes (3 items) --
 
   methods:
+  - self.acquire(self, force=False): Get ownership of all nodes in this set
   - self.boot(self, image, force=False): Boot the specified image on all nodes of this set
   - self.filter(self, **kwargs): Return the subset of nodes matching the given attributes
   - self.get(self, k, default=None): Return item specified or default value if missing
+  - self.get_logs(self, realtime=False, history=None, timeout=-1): Iterate over historical or realtime logs
   - self.items(self): Iterate over key & value pairs this set contains
   - self.keys(self): Iterate over keys this set contains
   - self.reboot(self, force=False, hard_only=False): Reboot all nodes of this set
+  - self.release(self): Release ownership of all nodes in this set
   - self.values(self): Iterate over values this set contains
-  - self.wait(self, timeout_secs=-1): Wait until all nodes of this set are booted
+  - self.wait(self, timeout=-1): Wait until all nodes of this set are booted
 
   sub-items:
   - self['rpi2b']: <node rpi2b>
@@ -171,10 +178,12 @@ Interacting with a given node is pretty obvious, as shown in this interactive se
   - self.virtual: False
 
   methods:
+  - self.acquire(self, force=False): Get ownership of this node
   - self.boot(self, image, force=False): Boot the specified WalT image
   - self.forget(self, force=False): Forget this node
   - self.get_logs(self, realtime=False, history=None, timeout=-1): Iterate over historical or realtime logs
   - self.reboot(self, force=False, hard_only=False): Reboot this node
+  - self.release(self): Release ownership of this node
   - self.rename(self, new_name, force=False): Rename this node
   - self.wait(self, timeout=-1): Wait until node is booted
 >

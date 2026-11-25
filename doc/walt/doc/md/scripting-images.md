@@ -9,7 +9,7 @@ Scripting features for image management are available at `walt.client.api.images
 < -- API submodule for WALT images --
 
   methods:
-  - self.build(self, image_name, dir_or_url): Build an image using a Dockerfile
+  - self.build(self, image_name, dir_or_url, *, sub_dir='/', dockerfile_path=None, target_stage=None, with_node=None, force=False): Build an image using a Dockerfile
   - self.clone(self, clonable_image_link, force=False, image_name=None): Clone a remote image into your working set
   - self.get_images(self): Return images of your working set
 >

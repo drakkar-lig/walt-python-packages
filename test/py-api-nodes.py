@@ -162,6 +162,24 @@ def test_api_node_acquire():
     assert node.owner == conf.walt.username
 
 
+@define_test("api node_set.release()")
+def test_api_node_set_release():
+    node = get_existing_vnode()
+    nodes = api.nodes.get_nodes(node.name)
+    nodes.release()
+    assert node.owner == "waltplatform"
+
+
+@define_test("api node_set.acquire()")
+def test_api_node_set_acquire():
+    node = get_existing_vnode()
+    nodes = api.nodes.get_nodes(node.name)
+    nodes.acquire()
+    from walt.client.config import conf
+
+    assert node.owner == conf.walt.username
+
+
 @define_test("api node.rename()")
 def test_api_image_rename():
     node = get_existing_vnode()

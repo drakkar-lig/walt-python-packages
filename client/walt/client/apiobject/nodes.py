@@ -297,11 +297,13 @@ class APISetOfNodesFactory:
 
             def release(self):
                 """Release ownership of all nodes in this set"""
-                Tools.boot_image(self, "default", "release", ownership_mode="owned")
+                Tools.boot_image(self, "free", "release", ownership_mode="owned")
 
             def acquire(self, force=False):
                 """Get ownership of all nodes in this set"""
-                Tools.acquire(self, force=force)
+                Tools.boot_image(self, "default", "acquire",
+                                 ownership_mode="free-or-not-owned",
+                                 force=force)
 
         return APISetOfNodes()
 
