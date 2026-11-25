@@ -217,11 +217,11 @@ class WalTDeviceConfig(WalTApplication):
         with ClientToServerLink() as server:
             device_set = server.develop_device_set(device_set)
             if device_set is None:
-                return
+                return False
             if len(configuration) > 0:
                 if not WalTDevice.confirm_devices_not_owned(server, device_set):
-                    return
-                server.set_device_config(device_set, configuration)
+                    return False
+                return server.set_device_config(device_set, configuration)
             else:
                 # no settings specified => list current settings
                 server.get_device_config(device_set)

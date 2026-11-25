@@ -608,12 +608,12 @@ class SettingsManager:
         # parse settings
         all_settings = parse_settings_args(requester, settings_args)
         if all_settings is None:
-            return
+            return False
 
         # ensure the device set is correct
         device_infos = self.server.devices.parse_device_set(requester, device_set)
         if device_infos is None:
-            return  # issue already reported
+            return False  # issue already reported
 
         # ensure all settings are known and pass related checks
         converting_to_switches = all_settings.get("type") == "switch"
@@ -625,7 +625,7 @@ class SettingsManager:
                     "Unknown setting '%s'. See: 'walt help show device-config'\n"
                     % setting_name
                 )
-                return
+                return False
 
             # verify this setting pass all checks
             category = setting_info["category"]
@@ -638,12 +638,12 @@ class SettingsManager:
                 mask_function = self.category_info[category]["mask"]
             mask = mask_function(requester, device_infos, setting_name)
             if not all(mask):
-                return
+                return False
             value_check = setting_info["value-check"]
             if not value_check(
                 requester, device_infos, setting_name, setting_value, all_settings
             ):
-                return
+                return False
 
         # effectively configure the devices
         should_reboot_devices = False
@@ -773,6 +773,7 @@ class SettingsManager:
             )
         else:
             requester.stdout.write("Done.\n")
+        return True
 
     def get_device_config_data(self, requester, device_set):
         result = {}

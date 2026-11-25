@@ -477,11 +477,11 @@ class WalTNodeConfig(WalTApplication):
         with ClientToServerLink() as server:
             node_set = server.develop_node_set(node_set)
             if node_set is None:
-                return
+                return False
             if len(configuration) > 0:
                 if not check_nodes_ownership(server, node_set):
-                    return
-                server.set_device_config(node_set, configuration)
+                    return False
+                return server.set_device_config(node_set, configuration)
             else:
                 # no settings specified => list current settings
                 server.get_device_config(node_set)

@@ -282,7 +282,7 @@ class CSAPI(APISession):
 
     @api_expose_method
     def set_device_config(self, context, device_set, conf_args):
-        context.server.settings.set_device_config(
+        return context.server.settings.set_device_config(
             context.requester, device_set, conf_args
         )
 
