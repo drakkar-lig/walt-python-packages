@@ -4,7 +4,12 @@ import sys
 def yes_or_no(msg, okmsg="OK.\n", komsg="OK.\n"):
     while True:
         print("%s (y/n):" % msg, end=" ")
-        res = input()
+        try:
+            res = input()
+        except EOFError:
+            # stdin was closed (e.g., non-interactive use): answer "no"
+            print()
+            res = "n"
         if res == "y":
             if okmsg:
                 print(okmsg)
