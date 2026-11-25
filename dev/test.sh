@@ -4,6 +4,7 @@ THIS_DIR="$(cd "$(dirname $0)"; pwd)"
 TESTS_DIR="$(cd "$THIS_DIR/../test"; pwd)"
 TESTSUITE_TMP_DIR="$(mktemp -d)"
 export TESTSUITE_TMP_DIR
+trap 'rm -rf "$TESTSUITE_TMP_DIR"' EXIT
 
 __test_suite_debug_tests=0
 
@@ -120,7 +121,7 @@ then
     walt image remove $(cat /tmp/test_suite_image) >/dev/null 2>&1
 fi
 
-__prepared_sh_source="$TMPDIR/prepared_source.sh"
+__prepared_sh_source="$TESTSUITE_TMP_DIR/prepared_source.sh"
 
 for __testsuite_source_file in "${SH_TEST_FILES[@]}"
 do
@@ -146,8 +147,6 @@ EOF
     source "$__prepared_sh_source"
     __testsuite_exec_prev_test
 done
-
-rm -rf "$TMPDIR"
 
 # summary
 echo
