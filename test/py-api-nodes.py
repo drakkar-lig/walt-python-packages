@@ -1,6 +1,7 @@
 from includes.common import (
     TEST_IMAGE_URL,
     define_test,
+    expect_exception,
     get_first_items,
     skip_test,
     test_create_vnode,
@@ -8,6 +9,7 @@ from includes.common import (
     test_suite_node,
 )
 from walt.client import api
+from walt.client.exceptions import OperationFailedException
 
 
 def get_existing_vnode():
@@ -21,6 +23,19 @@ def get_existing_vnode():
 @define_test("api.nodes.create_vnode()")
 def test_api_nodes_create_vnode():
     test_create_vnode()
+
+
+@define_test("api.nodes.create_vnode() failure")
+def test_api_nodes_create_vnode_failure():
+    with expect_exception(OperationFailedException):
+        api.nodes.create_vnode("invalid name")
+    assert "invalid name" not in api.nodes.get_nodes()
+
+
+@define_test("api.nodes.get_nodes() failure")
+def test_api_nodes_get_nodes_failure():
+    with expect_exception(OperationFailedException):
+        api.nodes.get_nodes("__missing__node")
 
 
 @define_test("repr(api.nodes.get_nodes())")
@@ -178,6 +193,26 @@ def test_api_node_set_acquire():
     from walt.client.config import conf
 
     assert node.owner == conf.walt.username
+
+
+@define_test("api node.config failure")
+def test_api_node_config_failure():
+    node = get_existing_vnode()
+    netsetup = node.config.netsetup
+    with expect_exception(OperationFailedException):
+        node.config.netsetup = "INVALID"
+    assert node.config.netsetup == netsetup
+    node.config.netsetup = netsetup  # valid value: no exception
+
+
+@define_test("api node.rename() failure")
+def test_api_node_rename_failure():
+    node = get_existing_vnode()
+    name = node.name
+    with expect_exception(OperationFailedException):
+        node.rename("invalid name")
+    assert node.name == name
+    assert name in api.nodes.get_nodes()
 
 
 @define_test("api node.rename()")

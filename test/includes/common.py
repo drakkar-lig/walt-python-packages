@@ -1,6 +1,7 @@
 import os
 import requests
 import sys
+from contextlib import contextmanager
 from pathlib import Path
 from walt.client import api
 
@@ -62,6 +63,15 @@ def define_test(s):
 
         TEST_CONTEXT["num_test"] -= 1
     return decorate
+
+
+@contextmanager
+def expect_exception(exc_cls):
+    try:
+        yield
+    except exc_cls:
+        return
+    raise Exception(f"{exc_cls.__name__} was not raised")
 
 
 def skip_test(reason):

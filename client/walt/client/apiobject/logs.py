@@ -1,5 +1,6 @@
 from walt.client.apiobject.base import APIObjectBase, api_namedtuple_cls
 from walt.client.apitools import get_devices_names, silent_server_link
+from walt.client.exceptions import OperationFailedException
 from walt.client.log import WalTLogShowOrWait, analyse_history_range
 
 
@@ -9,7 +10,7 @@ class APILogsSubModule(APIObjectBase):
     def get_logs(self, realtime=False, history=None, issuers="my-nodes", timeout=-1):
         """Iterate over historical or realtime logs"""
         if realtime is False and history is None:
-            raise Exception(
+            raise OperationFailedException(
                 'At least one of the options "realtime" and "history"'
                 ' must be specified.'
             )
@@ -19,7 +20,7 @@ class APILogsSubModule(APIObjectBase):
                     server, history
                 )
                 if not range_analysis[0]:
-                    raise Exception(
+                    raise OperationFailedException(
                         """Invalid "history" value. See 'walt help show log-history'."""
                     )
                 history_range = range_analysis[1]
@@ -29,7 +30,7 @@ class APILogsSubModule(APIObjectBase):
                 server, issuers, allowed_device_set="server,all-nodes"
             )
             if issuers is None:
-                raise Exception("""Invalid set of issuers.""")
+                raise OperationFailedException("""Invalid set of issuers.""")
             WalTLogShowOrWait.record_nodes_continuous_use(server, issuers)
             return self._iterate(history_range, realtime, issuers, timeout)
 

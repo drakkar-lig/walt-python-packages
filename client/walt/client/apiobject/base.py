@@ -620,9 +620,11 @@ class APIItemInfoCache:
 
     def __delitem__(self, item_name):
         self.ensure_populated()
+        from walt.client.exceptions import OperationFailedException
+
         with self.server_link() as server:
             if not self.do_remove_item(server, item_name):
-                return  # failed
+                raise OperationFailedException(f"Removing {item_name} failed")
         item_id = self.id_per_name[item_name]
         self.names_per_id[item_id].remove(item_name)
         if len(self.names_per_id[item_id]) == 0:
@@ -655,9 +657,11 @@ class APIItemInfoCache:
 
     def rename(self, item_name, new_item_name):
         self.ensure_populated()
+        from walt.client.exceptions import OperationFailedException
+
         with self.server_link() as server:
             if not self.do_rename_item(server, item_name, new_item_name):
-                return  # failed
+                raise OperationFailedException(f"Renaming {item_name} failed")
         item_id = self.id_per_name[item_name]
         self.names_per_id[item_id].remove(item_name)
         self.names_per_id[item_id].add(new_item_name)

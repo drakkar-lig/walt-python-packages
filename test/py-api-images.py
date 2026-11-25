@@ -4,11 +4,13 @@ from pathlib import Path
 from includes.common import (
     TEST_IMAGE_URL,
     define_test,
+    expect_exception,
     get_first_items,
     test_suite_image,
     test_create_vnode,
 )
 from walt.client import api
+from walt.client.exceptions import OperationFailedException
 from walt.common.tools import do
 
 IMAGE_BUILD_GIT_URL = "https://github.com/eduble/pc-x86-64-test-suite-mod"
@@ -40,6 +42,20 @@ def test_walt_image_build():
     node.remove(force=True)
 
 
+@define_test("api.images.build() failure")
+def test_api_images_build_failure():
+    with tempfile.NamedTemporaryFile() as f:
+        # dir_or_url is a file, not a directory
+        with expect_exception(OperationFailedException):
+            api.images.build(f"{test_suite_image()}-api-bfail", f.name)
+
+
+@define_test("api.images.clone() failure")
+def test_api_images_clone_failure():
+    with expect_exception(OperationFailedException):
+        api.images.clone("walt:__missing__user/__missing__image")
+
+
 @define_test("api.images.clone()")
 def test_api_images_clone():
     api.images.clone(TEST_IMAGE_URL, force=True, image_name=IMAGE_CLONE_NAME)
@@ -54,6 +70,14 @@ def test_api_image_rename():
     images[IMAGE_CLONE_NAME].rename(IMAGE_RENAME_NAME)
     if IMAGE_CLONE_NAME in images or IMAGE_RENAME_NAME not in images:
         raise Exception("Image rename did not work")
+
+
+@define_test("api image.rename() failure")
+def test_api_image_rename_failure():
+    images = api.images.get_images()
+    with expect_exception(OperationFailedException):
+        images[IMAGE_RENAME_NAME].rename("invalid name")
+    assert IMAGE_RENAME_NAME in images
 
 
 @define_test("repr(api.images.get_images())")

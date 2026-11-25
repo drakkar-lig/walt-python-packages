@@ -146,6 +146,34 @@ rpibp.reboot()
 ```
 
 
+## Error handling
+
+When an operation fails, API methods raise an exception, after the reason
+was printed on standard error. Most errors raise
+`walt.client.exceptions.OperationFailedException`; for instance, when a node
+cannot be rebooted, when a setting value is invalid, or when an image cannot
+be cloned:
+
+```
+>>> from walt.client.exceptions import OperationFailedException
+>>> try:
+...     rpibp.config.netsetup = 'INVALID'
+... except OperationFailedException as e:
+...     print(f'Error: {e}')
+...
+Failed: netsetup value should be 'NAT' or 'LAN'.
+Error: Changing the node configuration failed
+>>>
+```
+
+Module `walt.client.exceptions` also defines more specific exceptions, such as
+`NodeNotOwnedException` (when using a node owned by someone else without the
+`force` parameter), `NoSuchImageNameException`, or `TimeoutException` (when
+the `timeout` parameter of `<node>.wait()` or `api.logs.get_logs()` is reached).
+
+So a script stops at the first failure, unless it catches these exceptions.
+
+
 ## Read-only and writable attributes
 
 Node configuration attributes are writable. Other API objects only have read-only attributes.

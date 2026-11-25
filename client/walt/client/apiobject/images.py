@@ -1,5 +1,4 @@
 import re
-import sys
 from collections import defaultdict
 from pathlib import Path
 from signal import SIGINT
@@ -12,7 +11,10 @@ from walt.client.apiobject.base import (
 )
 from walt.client.apitools import silent_server_link
 from walt.client.config import conf
-from walt.client.exceptions import NoSuchImageNameException
+from walt.client.exceptions import (
+    NoSuchImageNameException,
+    OperationFailedException,
+)
 from walt.client.transfer import run_transfer_for_image_build
 from walt.common.tools import parse_image_fullname
 from walt.common.tools import temporary_signal_handler
@@ -82,15 +84,11 @@ class APIImageFactory:
             def remove(self):
                 name = self.name
                 self.__remove_from_cache__()
-                if name in __info_cache__:
-                    return  # __remove_from_cache__ failed
                 del APIImageFactory.__images_per_name__[name]
 
             def rename(self, new_name):
                 name = self.name
                 self.__rename_in_cache__(new_name)
-                if name in __info_cache__:
-                    return  # __rename_in_cache__ failed
                 APIImageFactory.__images_per_name__[new_name] = (
                     APIImageFactory.__images_per_name__.pop(name)
                 )
@@ -137,24 +135,22 @@ class APIImagesSubModule(APIObjectBase):
         info = dict(mode=mode, image_name=image_name, force=force, caller="api")
         if mode == "dir":
             if not Path(dir_or_url).is_dir():
-                sys.stderr.write(
-                    "Failed: parameter dir_or_url must be a directory or a git"
-                    " repository URL.\n"
-                )
-                return False
+                raise OperationFailedException(
+                    "Parameter dir_or_url must be a directory or a git"
+                    " repository URL")
             if dockerfile_path is not None:
                 dockerfile = Path(dockerfile_path)
                 if not dockerfile.is_file():
-                    print(f"dockerfile_path='{dockerfile.absolute()}' does not "
-                           "match a valid file path.")
-                    return False
+                    raise OperationFailedException(
+                        f"dockerfile_path='{dockerfile.absolute()}' does not "
+                        "match a valid file path")
                 try:
                     dockerfile_path = dockerfile.resolve().relative_to(
                             Path(dir_or_url).resolve())
                 except ValueError:
-                    print("The file specified by dockerfile_path must "
-                          "belong to the source directory.")
-                    return False
+                    raise OperationFailedException(
+                        "The file specified by dockerfile_path must "
+                        "belong to the source directory")
             info["src_dir"] = str(dir_or_url)
         else:
             info["url"] = dir_or_url
@@ -164,11 +160,9 @@ class APIImagesSubModule(APIObjectBase):
             info["target"] = target_stage
         if sub_dir.strip("/") != "":
             if mode != "url":
-                sys.stderr.write(
-                    "Failed: parameter sub_dir is only supported when using"
-                    " a repository URL.\n"
-                )
-                return False
+                raise OperationFailedException(
+                    "Parameter sub_dir is only supported when using"
+                    " a repository URL")
             info["subdir"] = sub_dir.strip("/")
         if with_node is not None:
             with_node_name = with_node
@@ -178,38 +172,30 @@ class APIImagesSubModule(APIObjectBase):
                 if len(nodes) != 1:
                     raise Exception()
             except Exception:
-                sys.stderr.write(
-                    "Failed: parameter 'with_node' is invalid.\n"
-                    "It should be a valid node name or node API object."
-                )
-                return False
+                raise OperationFailedException(
+                    "Parameter 'with_node' is invalid: it should be a valid"
+                    " node name or node API object")
             node = list(nodes)[0]
-            try:
-                node._check_owned_or_force(force)
-            except Exception as e:
-                sys.stderr.write(f"Failed: {str(e)}.")
-                return False
+            node._check_owned_or_force(force)
             info["with_node_name"] = node.name
         with silent_server_link() as server:
             info = server.create_image_build_session(**info)
             if info is None:
-                return False  # issue already reported
+                raise OperationFailedException("Building the image failed")
             image_overwrite = info.pop("image_overwrite")
             if image_overwrite and not force:
-                sys.stderr.write(
-                    "Add parameter force=True if you want to proceed anyway.\n")
-                return False
+                raise OperationFailedException(
+                    "Add parameter force=True if you want to proceed anyway")
             session_id = info["session_id"]
             def handle_sigint(signum, frame):
                 server.interrupt_image_build(session_id)
             with temporary_signal_handler(SIGINT, handle_sigint):
                 if mode == "dir":
-                    if not run_transfer_for_image_build(**info):
-                        return False
+                    ok = run_transfer_for_image_build(**info)
                 else:
-                    if not server.run_image_build_from_url(session_id):
-                        # failed
-                        return False
+                    ok = server.run_image_build_from_url(session_id)
+                if not ok:
+                    raise OperationFailedException("Building the image failed")
             server.finalize_image_build_session(session_id)
         __info_cache__.refresh()  # detect the new image
         return APIImageFactory.create(image_name)
@@ -226,7 +212,7 @@ class APIImagesSubModule(APIObjectBase):
                 print("The image was cloned successfully.")
                 return APIImageFactory.create(image_name)
             else:
-                return  # issue
+                raise OperationFailedException("Cloning the image failed")
 
 
 class APIClonableImage(APIObjectBase):

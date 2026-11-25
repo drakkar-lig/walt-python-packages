@@ -21,6 +21,7 @@ from walt.client.exceptions import (
     NodeHasLogsException,
     NodeNotOwnedException,
     OpAppliesNodeOwnedException,
+    OperationFailedException,
     ParameterNotAnImageException,
 )
 from walt.client.timeout import timeout_context
@@ -100,13 +101,34 @@ class Tools:
         nodeset = Tools.get_comma_nodeset(nodes)
         with silent_server_link() as server:
             if not server.set_image(nodeset, image_name_or_keyword):
-                return
-            server.reboot_nodes(nodeset, cause=cause)
+                raise OperationFailedException("Changing the image of the nodes failed")
+            reboot_status = server.reboot_nodes(nodeset, cause=cause)
         # update node info cache to print the correct image name
         # on this node
         __info_cache__.refresh()
         # update image info cache (the <image>.in_use flag may have changed)
         update_image_cache()
+        if reboot_status != "OK":
+            raise OperationFailedException(
+                "The image of the nodes was changed, but rebooting them failed")
+
+    @staticmethod
+    def reboot(nodes, force, hard_only):
+        for n in nodes:
+            n._check_owned_or_force(force)
+        with silent_server_link() as server:
+            status = server.reboot_nodes(Tools.get_comma_nodeset(nodes),
+                                         hard_only=hard_only)
+        if status != "OK":
+            raise OperationFailedException("Rebooting the nodes failed")
+
+    @staticmethod
+    def wait(nodes, timeout):
+        with silent_server_link() as server:
+            with timeout_context(timeout):
+                ok = server.wait_for_nodes(Tools.get_comma_nodeset(nodes))
+        if not ok:
+            raise OperationFailedException("Waiting for the nodes failed")
 
 
 class APINodeFactory:
@@ -153,15 +175,21 @@ class APINodeFactory:
             def _get_config(self):
                 with silent_server_link() as server:
                     dev_configs = server.get_device_config_data(self.name)
+                    if dev_configs is None:
+                        raise OperationFailedException(
+                            "Reading the node configuration failed")
                     settings = dev_configs[0]["settings"]
                     return {k.replace(".", "_"): v for k, v in settings.items()}
 
             def _set_config(self, setting_name, setting_value):
                 setting_name = setting_name.replace("_", ".")
                 with silent_server_link() as server:
-                    server.set_device_config(
+                    ok = server.set_device_config(
                         self.name, (f"{setting_name}={setting_value}",)
                     )
+                if not ok:
+                    raise OperationFailedException(
+                        "Changing the node configuration failed")
 
             def _check_owned_or_force(self, force=False, mode="owned-or-free"):
                 if mode == "free-or-not-owned" and self.owner == conf.walt.username:
@@ -177,15 +205,11 @@ class APINodeFactory:
 
             def reboot(self, force=False, hard_only=False):
                 """Reboot this node"""
-                self._check_owned_or_force(force)
-                with silent_server_link() as server:
-                    server.reboot_nodes(self.name, hard_only=hard_only)
+                Tools.reboot((self,), force, hard_only)
 
             def wait(self, timeout=-1):
                 """Wait until node is booted"""
-                with silent_server_link() as server:
-                    with timeout_context(timeout):
-                        server.wait_for_nodes(self.name)
+                Tools.wait((self,), timeout)
 
             def get_logs(self, realtime=False, history=None, timeout=-1):
                 """Iterate over historical or realtime logs"""
@@ -270,17 +294,11 @@ class APISetOfNodesFactory:
 
             def reboot(self, force=False, hard_only=False):
                 """Reboot all nodes of this set"""
-                for n in self:
-                    n._check_owned_or_force(force)
-                with silent_server_link() as server:
-                    server.reboot_nodes(Tools.get_comma_nodeset(self),
-                                        hard_only=hard_only)
+                Tools.reboot(self, force, hard_only)
 
             def wait(self, timeout=-1):
                 """Wait until all nodes of this set are booted"""
-                with silent_server_link() as server:
-                    with timeout_context(timeout):
-                        server.wait_for_nodes(Tools.get_comma_nodeset(self))
+                Tools.wait(self, timeout)
 
             def get_logs(self, realtime=False, history=None, timeout=-1):
                 """Iterate over historical or realtime logs"""
@@ -316,13 +334,14 @@ class APINodesSubModule(APIObjectBase):
         with silent_server_link() as server:
             names = get_devices_names(server, node_set, allowed_device_set="all-nodes")
             if names is None:
-                raise Exception("""Invalid set of nodes specified.""")
+                raise OperationFailedException("Invalid set of nodes specified")
         return APISetOfNodesFactory.create(names)
 
     def create_vnode(self, node_name):
         """Create a virtual node"""
         with silent_server_link() as server:
-            server.create_vnode(node_name)
+            if not server.create_vnode(node_name):
+                raise OperationFailedException("Creating the virtual node failed")
         __info_cache__.refresh()  # detect the new node
         return APINodeFactory.create(node_name)
 

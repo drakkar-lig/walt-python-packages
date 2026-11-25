@@ -1,5 +1,6 @@
-from includes.common import define_test, test_create_vnode
+from includes.common import define_test, expect_exception, test_create_vnode
 from walt.client import api
+from walt.client.exceptions import OperationFailedException
 
 
 @define_test("api logs.get_logs()")
@@ -44,3 +45,13 @@ def test_api_logs_get_logs():
     api.logs.get_logs(history="-10s:", issuers=api.nodes.get_nodes())
     # cleanup
     node.remove(force=True)
+
+
+@define_test("api logs.get_logs() failures")
+def test_api_logs_get_logs_failures():
+    with expect_exception(OperationFailedException):
+        api.logs.get_logs()  # neither realtime nor history
+    with expect_exception(OperationFailedException):
+        api.logs.get_logs(history="invalid")
+    with expect_exception(OperationFailedException):
+        api.logs.get_logs(history="-10s:", issuers="__missing__node")

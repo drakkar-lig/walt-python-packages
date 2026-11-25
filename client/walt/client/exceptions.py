@@ -54,3 +54,10 @@ The specified parameter is not a WalT image"""
 class ParameterNotAnImageException(Exception):
     def __init__(self):
         super().__init__(EXCEPTION_PARAMETER_NOT_AN_IMAGE)
+
+
+class OperationFailedException(Exception):
+    """Raised by API methods when the requested operation failed.
+       The reason is usually printed on stderr just before."""
+
+    pass
