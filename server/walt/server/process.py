@@ -116,6 +116,10 @@ def _log_dbg_exit(line):
 
 
 class EvProcess(Process):
+    # Only the process which notifies systemd that the service is ready
+    # should keep the NOTIFY_SOCKET environment variable (see run()).
+    NOTIFIES_SYSTEMD = False
+
     def __init__(self, manager, name, level):
         Process.__init__(self, name=name)
         self.pipe_process, self.pipe_manager = Pipe()
@@ -129,6 +133,14 @@ class EvProcess(Process):
 
     def run(self):
         setproctitle.setproctitle(f"walt-server-daemon:{self.name}")
+        # The walt-server systemd unit uses NotifyAccess=all, so any process
+        # of the service may send notifications. For instance, "podman run"
+        # sends "MAINPID=<pid-of-conmon>" when NOTIFY_SOCKET is set; systemd
+        # then considers the service has ended when this short-lived
+        # process exits, and stops the whole service. So the subprocesses
+        # (and the commands they run) must not inherit NOTIFY_SOCKET.
+        if not self.NOTIFIES_SYSTEMD:
+            os.environ.pop("NOTIFY_SOCKET", None)
         # set appropriate OS resource limits
         set_rlimits()
         # each process should be in its own group to avoid receiving

@@ -17,6 +17,10 @@ def on_sighup_reload_conf():
 
 
 class ServerMainProcess(EvProcess):
+    # this process notifies systemd when the service is ready
+    # (see notify_systemd())
+    NOTIFIES_SYSTEMD = True
+
     def __init__(self, tman, level):
         EvProcess.__init__(self, tman, "server-main", level)
         self.server = None  # not configured yet
@@ -54,7 +58,8 @@ class ServerMainProcess(EvProcess):
 
             sdnotify.SystemdNotifier().notify("READY=1")
             # note: podman hangs (at least on debian buster) if we
-            # do not disable systemd notify mechanism.
+            # do not disable systemd notify mechanism, and it may
+            # change the main PID of the service (see EvProcess.run()).
             # at this point we no longer need it, so let's discard
             # the env variable.
             del os.environ["NOTIFY_SOCKET"]
