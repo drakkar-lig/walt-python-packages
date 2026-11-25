@@ -44,11 +44,12 @@ copy_mode_and_owner() {
     if busybox_has_applet stat
     then
         mode="$(busybox stat -c "%a" "$src")"
-        owner="$(busybox stat -c "%U:%G" "$src")"
+        # (numeric IDs: a user or group may have no name)
+        owner="$(busybox stat -c "%u:%g" "$src")"
         busybox chmod "$mode" "$dst"
         busybox chown "$owner" "$dst"
     else
-        set -- $(busybox ls -ld "$src")
+        set -- $(busybox ls -lnd "$src")
         mode="$1"
         owner="$3"
         group="$4"
@@ -88,7 +89,14 @@ hard_link_files() {
         # clone parent directories of $f recursively in $tmp_dir,
         # preserving mode and ownership.
         clone_parent_dirs_of "$f"
-        if [ -d "$f" ]
+        if [ -L "$f" ]
+        then
+            # copy symlinks instead of hard linking them: on some
+            # systems (e.g., FreeBSD), link() follows symlinks, so
+            # we would get the target file, or an error if it is on
+            # another filesystem (e.g., /etc/motd -> /var/run/motd).
+            busybox cp -a "$f" "${tmp_dir}/$f"
+        elif [ -d "$f" ]
         then
             clone_dir "$f" "${tmp_dir}/$f"
         else
@@ -122,7 +130,7 @@ add_hidden_whiteouts() {
         /bin/walt-list-hidden-whiteouts "$1" | while read wh
         do
             clone_parent_dirs_of "$wh"
-            busybox ln "$tmp_dir/.whiteout" "${tmp_dir}/$f"
+            busybox ln "$tmp_dir/.whiteout" "${tmp_dir}/$wh"
         done
         busybox rm "$tmp_dir/.whiteout"
     fi

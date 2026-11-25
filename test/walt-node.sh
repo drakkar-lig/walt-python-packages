@@ -76,18 +76,29 @@ define_test "walt node run" as {
 }
 
 define_test "walt node save" as {
-    walt node run $(test_suite_node) touch /root/node-save
+    # (note: the command is interpreted by a shell on the node)
+    # - a directory owned by a user and group with no name
+    # - a symbolic link (on FreeBSD, link() follows symlinks, thus
+    #   walt-dump-diff-tar must not hard link them); we put it in the
+    #   directory, because "walt image cp <image>:<symlink>" copies
+    #   the target of the symlink.
+    walt node run $(test_suite_node) "touch /root/node-save && \
+        mkdir -p /root/node-save-dir && \
+        touch /root/node-save-dir/file && \
+        ln -s /proc/version /root/node-save-dir/link && \
+        chown 54321:54321 /root/node-save-dir"
     temp_img="$(test_suite_image)-$$"
     walt node save $(test_suite_node) $temp_img
     walt image cp ${temp_img}:/root/node-save /tmp/node-save-$$
-    if [ -f /tmp/node-save-$$ ]
-    then
-        # ok, cleanup
-        rm /tmp/node-save-$$
-        walt image remove $temp_img
-    else
-        return 1  # failed
-    fi
+    walt image cp ${temp_img}:/root/node-save-dir /tmp/node-save-dir-$$
+    ok=1
+    [ -f /tmp/node-save-$$ ] || ok=0
+    [ "$(stat -c %u:%g /tmp/node-save-dir-$$)" = "54321:54321" ] || ok=0
+    [ -f /tmp/node-save-dir-$$/file ] || ok=0
+    [ "$(readlink /tmp/node-save-dir-$$/link)" = "/proc/version" ] || ok=0
+    rm -rf /tmp/node-save-$$ /tmp/node-save-dir-$$
+    walt image remove $temp_img
+    [ $ok -eq 1 ]
 }
 
 define_test "walt node expose" as {
