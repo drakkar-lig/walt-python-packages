@@ -340,11 +340,11 @@ class WalTLogAddCheckpoint(WalTApplication):
                         print("Could not parse the date specified.")
                         print("Expected format is: %s" % DATE_FORMAT_STRING_HUMAN)
                         print("Example: %s" % DATE_FORMAT_STRING_EXAMPLE)
-                        return
+                        return False
             if not validate_checkpoint_name(checkpoint_name):
                 sys.stderr.write(MSG_INVALID_CHECKPOINT_NAME)
-                return
-            server.add_checkpoint(checkpoint_name, self.date)
+                return False
+            return server.add_checkpoint(checkpoint_name, self.date)
 
 
 @WalTLog.subcommand("remove-checkpoint")
@@ -355,7 +355,7 @@ class WalTLogRemoveCheckpoint(WalTApplication):
 
     def main(self, checkpoint_name: LOG_CHECKPOINT):
         with ClientToServerLink() as server:
-            server.remove_checkpoint(checkpoint_name)
+            return server.remove_checkpoint(checkpoint_name)
 
 
 @WalTLog.subcommand("list-checkpoints")

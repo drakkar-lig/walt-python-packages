@@ -76,10 +76,26 @@ define_test "walt device rename" as {
 
     # restore
     walt device rename "$newname" "$name"
+
+    # invalid name
+    if walt device rename "$name" "invalid name"
+    then
+        return 1    # should have failed
+    fi
 }
 
 define_test "walt device forget (on non existing device)" as {
-    walt device forget eazgzaezgeriogahregu
+    if walt device forget eazgzaezgeriogahregu
+    then
+        return 1    # should have failed
+    fi
+}
+
+define_test "walt device port-config (on non existing switch)" as {
+    if walt device port-config eazgzaezgeriogahregu
+    then
+        return 1    # should have failed
+    fi
 }
 
 define_test "walt device shell (on non existing device)" as {

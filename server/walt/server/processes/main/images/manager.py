@@ -127,7 +127,7 @@ class NodeImageManager:
         return dict(image_name=image_name)
 
     def fix_owner(self, requester, other_user):
-        fix_owner(self.store, self.registry, requester, other_user)
+        return fix_owner(self.store, self.registry, requester, other_user)
 
     def has_image(self, requester, image_name, expected=True):
         image = self.store.get_user_image_from_name(

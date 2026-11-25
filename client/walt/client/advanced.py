@@ -37,9 +37,10 @@ walt).
 If this is really what you want, run:
 walt advanced fix-image-owner --yes-i-know-do-it-please %s
 """ % ((other_user,) * 3))
+            return False  # not done
         else:
             with ClientToServerLink() as server:
-                server.fix_image_owner(other_user)
+                return server.fix_image_owner(other_user)
 
     @cli.autoswitch(help="yes, I know, do it!")
     def yes_i_know_do_it_please(self):

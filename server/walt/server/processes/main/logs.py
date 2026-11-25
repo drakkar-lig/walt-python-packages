@@ -640,7 +640,7 @@ class LogsManager(object):
     def add_checkpoint(self, requester, cp_name, date):
         # expect no existing checkpoint with the same name
         if not self.get_checkpoint(requester, cp_name, expected=False)[0]:
-            return
+            return False
         if date:
             # convert to datetime
             date = datetime.fromtimestamp(date)
@@ -655,13 +655,15 @@ class LogsManager(object):
         requester.stdout.write(
             "New checkpoint %s recorded at server time: %s.\n" % (cp_name, date)
         )
+        return True
 
     def remove_checkpoint(self, requester, cp_name):
         # expect a checkpoint with this name
         if not self.get_checkpoint(requester, cp_name, expected=True)[0]:
-            return
+            return False
         self.db.delete("checkpoints", name=cp_name, username=requester.get_username())
         requester.stdout.write("Done.\n")
+        return True
 
     def list_checkpoints(self, requester):
         username = requester.get_username()

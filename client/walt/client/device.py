@@ -115,7 +115,7 @@ class WalTDeviceRescan(WalTApplication):
 
     def main(self, device_set: RESCAN_SET_OF_DEVICES = "server,explorable-switches"):
         with ClientToServerLink() as server:
-            server.device_rescan(device_set)
+            return server.device_rescan(device_set)
 
 
 @WalTDevice.subcommand("rename")
@@ -126,7 +126,7 @@ class WalTRenameDevice(WalTApplication):
 
     def main(self, old_name: DEVICE, new_name):
         with ClientToServerLink() as server:
-            server.rename(old_name, new_name)
+            return server.rename(old_name, new_name)
 
 
 @WalTDevice.subcommand("port-config")
@@ -139,10 +139,10 @@ class WalTDevicePortConfig(WalTApplication):
              *configuration: PORT_CONFIG_PARAM):
         with ClientToServerLink() as server:
             if len(configuration) > 0:
-                server.set_port_config(switch_name, port_id, configuration)
+                return server.set_port_config(switch_name, port_id, configuration)
             else:
                 # no settings specified => list current settings
-                server.get_port_config(switch_name, port_id)
+                return server.get_port_config(switch_name, port_id)
 
 
 @WalTDevice.subcommand("ping")
@@ -181,10 +181,10 @@ class WalTDeviceForget(WalTApplication):
             # check if server knows this device
             device_info = server.get_device_info(device_name)
             if device_info is None:
-                return  # issue already reported
+                return False  # issue already reported
             if device_info["type"] == "node" and device_info["virtual"]:
                 print(MSG_USE_WALT_NODE_REMOVE % dict(node=device_name))
-                return
+                return False
             if not self._force:
                 # note: do not count logs of "*console" streams
                 logs_cnt = server.count_logs(
@@ -197,9 +197,10 @@ class WalTDeviceForget(WalTApplication):
                         MSG_FORGET_DEVICE_WITH_LOGS
                         % (device_name, logs_cnt, device_name)
                     )
-                    return  # give up for now
+                    return False  # give up for now
             # ok, do it
-            server.forget(device_name)
+            if not server.forget(device_name):
+                return False
             print("done.")
 
     @cli.autoswitch(help="do it, even if related data will be lost")

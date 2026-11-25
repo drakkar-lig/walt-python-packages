@@ -33,10 +33,10 @@ Image %s now belongs to you.
 def fix_owner(images, registry: WalTLocalRegistry, requester, other_user):
     username = requester.get_username()
     if not username:
-        return None  # client already disconnected, give up
+        return False  # client already disconnected, give up
     if username == other_user:
         requester.stderr.write(MSG_SAME_USER % other_user)
-        return
+        return False
     in_use = set()
     candidates = set()
     for image in images.values():
@@ -47,17 +47,17 @@ def fix_owner(images, registry: WalTLocalRegistry, requester, other_user):
                 candidates.add(image)
     if len(in_use) > 0:
         requester.stderr.write(MSG_IN_USE % (other_user, ", ".join(in_use)))
-        return
+        return False
     problematic = set()
     for image in candidates:
         if images.get_user_image_from_name(requester, image.name, expected=None):
             problematic.add(image.name)
     if len(problematic) > 0:
         requester.stderr.write(MSG_OVERWRITING % (other_user, ", ".join(problematic)))
-        return
+        return False
     if len(candidates) == 0:
         requester.stderr.write(MSG_NO_SUCH_USER % other_user)
-        return
+        return False
     # ok, let's do it
     for image in candidates:
         # rename the image
@@ -68,3 +68,4 @@ def fix_owner(images, registry: WalTLocalRegistry, requester, other_user):
         # update the store
         images.rename(old_fullname, new_fullname)
         requester.stdout.write(MSG_CHANGED_OWNER % image.name)
+    return True

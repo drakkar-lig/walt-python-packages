@@ -53,6 +53,10 @@ define_test "walt log list-checkpoints" as {
 define_test "walt log add-checkpoint" as {
     walt log add-checkpoint $(test_suite_checkpoint)
     checkpoint_exists $(test_suite_checkpoint)
+    if walt log add-checkpoint $(test_suite_checkpoint)
+    then
+        return 1    # should have failed (checkpoint already exists)
+    fi
 }
 
 define_test "walt log show" as {
@@ -75,5 +79,9 @@ define_test "walt log remove-checkpoint" as {
     if checkpoint_exists $(test_suite_checkpoint)
     then
         return 1    # failed
+    fi
+    if walt log remove-checkpoint $(test_suite_checkpoint)
+    then
+        return 1    # should have failed (no such checkpoint)
     fi
 }

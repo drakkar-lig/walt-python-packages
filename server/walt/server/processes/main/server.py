@@ -306,7 +306,8 @@ class Server(object):
         )
 
     def _wf_device_rescan_save_result(self, wf, res, **env):
-        wf.update_env(rescan_res=res)
+        # note: the result of the blocking task is the new topology,
+        # we just return True to the client.
         wf.next()
 
     def _wf_device_rescan_update_services(self, wf, **env):
@@ -315,8 +316,8 @@ class Server(object):
         wf.insert_steps([self.exports.wf_update])
         wf.next()
 
-    def _wf_device_rescan_return_result(self, wf, rescan_res, task, **env):
-        task.return_result(rescan_res)
+    def _wf_device_rescan_return_result(self, wf, task, **env):
+        task.return_result(True)
         wf.next()   # end the workflow
 
     def report_lldp_neighbor(self, remote_ip, sw_mac, sw_port_lldp_label):
@@ -597,13 +598,13 @@ class Server(object):
     ):
         node_info = self.nodes.get_node_info(requester, node_name)
         if node_info is None:
-            return  # error already reported
+            return False  # error already reported
         fullname, username, image_name = parse_image_fullname(node_info.image)
         session = self.images.create_shell_session(
             requester, image_name, "file transfer"
         )
         if session is None:
-            return  # issue already reported
+            return False  # issue already reported
         # ensure session.cleanup() will be called when client disconnects
         api_session.register_session_object(session)
         cmd = format_node_to_booted_image_transfer_cmd(
@@ -615,17 +616,25 @@ class Server(object):
         task.set_async()
 
         # callbacks that will be called when blocking process has done the job
-        def cb_unblock_client(res):
-            task.return_result(None)
+        def cb_unblock_client(status):
+            task.return_result(status == "OK_SAVED")
 
-        def cb(res):
+        def cb(retcode):
             requester.set_default_busy_label()
+            if retcode != 0:
+                # the transfer failed, do not save the image
+                # (the session will be cleaned up when the client
+                # disconnects)
+                requester.stderr.write("Failed: the transfer did not complete.\n")
+                task.return_result(False)
+                return
             self.image_shell_session_save(
                 requester, cb_unblock_client, session, fullname, True
             )
 
         requester.set_busy_label("Transfering")
-        self.blocking.run_shell_cmd(requester, cb, cmd, shell=True)
+        self.blocking.run_shell_cmd(requester, cb, cmd, shell=True,
+                                    pipe_outstreams=True)
 
     def shell_autocomplete(self, task, requester, username, argv, debug=False):
         return shell_autocomplete(self, task, requester, username, argv, debug=debug)

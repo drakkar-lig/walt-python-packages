@@ -9,6 +9,13 @@ define_test "walt node create" as {
     node_exists $(test_suite_node)
 }
 
+define_test "walt node create (invalid name)" as {
+    if walt node create "invalid name"
+    then
+        return 1    # should have failed
+    fi
+}
+
 define_test "walt node release" as {
     walt node release $(test_suite_node)
 }
@@ -21,6 +28,10 @@ define_test "walt node rename" as {
     walt node rename $(test_suite_node) $(test_suite_node)-2
     node_exists $(test_suite_node)-2
     walt node rename $(test_suite_node)-2 $(test_suite_node)
+    if walt node rename $(test_suite_node) "invalid name"
+    then
+        return 1    # should have failed
+    fi
 }
 
 define_test "walt node boot" as {
@@ -103,6 +114,23 @@ define_test "walt node expose" as {
 
 define_test "walt node cp" as {
     test_walt_cp node $(test_suite_node)
+}
+
+define_test "walt node cp (booted-image)" as {
+    node=$(test_suite_node)
+    # (note: the command is interpreted by a shell on the node)
+    walt node run $node "echo $$ > /root/booted-image-test"
+    # (confirm the reboot of the node)
+    echo y | walt node cp $node:/root/booted-image-test booted-image
+    checkfile=$(mktemp -u)
+    walt image cp $(test_suite_image):/root/booted-image-test $checkfile
+    [ "$(cat $checkfile)" = "$$" ]
+    rm -f $checkfile
+    walt node wait $node   # the node reboots after the image update
+    if echo y | walt node cp $node:/root/missing-file booted-image
+    then
+        return 1    # should have failed
+    fi
 }
 
 define_test "walt node shell" as {

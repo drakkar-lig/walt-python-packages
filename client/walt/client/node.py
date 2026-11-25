@@ -170,7 +170,7 @@ class WalTNodeCreate(WalTApplication):
 
     def main(self, node_name: NODE):
         with ClientToServerLink() as server:
-            server.create_vnode(node_name)
+            return server.create_vnode(node_name)
 
 
 @WalTNode.subcommand("remove")
@@ -182,8 +182,8 @@ class WalTNodeRemove(WalTApplication):
     def main(self, node_name: NODE):
         with ClientToServerLink() as server:
             if not check_nodes_ownership(server, node_name):
-                return
-            server.remove_vnode(node_name)
+                return False
+            return server.remove_vnode(node_name)
 
 
 @WalTNode.subcommand("rename")
@@ -195,8 +195,8 @@ class WalTNodeRename(WalTApplication):
     def main(self, old_node_name: NODE, new_node_name):
         with ClientToServerLink() as server:
             if not check_nodes_ownership(server, old_node_name):
-                return
-            server.rename(old_node_name, new_node_name)
+                return False
+            return server.rename(old_node_name, new_node_name)
 
 
 @WalTNode.subcommand("blink")
@@ -398,7 +398,7 @@ class WalTNodeCp(WalTApplication):
         with ClientToServerLink() as server:
             info = server.validate_node_cp(src, dst)
             if info is None:
-                return
+                return False
             if info["status"] == "FAILED":
                 return False
             if info["node_ownership"] == "not_owned":
@@ -418,7 +418,7 @@ class WalTNodeCp(WalTApplication):
                     dst_dir=info["dst_dir"],
                     dst_name=info["dst_name"],
                 )
-                server.node_cp_to_booted_image(node_name, **path_info)
+                return server.node_cp_to_booted_image(node_name, **path_info)
             else:
                 from walt.client.transfer import run_transfer_with_node
                 try:

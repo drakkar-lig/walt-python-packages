@@ -40,3 +40,16 @@ define_test "walt advanced set-free-nodes-image" as {
         pc-x86-64 default
     walt image remove "set-free-nodes-image"
 }
+
+define_test "walt advanced fix-image-owner (failures)" as {
+    # without the confirmation option, nothing is done
+    if walt advanced fix-image-owner __missing_user__
+    then
+        return 1    # should have failed
+    fi
+    # no images belong to this user
+    if walt advanced fix-image-owner --yes-i-know-do-it-please __missing_user__
+    then
+        return 1    # should have failed
+    fi
+}

@@ -14,7 +14,7 @@ from walt.server.tools import np_record_to_dict, np_recarray_to_tuple_of_dicts
 class CSAPI(APISession):
     @api_expose_method
     def device_rescan(self, context, device_set):
-        context.server.device_rescan(
+        return context.server.device_rescan(
             context.requester, context.task, device_set
         )
 
@@ -258,11 +258,11 @@ class CSAPI(APISession):
 
     @api_expose_method
     def add_checkpoint(self, context, cp_name, date):
-        context.logs.add_checkpoint(context.requester, cp_name, date)
+        return context.logs.add_checkpoint(context.requester, cp_name, date)
 
     @api_expose_method
     def remove_checkpoint(self, context, cp_name):
-        context.logs.remove_checkpoint(context.requester, cp_name)
+        return context.logs.remove_checkpoint(context.requester, cp_name)
 
     @api_expose_method
     def list_checkpoints(self, context):
@@ -292,12 +292,12 @@ class CSAPI(APISession):
 
     @api_expose_method
     def set_port_config(self, context, switch_name, port_id, configuration):
-        context.server.port_settings.set_config(context.requester,
+        return context.server.port_settings.set_config(context.requester,
                 switch_name, port_id, configuration)
 
     @api_expose_method
     def get_port_config(self, context, switch_name, port_id):
-        context.server.port_settings.get_config(context.requester,
+        return context.server.port_settings.get_config(context.requester,
                 switch_name, port_id)
 
     @api_expose_method

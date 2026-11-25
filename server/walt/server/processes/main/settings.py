@@ -942,6 +942,7 @@ class PortSettingsManager:
                         (port_name, switch_mac, port_id))
         self.server.dhcpd.update()
         requester.stdout.write("Done.\n")
+        return True
 
     def get_config(self, requester, switch_name, port_id):
         device_info = self._get_switch_info(requester, switch_name)
@@ -961,7 +962,7 @@ class PortSettingsManager:
             if len(port_ids) == 0:
                 requester.stdout.write(f"WalT did not detect traffic going through this switch yet.\n")
                 requester.stdout.write(f"Use 'walt device rescan' to probe again.\n")
-                return
+                return True
             requester.stdout.write(f"WalT currently uses the following ports of {switch_name}:\n")
             footer_notes.append("The other switch ports are in their default configuration.")
         else:
@@ -993,3 +994,4 @@ class PortSettingsManager:
         if len(footer_notes) > 0:
             footer_notes = '\n'.join(footer_notes)
             requester.stdout.write(footer_notes + '\n')
+        return True
